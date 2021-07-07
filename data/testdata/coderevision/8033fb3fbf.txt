@@ -1,0 +1,66 @@
+diff --git a/target/ppc/meson.build b/target/ppc/meson.build
+index 848e625302..d1aa7d5d39 100644
+--- a/target/ppc/meson.build
++++ b/target/ppc/meson.build
+@@ -28,10 +28,6 @@ ppc_softmmu_ss.add(files(
+   'mmu_helper.c',
+   'monitor.c',
+ ))
+-ppc_softmmu_ss.add(when: 'CONFIG_TCG', if_false: files(
+-  'tcg-stub.c'
+-))
+-
+ ppc_softmmu_ss.add(when: 'TARGET_PPC64', if_true: files(
+   'compat.c',
+   'mmu-book3s-v3.c',
+diff --git a/target/ppc/tcg-stub.c b/target/ppc/tcg-stub.c
+deleted file mode 100644
+index aadcf59d26..0000000000
+--- a/target/ppc/tcg-stub.c
++++ /dev/null
+@@ -1,45 +0,0 @@
+-/*
+- *  PowerPC CPU initialization for qemu.
+- *
+- *  Copyright (C) 2021 Instituto de Pesquisas Eldorado (eldorado.org.br)
+- *
+- * This library is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU Lesser General Public
+- * License as published by the Free Software Foundation; either
+- * version 2.1 of the License, or (at your option) any later version.
+- *
+- * This library is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+- * Lesser General Public License for more details.
+- *
+- * You should have received a copy of the GNU Lesser General Public
+- * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+- */
+-#include "qemu/osdep.h"
+-#include "cpu.h"
+-#include "internal.h"
+-#include "hw/ppc/spapr.h"
+-
+-void create_ppc_opcodes(PowerPCCPU *cpu, Error **errp)
+-{
+-}
+-
+-void destroy_ppc_opcodes(PowerPCCPU *cpu)
+-{
+-}
+-
+-target_ulong softmmu_resize_hpt_prepare(PowerPCCPU *cpu,
+-                                        SpaprMachineState *spapr,
+-                                        target_ulong shift)
+-{
+-    g_assert_not_reached();
+-}
+-
+-target_ulong softmmu_resize_hpt_commit(PowerPCCPU *cpu,
+-                                       SpaprMachineState *spapr,
+-                                       target_ulong flags,
+-                                       target_ulong shift)
+-{
+-    g_assert_not_reached();
+-}

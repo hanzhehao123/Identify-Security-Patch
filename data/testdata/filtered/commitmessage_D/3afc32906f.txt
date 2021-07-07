@@ -1,0 +1,51 @@
+commit 3afc32906f7bffd8e09b7d247d60b55c49665bd3
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:16:55 2021 -0400
+
+    python: add VERSION file
+    
+    Python infrastructure as it exists today is not capable reliably of
+    single-sourcing a package version from a parent directory. The authors
+    of pip are working to correct this, but as of today this is not possible.
+    
+    The problem is that when using pip to build and install a python
+    package, it copies files over to a temporary directory and performs its
+    build there. This loses access to any information in the parent
+    directory, including git itself.
+    
+    Further, Python versions have a standard (PEP 440) that may or may not
+    follow QEMU's versioning. In general, it does; but naturally QEMU does
+    not follow PEP 440. To avoid any automatically-generated conflict, a
+    manual version file is preferred.
+    
+    I am proposing:
+    
+    - Python tooling follows the QEMU version, indirectly, but with a major
+      version of 0 to indicate that the API is not expected to be
+      stable. This would mean version 0.5.2.0, 0.5.1.1, 0.5.3.0, etc.
+    
+    - In the event that a Python package needs to be updated independently
+      of the QEMU version, a pre-release alpha version should be preferred,
+      but *only* after inclusion to the qemu development or stable branches.
+    
+      e.g. 0.5.2.0a1, 0.5.2.0a2, and so on should be preferred prior to
+      5.2.0's release.
+    
+    - The Python core tooling makes absolutely no version compatibility
+      checks or constraints. It *may* work with releases of QEMU from the
+      past or future, but it is not required to.
+    
+      i.e., "qemu.machine" will, for now, remain in lock-step with QEMU.
+    
+    - We reserve the right to split the qemu package into independently
+      versioned subpackages at a later date. This might allow for us to
+      begin versioning QMP independently from QEMU at a later date, if
+      we so choose.
+    
+    Implement this versioning scheme by adding a VERSION file and setting it
+    to 0.6.0.0a1.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-12-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

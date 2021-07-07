@@ -1,0 +1,15 @@
+commit 3687ad49038e13103f7382316e16dff79abddf95
+Author: Roman Kagan <rvkagan@yandex-team.ru>
+Date:   Thu Jun 10 13:07:32 2021 +0300
+
+    block/nbd: fix channel object leak
+    
+    nbd_free_connect_thread leaks the channel object if it hasn't been
+    stolen.
+    
+    Unref it and fix the leak.
+    
+    Signed-off-by: Roman Kagan <rvkagan@yandex-team.ru>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-3-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

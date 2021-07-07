@@ -1,0 +1,25 @@
+diff --git a/block/file-posix.c b/block/file-posix.c
+index 4189b2bfa6..5ff78ecb34 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -1338,8 +1338,6 @@ static int handle_aiocb_flush(void *opaque)
+ 
+     ret = qemu_fdatasync(aiocb->aio_fildes);
+     if (ret == -1) {
+-        trace_file_flush_fdatasync_failed(errno);
+-
+         /* There is no clear definition of the semantics of a failing fsync(),
+          * so we may have to assume the worst. The sad truth is that this
+          * assumption is correct for Linux. Some pages are now probably marked
+diff --git a/block/trace-events b/block/trace-events
+index b3d2b1e62c..574760ba9a 100644
+--- a/block/trace-events
++++ b/block/trace-events
+@@ -206,7 +206,6 @@ file_copy_file_range(void *bs, int src, int64_t src_off, int dst, int64_t dst_of
+ file_FindEjectableOpticalMedia(const char *media) "Matching using %s"
+ file_setup_cdrom(const char *partition) "Using %s as optical disc"
+ file_hdev_is_sg(int type, int version) "SG device found: type=%d, version=%d"
+-file_flush_fdatasync_failed(int err) "errno %d"
+ 
+ # ssh.c
+ sftp_error(const char *op, const char *ssh_err, int ssh_err_code, int sftp_err_code) "%s failed: %s (libssh error code: %d, sftp error code: %d)"

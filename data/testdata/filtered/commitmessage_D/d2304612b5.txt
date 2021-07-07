@@ -1,0 +1,18 @@
+commit d2304612b525e6a0d9df93717c0d1e5321b6b845
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue May 25 14:44:57 2021 +0100
+
+    tests/qtest/tpm-tests: Remove unnecessary NULL checks
+    
+    Coverity points out that in tpm_test_swtpm_migration_test() we
+    assume that src_tpm_addr and dst_tpm_addr are non-NULL (we
+    pass them to tpm_util_migration_start_qemu() which will
+    unconditionally dereference them) but then later explicitly
+    check them for NULL. Remove the pointless checks.
+    
+    Fixes: Coverity CID 1432367, 1432359
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Stefan Berger <stefanb@linux.ibm.com>
+    Message-id: 20210525134458.6675-6-peter.maydell@linaro.org

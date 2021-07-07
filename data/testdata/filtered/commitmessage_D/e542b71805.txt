@@ -1,0 +1,12 @@
+commit e542b71805dc4b7827e6c2f00a1170a61843345e
+Author: Stefan Berger <stefanb@linux.vnet.ibm.com>
+Date:   Tue Jun 15 16:21:20 2021 +0200
+
+    sysemu: Make TPM structures inaccessible if CONFIG_TPM is not defined
+    
+    Signed-off-by: Stefan Berger <stefanb@linux.ibm.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Tested-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210614191335.1968807-5-stefanb@linux.ibm.com>
+    [PMD: Remove tpm_init() / tpm_cleanup() stubs]
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>

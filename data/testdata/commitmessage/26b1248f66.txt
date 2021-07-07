@@ -1,0 +1,14 @@
+commit 26b1248f66c20f9d7fa384acecfdac03a0c8393d
+Author: Yasuo Kuwahara <kwhr00@gmail.com>
+Date:   Tue May 25 18:46:19 2021 +0900
+
+    tcg/aarch64: Fix tcg_out_rotl
+    
+    The last argument of tcg_out_extr() must be in the range 0-31 if ext==0.
+    Before the fix, when m==0 it becomes 32 and it crashes with an Illegal
+    instruction on Apple Silicon.  After the fix, it will be 0.  If m is in
+    the range 1-31, it is the same as before.
+    
+    Signed-off-by: Yasuo Kuwahara <kwhr00@gmail.com>
+    Message-Id: <CAHfJ0vSXnmnTLmT0kR=a8ACRdw_UsLYOhStzUzgVEHoH8U-7sA@mail.gmail.com>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

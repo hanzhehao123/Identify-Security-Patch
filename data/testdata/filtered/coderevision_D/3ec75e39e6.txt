@@ -1,0 +1,46 @@
+diff --git a/hw/arm/Kconfig b/hw/arm/Kconfig
+index 647b5c8b43..8e7c9d22a4 100644
+--- a/hw/arm/Kconfig
++++ b/hw/arm/Kconfig
+@@ -414,7 +414,6 @@ config ASPEED_SOC
+     select PCA9552
+     select SERIAL
+     select SMBUS_EEPROM
+-    select PCA954X
+     select SSI
+     select SSI_M25P80
+     select TMP105
+diff --git a/hw/arm/aspeed.c b/hw/arm/aspeed.c
+index 1301e8fdff..0eafc79154 100644
+--- a/hw/arm/aspeed.c
++++ b/hw/arm/aspeed.c
+@@ -14,7 +14,6 @@
+ #include "hw/arm/boot.h"
+ #include "hw/arm/aspeed.h"
+ #include "hw/arm/aspeed_soc.h"
+-#include "hw/i2c/i2c_mux_pca954x.h"
+ #include "hw/i2c/smbus_eeprom.h"
+ #include "hw/misc/pca9552.h"
+ #include "hw/misc/tmp105.h"
+@@ -462,18 +461,14 @@ static void quanta_q71l_bmc_i2c_init(AspeedMachineState *bmc)
+     /* TODO: i2c-1: Add Frontpanel FRU eeprom@57 24c64 */
+     /* TODO: Add Memory Riser i2c mux and eeproms. */
+ 
+-    i2c_slave_create_simple(aspeed_i2c_get_bus(&soc->i2c, 2), "pca9546", 0x74);
+-    i2c_slave_create_simple(aspeed_i2c_get_bus(&soc->i2c, 2), "pca9548", 0x77);
+-
++    /* TODO: i2c-2: pca9546@74 */
++    /* TODO: i2c-2: pca9548@77 */
+     /* TODO: i2c-3: Add BIOS FRU eeprom@56 24c64 */
+-
+-    /* i2c-7 */
+-    i2c_slave_create_simple(aspeed_i2c_get_bus(&soc->i2c, 7), "pca9546", 0x70);
++    /* TODO: i2c-7: Add pca9546@70 */
+     /*        - i2c@0: pmbus@59 */
+     /*        - i2c@1: pmbus@58 */
+     /*        - i2c@2: pmbus@58 */
+     /*        - i2c@3: pmbus@59 */
+-
+     /* TODO: i2c-7: Add PDB FRU eeprom@52 */
+     /* TODO: i2c-8: Add BMC FRU eeprom@50 */
+ }

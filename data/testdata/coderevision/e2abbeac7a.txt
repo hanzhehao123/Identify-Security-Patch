@@ -1,0 +1,43 @@
+diff --git a/.github/lockdown.yml b/.github/lockdown.yml
+index d3546bd2bc..07fc2f31ee 100644
+--- a/.github/lockdown.yml
++++ b/.github/lockdown.yml
+@@ -14,11 +14,11 @@ issues:
+     at https://gitlab.com/qemu-project/qemu.git.
+     The project does not process issues filed on GitHub.
+ 
+-    The project issues are tracked on GitLab:
+-    https://gitlab.com/qemu-project/qemu/-/issues
++    The project issues are tracked on Launchpad:
++    https://bugs.launchpad.net/qemu
+ 
+     QEMU welcomes bug report contributions. You can file new ones on:
+-    https://gitlab.com/qemu-project/qemu/-/issues/new
++    https://bugs.launchpad.net/qemu/+filebug
+ 
+ pulls:
+   comment: |
+diff --git a/README.rst b/README.rst
+index 79b19f1481..a92c7394b7 100644
+--- a/README.rst
++++ b/README.rst
+@@ -131,16 +131,16 @@ will be tagged as my-feature-v2.
+ Bug reporting
+ =============
+ 
+-The QEMU project uses GitLab issues to track bugs. Bugs
++The QEMU project uses Launchpad as its primary upstream bug tracker. Bugs
+ found when running code built from QEMU git or upstream released sources
+ should be reported via:
+ 
+-* `<https://gitlab.com/qemu-project/qemu/-/issues>`_
++* `<https://bugs.launchpad.net/qemu/>`_
+ 
+ If using QEMU via an operating system vendor pre-built binary package, it
+ is preferable to report bugs to the vendor's own bug tracker first. If
+ the bug is also known to affect latest upstream code, it can also be
+-reported via GitLab.
++reported via launchpad.
+ 
+ For additional information on bug reporting consult:
+ 

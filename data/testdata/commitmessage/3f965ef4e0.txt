@@ -1,0 +1,14 @@
+commit 3f965ef4e013d37391f5bb94c243d4a4b1825b1f
+Author: Alexander Graf <agraf@csgraf.de>
+Date:   Thu Jun 3 14:09:32 2021 +0100
+
+    hvf: Make hvf_set_phys_mem() static
+    
+    The hvf_set_phys_mem() function is only called within the same file.
+    Make it static.
+    
+    Signed-off-by: Alexander Graf <agraf@csgraf.de>
+    Reviewed-by: Sergio Lopez <slp@redhat.com>
+    Message-id: 20210519202253.76782-6-agraf@csgraf.de
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

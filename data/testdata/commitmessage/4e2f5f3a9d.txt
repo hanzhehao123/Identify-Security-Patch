@@ -1,0 +1,17 @@
+commit 4e2f5f3a9db06e87a73eb60a7cc9754fc13596ee
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Mon Jun 7 14:58:42 2021 +0100
+
+    scripts: helper to generate x86_64 CPU ABI compat info
+    
+    This script is what is used to generate the docs data table in:
+    
+      docs/system/cpu-models-x86-abi.csv
+    
+    It can be useful to run if adding new CPU models / versions and
+    the csv needs updating.
+    
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210607135843.196595-4-berrange@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

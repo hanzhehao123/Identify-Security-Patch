@@ -1,0 +1,13 @@
+commit 6faf2384ec78d5a1e0b5dfe430e80cf2278e45c4
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:30 2021 -0400
+
+    scripts/qmp-shell: Fix "FuzzyJSON" parser
+    
+    I'm not sure when this regressed (Or maybe if it was ever working right
+    to begin with?), but the Python AST requires you to change "Names" to
+    "Constants" in order to truly convert `false` to `False`.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-24-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

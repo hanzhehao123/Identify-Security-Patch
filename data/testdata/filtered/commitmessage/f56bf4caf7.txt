@@ -1,0 +1,29 @@
+commit f56bf4caf7179c82a50e3f7618f335526fba37d3
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Tue May 25 07:18:39 2021 +0200
+
+    gitlab: Run Avocado tests manually (except mainstream CI)
+    
+    Due to a design problem and misunderstanding between the Avocado
+    framework and QEMU, Avocado is fetching many asset artifacts it
+    shouldn't be fetching, exhausting the jobs CI timeout.
+    
+    Since Avocado artifacts are cached, this is not an issue with old
+    forks, which already have populated the cache and do not need to
+    download new artifacts to run the tests.
+    
+    However this is very confusing to new contributors who start to
+    fork the project and keep having failing CI pipelines.
+    
+    As a temporary kludge, add the QEMU_CI_AVOCADO_TESTING variable
+    to allow old forks to keep running the Avocado tests, while still
+    allowing new forks to use the mainstream set of CI tests.
+    
+    Keep the tests enabled by default on the mainstream namespace
+    which is old enough to have a populated cache, hoping we will
+    keep this cache long enough until the Avocado/QEMU design issue
+    is fixed.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-Id: <20210525082556.4011380-9-f4bug@amsat.org>

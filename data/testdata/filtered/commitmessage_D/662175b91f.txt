@@ -1,0 +1,37 @@
+commit 662175b91ff2c0d56f709345b0bf9534ec2a218d
+Author: Claudio Fontana <cfontana@suse.de>
+Date:   Thu Jun 3 14:30:00 2021 +0200
+
+    i386: reorder call to cpu_exec_realizefn
+    
+    i386 realizefn code is sensitive to ordering, and recent commits
+    aimed at refactoring it, splitting accelerator-specific code,
+    broke assumptions which need to be fixed.
+    
+    We need to:
+    
+    * process hyper-v enlightements first, as they assume features
+      not to be expanded
+    
+    * only then, expand features
+    
+    * after expanding features, attempt to check them and modify them in the
+      accel-specific realizefn code called by cpu_exec_realizefn().
+    
+    * after the framework has been called via cpu_exec_realizefn,
+      the code can check for what has or hasn't been set by accel-specific
+      code, or extend its results, ie:
+    
+      - check and evenually set code_urev default
+      - modify cpu->mwait after potentially being set from host CPUID.
+      - finally check for phys_bits assuming all user and accel-specific
+        adjustments have already been taken into account.
+    
+    Fixes: f5cc5a5c ("i386: split cpu accelerators from cpu.c"...)
+    Fixes: 30565f10 ("cpu: call AccelCPUClass::cpu_realizefn in"...)
+    Cc: Eduardo Habkost <ehabkost@redhat.com>
+    Cc: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Cc: Paolo Bonzini <pbonzini@redhat.com>
+    Signed-off-by: Claudio Fontana <cfontana@suse.de>
+    Message-Id: <20210603123001.17843-2-cfontana@suse.de>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

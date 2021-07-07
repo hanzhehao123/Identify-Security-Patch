@@ -1,0 +1,98 @@
+diff --git a/.gitlab-ci.d/crossbuild-template.yml b/.gitlab-ci.d/crossbuild-template.yml
+deleted file mode 100644
+index 1be541174c..0000000000
+--- a/.gitlab-ci.d/crossbuild-template.yml
++++ /dev/null
+@@ -1,41 +0,0 @@
+-.cross_system_build_job:
+-  stage: build
+-  image: $CI_REGISTRY_IMAGE/qemu/$IMAGE:latest
+-  timeout: 80m
+-  script:
+-    - mkdir build
+-    - cd build
+-    - PKG_CONFIG_PATH=$PKG_CONFIG_PATH
+-      ../configure --enable-werror --disable-docs $QEMU_CONFIGURE_OPTS
+-        --disable-user --target-list-exclude="arm-softmmu cris-softmmu
+-          i386-softmmu microblaze-softmmu mips-softmmu mipsel-softmmu
+-          mips64-softmmu ppc-softmmu sh4-softmmu xtensa-softmmu"
+-    - make -j$(expr $(nproc) + 1) all check-build $MAKE_CHECK_ARGS
+-
+-# Job to cross-build specific accelerators.
+-#
+-# Set the $ACCEL variable to select the specific accelerator (default to
+-# KVM), and set extra options (such disabling other accelerators) via the
+-# $EXTRA_CONFIGURE_OPTS variable.
+-.cross_accel_build_job:
+-  stage: build
+-  image: $CI_REGISTRY_IMAGE/qemu/$IMAGE:latest
+-  timeout: 30m
+-  script:
+-    - mkdir build
+-    - cd build
+-    - PKG_CONFIG_PATH=$PKG_CONFIG_PATH
+-      ../configure --enable-werror --disable-docs $QEMU_CONFIGURE_OPTS
+-        --disable-tools --enable-${ACCEL:-kvm} $EXTRA_CONFIGURE_OPTS
+-    - make -j$(expr $(nproc) + 1) all check-build $MAKE_CHECK_ARGS
+-
+-.cross_user_build_job:
+-  stage: build
+-  image: $CI_REGISTRY_IMAGE/qemu/$IMAGE:latest
+-  script:
+-    - mkdir build
+-    - cd build
+-    - PKG_CONFIG_PATH=$PKG_CONFIG_PATH
+-      ../configure --enable-werror --disable-docs $QEMU_CONFIGURE_OPTS
+-        --disable-system
+-    - make -j$(expr $(nproc) + 1) all check-build $MAKE_CHECK_ARGS
+diff --git a/.gitlab-ci.d/crossbuilds.yml b/.gitlab-ci.d/crossbuilds.yml
+index 6b3865c9e8..edf3a62563 100644
+--- a/.gitlab-ci.d/crossbuilds.yml
++++ b/.gitlab-ci.d/crossbuilds.yml
+@@ -1,5 +1,44 @@
+-include:
+-  - local: '/.gitlab-ci.d/crossbuild-template.yml'
++.cross_system_build_job:
++  stage: build
++  image: $CI_REGISTRY_IMAGE/qemu/$IMAGE:latest
++  timeout: 80m
++  script:
++    - mkdir build
++    - cd build
++    - PKG_CONFIG_PATH=$PKG_CONFIG_PATH
++      ../configure --enable-werror --disable-docs $QEMU_CONFIGURE_OPTS
++        --disable-user --target-list-exclude="arm-softmmu cris-softmmu
++          i386-softmmu microblaze-softmmu mips-softmmu mipsel-softmmu
++          mips64-softmmu ppc-softmmu sh4-softmmu xtensa-softmmu"
++    - make -j$(expr $(nproc) + 1) all check-build $MAKE_CHECK_ARGS
++
++# Job to cross-build specific accelerators.
++#
++# Set the $ACCEL variable to select the specific accelerator (default to
++# KVM), and set extra options (such disabling other accelerators) via the
++# $EXTRA_CONFIGURE_OPTS variable.
++.cross_accel_build_job:
++  stage: build
++  image: $CI_REGISTRY_IMAGE/qemu/$IMAGE:latest
++  timeout: 30m
++  script:
++    - mkdir build
++    - cd build
++    - PKG_CONFIG_PATH=$PKG_CONFIG_PATH
++      ../configure --enable-werror --disable-docs $QEMU_CONFIGURE_OPTS
++        --disable-tools --enable-${ACCEL:-kvm} $EXTRA_CONFIGURE_OPTS
++    - make -j$(expr $(nproc) + 1) all check-build $MAKE_CHECK_ARGS
++
++.cross_user_build_job:
++  stage: build
++  image: $CI_REGISTRY_IMAGE/qemu/$IMAGE:latest
++  script:
++    - mkdir build
++    - cd build
++    - PKG_CONFIG_PATH=$PKG_CONFIG_PATH
++      ../configure --enable-werror --disable-docs $QEMU_CONFIGURE_OPTS
++        --disable-system
++    - make -j$(expr $(nproc) + 1) all check-build $MAKE_CHECK_ARGS
+ 
+ cross-armel-system:
+   extends: .cross_system_build_job

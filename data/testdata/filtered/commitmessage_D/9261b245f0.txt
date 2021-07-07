@@ -1,0 +1,20 @@
+commit 9261b245f061cb80410fdae7be8460eaa21a5d7d
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Wed Nov 18 12:14:37 2020 -0800
+
+    softfloat: Move sqrt_float to softfloat-parts.c.inc
+    
+    Rename to parts$N_sqrt.
+    Reimplement float128_sqrt with FloatParts128.
+    
+    Reimplement with the inverse sqrt newton-raphson algorithm from musl.
+    This is significantly faster than even the berkeley sqrt n-r algorithm,
+    because it does not use division instructions, only multiplication.
+    
+    Ordinarily, changing algorithms at the same time as migrating code is
+    a bad idea, but this is the only way I found that didn't break one of
+    the routines at the same time.
+    
+    Tested-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

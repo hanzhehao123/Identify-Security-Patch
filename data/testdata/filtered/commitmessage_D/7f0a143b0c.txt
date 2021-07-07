@@ -1,0 +1,17 @@
+commit 7f0a143b0cd7b2b7c05b55b1b6814747ef612ce3
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:16:52 2021 -0400
+
+    iotests/297: add --namespace-packages to mypy arguments
+    
+    mypy is kind of weird about how it handles imports. For legacy reasons,
+    it won't load PEP 420 namespaces, because of logic implemented prior to
+    that becoming a standard.
+    
+    So, if you plan on using any, you have to pass
+    --namespace-packages. Alright, fine.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-9-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

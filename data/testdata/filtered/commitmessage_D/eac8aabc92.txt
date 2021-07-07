@@ -1,0 +1,12 @@
+commit eac8aabc92f80d9a41d9f01163921472e309334c
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:37 2021 -0400
+
+    python/qmp: return generic type from context manager
+    
+    __enter__ can be invoked from a subclass, so it needs a more flexible
+    type.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-31-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

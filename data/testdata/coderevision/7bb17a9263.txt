@@ -1,0 +1,47 @@
+diff --git a/tests/vm/Makefile.include b/tests/vm/Makefile.include
+index f3a3a1c751..e94d95ec54 100644
+--- a/tests/vm/Makefile.include
++++ b/tests/vm/Makefile.include
+@@ -84,7 +84,6 @@ $(IMAGES_DIR)/%.img:	$(SRC_PATH)/tests/vm/% \
+ 		$(if $(QEMU_LOCAL),--build-path $(BUILD_DIR)) \
+ 		$(if $(EFI_AARCH64),--efi-aarch64 $(EFI_AARCH64)) \
+ 		$(if $(LOG_CONSOLE),--log-console) \
+-		--source-path $(SRC_PATH) \
+ 		--image "$@" \
+ 		--force \
+ 		--build-image $@, \
+diff --git a/tests/vm/basevm.py b/tests/vm/basevm.py
+index 254e11c932..0f2e436ed3 100644
+--- a/tests/vm/basevm.py
++++ b/tests/vm/basevm.py
+@@ -96,7 +96,6 @@ def __init__(self, args, config=None):
+         self._genisoimage = args.genisoimage
+         self._build_path = args.build_path
+         self._efi_aarch64 = args.efi_aarch64
+-        self._source_path = args.source_path
+         # Allow input config to override defaults.
+         self._config = DEFAULT_CONFIG.copy()
+         if config != None:
+@@ -592,9 +591,6 @@ def get_default_jobs():
+     parser.add_argument("--build-path", default=None,
+                         help="Path of build directory, "\
+                         "for using build tree QEMU binary. ")
+-    parser.add_argument("--source-path", default=None,
+-                        help="Path of source directory, "\
+-                        "for finding additional files. ")
+     parser.add_argument("--interactive", "-I", action="store_true",
+                         help="Interactively run command")
+     parser.add_argument("--snapshot", "-s", action="store_true",
+diff --git a/tests/vm/centos.aarch64 b/tests/vm/centos.aarch64
+index 81c3004c3c..e687b93e52 100755
+--- a/tests/vm/centos.aarch64
++++ b/tests/vm/centos.aarch64
+@@ -64,7 +64,7 @@ class CentosAarch64VM(basevm.BaseVM):
+     def create_kickstart(self):
+         """Generate the kickstart file used to generate the centos image."""
+         # Start with the template for the kickstart.
+-        ks_file = self._source_path + "/tests/vm/centos-8-aarch64.ks"
++        ks_file = "../tests/vm/centos-8-aarch64.ks"
+         subprocess.check_call("cp {} ./ks.cfg".format(ks_file), shell=True)
+         # Append the ssh keys to the kickstart file
+         # as the post processing phase of installation.

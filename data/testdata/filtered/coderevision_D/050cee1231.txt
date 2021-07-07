@@ -1,0 +1,451 @@
+diff --git a/include/ui/clipboard.h b/include/ui/clipboard.h
+index b45b984c9f..e5bcb365ed 100644
+--- a/include/ui/clipboard.h
++++ b/include/ui/clipboard.h
+@@ -187,7 +187,7 @@ void qemu_clipboard_set_data(QemuClipboardPeer *peer,
+                              QemuClipboardInfo *info,
+                              QemuClipboardType type,
+                              uint32_t size,
+-                             const void *data,
++                             void *data,
+                              bool update);
+ 
+ #endif /* QEMU_CLIPBOARD_H */
+diff --git a/qapi/ui.json b/qapi/ui.json
+index fd9677d48e..1052ca9c38 100644
+--- a/qapi/ui.json
++++ b/qapi/ui.json
+@@ -786,9 +786,6 @@
+ # @muhenkan: since 2.12
+ # @katakanahiragana: since 2.12
+ #
+-# @lang1: since 6.1
+-# @lang2: since 6.1
+-#
+ # 'sysrq' was mistakenly added to hack around the fact that
+ # the ps2 driver was not generating correct scancodes sequences
+ # when 'alt+print' was pressed. This flaw is now fixed and the
+@@ -821,8 +818,7 @@
+             'audionext', 'audioprev', 'audiostop', 'audioplay', 'audiomute',
+             'volumeup', 'volumedown', 'mediaselect',
+             'mail', 'calculator', 'computer',
+-            'ac_home', 'ac_back', 'ac_forward', 'ac_refresh', 'ac_bookmarks',
+-            'lang1', 'lang2' ] }
++            'ac_home', 'ac_back', 'ac_forward', 'ac_refresh', 'ac_bookmarks' ] }
+ 
+ ##
+ # @KeyValue:
+@@ -1130,16 +1126,9 @@
+ #
+ ##
+ { 'enum'    : 'DisplayType',
+-  'data'    : [
+-    { 'name': 'default' },
+-    { 'name': 'none' },
+-    { 'name': 'gtk', 'if': 'defined(CONFIG_GTK)' },
+-    { 'name': 'sdl', 'if': 'defined(CONFIG_SDL)' },
+-    { 'name': 'egl-headless',
+-              'if': 'defined(CONFIG_OPENGL) && defined(CONFIG_GBM)' },
+-    { 'name': 'curses', 'if': 'defined(CONFIG_CURSES)' },
+-    { 'name': 'cocoa', 'if': 'defined(CONFIG_COCOA)' },
+-    { 'name': 'spice-app', 'if': 'defined(CONFIG_SPICE)'} ] }
++  'data'    : [ 'default', 'none', 'gtk', 'sdl',
++                'egl-headless', 'curses', 'cocoa',
++                'spice-app'] }
+ 
+ ##
+ # @DisplayOptions:
+@@ -1163,13 +1152,9 @@
+                 '*show-cursor'   : 'bool',
+                 '*gl'            : 'DisplayGLMode' },
+   'discriminator' : 'type',
+-  'data'    : {
+-      'gtk': { 'type': 'DisplayGTK', 'if': 'defined(CONFIG_GTK)' },
+-      'curses': { 'type': 'DisplayCurses', 'if': 'defined(CONFIG_CURSES)' },
+-      'egl-headless': { 'type': 'DisplayEGLHeadless',
+-                        'if': 'defined(CONFIG_OPENGL) && defined(CONFIG_GBM)' }
+-  }
+-}
++  'data'    : { 'gtk'            : 'DisplayGTK',
++                'curses'         : 'DisplayCurses',
++                'egl-headless'   : 'DisplayEGLHeadless'} }
+ 
+ ##
+ # @query-display-options:
+diff --git a/qemu-options.hx b/qemu-options.hx
+index ba3ca9da1d..14258784b3 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -1819,22 +1819,11 @@ SRST
+     old style -sdl/-curses/... options. Use ``-display help`` to list
+     the available display types. Valid values for type are
+ 
+-    ``spice-app[,gl=on|off]``
+-        Start QEMU as a Spice server and launch the default Spice client
+-        application. The Spice server will redirect the serial consoles
+-        and QEMU monitors. (Since 4.0)
+-
+-    ``sdl[,window-close=on|off][,gl=on|core|es|off]``
+-
++    ``sdl``
+         Display video output via SDL (usually in a separate graphics
+         window; see the SDL documentation for other possibilities).
+ 
+-    ``gtk[,grab-on-hover=on|off][,gl=on|off]``
+-        Display video output in a GTK window. This interface provides
+-        drop-down menus and other UI elements to configure and control
+-        the VM during runtime.
+-
+-    ``curses [,charset=<encoding>]``
++    ``curses``
+         Display video output via curses. For graphics device models
+         which support a text mode, QEMU can display this output using a
+         curses/ncurses interface. Nothing is displayed when the graphics
+@@ -1845,11 +1834,6 @@ SRST
+         ``charset=CP850`` for IBM CP850 encoding. The default is
+         ``CP437``.
+ 
+-    ``egl-headless[,rendernode<file>]``
+-        Offload all OpenGL operations to a local DRI device. For any
+-        graphical display, this display needs to be paired with either
+-        VNC or SPICE displays.
+-
+     ``none``
+         Do not display video output. The guest will still see an
+         emulated graphics card, but its output will not be displayed to
+@@ -1858,8 +1842,23 @@ SRST
+         also changes the destination of the serial and parallel port
+         data.
+ 
++    ``gtk``
++        Display video output in a GTK window. This interface provides
++        drop-down menus and other UI elements to configure and control
++        the VM during runtime.
+ 
++    ``vnc``
++        Start a VNC server on display <arg>
+ 
++    ``egl-headless``
++        Offload all OpenGL operations to a local DRI device. For any
++        graphical display, this display needs to be paired with either
++        VNC or SPICE displays.
++
++    ``spice-app``
++        Start QEMU as a Spice server and launch the default Spice client
++        application. The Spice server will redirect the serial consoles
++        and QEMU monitors. (Since 4.0)
+ ERST
+ 
+ DEF("nographic", 0, QEMU_OPTION_nographic,
+diff --git a/softmmu/vl.c b/softmmu/vl.c
+index d99e2cbdbf..feb4d201f3 100644
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
+@@ -1068,7 +1068,6 @@ static void parse_display(const char *p)
+          *     Not clear yet what happens to them long-term.  Should
+          *     replaced by something better or deprecated and dropped.
+          */
+-#if defined(CONFIG_SDL)
+         dpy.type = DISPLAY_TYPE_SDL;
+         while (*opts) {
+             const char *nextopt;
+@@ -1132,10 +1131,6 @@ static void parse_display(const char *p)
+             }
+             opts = nextopt;
+         }
+-#else
+-        error_report("SDL display supported is not available in this binary");
+-        exit(1);
+-#endif
+     } else if (strstart(p, "vnc", &opts)) {
+         /*
+          * vnc isn't a (local) DisplayType but a protocol for remote
+@@ -1872,22 +1867,13 @@ static void qemu_apply_machine_options(void)
+ static void qemu_create_early_backends(void)
+ {
+     MachineClass *machine_class = MACHINE_GET_CLASS(current_machine);
+-#if defined(CONFIG_SDL)
+-    const bool use_sdl = (dpy.type == DISPLAY_TYPE_SDL);
+-#else
+-    const bool use_sdl = false;
+-#endif
+-#if defined(CONFIG_GTK)
+-    const bool use_gtk = (dpy.type == DISPLAY_TYPE_GTK);
+-#else
+-    const bool use_gtk = false;
+-#endif
+ 
+-    if ((alt_grab || ctrl_grab) && !use_sdl) {
++    if ((alt_grab || ctrl_grab) && dpy.type != DISPLAY_TYPE_SDL) {
+         error_report("-alt-grab and -ctrl-grab are only valid "
+                      "for SDL, ignoring option");
+     }
+-    if (dpy.has_window_close && !use_gtk && !use_sdl) {
++    if (dpy.has_window_close &&
++        (dpy.type != DISPLAY_TYPE_GTK && dpy.type != DISPLAY_TYPE_SDL)) {
+         error_report("-no-quit is only valid for GTK and SDL, "
+                      "ignoring option");
+     }
+diff --git a/ui/clipboard.c b/ui/clipboard.c
+index 3525b30178..abf2b98f1f 100644
+--- a/ui/clipboard.c
++++ b/ui/clipboard.c
+@@ -73,7 +73,7 @@ void qemu_clipboard_set_data(QemuClipboardPeer *peer,
+                              QemuClipboardInfo *info,
+                              QemuClipboardType type,
+                              uint32_t size,
+-                             const void *data,
++                             void *data,
+                              bool update)
+ {
+     if (!info ||
+diff --git a/ui/cocoa.m b/ui/cocoa.m
+index 9f72844b07..37e1fb52eb 100644
+--- a/ui/cocoa.m
++++ b/ui/cocoa.m
+@@ -28,7 +28,6 @@
+ #include <crt_externs.h>
+ 
+ #include "qemu-common.h"
+-#include "ui/clipboard.h"
+ #include "ui/console.h"
+ #include "ui/input.h"
+ #include "ui/kbd-state.h"
+@@ -106,10 +105,6 @@ static QemuSemaphore display_init_sem;
+ static QemuSemaphore app_started_sem;
+ static bool allow_events;
+ 
+-static NSInteger cbchangecount = -1;
+-static QemuClipboardInfo *cbinfo;
+-static QemuEvent cbevent;
+-
+ // Utility functions to run specified code block with iothread lock held
+ typedef void (^CodeBlock)(void);
+ typedef bool (^BoolCodeBlock)(void);
+@@ -523,43 +518,6 @@ QemuCocoaView *cocoaView;
+     }
+ }
+ 
+-- (void) updateUIInfo
+-{
+-    NSSize frameSize;
+-    QemuUIInfo info;
+-
+-    if (!qemu_console_is_graphic(dcl.con)) {
+-        return;
+-    }
+-
+-    if ([self window]) {
+-        NSDictionary *description = [[[self window] screen] deviceDescription];
+-        CGDirectDisplayID display = [[description objectForKey:@"NSScreenNumber"] unsignedIntValue];
+-        NSSize screenSize = [[[self window] screen] frame].size;
+-        CGSize screenPhysicalSize = CGDisplayScreenSize(display);
+-
+-        frameSize = isFullscreen ? screenSize : [self frame].size;
+-        info.width_mm = frameSize.width / screenSize.width * screenPhysicalSize.width;
+-        info.height_mm = frameSize.height / screenSize.height * screenPhysicalSize.height;
+-    } else {
+-        frameSize = [self frame].size;
+-        info.width_mm = 0;
+-        info.height_mm = 0;
+-    }
+-
+-    info.xoff = 0;
+-    info.yoff = 0;
+-    info.width = frameSize.width;
+-    info.height = frameSize.height;
+-
+-    dpy_set_ui_info(dcl.con, &info);
+-}
+-
+-- (void)viewDidMoveToWindow
+-{
+-    [self updateUIInfo];
+-}
+-
+ - (void) switchSurface:(pixman_image_t *)image
+ {
+     COCOA_DEBUG("QemuCocoaView: switchSurface\n");
+@@ -1214,16 +1172,6 @@ QemuCocoaView *cocoaView;
+     return [self verifyQuit];
+ }
+ 
+-- (void)windowDidChangeScreen:(NSNotification *)notification
+-{
+-    [cocoaView updateUIInfo];
+-}
+-
+-- (void)windowDidResize:(NSNotification *)notification
+-{
+-    [cocoaView updateUIInfo];
+-}
+-
+ /* Called when the user clicks on a window's close button */
+ - (BOOL)windowShouldClose:(id)sender
+ {
+@@ -1763,93 +1711,6 @@ static void addRemovableDevicesMenuItems(void)
+     qapi_free_BlockInfoList(pointerToFree);
+ }
+ 
+-@interface QemuCocoaPasteboardTypeOwner : NSObject<NSPasteboardTypeOwner>
+-@end
+-
+-@implementation QemuCocoaPasteboardTypeOwner
+-
+-- (void)pasteboard:(NSPasteboard *)sender provideDataForType:(NSPasteboardType)type
+-{
+-    if (type != NSPasteboardTypeString) {
+-        return;
+-    }
+-
+-    with_iothread_lock(^{
+-        QemuClipboardInfo *info = qemu_clipboard_info_ref(cbinfo);
+-        qemu_event_reset(&cbevent);
+-        qemu_clipboard_request(info, QEMU_CLIPBOARD_TYPE_TEXT);
+-
+-        while (info == cbinfo &&
+-               info->types[QEMU_CLIPBOARD_TYPE_TEXT].available &&
+-               info->types[QEMU_CLIPBOARD_TYPE_TEXT].data == NULL) {
+-            qemu_mutex_unlock_iothread();
+-            qemu_event_wait(&cbevent);
+-            qemu_mutex_lock_iothread();
+-        }
+-
+-        if (info == cbinfo) {
+-            NSData *data = [[NSData alloc] initWithBytes:info->types[QEMU_CLIPBOARD_TYPE_TEXT].data
+-                                           length:info->types[QEMU_CLIPBOARD_TYPE_TEXT].size];
+-            [sender setData:data forType:NSPasteboardTypeString];
+-            [data release];
+-        }
+-
+-        qemu_clipboard_info_unref(info);
+-    });
+-}
+-
+-@end
+-
+-static QemuCocoaPasteboardTypeOwner *cbowner;
+-
+-static void cocoa_clipboard_notify(Notifier *notifier, void *data);
+-static void cocoa_clipboard_request(QemuClipboardInfo *info,
+-                                    QemuClipboardType type);
+-
+-static QemuClipboardPeer cbpeer = {
+-    .name = "cocoa",
+-    .update = { .notify = cocoa_clipboard_notify },
+-    .request = cocoa_clipboard_request
+-};
+-
+-static void cocoa_clipboard_notify(Notifier *notifier, void *data)
+-{
+-    QemuClipboardInfo *info = data;
+-
+-    if (info->owner == &cbpeer || info->selection != QEMU_CLIPBOARD_SELECTION_CLIPBOARD) {
+-        return;
+-    }
+-
+-    if (info != cbinfo) {
+-        NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init];
+-        qemu_clipboard_info_unref(cbinfo);
+-        cbinfo = qemu_clipboard_info_ref(info);
+-        cbchangecount = [[NSPasteboard generalPasteboard] declareTypes:@[NSPasteboardTypeString] owner:cbowner];
+-        [pool release];
+-    }
+-
+-    qemu_event_set(&cbevent);
+-}
+-
+-static void cocoa_clipboard_request(QemuClipboardInfo *info,
+-                                    QemuClipboardType type)
+-{
+-    NSData *text;
+-
+-    switch (type) {
+-    case QEMU_CLIPBOARD_TYPE_TEXT:
+-        text = [[NSPasteboard generalPasteboard] dataForType:NSPasteboardTypeString];
+-        if (text) {
+-            qemu_clipboard_set_data(&cbpeer, info, type,
+-                                    [text length], [text bytes], true);
+-            [text release];
+-        }
+-        break;
+-    default:
+-        break;
+-    }
+-}
+-
+ /*
+  * The startup process for the OSX/Cocoa UI is complicated, because
+  * OSX insists that the UI runs on the initial main thread, and so we
+@@ -1884,7 +1745,6 @@ static void *call_qemu_main(void *opaque)
+     COCOA_DEBUG("Second thread: calling qemu_main()\n");
+     status = qemu_main(gArgc, gArgv, *_NSGetEnviron());
+     COCOA_DEBUG("Second thread: qemu_main() returned, exiting\n");
+-    [cbowner release];
+     exit(status);
+ }
+ 
+@@ -1976,8 +1836,6 @@ static void cocoa_switch(DisplayChangeListener *dcl,
+ 
+     COCOA_DEBUG("qemu_cocoa: cocoa_switch\n");
+ 
+-    [cocoaView updateUIInfo];
+-
+     // The DisplaySurface will be freed as soon as this callback returns.
+     // We take a reference to the underlying pixman image here so it does
+     // not disappear from under our feet; the switchSurface method will
+@@ -2007,18 +1865,6 @@ static void cocoa_refresh(DisplayChangeListener *dcl)
+             [cocoaView setAbsoluteEnabled:YES];
+         });
+     }
+-
+-    if (cbchangecount != [[NSPasteboard generalPasteboard] changeCount]) {
+-        qemu_clipboard_info_unref(cbinfo);
+-        cbinfo = qemu_clipboard_info_new(&cbpeer, QEMU_CLIPBOARD_SELECTION_CLIPBOARD);
+-        if ([[NSPasteboard generalPasteboard] availableTypeFromArray:@[NSPasteboardTypeString]]) {
+-            cbinfo->types[QEMU_CLIPBOARD_TYPE_TEXT].available = true;
+-        }
+-        qemu_clipboard_update(cbinfo);
+-        cbchangecount = [[NSPasteboard generalPasteboard] changeCount];
+-        qemu_event_set(&cbevent);
+-    }
+-
+     [pool release];
+ }
+ 
+@@ -2044,10 +1890,6 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+ 
+     // register vga output callbacks
+     register_displaychangelistener(&dcl);
+-
+-    qemu_event_init(&cbevent, false);
+-    cbowner = [[QemuCocoaPasteboardTypeOwner alloc] init];
+-    qemu_clipboard_peer_register(&cbpeer);
+ }
+ 
+ static QemuDisplay qemu_display_cocoa = {
+diff --git a/ui/console.c b/ui/console.c
+index 1103b65314..2de5f4105b 100644
+--- a/ui/console.c
++++ b/ui/console.c
+@@ -2370,19 +2370,13 @@ void qemu_display_register(QemuDisplay *ui)
+ bool qemu_display_find_default(DisplayOptions *opts)
+ {
+     static DisplayType prio[] = {
+-#if defined(CONFIG_GTK)
+         DISPLAY_TYPE_GTK,
+-#endif
+-#if defined(CONFIG_SDL)
+         DISPLAY_TYPE_SDL,
+-#endif
+-#if defined(CONFIG_COCOA)
+         DISPLAY_TYPE_COCOA
+-#endif
+     };
+     int i;
+ 
+-    for (i = 0; i < (int)ARRAY_SIZE(prio); i++) {
++    for (i = 0; i < ARRAY_SIZE(prio); i++) {
+         if (dpys[prio[i]] == NULL) {
+             ui_module_load_one(DisplayType_str(prio[i]));
+         }

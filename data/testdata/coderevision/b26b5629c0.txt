@@ -1,0 +1,64 @@
+diff --git a/target/arm/cpu.h b/target/arm/cpu.h
+index c389b1e969..df2f189c49 100644
+--- a/target/arm/cpu.h
++++ b/target/arm/cpu.h
+@@ -563,7 +563,7 @@ typedef struct CPUARMState {
+         uint32_t fpdscr[M_REG_NUM_BANKS];
+         uint32_t cpacr[M_REG_NUM_BANKS];
+         uint32_t nsacr;
+-        uint32_t ltpsize;
++        int ltpsize;
+         uint32_t vpr;
+     } v7m;
+ 
+@@ -1562,7 +1562,6 @@ void vfp_set_fpscr(CPUARMState *env, uint32_t val);
+ 
+ #define FPCR_LTPSIZE_SHIFT 16   /* LTPSIZE, M-profile only */
+ #define FPCR_LTPSIZE_MASK (7 << FPCR_LTPSIZE_SHIFT)
+-#define FPCR_LTPSIZE_LENGTH 3
+ 
+ #define FPCR_NZCV_MASK (FPCR_N | FPCR_Z | FPCR_C | FPCR_V)
+ #define FPCR_NZCVQC_MASK (FPCR_NZCV_MASK | FPCR_QC)
+diff --git a/target/arm/machine.c b/target/arm/machine.c
+index 81e30de824..62a71a3b64 100644
+--- a/target/arm/machine.c
++++ b/target/arm/machine.c
+@@ -332,7 +332,6 @@ static const VMStateDescription vmstate_m_mve = {
+     .needed = mve_needed,
+     .fields = (VMStateField[]) {
+         VMSTATE_UINT32(env.v7m.vpr, ARMCPU),
+-        VMSTATE_UINT32(env.v7m.ltpsize, ARMCPU),
+         VMSTATE_END_OF_LIST()
+     },
+ };
+diff --git a/target/arm/vfp_helper.c b/target/arm/vfp_helper.c
+index e0886ab5a5..01b9d8557f 100644
+--- a/target/arm/vfp_helper.c
++++ b/target/arm/vfp_helper.c
+@@ -195,10 +195,8 @@ uint32_t vfp_get_fpscr(CPUARMState *env)
+ 
+ void HELPER(vfp_set_fpscr)(CPUARMState *env, uint32_t val)
+ {
+-    ARMCPU *cpu = env_archcpu(env);
+-
+     /* When ARMv8.2-FP16 is not supported, FZ16 is RES0.  */
+-    if (!cpu_isar_feature(any_fp16, cpu)) {
++    if (!cpu_isar_feature(any_fp16, env_archcpu(env))) {
+         val &= ~FPCR_FZ16;
+     }
+ 
+@@ -212,12 +210,11 @@ void HELPER(vfp_set_fpscr)(CPUARMState *env, uint32_t val)
+          * because in v7A no-short-vector-support cores still had to
+          * allow Stride/Len to be written with the only effect that
+          * some insns are required to UNDEF if the guest sets them.
++         *
++         * TODO: if M-profile MVE implemented, set LTPSIZE.
+          */
+         env->vfp.vec_len = extract32(val, 16, 3);
+         env->vfp.vec_stride = extract32(val, 20, 2);
+-    } else if (cpu_isar_feature(aa32_mve, cpu)) {
+-        env->v7m.ltpsize = extract32(val, FPCR_LTPSIZE_SHIFT,
+-                                     FPCR_LTPSIZE_LENGTH);
+     }
+ 
+     if (arm_feature(env, ARM_FEATURE_NEON)) {

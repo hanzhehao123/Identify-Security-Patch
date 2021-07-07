@@ -1,0 +1,24 @@
+commit d940d468e29bff5eb5669c0dd8f3de0c3de17bfb
+Merge: 13d5f87cc3 fb858fb76b
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Wed Jun 30 19:09:45 2021 +0100
+
+    Merge remote-tracking branch 'remotes/quic/tags/pull-hex-20210629' into staging
+    
+    Fixes for bugs found by inspection and internal testing
+    Tests added to tests/tcg/hexagon/misc.c
+    
+    # gpg: Signature made Tue 29 Jun 2021 17:50:16 BST
+    # gpg:                using RSA key 7B0244FB12DE4422
+    # gpg: Good signature from "Taylor Simpson (Rock on) <tsimpson@quicinc.com>" [undefined]
+    # gpg: WARNING: This key is not certified with a trusted signature!
+    # gpg:          There is no indication that the signature belongs to the owner.
+    # Primary key fingerprint: 3635 C788 CE62 B91F D4C5  9AB4 7B02 44FB 12DE 4422
+    
+    * remotes/quic/tags/pull-hex-20210629:
+      Hexagon (target/hexagon) remove unused TCG variables
+      Hexagon (target/hexagon) cleanup gen_store_conditional[48] functions
+      Hexagon (target/hexagon) fix l2fetch instructions
+      Hexagon (target/hexagon) fix bug in fLSBNEW*
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

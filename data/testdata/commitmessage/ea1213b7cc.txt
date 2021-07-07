@@ -1,0 +1,47 @@
+commit ea1213b7ccc7c24a3c704dc88bd855df45203fed
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:16:54 2021 -0400
+
+    python: add qemu package installer
+    
+    Add setup.cfg and setup.py, necessary for installing a package via
+    pip. Add a ReST document (PACKAGE.rst) explaining the basics of what
+    this package is for and who to contact for more information. This
+    document will be used as the landing page for the package on PyPI.
+    
+    List the subpackages we intend to package by name instead of using
+    find_namespace because find_namespace will naively also packages tests,
+    things it finds in the dist/ folder, etc. I could not figure out how to
+    modify this behavior; adding allow/deny lists to setuptools kept
+    changing the packaged hierarchy. This works, roll with it.
+    
+    I am not yet using a pyproject.toml style package manifest, because
+    "editable" installs are not defined (yet?) by PEP-517/518.
+    
+    I consider editable installs crucial for development, though they have
+    (apparently) always been somewhat poorly defined.
+    
+    Pip now (19.2 and later) now supports editable installs for projects
+    using pyproject.toml manifests, but might require the use of the
+    --no-use-pep517 flag, which somewhat defeats the point. Full support for
+    setup.py-less editable installs was not introduced until pip 21.1.1:
+    https://github.com/pypa/pip/pull/9547/commits/7a95720e796a5e56481c1cc20b6ce6249c50f357
+    
+    For now, while the dust settles, stick with the de-facto
+    setup.py/setup.cfg combination supported by setuptools. It will be worth
+    re-evaluating this point again in the future when our supported build
+    platforms all ship a fairly modern pip.
+    
+    Additional reading on this matter:
+    
+    https://github.com/pypa/packaging-problems/issues/256
+    https://github.com/pypa/pip/issues/6334
+    https://github.com/pypa/pip/issues/6375
+    https://github.com/pypa/pip/issues/6434
+    https://github.com/pypa/pip/issues/6438
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-11-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

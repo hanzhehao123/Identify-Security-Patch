@@ -1,0 +1,16 @@
+commit fb392b548eb4c6c2b2c7689e7fc6b1d2077d4f02
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:34 2021 +0300
+
+    block/nbd: connect_thread_func(): do qio_channel_set_delay(false)
+    
+    nbd_open() does it (through nbd_establish_connection()).
+    Actually we lost that call on reconnect path in 1dc4718d849e1a1fe
+    "block/nbd: use non-blocking connect: fix vm hang on connect()"
+    when we have introduced reconnect thread.
+    
+    Fixes: 1dc4718d849e1a1fe665ce5241ed79048cfa2cfc
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210610100802.5888-5-vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

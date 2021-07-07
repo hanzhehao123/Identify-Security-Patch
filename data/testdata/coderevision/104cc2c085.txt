@@ -1,0 +1,46 @@
+diff --git a/meson.build b/meson.build
+index b5b2cf9e04..d2a9ce91f5 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1970,7 +1970,14 @@ common_ss.add(capstone)
+ specific_ss.add(files('cpu.c', 'disas.c', 'gdbstub.c'), capstone)
+ specific_ss.add(when: 'CONFIG_TCG', if_true: files(
+   'fpu/softfloat.c',
++  'tcg/optimize.c',
++  'tcg/tcg-common.c',
++  'tcg/tcg-op-gvec.c',
++  'tcg/tcg-op-vec.c',
++  'tcg/tcg-op.c',
++  'tcg/tcg.c',
+ ))
++specific_ss.add(when: 'CONFIG_TCG_INTERPRETER', if_true: files('tcg/tci.c'))
+ 
+ # Work around a gcc bug/misfeature wherein constant propagation looks
+ # through an alias:
+@@ -2000,7 +2007,6 @@ subdir('net')
+ subdir('replay')
+ subdir('semihosting')
+ subdir('hw')
+-subdir('tcg')
+ subdir('accel')
+ subdir('plugins')
+ subdir('bsd-user')
+diff --git a/tcg/meson.build b/tcg/meson.build
+deleted file mode 100644
+index 84064a341e..0000000000
+--- a/tcg/meson.build
++++ /dev/null
+@@ -1,13 +0,0 @@
+-tcg_ss = ss.source_set()
+-
+-tcg_ss.add(files(
+-  'optimize.c',
+-  'tcg.c',
+-  'tcg-common.c',
+-  'tcg-op.c',
+-  'tcg-op-gvec.c',
+-  'tcg-op-vec.c',
+-))
+-tcg_ss.add(when: 'CONFIG_TCG_INTERPRETER', if_true: files('tci.c'))
+-
+-specific_ss.add_all(when: 'CONFIG_TCG', if_true: tcg_ss)

@@ -1,0 +1,16 @@
+commit 4519259a345e60a0b177176117e72be1e310377c
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:12 2021 +0200
+
+    i386: keep hyperv_vendor string up-to-date
+    
+    When cpu->hyperv_vendor is not set manually we default to "Microsoft Hv"
+    and in 'hv_passthrough' mode we get the information from the host. This
+    information is stored in cpu->hyperv_vendor_id[] array but we don't update
+    cpu->hyperv_vendor string so e.g. QMP's query-cpu-model-expansion output
+    is incorrect.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-2-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

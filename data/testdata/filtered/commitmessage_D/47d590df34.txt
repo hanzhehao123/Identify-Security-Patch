@@ -1,0 +1,20 @@
+commit 47d590df34b22595f1a6f9e8aafe5531cd2e4b13
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Mar 13 12:29:28 2021 -0600
+
+    tcg: Move in_code_gen_buffer and tests to region.c
+    
+    Shortly, the full code_gen_buffer will only be visible
+    to region.c, so move in_code_gen_buffer out-of-line.
+    
+    Move the debugging versions of tcg_splitwx_to_{rx,rw}
+    to region.c as well, so that the compiler gets to see
+    the implementation of in_code_gen_buffer.
+    
+    This leaves exactly one use of in_code_gen_buffer outside
+    of region.c, in cpu_restore_state.  Which, being on the
+    exception path, is not performance critical.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

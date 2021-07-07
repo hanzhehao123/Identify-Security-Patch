@@ -1,0 +1,15 @@
+commit 14b41797d5eb20fb9c6d0a1fe809e8422938f230
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:16:47 2021 -0400
+
+    python/machine: use subprocess.run instead of subprocess.Popen
+    
+    use run() instead of Popen() -- to assert to pylint that we are not
+    forgetting to close a long-running program.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Tested-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-4-jsnow@redhat.com
+    Message-id: 20210517184808.3562549-4-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

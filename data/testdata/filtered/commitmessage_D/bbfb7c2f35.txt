@@ -1,0 +1,16 @@
+commit bbfb7c2f350262f893642433dea66352fc168295
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:08:02 2021 +0300
+
+    block/nbd: safer transition to receiving request
+    
+    req->receiving is a flag of request being in one concrete yield point
+    in nbd_co_do_receive_one_chunk().
+    
+    Such kind of boolean flag is always better to unset before scheduling
+    the coroutine, to avoid double scheduling. So, let's be more careful.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-33-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

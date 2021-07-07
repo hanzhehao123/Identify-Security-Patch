@@ -1,0 +1,12 @@
+commit bdc36ce649e2985225fcf9ab4958698fcafb04e9
+Author: Alistair Francis <alistair.francis@wdc.com>
+Date:   Fri Jun 18 17:27:48 2021 +1000
+
+    hw/char/ibex_uart: Make the register layout private
+    
+    We don't need to expose the register layout in the public header, so
+    don't.
+    
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>
+    Reviewed-by: Bin Meng <bmeng.cn@gmail.com>
+    Message-id: c437f570b2b30ab4170387a3ba2fad7d116a4986.1624001156.git.alistair.francis@wdc.com

@@ -1,0 +1,15 @@
+commit 07b71233a7ea77c0ec3687c3a3451865b3b899d3
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:16:46 2021 -0400
+
+    python/machine: use subprocess.DEVNULL instead of open(os.path.devnull)
+    
+    One less file resource to manage, and it helps quiet some pylint >=
+    2.8.0 warnings about not using a with-context manager for the open call.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-3-jsnow@redhat.com
+    Message-id: 20210517184808.3562549-3-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

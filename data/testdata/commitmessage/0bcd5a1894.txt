@@ -1,0 +1,20 @@
+commit 0bcd5a18940e1c1e3350b93cfadcdc6b58ca1c0e
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Sun Jun 13 11:26:14 2021 +0100
+
+    esp: fix migration version check in esp_is_version_5()
+    
+    Commit 4e78f3bf35 "esp: defer command completion interrupt on incoming data
+    transfers" added a version check for use with VMSTATE_*_TEST macros to allow
+    migration from older QEMU versions. Unfortunately the version check fails to
+    work in its current form since if the VMStateDescription version_id is
+    incremented, the test returns false and so the fields are not included in the
+    outgoing migration stream.
+    
+    Change the version check to use >= rather == to ensure that migration works
+    correctly when the ESPState VMStateDescription has version_id > 5.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Fixes: 4e78f3bf35 ("esp: defer command completion interrupt on incoming data transfers")
+    Message-Id: <20210613102614.5438-1-mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

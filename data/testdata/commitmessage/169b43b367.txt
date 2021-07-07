@@ -1,0 +1,11 @@
+commit 169b43b367b874076c544984fc3e63e3c5c49763
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:09 2021 -0400
+
+    scripts/qmp-shell: Apply flake8 rules
+    
+    A lot of fiddling around to get us below 80 columns.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-3-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

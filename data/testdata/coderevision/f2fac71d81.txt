@@ -1,0 +1,48 @@
+diff --git a/target/ppc/cpu_init.c b/target/ppc/cpu_init.c
+index 310dfbd26a..7bdb443114 100644
+--- a/target/ppc/cpu_init.c
++++ b/target/ppc/cpu_init.c
+@@ -43,6 +43,7 @@
+ #include "fpu/softfloat.h"
+ #include "qapi/qapi-commands-machine-target.h"
+ 
++#include "exec/helper-proto.h"
+ #include "helper_regs.h"
+ #include "internal.h"
+ #include "spr_tcg.h"
+diff --git a/target/ppc/gdbstub.c b/target/ppc/gdbstub.c
+index 308b98fc90..9339e7eafe 100644
+--- a/target/ppc/gdbstub.c
++++ b/target/ppc/gdbstub.c
+@@ -20,6 +20,7 @@
+ #include "qemu/osdep.h"
+ #include "cpu.h"
+ #include "exec/gdbstub.h"
++#include "exec/helper-proto.h"
+ #include "internal.h"
+ 
+ static int ppc_gdb_register_len_apple(int n)
+diff --git a/target/ppc/mmu-hash32.c b/target/ppc/mmu-hash32.c
+index 9f0a497657..744a763f44 100644
+--- a/target/ppc/mmu-hash32.c
++++ b/target/ppc/mmu-hash32.c
+@@ -21,6 +21,7 @@
+ #include "qemu/osdep.h"
+ #include "cpu.h"
+ #include "exec/exec-all.h"
++#include "exec/helper-proto.h"
+ #include "sysemu/kvm.h"
+ #include "kvm_ppc.h"
+ #include "internal.h"
+diff --git a/target/ppc/mmu-radix64.c b/target/ppc/mmu-radix64.c
+index b6d191c1d8..7972153f23 100644
+--- a/target/ppc/mmu-radix64.c
++++ b/target/ppc/mmu-radix64.c
+@@ -20,6 +20,7 @@
+ #include "qemu/osdep.h"
+ #include "cpu.h"
+ #include "exec/exec-all.h"
++#include "exec/helper-proto.h"
+ #include "qemu/error-report.h"
+ #include "sysemu/kvm.h"
+ #include "kvm_ppc.h"

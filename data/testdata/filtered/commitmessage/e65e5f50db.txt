@@ -1,0 +1,17 @@
+commit e65e5f50db0a54a69cc62c2118d010244bf133ac
+Author: Peter Xu <peterx@redhat.com>
+Date:   Thu May 6 12:05:43 2021 -0400
+
+    KVM: Provide helper to get kvm dirty log
+    
+    Provide a helper kvm_slot_get_dirty_log() to make the function
+    kvm_physical_sync_dirty_bitmap() clearer.  We can even cache the as_id
+    into KVMSlot when it is created, so that we don't even need to pass it
+    down every time.
+    
+    Since at it, remove return value of kvm_physical_sync_dirty_bitmap()
+    because it should never fail.
+    
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Message-Id: <20210506160549.130416-5-peterx@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

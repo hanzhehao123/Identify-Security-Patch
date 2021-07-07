@@ -1,0 +1,280 @@
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index 72c521559f..b4349119f8 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -2802,7 +2802,12 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             CPUID_7_0_EBX_BMI2 | CPUID_7_0_EBX_ERMS | CPUID_7_0_EBX_INVPCID |
+             CPUID_7_0_EBX_RTM | CPUID_7_0_EBX_RDSEED | CPUID_7_0_EBX_ADX |
+             CPUID_7_0_EBX_SMAP,
+-        /* XSAVES is added in version 4 */
++        /* Missing: XSAVES (not supported by some Linux versions,
++         * including v4.1 to v4.12).
++         * KVM doesn't yet expose any XSAVES state save component,
++         * and the only one defined in Skylake (processor tracing)
++         * probably will block migration anyway.
++         */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -2878,15 +2883,6 @@ static X86CPUDefinition builtin_x86_defs[] = {
+                     { /* end of list */ }
+                 }
+             },
+-            {
+-                .version = 4,
+-                .note = "IBRS, XSAVES, no TSX",
+-                .props = (PropValue[]) {
+-                    { "xsaves", "on" },
+-                    { "vmx-xsaves", "on" },
+-                    { /* end of list */ }
+-                }
+-            },
+             { /* end of list */ }
+         }
+     },
+@@ -2926,7 +2922,12 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             CPUID_7_0_EBX_AVX512VL | CPUID_7_0_EBX_CLFLUSHOPT,
+         .features[FEAT_7_0_ECX] =
+             CPUID_7_0_ECX_PKU,
+-        /* XSAVES is added in version 5 */
++        /* Missing: XSAVES (not supported by some Linux versions,
++         * including v4.1 to v4.12).
++         * KVM doesn't yet expose any XSAVES state save component,
++         * and the only one defined in Skylake (processor tracing)
++         * probably will block migration anyway.
++         */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -3014,15 +3015,6 @@ static X86CPUDefinition builtin_x86_defs[] = {
+                     { /* end of list */ }
+                 }
+             },
+-            {
+-                .version = 5,
+-                .note = "IBRS, XSAVES, EPT switching, no TSX",
+-                .props = (PropValue[]) {
+-                    { "xsaves", "on" },
+-                    { "vmx-xsaves", "on" },
+-                    { /* end of list */ }
+-                }
+-            },
+             { /* end of list */ }
+         }
+     },
+@@ -3065,7 +3057,12 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             CPUID_7_0_ECX_AVX512VNNI,
+         .features[FEAT_7_0_EDX] =
+             CPUID_7_0_EDX_SPEC_CTRL | CPUID_7_0_EDX_SPEC_CTRL_SSBD,
+-        /* XSAVES is added in version 5 */
++        /* Missing: XSAVES (not supported by some Linux versions,
++                * including v4.1 to v4.12).
++                * KVM doesn't yet expose any XSAVES state save component,
++                * and the only one defined in Skylake (processor tracing)
++                * probably will block migration anyway.
++                */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -3149,14 +3146,6 @@ static X86CPUDefinition builtin_x86_defs[] = {
+                   { /* end of list */ }
+               },
+             },
+-            { .version = 5,
+-              .note = "ARCH_CAPABILITIES, EPT switching, XSAVES, no TSX",
+-              .props = (PropValue[]) {
+-                  { "xsaves", "on" },
+-                  { "vmx-xsaves", "on" },
+-                  { /* end of list */ }
+-              },
+-            },
+             { /* end of list */ }
+         }
+     },
+@@ -3206,7 +3195,13 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             MSR_ARCH_CAP_PSCHANGE_MC_NO | MSR_ARCH_CAP_TAA_NO,
+         .features[FEAT_7_1_EAX] =
+             CPUID_7_1_EAX_AVX_VNNI | CPUID_7_1_EAX_AVX512_BF16,
+-        /* XSAVES is added in version 2 */
++        /*
++         * Missing: XSAVES (not supported by some Linux versions,
++         * including v4.1 to v4.12).
++         * KVM doesn't yet expose any XSAVES state save component,
++         * and the only one defined in Skylake (processor tracing)
++         * probably will block migration anyway.
++         */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -3262,18 +3257,6 @@ static X86CPUDefinition builtin_x86_defs[] = {
+         .features[FEAT_VMX_VMFUNC] = MSR_VMX_VMFUNC_EPT_SWITCHING,
+         .xlevel = 0x80000008,
+         .model_id = "Intel Xeon Processor (Cooperlake)",
+-        .versions = (X86CPUVersionDefinition[]) {
+-            { .version = 1 },
+-            { .version = 2,
+-              .note = "XSAVES",
+-              .props = (PropValue[]) {
+-                  { "xsaves", "on" },
+-                  { "vmx-xsaves", "on" },
+-                  { /* end of list */ }
+-              },
+-            },
+-            { /* end of list */ }
+-        }
+     },
+     {
+         .name = "Icelake-Client",
+@@ -3316,7 +3299,12 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             CPUID_7_0_ECX_AVX512_VPOPCNTDQ,
+         .features[FEAT_7_0_EDX] =
+             CPUID_7_0_EDX_SPEC_CTRL | CPUID_7_0_EDX_SPEC_CTRL_SSBD,
+-        /* XSAVES is added in version 3 */
++        /* Missing: XSAVES (not supported by some Linux versions,
++                * including v4.1 to v4.12).
++                * KVM doesn't yet expose any XSAVES state save component,
++                * and the only one defined in Skylake (processor tracing)
++                * probably will block migration anyway.
++                */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -3384,15 +3372,6 @@ static X86CPUDefinition builtin_x86_defs[] = {
+                     { /* end of list */ }
+                 },
+             },
+-            {
+-                .version = 3,
+-                .note = "no TSX, XSAVES, deprecated",
+-                .props = (PropValue[]) {
+-                    { "xsaves", "on" },
+-                    { "vmx-xsaves", "on" },
+-                    { /* end of list */ }
+-                },
+-            },
+             { /* end of list */ }
+         },
+         .deprecation_note = "use Icelake-Server instead"
+@@ -3441,7 +3420,12 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             CPUID_7_0_ECX_AVX512_VPOPCNTDQ | CPUID_7_0_ECX_LA57,
+         .features[FEAT_7_0_EDX] =
+             CPUID_7_0_EDX_SPEC_CTRL | CPUID_7_0_EDX_SPEC_CTRL_SSBD,
+-        /* XSAVES is added in version 5 */
++        /* Missing: XSAVES (not supported by some Linux versions,
++                * including v4.1 to v4.12).
++                * KVM doesn't yet expose any XSAVES state save component,
++                * and the only one defined in Skylake (processor tracing)
++                * probably will block migration anyway.
++                */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -3534,15 +3518,6 @@ static X86CPUDefinition builtin_x86_defs[] = {
+                     { /* end of list */ }
+                 },
+             },
+-            {
+-                .version = 5,
+-                .note = "XSAVES",
+-                .props = (PropValue[]) {
+-                    { "xsaves", "on" },
+-                    { "vmx-xsaves", "on" },
+-                    { /* end of list */ }
+-                },
+-            },
+             { /* end of list */ }
+         }
+     },
+@@ -3577,7 +3552,13 @@ static X86CPUDefinition builtin_x86_defs[] = {
+         .features[FEAT_7_0_EDX] =
+             CPUID_7_0_EDX_SPEC_CTRL | CPUID_7_0_EDX_ARCH_CAPABILITIES |
+             CPUID_7_0_EDX_SPEC_CTRL_SSBD,
+-        /* XSAVES is added in version 3 */
++        /*
++         * Missing: XSAVES (not supported by some Linux versions,
++         * including v4.1 to v4.12).
++         * KVM doesn't yet expose any XSAVES state save component,
++         * and the only one defined in Skylake (processor tracing)
++         * probably will block migration anyway.
++         */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC | CPUID_XSAVE_XGETBV1,
+         .features[FEAT_6_EAX] =
+@@ -3644,15 +3625,6 @@ static X86CPUDefinition builtin_x86_defs[] = {
+                     { /* end of list */ },
+                 },
+             },
+-            {
+-                .version = 3,
+-                .note = "XSAVES, no MPX, no MONITOR",
+-                .props = (PropValue[]) {
+-                    { "xsaves", "on" },
+-                    { "vmx-xsaves", "on" },
+-                    { /* end of list */ },
+-                },
+-            },
+             { /* end of list */ },
+         },
+     },
+@@ -3711,7 +3683,13 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             CPUID_7_0_EDX_CORE_CAPABILITY,
+         .features[FEAT_CORE_CAPABILITY] =
+             MSR_CORE_CAP_SPLIT_LOCK_DETECT,
+-        /* XSAVES is is added in version 3 */
++        /*
++         * Missing: XSAVES (not supported by some Linux versions,
++         * including v4.1 to v4.12).
++         * KVM doesn't yet expose any XSAVES state save component,
++         * and the only one defined in Skylake (processor tracing)
++         * probably will block migration anyway.
++         */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -3776,15 +3754,6 @@ static X86CPUDefinition builtin_x86_defs[] = {
+                     { /* end of list */ },
+                 },
+             },
+-            {
+-                .version = 3,
+-                .note = "XSAVES, no MPX",
+-                .props = (PropValue[]) {
+-                    { "xsaves", "on" },
+-                    { "vmx-xsaves", "on" },
+-                    { /* end of list */ },
+-                },
+-            },
+             { /* end of list */ },
+         },
+     },
+@@ -4066,7 +4035,11 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             CPUID_7_0_EBX_FSGSBASE | CPUID_7_0_EBX_BMI1 | CPUID_7_0_EBX_AVX2 |
+             CPUID_7_0_EBX_SMEP | CPUID_7_0_EBX_BMI2 | CPUID_7_0_EBX_RDSEED |
+             CPUID_7_0_EBX_ADX | CPUID_7_0_EBX_SMAP | CPUID_7_0_EBX_CLFLUSHOPT,
+-        /* XSAVES is added in version 2 */
++        /*
++         * Missing: XSAVES (not supported by some Linux versions,
++         * including v4.1 to v4.12).
++         * KVM doesn't yet expose any XSAVES state save component.
++         */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -4077,17 +4050,6 @@ static X86CPUDefinition builtin_x86_defs[] = {
+         .xlevel = 0x8000001E,
+         .model_id = "Hygon Dhyana Processor",
+         .cache_info = &epyc_cache_info,
+-        .versions = (X86CPUVersionDefinition[]) {
+-            { .version = 1 },
+-            { .version = 2,
+-              .note = "XSAVES",
+-              .props = (PropValue[]) {
+-                  { "xsaves", "on" },
+-                  { /* end of list */ }
+-              },
+-            },
+-            { /* end of list */ }
+-        }
+     },
+     {
+         .name = "EPYC-Rome",

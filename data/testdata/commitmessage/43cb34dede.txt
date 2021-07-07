@@ -1,0 +1,15 @@
+commit 43cb34dede464c2e9a51ea33bc246b40db5d68d4
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:56 2021 +0300
+
+    nbd/client-connection: return only one io channel
+    
+    block/nbd doesn't need underlying sioc channel anymore. So, we can
+    update nbd/client-connection interface to return only one top-most io
+    channel, which is more straight forward.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-27-vsementsov@virtuozzo.com>
+    [eblake: squash in Vladimir's fixes for uninit usage caught by clang]
+    Signed-off-by: Eric Blake <eblake@redhat.com>

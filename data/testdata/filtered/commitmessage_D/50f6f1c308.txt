@@ -1,0 +1,11 @@
+commit 50f6f1c3081322a1d9e2d0bbe5c9f434d712cf50
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:18 2021 -0400
+
+    scripts/qmp-shell: ignore visit_Name name
+    
+    Not something I control, sorry, pylint.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-12-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

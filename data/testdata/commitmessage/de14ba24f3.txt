@@ -1,0 +1,11 @@
+commit de14ba24f3f31329debdfac9fa73c8d78e30399b
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:11 2021 -0400
+
+    scripts/qmp-shell: fix exception handling
+    
+    Fixes: 50d189c
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-5-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

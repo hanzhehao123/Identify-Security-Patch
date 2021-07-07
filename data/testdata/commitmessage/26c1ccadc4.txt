@@ -1,0 +1,13 @@
+commit 26c1ccadc41bf32a720faf4d652eae41c7e54d00
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:08 2021 -0400
+
+    scripts/qom-fuse: apply flake8 rules
+    
+    flake8 still has one warning because of the sys.path hack, but that will
+    be going away by the end of this patch series.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210603003719.1321369-9-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

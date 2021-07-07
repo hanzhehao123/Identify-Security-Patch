@@ -1,0 +1,11 @@
+commit 4045f49cd4bba9c7e1d531cb805177deb5079147
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Tue May 18 20:36:35 2021 +0200
+
+    exec/memory_ldst_cached: Use correct type size
+    
+    Use uint16_t for (unsigned) 16-bit word.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210518183655.1711377-6-philmd@redhat.com>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

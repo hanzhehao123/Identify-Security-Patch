@@ -1,0 +1,15 @@
+commit f659e6584a2022473af14ac4d89f656515c25ea4
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Wed May 19 20:54:59 2021 +0200
+
+    gitlab: Extract DCO/style check jobs to static_checks.yml
+    
+    Extract the DCO / checkpatch jobs to a new file (static_checks.yml)
+    to be able to run them without having to run all the jobs included
+    in the default .gitlab-ci.yml, which are mainly useful for the
+    mainstream CI.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210519185504.2198573-6-f4bug@amsat.org>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

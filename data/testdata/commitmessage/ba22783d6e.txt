@@ -1,0 +1,18 @@
+commit ba22783d6ef821551360890a025cd29b2444e948
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sun Mar 14 13:32:18 2021 -0600
+
+    tcg: Round the tb_size default from qemu_get_host_physmem
+    
+    If qemu_get_host_physmem returns an odd number of pages,
+    then physmem / 8 will not be a multiple of the page size.
+    
+    The following was observed on a gitlab runner:
+    
+    ERROR qtest-arm/boot-serial-test - Bail out!
+    ERROR:../util/osdep.c:80:qemu_mprotect__osdep: \
+      assertion failed: (!(size & ~qemu_real_host_page_mask))
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

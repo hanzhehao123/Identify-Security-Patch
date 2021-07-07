@@ -1,0 +1,101 @@
+diff --git a/target/arm/translate-a32.h b/target/arm/translate-a32.h
+index 2326405300..abb3ecb6bc 100644
+--- a/target/arm/translate-a32.h
++++ b/target/arm/translate-a32.h
+@@ -32,7 +32,7 @@ bool disas_neon_shared(DisasContext *s, uint32_t insn);
+ void load_reg_var(DisasContext *s, TCGv_i32 var, int reg);
+ void arm_gen_condlabel(DisasContext *s);
+ bool vfp_access_check(DisasContext *s);
+-bool vfp_access_check_m(DisasContext *s, bool skip_context_update);
++void gen_preserve_fp_state(DisasContext *s);
+ void read_neon_element32(TCGv_i32 dest, int reg, int ele, MemOp memop);
+ void read_neon_element64(TCGv_i64 dest, int reg, int ele, MemOp memop);
+ void write_neon_element32(TCGv_i32 src, int reg, int ele, MemOp memop);
+diff --git a/target/arm/translate-m-nocp.c b/target/arm/translate-m-nocp.c
+index 5eab04832c..312a25f058 100644
+--- a/target/arm/translate-m-nocp.c
++++ b/target/arm/translate-m-nocp.c
+@@ -371,7 +371,9 @@ static bool gen_M_fp_sysreg_write(DisasContext *s, int regno,
+          * otherwise PreserveFPState(), and then FPCXT_NS writes
+          * behave the same as FPCXT_S writes.
+          */
+-        if (!vfp_access_check_m(s, true)) {
++        if (s->fp_excp_el) {
++            gen_exception_insn(s, s->pc_curr, EXCP_NOCP,
++                               syn_uncategorized(), s->fp_excp_el);
+             /*
+              * This was only a conditional exception, so override
+              * gen_exception_insn()'s default to DISAS_NORETURN
+@@ -379,6 +381,7 @@ static bool gen_M_fp_sysreg_write(DisasContext *s, int regno,
+             s->base.is_jmp = DISAS_NEXT;
+             break;
+         }
++        gen_preserve_fp_state(s);
+     }
+     /* fall through */
+     case ARM_VFP_FPCXT_S:
+@@ -524,7 +527,9 @@ static bool gen_M_fp_sysreg_read(DisasContext *s, int regno,
+          * otherwise PreserveFPState(), and then FPCXT_NS
+          * reads the same as FPCXT_S.
+          */
+-        if (!vfp_access_check_m(s, true)) {
++        if (s->fp_excp_el) {
++            gen_exception_insn(s, s->pc_curr, EXCP_NOCP,
++                               syn_uncategorized(), s->fp_excp_el);
+             /*
+              * This was only a conditional exception, so override
+              * gen_exception_insn()'s default to DISAS_NORETURN
+@@ -532,6 +537,7 @@ static bool gen_M_fp_sysreg_read(DisasContext *s, int regno,
+             s->base.is_jmp = DISAS_NEXT;
+             break;
+         }
++        gen_preserve_fp_state(s);
+         tmp = tcg_temp_new_i32();
+         sfpa = tcg_temp_new_i32();
+         fpscr = tcg_temp_new_i32();
+diff --git a/target/arm/translate-vfp.c b/target/arm/translate-vfp.c
+index 86e43c02dc..d89c7834fa 100644
+--- a/target/arm/translate-vfp.c
++++ b/target/arm/translate-vfp.c
+@@ -109,7 +109,7 @@ static inline long vfp_f16_offset(unsigned reg, bool top)
+  * Generate code for M-profile lazy FP state preservation if needed;
+  * this corresponds to the pseudocode PreserveFPState() function.
+  */
+-static void gen_preserve_fp_state(DisasContext *s)
++void gen_preserve_fp_state(DisasContext *s)
+ {
+     if (s->v7m_lspact) {
+         /*
+@@ -218,9 +218,8 @@ static bool vfp_access_check_a(DisasContext *s, bool ignore_vfp_enabled)
+  * If VFP is enabled, do the necessary M-profile lazy-FP handling and then
+  * return true. If not, emit code to generate an appropriate exception and
+  * return false.
+- * skip_context_update is true to skip the "update FP context" part of this.
+  */
+-bool vfp_access_check_m(DisasContext *s, bool skip_context_update)
++static bool vfp_access_check_m(DisasContext *s)
+ {
+     if (s->fp_excp_el) {
+         /*
+@@ -240,10 +239,8 @@ bool vfp_access_check_m(DisasContext *s, bool skip_context_update)
+     /* Trigger lazy-state preservation if necessary */
+     gen_preserve_fp_state(s);
+ 
+-    if (!skip_context_update) {
+-        /* Update ownership of FP context and create new FP context if needed */
+-        gen_update_fp_context(s);
+-    }
++    /* Update ownership of FP context and create new FP context if needed */
++    gen_update_fp_context(s);
+ 
+     return true;
+ }
+@@ -255,7 +252,7 @@ bool vfp_access_check_m(DisasContext *s, bool skip_context_update)
+ bool vfp_access_check(DisasContext *s)
+ {
+     if (arm_dc_feature(s, ARM_FEATURE_M)) {
+-        return vfp_access_check_m(s, false);
++        return vfp_access_check_m(s);
+     } else {
+         return vfp_access_check_a(s, false);
+     }

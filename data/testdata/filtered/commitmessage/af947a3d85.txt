@@ -1,0 +1,33 @@
+commit af947a3d853a235943681a00f07f3081f5143cc3
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Tue May 18 22:25:11 2021 +0100
+
+    esp: only set ESP_RSEQ at the start of the select sequence
+    
+    When processing a command to select a target and send a CDB, the ESP device
+    maintains a sequence step register so that if an error occurs the host can
+    determine which part of the selection/CDB submission sequence failed.
+    
+    The old Linux 2.6 driver is really pedantic here: it checks the sequence step
+    register even if a command succeeds and complains loudly on the console if the
+    sequence step register doesn't match the expected bus phase and interrupt flags.
+    
+    This reason this mismatch occurs is because the ESP emulation currently doesn't
+    update the bus phase until the next TI (Transfer Information) command and so the
+    cleared sequence step register is considered invalid for the stale bus phase.
+    
+    Normally this isn't an issue as the host only checks the sequence step register
+    if an error occurs but the old Linux 2.6 driver does this in several places
+    causing a large stream of "esp0: STEP_ASEL for tgt 0" messages to appear on the
+    console during the boot process.
+    
+    Fix this by not clearing the sequence step register when reading the interrupt
+    register and clearing the DMA status, so the guest sees a valid sequence step
+    and bus phase combination at the end of the command phase. No other change is
+    required since the sequence step register is correctly updated throughout the
+    selection/CDB submission sequence once one of the select commands is issued.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Fixes: 1b9e48a5bd ("esp: implement non-DMA transfers in PDMA mode")
+    Message-Id: <20210518212511.21688-3-mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

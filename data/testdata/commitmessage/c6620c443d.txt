@@ -1,0 +1,15 @@
+commit c6620c443d076bc0c80357e41f8f8d7fcdade6df
+Author: Cleber Rosa <crosa@redhat.com>
+Date:   Mon Apr 12 00:46:40 2021 -0400
+
+    Acceptance Tests: set up SSH connection by default after boot for LinuxTest
+    
+    The LinuxTest specifically targets users that need to interact with Linux
+    guests.  So, it makes sense to give a connection by default, and avoid
+    requiring it as boiler-plate code.
+    
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210412044644.55083-8-crosa@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>

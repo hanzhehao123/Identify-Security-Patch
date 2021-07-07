@@ -1,0 +1,14 @@
+commit fd4eddc3a8237987c73fe1981ce9e3a4bd9fee29
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri May 14 13:04:10 2021 +0100
+
+    crypto: drop used conditional check
+    
+    The condition being tested has never been set since the day the code was
+    first introduced.
+    
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+    Message-Id: <20210514120415.1368922-8-berrange@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

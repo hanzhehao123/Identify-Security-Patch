@@ -1,0 +1,12 @@
+commit 41574295829b9a34d43e7cb95847340942d1ddf5
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:32 2021 -0400
+
+    scripts/qmp-shell: initialize completer early
+    
+    Add an empty completer as a more type-safe placeholder instead of
+    'None'.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-26-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

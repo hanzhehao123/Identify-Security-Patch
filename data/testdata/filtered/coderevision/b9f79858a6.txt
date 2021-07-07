@@ -1,0 +1,16 @@
+diff --git a/contrib/vhost-user-gpu/vhost-user-gpu.c b/contrib/vhost-user-gpu/vhost-user-gpu.c
+index 0437e52b64..b5e153d0d6 100644
+--- a/contrib/vhost-user-gpu/vhost-user-gpu.c
++++ b/contrib/vhost-user-gpu/vhost-user-gpu.c
+@@ -489,11 +489,6 @@ vg_resource_attach_backing(VuGpu *g,
+         return;
+     }
+ 
+-    if (res->iov) {
+-        cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
+-        return;
+-    }
+-
+     ret = vg_create_mapping_iov(g, &ab, cmd, &res->iov);
+     if (ret != 0) {
+         cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;

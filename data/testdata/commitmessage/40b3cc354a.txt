@@ -1,0 +1,29 @@
+commit 40b3cc354a47d9017d280cb25efbe6f94d7575bb
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri May 7 14:36:50 2021 +0100
+
+    i386: use better matching family/model/stepping for 'max' CPU
+    
+    The 'max' CPU under TCG currently reports a family/model/stepping that
+    approximately corresponds to an AMD K7 vintage architecture.
+    The K7 series predates the introduction of 64-bit support by AMD
+    in the K8 series. This has been reported to lead to LLVM complaints
+    about generating 64-bit code for a 32-bit CPU target
+    
+      LLVM ERROR: 64-bit code requested on a subtarget that doesn't support it!
+    
+    It appears LLVM looks at the family/model/stepping, despite qemu64
+    reporting it is 64-bit capable.
+    
+    This patch changes 'max' to report a CPUID with the family, model
+    and stepping taken from a
+    
+     AMD Athlon(tm) 64 X2 Dual Core Processor 4000+
+    
+    which is one of the first 64-bit AMD CPUs.
+    
+    Closes https://gitlab.com/qemu-project/qemu/-/issues/191
+    
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+    Message-Id: <20210507133650.645526-3-berrange@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

@@ -1,0 +1,17 @@
+commit a25c84c7e0ac00c026afa28fbbfa044e12fe0b1a
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 17:12:43 2021 +0100
+
+    hw/intc/armv7m_nvic: Remove stale comment
+    
+    In commit da6d674e509f0939b we split the NVIC code out from the GIC.
+    This allowed us to specify the NVIC's default value for the num-irq
+    property (64) in the usual way in its property list, and we deleted
+    the previous hack where we updated the value in the state struct in
+    the instance init function.  Remove a stale comment about that hack
+    which we forgot to delete at that time.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210614161243.14211-1-peter.maydell@linaro.org

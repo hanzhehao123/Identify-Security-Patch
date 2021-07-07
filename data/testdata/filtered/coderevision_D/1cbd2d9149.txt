@@ -1,0 +1,2758 @@
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 7d9cd29042..de5426f672 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -3316,14 +3316,6 @@ F: include/hw/remote/proxy-memory-listener.h
+ F: hw/remote/iohub.c
+ F: include/hw/remote/iohub.h
+ 
+-EBPF:
+-M: Jason Wang <jasowang@redhat.com>
+-R: Andrew Melnychenko <andrew@daynix.com>
+-R: Yuri Benditovich <yuri.benditovich@daynix.com>
+-S: Maintained
+-F: ebpf/*
+-F: tools/ebpf/*
+-
+ Build and test automation
+ -------------------------
+ Build and test automation, general continuous integration
+diff --git a/block/meson.build b/block/meson.build
+index e687c54dbc..01861e1545 100644
+--- a/block/meson.build
++++ b/block/meson.build
+@@ -71,19 +71,19 @@ block_modules = {}
+ 
+ modsrc = []
+ foreach m : [
+-  [curl, 'curl', [curl, glib], 'curl.c'],
+-  [glusterfs, 'gluster', glusterfs, 'gluster.c'],
+-  [libiscsi, 'iscsi', libiscsi, 'iscsi.c'],
+-  [libnfs, 'nfs', libnfs, 'nfs.c'],
+-  [libssh, 'ssh', libssh, 'ssh.c'],
+-  [rbd, 'rbd', rbd, 'rbd.c'],
++  [curl, 'curl', files('curl.c')],
++  [glusterfs, 'gluster', files('gluster.c')],
++  [libiscsi, 'iscsi', [files('iscsi.c'), libm]],
++  [libnfs, 'nfs', files('nfs.c')],
++  [libssh, 'ssh', files('ssh.c')],
++  [rbd, 'rbd', files('rbd.c')],
+ ]
+   if m[0].found()
++    module_ss = ss.source_set()
++    module_ss.add(when: m[0], if_true: m[2])
+     if enable_modules
+-      modsrc += files(m[3])
++      modsrc += module_ss.all_sources()
+     endif
+-    module_ss = ss.source_set()
+-    module_ss.add(when: m[2], if_true: files(m[3]))
+     block_modules += {m[1] : module_ss}
+   endif
+ endforeach
+diff --git a/configure b/configure
+index 8dcb9965b2..f0c8629dc6 100755
+--- a/configure
++++ b/configure
+@@ -328,7 +328,6 @@ vhost_vsock="$default_feature"
+ vhost_user="no"
+ vhost_user_blk_server="auto"
+ vhost_user_fs="$default_feature"
+-bpf="auto"
+ kvm="auto"
+ hax="auto"
+ hvf="auto"
+@@ -1220,10 +1219,6 @@ for opt do
+   ;;
+   --enable-membarrier) membarrier="yes"
+   ;;
+-  --disable-bpf) bpf="disabled"
+-  ;;
+-  --enable-bpf) bpf="enabled"
+-  ;;
+   --disable-blobs) blobs="false"
+   ;;
+   --with-pkgversion=*) pkgversion="$optarg"
+@@ -1884,7 +1879,6 @@ disabled with --disable-FEATURE, default is enabled if available
+   vhost-user      vhost-user backend support
+   vhost-user-blk-server    vhost-user-blk server support
+   vhost-vdpa      vhost-vdpa kernel backend support
+-  bpf             BPF kernel support
+   spice           spice
+   spice-protocol  spice-protocol
+   rbd             rados block device (rbd)
+@@ -6446,7 +6440,7 @@ if test "$skip_meson" = no; then
+         -Dattr=$attr -Ddefault_devices=$default_devices \
+         -Ddocs=$docs -Dsphinx_build=$sphinx_build -Dinstall_blobs=$blobs \
+         -Dvhost_user_blk_server=$vhost_user_blk_server -Dmultiprocess=$multiprocess \
+-        -Dfuse=$fuse -Dfuse_lseek=$fuse_lseek -Dguest_agent_msi=$guest_agent_msi -Dbpf=$bpf\
++        -Dfuse=$fuse -Dfuse_lseek=$fuse_lseek -Dguest_agent_msi=$guest_agent_msi \
+         $(if test "$default_features" = no; then echo "-Dauto_features=disabled"; fi) \
+ 	-Dtcg_interpreter=$tcg_interpreter \
+         $cross_arg \
+diff --git a/docs/devel/ebpf_rss.rst b/docs/devel/ebpf_rss.rst
+deleted file mode 100644
+index e00962577a..0000000000
+--- a/docs/devel/ebpf_rss.rst
++++ /dev/null
+@@ -1,125 +0,0 @@
+-===========================
+-eBPF RSS virtio-net support
+-===========================
+-
+-RSS(Receive Side Scaling) is used to distribute network packets to guest virtqueues
+-by calculating packet hash. Usually every queue is processed then by a specific guest CPU core.
+-
+-For now there are 2 RSS implementations in qemu:
+-- 'in-qemu' RSS (functions if qemu receives network packets, i.e. vhost=off)
+-- eBPF RSS (can function with also with vhost=on)
+-
+-eBPF support (CONFIG_EBPF) is enabled by 'configure' script.
+-To enable eBPF RSS support use './configure --enable-bpf'.
+-
+-If steering BPF is not set for kernel's TUN module, the TUN uses automatic selection
+-of rx virtqueue based on lookup table built according to calculated symmetric hash
+-of transmitted packets.
+-If steering BPF is set for TUN the BPF code calculates the hash of packet header and
+-returns the virtqueue number to place the packet to.
+-
+-Simplified decision formula:
+-
+-.. code:: C
+-
+-    queue_index = indirection_table[hash(<packet data>)%<indirection_table size>]
+-
+-
+-Not for all packets, the hash can/should be calculated.
+-
+-Note: currently, eBPF RSS does not support hash reporting.
+-
+-eBPF RSS turned on by different combinations of vhost-net, vitrio-net and tap configurations:
+-
+-- eBPF is used:
+-
+-        tap,vhost=off & virtio-net-pci,rss=on,hash=off
+-
+-- eBPF is used:
+-
+-        tap,vhost=on & virtio-net-pci,rss=on,hash=off
+-
+-- 'in-qemu' RSS is used:
+-
+-        tap,vhost=off & virtio-net-pci,rss=on,hash=on
+-
+-- eBPF is used, hash population feature is not reported to the guest:
+-
+-        tap,vhost=on & virtio-net-pci,rss=on,hash=on
+-
+-If CONFIG_EBPF is not set then only 'in-qemu' RSS is supported.
+-Also 'in-qemu' RSS, as a fallback, is used if the eBPF program failed to load or set to TUN.
+-
+-RSS eBPF program
+-----------------
+-
+-RSS program located in ebpf/rss.bpf.skeleton.h generated by bpftool.
+-So the program is part of the qemu binary.
+-Initially, the eBPF program was compiled by clang and source code located at tools/ebpf/rss.bpf.c.
+-Prerequisites to recompile the eBPF program (regenerate ebpf/rss.bpf.skeleton.h):
+-
+-        llvm, clang, kernel source tree, bpftool
+-        Adjust Makefile.ebpf to reflect the location of the kernel source tree
+-
+-        $ cd tools/ebpf
+-        $ make -f Makefile.ebpf
+-
+-Current eBPF RSS implementation uses 'bounded loops' with 'backward jump instructions' which present in the last kernels.
+-Overall eBPF RSS works on kernels 5.8+.
+-
+-eBPF RSS implementation
+------------------------
+-
+-eBPF RSS loading functionality located in ebpf/ebpf_rss.c and ebpf/ebpf_rss.h.
+-
+-The `struct EBPFRSSContext` structure that holds 4 file descriptors:
+-
+-- ctx - pointer of the libbpf context.
+-- program_fd - file descriptor of the eBPF RSS program.
+-- map_configuration - file descriptor of the 'configuration' map. This map contains one element of 'struct EBPFRSSConfig'. This configuration determines eBPF program behavior.
+-- map_toeplitz_key - file descriptor of the 'Toeplitz key' map. One element of the 40byte key prepared for the hashing algorithm.
+-- map_indirections_table - 128 elements of queue indexes.
+-
+-`struct EBPFRSSConfig` fields:
+-
+-- redirect - "boolean" value, should the hash be calculated, on false  - `default_queue` would be used as the final decision.
+-- populate_hash - for now, not used. eBPF RSS doesn't support hash reporting.
+-- hash_types - binary mask of different hash types. See `VIRTIO_NET_RSS_HASH_TYPE_*` defines. If for packet hash should not be calculated - `default_queue` would be used.
+-- indirections_len - length of the indirections table, maximum 128.
+-- default_queue - the queue index that used for packet that shouldn't be hashed. For some packets, the hash can't be calculated(g.e ARP).
+-
+-Functions:
+-
+-- `ebpf_rss_init()` - sets ctx to NULL, which indicates that EBPFRSSContext is not loaded.
+-- `ebpf_rss_load()` - creates 3 maps and loads eBPF program from the rss.bpf.skeleton.h. Returns 'true' on success. After that, program_fd can be used to set steering for TAP.
+-- `ebpf_rss_set_all()` - sets values for eBPF maps. `indirections_table` length is in EBPFRSSConfig. `toeplitz_key` is VIRTIO_NET_RSS_MAX_KEY_SIZE aka 40 bytes array.
+-- `ebpf_rss_unload()` - close all file descriptors and set ctx to NULL.
+-
+-Simplified eBPF RSS workflow:
+-
+-.. code:: C
+-
+-    struct EBPFRSSConfig config;
+-    config.redirect = 1;
+-    config.hash_types = VIRTIO_NET_RSS_HASH_TYPE_UDPv4 | VIRTIO_NET_RSS_HASH_TYPE_TCPv4;
+-    config.indirections_len = VIRTIO_NET_RSS_MAX_TABLE_LEN;
+-    config.default_queue = 0;
+-
+-    uint16_t table[VIRTIO_NET_RSS_MAX_TABLE_LEN] = {...};
+-    uint8_t key[VIRTIO_NET_RSS_MAX_KEY_SIZE] = {...};
+-
+-    struct EBPFRSSContext ctx;
+-    ebpf_rss_init(&ctx);
+-    ebpf_rss_load(&ctx);
+-    ebpf_rss_set_all(&ctx, &config, table, key);
+-    if (net_client->info->set_steering_ebpf != NULL) {
+-        net_client->info->set_steering_ebpf(net_client, ctx->program_fd);
+-    }
+-    ...
+-    ebpf_unload(&ctx);
+-
+-
+-NetClientState SetSteeringEBPF()
+-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-
+-For now, `set_steering_ebpf()` method supported by Linux TAP NetClientState. The method requires an eBPF program file descriptor as an argument.
+diff --git a/docs/devel/index.rst b/docs/devel/index.rst
+index 791925dcda..cbdbb90491 100644
+--- a/docs/devel/index.rst
++++ b/docs/devel/index.rst
+@@ -43,4 +43,3 @@ Contents:
+    qom
+    block-coroutine-wrapper
+    multi-process
+-   ebpf_rss
+diff --git a/ebpf/ebpf_rss-stub.c b/ebpf/ebpf_rss-stub.c
+deleted file mode 100644
+index e71e229190..0000000000
+--- a/ebpf/ebpf_rss-stub.c
++++ /dev/null
+@@ -1,40 +0,0 @@
+-/*
+- * eBPF RSS stub file
+- *
+- * Developed by Daynix Computing LTD (http://www.daynix.com)
+- *
+- * Authors:
+- *  Yuri Benditovich <yuri.benditovich@daynix.com>
+- *
+- * This work is licensed under the terms of the GNU GPL, version 2.  See
+- * the COPYING file in the top-level directory.
+- */
+-
+-#include "qemu/osdep.h"
+-#include "ebpf/ebpf_rss.h"
+-
+-void ebpf_rss_init(struct EBPFRSSContext *ctx)
+-{
+-
+-}
+-
+-bool ebpf_rss_is_loaded(struct EBPFRSSContext *ctx)
+-{
+-    return false;
+-}
+-
+-bool ebpf_rss_load(struct EBPFRSSContext *ctx)
+-{
+-    return false;
+-}
+-
+-bool ebpf_rss_set_all(struct EBPFRSSContext *ctx, struct EBPFRSSConfig *config,
+-                      uint16_t *indirections_table, uint8_t *toeplitz_key)
+-{
+-    return false;
+-}
+-
+-void ebpf_rss_unload(struct EBPFRSSContext *ctx)
+-{
+-
+-}
+diff --git a/ebpf/ebpf_rss.c b/ebpf/ebpf_rss.c
+deleted file mode 100644
+index 118c68da83..0000000000
+--- a/ebpf/ebpf_rss.c
++++ /dev/null
+@@ -1,165 +0,0 @@
+-/*
+- * eBPF RSS loader
+- *
+- * Developed by Daynix Computing LTD (http://www.daynix.com)
+- *
+- * Authors:
+- *  Andrew Melnychenko <andrew@daynix.com>
+- *  Yuri Benditovich <yuri.benditovich@daynix.com>
+- *
+- * This work is licensed under the terms of the GNU GPL, version 2.  See
+- * the COPYING file in the top-level directory.
+- */
+-
+-#include "qemu/osdep.h"
+-#include "qemu/error-report.h"
+-
+-#include <bpf/libbpf.h>
+-#include <bpf/bpf.h>
+-
+-#include "hw/virtio/virtio-net.h" /* VIRTIO_NET_RSS_MAX_TABLE_LEN */
+-
+-#include "ebpf/ebpf_rss.h"
+-#include "ebpf/rss.bpf.skeleton.h"
+-#include "trace.h"
+-
+-void ebpf_rss_init(struct EBPFRSSContext *ctx)
+-{
+-    if (ctx != NULL) {
+-        ctx->obj = NULL;
+-    }
+-}
+-
+-bool ebpf_rss_is_loaded(struct EBPFRSSContext *ctx)
+-{
+-    return ctx != NULL && ctx->obj != NULL;
+-}
+-
+-bool ebpf_rss_load(struct EBPFRSSContext *ctx)
+-{
+-    struct rss_bpf *rss_bpf_ctx;
+-
+-    if (ctx == NULL) {
+-        return false;
+-    }
+-
+-    rss_bpf_ctx = rss_bpf__open();
+-    if (rss_bpf_ctx == NULL) {
+-        trace_ebpf_error("eBPF RSS", "can not open eBPF RSS object");
+-        goto error;
+-    }
+-
+-    bpf_program__set_socket_filter(rss_bpf_ctx->progs.tun_rss_steering_prog);
+-
+-    if (rss_bpf__load(rss_bpf_ctx)) {
+-        trace_ebpf_error("eBPF RSS", "can not load RSS program");
+-        goto error;
+-    }
+-
+-    ctx->obj = rss_bpf_ctx;
+-    ctx->program_fd = bpf_program__fd(
+-            rss_bpf_ctx->progs.tun_rss_steering_prog);
+-    ctx->map_configuration = bpf_map__fd(
+-            rss_bpf_ctx->maps.tap_rss_map_configurations);
+-    ctx->map_indirections_table = bpf_map__fd(
+-            rss_bpf_ctx->maps.tap_rss_map_indirection_table);
+-    ctx->map_toeplitz_key = bpf_map__fd(
+-            rss_bpf_ctx->maps.tap_rss_map_toeplitz_key);
+-
+-    return true;
+-error:
+-    rss_bpf__destroy(rss_bpf_ctx);
+-    ctx->obj = NULL;
+-
+-    return false;
+-}
+-
+-static bool ebpf_rss_set_config(struct EBPFRSSContext *ctx,
+-                                struct EBPFRSSConfig *config)
+-{
+-    uint32_t map_key = 0;
+-
+-    if (!ebpf_rss_is_loaded(ctx)) {
+-        return false;
+-    }
+-    if (bpf_map_update_elem(ctx->map_configuration,
+-                            &map_key, config, 0) < 0) {
+-        return false;
+-    }
+-    return true;
+-}
+-
+-static bool ebpf_rss_set_indirections_table(struct EBPFRSSContext *ctx,
+-                                            uint16_t *indirections_table,
+-                                            size_t len)
+-{
+-    uint32_t i = 0;
+-
+-    if (!ebpf_rss_is_loaded(ctx) || indirections_table == NULL ||
+-       len > VIRTIO_NET_RSS_MAX_TABLE_LEN) {
+-        return false;
+-    }
+-
+-    for (; i < len; ++i) {
+-        if (bpf_map_update_elem(ctx->map_indirections_table, &i,
+-                                indirections_table + i, 0) < 0) {
+-            return false;
+-        }
+-    }
+-    return true;
+-}
+-
+-static bool ebpf_rss_set_toepliz_key(struct EBPFRSSContext *ctx,
+-                                     uint8_t *toeplitz_key)
+-{
+-    uint32_t map_key = 0;
+-
+-    /* prepare toeplitz key */
+-    uint8_t toe[VIRTIO_NET_RSS_MAX_KEY_SIZE] = {};
+-
+-    if (!ebpf_rss_is_loaded(ctx) || toeplitz_key == NULL) {
+-        return false;
+-    }
+-    memcpy(toe, toeplitz_key, VIRTIO_NET_RSS_MAX_KEY_SIZE);
+-    *(uint32_t *)toe = ntohl(*(uint32_t *)toe);
+-
+-    if (bpf_map_update_elem(ctx->map_toeplitz_key, &map_key, toe,
+-                            0) < 0) {
+-        return false;
+-    }
+-    return true;
+-}
+-
+-bool ebpf_rss_set_all(struct EBPFRSSContext *ctx, struct EBPFRSSConfig *config,
+-                      uint16_t *indirections_table, uint8_t *toeplitz_key)
+-{
+-    if (!ebpf_rss_is_loaded(ctx) || config == NULL ||
+-        indirections_table == NULL || toeplitz_key == NULL) {
+-        return false;
+-    }
+-
+-    if (!ebpf_rss_set_config(ctx, config)) {
+-        return false;
+-    }
+-
+-    if (!ebpf_rss_set_indirections_table(ctx, indirections_table,
+-                                      config->indirections_len)) {
+-        return false;
+-    }
+-
+-    if (!ebpf_rss_set_toepliz_key(ctx, toeplitz_key)) {
+-        return false;
+-    }
+-
+-    return true;
+-}
+-
+-void ebpf_rss_unload(struct EBPFRSSContext *ctx)
+-{
+-    if (!ebpf_rss_is_loaded(ctx)) {
+-        return;
+-    }
+-
+-    rss_bpf__destroy(ctx->obj);
+-    ctx->obj = NULL;
+-}
+diff --git a/ebpf/ebpf_rss.h b/ebpf/ebpf_rss.h
+deleted file mode 100644
+index bf3f2572c7..0000000000
+--- a/ebpf/ebpf_rss.h
++++ /dev/null
+@@ -1,44 +0,0 @@
+-/*
+- * eBPF RSS header
+- *
+- * Developed by Daynix Computing LTD (http://www.daynix.com)
+- *
+- * Authors:
+- *  Andrew Melnychenko <andrew@daynix.com>
+- *  Yuri Benditovich <yuri.benditovich@daynix.com>
+- *
+- * This work is licensed under the terms of the GNU GPL, version 2.  See
+- * the COPYING file in the top-level directory.
+- */
+-
+-#ifndef QEMU_EBPF_RSS_H
+-#define QEMU_EBPF_RSS_H
+-
+-struct EBPFRSSContext {
+-    void *obj;
+-    int program_fd;
+-    int map_configuration;
+-    int map_toeplitz_key;
+-    int map_indirections_table;
+-};
+-
+-struct EBPFRSSConfig {
+-    uint8_t redirect;
+-    uint8_t populate_hash;
+-    uint32_t hash_types;
+-    uint16_t indirections_len;
+-    uint16_t default_queue;
+-} __attribute__((packed));
+-
+-void ebpf_rss_init(struct EBPFRSSContext *ctx);
+-
+-bool ebpf_rss_is_loaded(struct EBPFRSSContext *ctx);
+-
+-bool ebpf_rss_load(struct EBPFRSSContext *ctx);
+-
+-bool ebpf_rss_set_all(struct EBPFRSSContext *ctx, struct EBPFRSSConfig *config,
+-                      uint16_t *indirections_table, uint8_t *toeplitz_key);
+-
+-void ebpf_rss_unload(struct EBPFRSSContext *ctx);
+-
+-#endif /* QEMU_EBPF_RSS_H */
+diff --git a/ebpf/meson.build b/ebpf/meson.build
+deleted file mode 100644
+index 9cd0635370..0000000000
+--- a/ebpf/meson.build
++++ /dev/null
+@@ -1 +0,0 @@
+-common_ss.add(when: libbpf, if_true: files('ebpf_rss.c'), if_false: files('ebpf_rss-stub.c'))
+diff --git a/ebpf/rss.bpf.skeleton.h b/ebpf/rss.bpf.skeleton.h
+deleted file mode 100644
+index 126683eb87..0000000000
+--- a/ebpf/rss.bpf.skeleton.h
++++ /dev/null
+@@ -1,431 +0,0 @@
+-/* SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause) */
+-
+-/* THIS FILE IS AUTOGENERATED! */
+-#ifndef __RSS_BPF_SKEL_H__
+-#define __RSS_BPF_SKEL_H__
+-
+-#include <stdlib.h>
+-#include <bpf/libbpf.h>
+-
+-struct rss_bpf {
+-	struct bpf_object_skeleton *skeleton;
+-	struct bpf_object *obj;
+-	struct {
+-		struct bpf_map *tap_rss_map_configurations;
+-		struct bpf_map *tap_rss_map_indirection_table;
+-		struct bpf_map *tap_rss_map_toeplitz_key;
+-	} maps;
+-	struct {
+-		struct bpf_program *tun_rss_steering_prog;
+-	} progs;
+-	struct {
+-		struct bpf_link *tun_rss_steering_prog;
+-	} links;
+-};
+-
+-static void
+-rss_bpf__destroy(struct rss_bpf *obj)
+-{
+-	if (!obj)
+-		return;
+-	if (obj->skeleton)
+-		bpf_object__destroy_skeleton(obj->skeleton);
+-	free(obj);
+-}
+-
+-static inline int
+-rss_bpf__create_skeleton(struct rss_bpf *obj);
+-
+-static inline struct rss_bpf *
+-rss_bpf__open_opts(const struct bpf_object_open_opts *opts)
+-{
+-	struct rss_bpf *obj;
+-
+-	obj = (struct rss_bpf *)calloc(1, sizeof(*obj));
+-	if (!obj)
+-		return NULL;
+-	if (rss_bpf__create_skeleton(obj))
+-		goto err;
+-	if (bpf_object__open_skeleton(obj->skeleton, opts))
+-		goto err;
+-
+-	return obj;
+-err:
+-	rss_bpf__destroy(obj);
+-	return NULL;
+-}
+-
+-static inline struct rss_bpf *
+-rss_bpf__open(void)
+-{
+-	return rss_bpf__open_opts(NULL);
+-}
+-
+-static inline int
+-rss_bpf__load(struct rss_bpf *obj)
+-{
+-	return bpf_object__load_skeleton(obj->skeleton);
+-}
+-
+-static inline struct rss_bpf *
+-rss_bpf__open_and_load(void)
+-{
+-	struct rss_bpf *obj;
+-
+-	obj = rss_bpf__open();
+-	if (!obj)
+-		return NULL;
+-	if (rss_bpf__load(obj)) {
+-		rss_bpf__destroy(obj);
+-		return NULL;
+-	}
+-	return obj;
+-}
+-
+-static inline int
+-rss_bpf__attach(struct rss_bpf *obj)
+-{
+-	return bpf_object__attach_skeleton(obj->skeleton);
+-}
+-
+-static inline void
+-rss_bpf__detach(struct rss_bpf *obj)
+-{
+-	return bpf_object__detach_skeleton(obj->skeleton);
+-}
+-
+-static inline int
+-rss_bpf__create_skeleton(struct rss_bpf *obj)
+-{
+-	struct bpf_object_skeleton *s;
+-
+-	s = (struct bpf_object_skeleton *)calloc(1, sizeof(*s));
+-	if (!s)
+-		return -1;
+-	obj->skeleton = s;
+-
+-	s->sz = sizeof(*s);
+-	s->name = "rss_bpf";
+-	s->obj = &obj->obj;
+-
+-	/* maps */
+-	s->map_cnt = 3;
+-	s->map_skel_sz = sizeof(*s->maps);
+-	s->maps = (struct bpf_map_skeleton *)calloc(s->map_cnt, s->map_skel_sz);
+-	if (!s->maps)
+-		goto err;
+-
+-	s->maps[0].name = "tap_rss_map_configurations";
+-	s->maps[0].map = &obj->maps.tap_rss_map_configurations;
+-
+-	s->maps[1].name = "tap_rss_map_indirection_table";
+-	s->maps[1].map = &obj->maps.tap_rss_map_indirection_table;
+-
+-	s->maps[2].name = "tap_rss_map_toeplitz_key";
+-	s->maps[2].map = &obj->maps.tap_rss_map_toeplitz_key;
+-
+-	/* programs */
+-	s->prog_cnt = 1;
+-	s->prog_skel_sz = sizeof(*s->progs);
+-	s->progs = (struct bpf_prog_skeleton *)calloc(s->prog_cnt, s->prog_skel_sz);
+-	if (!s->progs)
+-		goto err;
+-
+-	s->progs[0].name = "tun_rss_steering_prog";
+-	s->progs[0].prog = &obj->progs.tun_rss_steering_prog;
+-	s->progs[0].link = &obj->links.tun_rss_steering_prog;
+-
+-	s->data_sz = 8088;
+-	s->data = (void *)"\
+-\x7f\x45\x4c\x46\x02\x01\x01\0\0\0\0\0\0\0\0\0\x01\0\xf7\0\x01\0\0\0\0\0\0\0\0\
+-\0\0\0\0\0\0\0\0\0\0\0\x18\x1d\0\0\0\0\0\0\0\0\0\0\x40\0\0\0\0\0\x40\0\x0a\0\
+-\x01\0\xbf\x18\0\0\0\0\0\0\xb7\x01\0\0\0\0\0\0\x63\x1a\x4c\xff\0\0\0\0\xbf\xa7\
+-\0\0\0\0\0\0\x07\x07\0\0\x4c\xff\xff\xff\x18\x01\0\0\0\0\0\0\0\0\0\0\0\0\0\0\
+-\xbf\x72\0\0\0\0\0\0\x85\0\0\0\x01\0\0\0\xbf\x06\0\0\0\0\0\0\x18\x01\0\0\0\0\0\
+-\0\0\0\0\0\0\0\0\0\xbf\x72\0\0\0\0\0\0\x85\0\0\0\x01\0\0\0\xbf\x07\0\0\0\0\0\0\
+-\x18\0\0\0\xff\xff\xff\xff\0\0\0\0\0\0\0\0\x15\x06\x66\x02\0\0\0\0\xbf\x79\0\0\
+-\0\0\0\0\x15\x09\x64\x02\0\0\0\0\x71\x61\0\0\0\0\0\0\x55\x01\x01\0\0\0\0\0\x05\
+-\0\x5d\x02\0\0\0\0\xb7\x01\0\0\0\0\0\0\x63\x1a\xc0\xff\0\0\0\0\x7b\x1a\xb8\xff\
+-\0\0\0\0\x7b\x1a\xb0\xff\0\0\0\0\x7b\x1a\xa8\xff\0\0\0\0\x7b\x1a\xa0\xff\0\0\0\
+-\0\x63\x1a\x98\xff\0\0\0\0\x7b\x1a\x90\xff\0\0\0\0\x7b\x1a\x88\xff\0\0\0\0\x7b\
+-\x1a\x80\xff\0\0\0\0\x7b\x1a\x78\xff\0\0\0\0\x7b\x1a\x70\xff\0\0\0\0\x7b\x1a\
+-\x68\xff\0\0\0\0\x7b\x1a\x60\xff\0\0\0\0\x7b\x1a\x58\xff\0\0\0\0\x7b\x1a\x50\
+-\xff\0\0\0\0\x15\x08\x4c\x02\0\0\0\0\x6b\x1a\xd0\xff\0\0\0\0\xbf\xa3\0\0\0\0\0\
+-\0\x07\x03\0\0\xd0\xff\xff\xff\xbf\x81\0\0\0\0\0\0\xb7\x02\0\0\x0c\0\0\0\xb7\
+-\x04\0\0\x02\0\0\0\xb7\x05\0\0\0\0\0\0\x85\0\0\0\x44\0\0\0\x67\0\0\0\x20\0\0\0\
+-\x77\0\0\0\x20\0\0\0\x55\0\x11\0\0\0\0\0\xb7\x02\0\0\x10\0\0\0\x69\xa1\xd0\xff\
+-\0\0\0\0\xbf\x13\0\0\0\0\0\0\xdc\x03\0\0\x10\0\0\0\x15\x03\x02\0\0\x81\0\0\x55\
+-\x03\x0c\0\xa8\x88\0\0\xb7\x02\0\0\x14\0\0\0\xbf\xa3\0\0\0\0\0\0\x07\x03\0\0\
+-\xd0\xff\xff\xff\xbf\x81\0\0\0\0\0\0\xb7\x04\0\0\x02\0\0\0\xb7\x05\0\0\0\0\0\0\
+-\x85\0\0\0\x44\0\0\0\x69\xa1\xd0\xff\0\0\0\0\x67\0\0\0\x20\0\0\0\x77\0\0\0\x20\
+-\0\0\0\x15\0\x01\0\0\0\0\0\x05\0\x2f\x02\0\0\0\0\x15\x01\x2e\x02\0\0\0\0\x7b\
+-\x9a\x30\xff\0\0\0\0\x15\x01\x57\0\x86\xdd\0\0\x55\x01\x3b\0\x08\0\0\0\x7b\x7a\
+-\x20\xff\0\0\0\0\xb7\x07\0\0\x01\0\0\0\x73\x7a\x50\xff\0\0\0\0\xb7\x01\0\0\0\0\
+-\0\0\x63\x1a\xe0\xff\0\0\0\0\x7b\x1a\xd8\xff\0\0\0\0\x7b\x1a\xd0\xff\0\0\0\0\
+-\xbf\xa3\0\0\0\0\0\0\x07\x03\0\0\xd0\xff\xff\xff\xbf\x81\0\0\0\0\0\0\xb7\x02\0\
+-\0\0\0\0\0\xb7\x04\0\0\x14\0\0\0\xb7\x05\0\0\x01\0\0\0\x85\0\0\0\x44\0\0\0\x67\
+-\0\0\0\x20\0\0\0\x77\0\0\0\x20\0\0\0\x55\0\x1a\x02\0\0\0\0\x69\xa1\xd6\xff\0\0\
+-\0\0\x55\x01\x01\0\0\0\0\0\xb7\x07\0\0\0\0\0\0\x61\xa1\xdc\xff\0\0\0\0\x63\x1a\
+-\x5c\xff\0\0\0\0\x61\xa1\xe0\xff\0\0\0\0\x63\x1a\x60\xff\0\0\0\0\x73\x7a\x56\
+-\xff\0\0\0\0\x71\xa9\xd9\xff\0\0\0\0\x71\xa1\xd0\xff\0\0\0\0\x67\x01\0\0\x02\0\
+-\0\0\x57\x01\0\0\x3c\0\0\0\x7b\x1a\x40\xff\0\0\0\0\x79\xa7\x20\xff\0\0\0\0\xbf\
+-\x91\0\0\0\0\0\0\x57\x01\0\0\xff\0\0\0\x15\x01\x19\0\0\0\0\0\x71\xa1\x56\xff\0\
+-\0\0\0\x55\x01\x17\0\0\0\0\0\x57\x09\0\0\xff\0\0\0\x15\x09\x7a\x01\x11\0\0\0\
+-\x55\x09\x14\0\x06\0\0\0\xb7\x01\0\0\x01\0\0\0\x73\x1a\x53\xff\0\0\0\0\xb7\x01\
+-\0\0\0\0\0\0\x63\x1a\xe0\xff\0\0\0\0\x7b\x1a\xd8\xff\0\0\0\0\x7b\x1a\xd0\xff\0\
+-\0\0\0\xbf\xa3\0\0\0\0\0\0\x07\x03\0\0\xd0\xff\xff\xff\xbf\x81\0\0\0\0\0\0\x79\
+-\xa2\x40\xff\0\0\0\0\xb7\x04\0\0\x14\0\0\0\xb7\x05\0\0\x01\0\0\0\x85\0\0\0\x44\
+-\0\0\0\x67\0\0\0\x20\0\0\0\x77\0\0\0\x20\0\0\0\x55\0\xf4\x01\0\0\0\0\x69\xa1\
+-\xd0\xff\0\0\0\0\x6b\x1a\x58\xff\0\0\0\0\x69\xa1\xd2\xff\0\0\0\0\x6b\x1a\x5a\
+-\xff\0\0\0\0\x71\xa1\x50\xff\0\0\0\0\x15\x01\xd4\0\0\0\0\0\x71\x62\x03\0\0\0\0\
+-\0\x67\x02\0\0\x08\0\0\0\x71\x61\x02\0\0\0\0\0\x4f\x12\0\0\0\0\0\0\x71\x63\x04\
+-\0\0\0\0\0\x71\x61\x05\0\0\0\0\0\x67\x01\0\0\x08\0\0\0\x4f\x31\0\0\0\0\0\0\x67\
+-\x01\0\0\x10\0\0\0\x4f\x21\0\0\0\0\0\0\x71\xa2\x53\xff\0\0\0\0\x79\xa0\x30\xff\
+-\0\0\0\0\x15\x02\x06\x01\0\0\0\0\xbf\x12\0\0\0\0\0\0\x57\x02\0\0\x02\0\0\0\x15\
+-\x02\x03\x01\0\0\0\0\x61\xa1\x5c\xff\0\0\0\0\x63\x1a\xa0\xff\0\0\0\0\x61\xa1\
+-\x60\xff\0\0\0\0\x63\x1a\xa4\xff\0\0\0\0\x69\xa1\x58\xff\0\0\0\0\x6b\x1a\xa8\
+-\xff\0\0\0\0\x69\xa1\x5a\xff\0\0\0\0\x6b\x1a\xaa\xff\0\0\0\0\x05\0\x65\x01\0\0\
+-\0\0\xb7\x01\0\0\x01\0\0\0\x73\x1a\x51\xff\0\0\0\0\xb7\x01\0\0\0\0\0\0\x7b\x1a\
+-\xf0\xff\0\0\0\0\x7b\x1a\xe8\xff\0\0\0\0\x7b\x1a\xe0\xff\0\0\0\0\x7b\x1a\xd8\
+-\xff\0\0\0\0\x7b\x1a\xd0\xff\0\0\0\0\xbf\xa3\0\0\0\0\0\0\x07\x03\0\0\xd0\xff\
+-\xff\xff\xb7\x01\0\0\x28\0\0\0\x7b\x1a\x40\xff\0\0\0\0\xbf\x81\0\0\0\0\0\0\xb7\
+-\x02\0\0\0\0\0\0\xb7\x04\0\0\x28\0\0\0\xb7\x05\0\0\x01\0\0\0\x85\0\0\0\x44\0\0\
+-\0\x67\0\0\0\x20\0\0\0\x77\0\0\0\x20\0\0\0\x55\0\x10\x01\0\0\0\0\x79\xa1\xe0\
+-\xff\0\0\0\0\x63\x1a\x64\xff\0\0\0\0\x77\x01\0\0\x20\0\0\0\x63\x1a\x68\xff\0\0\
+-\0\0\x79\xa1\xd8\xff\0\0\0\0\x63\x1a\x5c\xff\0\0\0\0\x77\x01\0\0\x20\0\0\0\x63\
+-\x1a\x60\xff\0\0\0\0\x79\xa1\xe8\xff\0\0\0\0\x63\x1a\x6c\xff\0\0\0\0\x77\x01\0\
+-\0\x20\0\0\0\x63\x1a\x70\xff\0\0\0\0\x79\xa1\xf0\xff\0\0\0\0\x63\x1a\x74\xff\0\
+-\0\0\0\x77\x01\0\0\x20\0\0\0\x63\x1a\x78\xff\0\0\0\0\x71\xa9\xd6\xff\0\0\0\0\
+-\x25\x09\xff\0\x3c\0\0\0\xb7\x01\0\0\x01\0\0\0\x6f\x91\0\0\0\0\0\0\x18\x02\0\0\
+-\x01\0\0\0\0\0\0\0\0\x18\0\x1c\x5f\x21\0\0\0\0\0\0\x55\x01\x01\0\0\0\0\0\x05\0\
+-\xf8\0\0\0\0\0\xb7\x01\0\0\0\0\0\0\x6b\x1a\xfe\xff\0\0\0\0\xb7\x01\0\0\x28\0\0\
+-\0\x7b\x1a\x40\xff\0\0\0\0\xbf\xa1\0\0\0\0\0\0\x07\x01\0\0\x8c\xff\xff\xff\x7b\
+-\x1a\x18\xff\0\0\0\0\xbf\xa1\0\0\0\0\0\0\x07\x01\0\0\x7c\xff\xff\xff\x7b\x1a\
+-\x10\xff\0\0\0\0\xb7\x01\0\0\0\0\0\0\x7b\x1a\x28\xff\0\0\0\0\x7b\x7a\x20\xff\0\
+-\0\0\0\xbf\xa3\0\0\0\0\0\0\x07\x03\0\0\xfe\xff\xff\xff\xbf\x81\0\0\0\0\0\0\x79\
+-\xa2\x40\xff\0\0\0\0\xb7\x04\0\0\x02\0\0\0\xb7\x05\0\0\x01\0\0\0\x85\0\0\0\x44\
+-\0\0\0\x67\0\0\0\x20\0\0\0\x77\0\0\0\x20\0\0\0\x15\0\x01\0\0\0\0\0\x05\0\x90\
+-\x01\0\0\0\0\xbf\x91\0\0\0\0\0\0\x15\x01\x23\0\x3c\0\0\0\x15\x01\x59\0\x2c\0\0\
+-\0\x55\x01\x5a\0\x2b\0\0\0\xb7\x01\0\0\0\0\0\0\x63\x1a\xf8\xff\0\0\0\0\xbf\xa3\
+-\0\0\0\0\0\0\x07\x03\0\0\xf8\xff\xff\xff\xbf\x81\0\0\0\0\0\0\x79\xa2\x40\xff\0\
+-\0\0\0\xb7\x04\0\0\x04\0\0\0\xb7\x05\0\0\x01\0\0\0\x85\0\0\0\x44\0\0\0\xbf\x01\
+-\0\0\0\0\0\0\x67\x01\0\0\x20\0\0\0\x77\x01\0\0\x20\0\0\0\x55\x01\x03\x01\0\0\0\
+-\0\x71\xa1\xfa\xff\0\0\0\0\x55\x01\x4b\0\x02\0\0\0\x71\xa1\xf9\xff\0\0\0\0\x55\
+-\x01\x49\0\x02\0\0\0\x71\xa1\xfb\xff\0\0\0\0\x55\x01\x47\0\x01\0\0\0\x79\xa2\
+-\x40\xff\0\0\0\0\x07\x02\0\0\x08\0\0\0\xbf\x81\0\0\0\0\0\0\x79\xa3\x18\xff\0\0\
+-\0\0\xb7\x04\0\0\x10\0\0\0\xb7\x05\0\0\x01\0\0\0\x85\0\0\0\x44\0\0\0\xbf\x01\0\
+-\0\0\0\0\0\x67\x01\0\0\x20\0\0\0\x77\x01\0\0\x20\0\0\0\x55\x01\xf2\0\0\0\0\0\
+-\xb7\x01\0\0\x01\0\0\0\x73\x1a\x55\xff\0\0\0\0\x05\0\x39\0\0\0\0\0\xb7\x01\0\0\
+-\0\0\0\0\x6b\x1a\xf8\xff\0\0\0\0\xb7\x09\0\0\x02\0\0\0\xb7\x07\0\0\x1e\0\0\0\
+-\x05\0\x0e\0\0\0\0\0\x79\xa2\x38\xff\0\0\0\0\x0f\x29\0\0\0\0\0\0\xbf\x92\0\0\0\
+-\0\0\0\x07\x02\0\0\x01\0\0\0\x71\xa3\xff\xff\0\0\0\0\x67\x03\0\0\x03\0\0\0\x2d\
+-\x23\x02\0\0\0\0\0\x79\xa7\x20\xff\0\0\0\0\x05\0\x2b\0\0\0\0\0\x07\x07\0\0\xff\
+-\xff\xff\xff\xbf\x72\0\0\0\0\0\0\x67\x02\0\0\x20\0\0\0\x77\x02\0\0\x20\0\0\0\
+-\x15\x02\xf9\xff\0\0\0\0\x7b\x9a\x38\xff\0\0\0\0\x79\xa1\x40\xff\0\0\0\0\x0f\
+-\x19\0\0\0\0\0\0\xbf\xa3\0\0\0\0\0\0\x07\x03\0\0\xf8\xff\xff\xff\xbf\x81\0\0\0\
+-\0\0\0\xbf\x92\0\0\0\0\0\0\xb7\x04\0\0\x02\0\0\0\xb7\x05\0\0\x01\0\0\0\x85\0\0\
+-\0\x44\0\0\0\xbf\x01\0\0\0\0\0\0\x67\x01\0\0\x20\0\0\0\x77\x01\0\0\x20\0\0\0\
+-\x55\x01\x94\0\0\0\0\0\x71\xa2\xf8\xff\0\0\0\0\x55\x02\x0f\0\xc9\0\0\0\x07\x09\
+-\0\0\x02\0\0\0\xbf\x81\0\0\0\0\0\0\xbf\x92\0\0\0\0\0\0\x79\xa3\x10\xff\0\0\0\0\
+-\xb7\x04\0\0\x10\0\0\0\xb7\x05\0\0\x01\0\0\0\x85\0\0\0\x44\0\0\0\xbf\x01\0\0\0\
+-\0\0\0\x67\x01\0\0\x20\0\0\0\x77\x01\0\0\x20\0\0\0\x55\x01\x87\0\0\0\0\0\xb7\
+-\x01\0\0\x01\0\0\0\x73\x1a\x54\xff\0\0\0\0\x79\xa7\x20\xff\0\0\0\0\x05\0\x07\0\
+-\0\0\0\0\xb7\x09\0\0\x01\0\0\0\x15\x02\xd1\xff\0\0\0\0\x71\xa9\xf9\xff\0\0\0\0\
+-\x07\x09\0\0\x02\0\0\0\x05\0\xce\xff\0\0\0\0\xb7\x01\0\0\x01\0\0\0\x73\x1a\x56\
+-\xff\0\0\0\0\x71\xa1\xff\xff\0\0\0\0\x67\x01\0\0\x03\0\0\0\x79\xa2\x40\xff\0\0\
+-\0\0\x0f\x12\0\0\0\0\0\0\x07\x02\0\0\x08\0\0\0\x7b\x2a\x40\xff\0\0\0\0\x71\xa9\
+-\xfe\xff\0\0\0\0\x25\x09\x0e\0\x3c\0\0\0\xb7\x01\0\0\x01\0\0\0\x6f\x91\0\0\0\0\
+-\0\0\x18\x02\0\0\x01\0\0\0\0\0\0\0\0\x18\0\x1c\x5f\x21\0\0\0\0\0\0\x55\x01\x01\
+-\0\0\0\0\0\x05\0\x07\0\0\0\0\0\x79\xa1\x28\xff\0\0\0\0\x07\x01\0\0\x01\0\0\0\
+-\x7b\x1a\x28\xff\0\0\0\0\x67\x01\0\0\x20\0\0\0\x77\x01\0\0\x20\0\0\0\x55\x01\
+-\x82\xff\x0b\0\0\0\x05\0\x10\xff\0\0\0\0\x15\x09\xf8\xff\x87\0\0\0\x05\0\xfd\
+-\xff\0\0\0\0\x71\xa1\x51\xff\0\0\0\0\x79\xa0\x30\xff\0\0\0\0\x15\x01\x17\x01\0\
+-\0\0\0\x71\x62\x03\0\0\0\0\0\x67\x02\0\0\x08\0\0\0\x71\x61\x02\0\0\0\0\0\x4f\
+-\x12\0\0\0\0\0\0\x71\x63\x04\0\0\0\0\0\x71\x61\x05\0\0\0\0\0\x67\x01\0\0\x08\0\
+-\0\0\x4f\x31\0\0\0\0\0\0\x67\x01\0\0\x10\0\0\0\x4f\x21\0\0\0\0\0\0\x71\xa2\x53\
+-\xff\0\0\0\0\x15\x02\x3d\0\0\0\0\0\xbf\x12\0\0\0\0\0\0\x57\x02\0\0\x10\0\0\0\
+-\x15\x02\x3a\0\0\0\0\0\xbf\xa2\0\0\0\0\0\0\x07\x02\0\0\x5c\xff\xff\xff\x71\xa4\
+-\x54\xff\0\0\0\0\xbf\x23\0\0\0\0\0\0\x15\x04\x02\0\0\0\0\0\xbf\xa3\0\0\0\0\0\0\
+-\x07\x03\0\0\x7c\xff\xff\xff\x67\x01\0\0\x38\0\0\0\xc7\x01\0\0\x38\0\0\0\x65\
+-\x01\x01\0\xff\xff\xff\xff\xbf\x32\0\0\0\0\0\0\xbf\xa3\0\0\0\0\0\0\x07\x03\0\0\
+-\x6c\xff\xff\xff\x71\xa5\x55\xff\0\0\0\0\xbf\x34\0\0\0\0\0\0\x15\x05\x02\0\0\0\
+-\0\0\xbf\xa4\0\0\0\0\0\0\x07\x04\0\0\x8c\xff\xff\xff\x65\x01\x01\0\xff\xff\xff\
+-\xff\xbf\x43\0\0\0\0\0\0\x61\x21\x04\0\0\0\0\0\x67\x01\0\0\x20\0\0\0\x61\x24\0\
+-\0\0\0\0\0\x4f\x41\0\0\0\0\0\0\x7b\x1a\xa0\xff\0\0\0\0\x61\x21\x08\0\0\0\0\0\
+-\x61\x22\x0c\0\0\0\0\0\x67\x02\0\0\x20\0\0\0\x4f\x12\0\0\0\0\0\0\x7b\x2a\xa8\
+-\xff\0\0\0\0\x61\x31\0\0\0\0\0\0\x61\x32\x04\0\0\0\0\0\x61\x34\x08\0\0\0\0\0\
+-\x61\x33\x0c\0\0\0\0\0\x69\xa5\x5a\xff\0\0\0\0\x6b\x5a\xc2\xff\0\0\0\0\x69\xa5\
+-\x58\xff\0\0\0\0\x6b\x5a\xc0\xff\0\0\0\0\x67\x03\0\0\x20\0\0\0\x4f\x43\0\0\0\0\
+-\0\0\x7b\x3a\xb8\xff\0\0\0\0\x67\x02\0\0\x20\0\0\0\x4f\x12\0\0\0\0\0\0\x7b\x2a\
+-\xb0\xff\0\0\0\0\x05\0\x6b\0\0\0\0\0\x71\xa2\x52\xff\0\0\0\0\x15\x02\x04\0\0\0\
+-\0\0\xbf\x12\0\0\0\0\0\0\x57\x02\0\0\x04\0\0\0\x15\x02\x01\0\0\0\0\0\x05\0\xf7\
+-\xfe\0\0\0\0\x57\x01\0\0\x01\0\0\0\x15\x01\xd3\0\0\0\0\0\x61\xa1\x5c\xff\0\0\0\
+-\0\x63\x1a\xa0\xff\0\0\0\0\x61\xa1\x60\xff\0\0\0\0\x63\x1a\xa4\xff\0\0\0\0\x05\
+-\0\x5e\0\0\0\0\0\x71\xa2\x52\xff\0\0\0\0\x15\x02\x1e\0\0\0\0\0\xbf\x12\0\0\0\0\
+-\0\0\x57\x02\0\0\x20\0\0\0\x15\x02\x1b\0\0\0\0\0\xbf\xa2\0\0\0\0\0\0\x07\x02\0\
+-\0\x5c\xff\xff\xff\x71\xa4\x54\xff\0\0\0\0\xbf\x23\0\0\0\0\0\0\x15\x04\x02\0\0\
+-\0\0\0\xbf\xa3\0\0\0\0\0\0\x07\x03\0\0\x7c\xff\xff\xff\x57\x01\0\0\0\x01\0\0\
+-\x15\x01\x01\0\0\0\0\0\xbf\x32\0\0\0\0\0\0\xbf\xa3\0\0\0\0\0\0\x07\x03\0\0\x6c\
+-\xff\xff\xff\x71\xa5\x55\xff\0\0\0\0\xbf\x34\0\0\0\0\0\0\x15\x05\x02\0\0\0\0\0\
+-\xbf\xa4\0\0\0\0\0\0\x07\x04\0\0\x8c\xff\xff\xff\x15\x01\xc3\xff\0\0\0\0\x05\0\
+-\xc1\xff\0\0\0\0\xb7\x09\0\0\x3c\0\0\0\x79\xa7\x20\xff\0\0\0\0\x67\0\0\0\x20\0\
+-\0\0\x77\0\0\0\x20\0\0\0\x15\0\xa5\xfe\0\0\0\0\x05\0\xb0\0\0\0\0\0\x15\x09\x07\
+-\xff\x87\0\0\0\x05\0\xa2\xfe\0\0\0\0\xbf\x12\0\0\0\0\0\0\x57\x02\0\0\x08\0\0\0\
+-\x15\x02\xab\0\0\0\0\0\xbf\xa2\0\0\0\0\0\0\x07\x02\0\0\x5c\xff\xff\xff\x71\xa4\
+-\x54\xff\0\0\0\0\xbf\x23\0\0\0\0\0\0\x15\x04\x02\0\0\0\0\0\xbf\xa3\0\0\0\0\0\0\
+-\x07\x03\0\0\x7c\xff\xff\xff\x57\x01\0\0\x40\0\0\0\x15\x01\x01\0\0\0\0\0\xbf\
+-\x32\0\0\0\0\0\0\x61\x23\x04\0\0\0\0\0\x67\x03\0\0\x20\0\0\0\x61\x24\0\0\0\0\0\
+-\0\x4f\x43\0\0\0\0\0\0\x7b\x3a\xa0\xff\0\0\0\0\x61\x23\x08\0\0\0\0\0\x61\x22\
+-\x0c\0\0\0\0\0\x67\x02\0\0\x20\0\0\0\x4f\x32\0\0\0\0\0\0\x7b\x2a\xa8\xff\0\0\0\
+-\0\x15\x01\x1c\0\0\0\0\0\x71\xa1\x55\xff\0\0\0\0\x15\x01\x1a\0\0\0\0\0\x61\xa1\
+-\x98\xff\0\0\0\0\x67\x01\0\0\x20\0\0\0\x61\xa2\x94\xff\0\0\0\0\x4f\x21\0\0\0\0\
+-\0\0\x7b\x1a\xb8\xff\0\0\0\0\x61\xa1\x90\xff\0\0\0\0\x67\x01\0\0\x20\0\0\0\x61\
+-\xa2\x8c\xff\0\0\0\0\x05\0\x19\0\0\0\0\0\xb7\x01\0\0\x01\0\0\0\x73\x1a\x52\xff\
+-\0\0\0\0\xb7\x01\0\0\0\0\0\0\x7b\x1a\xd0\xff\0\0\0\0\xbf\xa3\0\0\0\0\0\0\x07\
+-\x03\0\0\xd0\xff\xff\xff\xbf\x81\0\0\0\0\0\0\x79\xa2\x40\xff\0\0\0\0\xb7\x04\0\
+-\0\x08\0\0\0\xb7\x05\0\0\x01\0\0\0\x85\0\0\0\x44\0\0\0\x67\0\0\0\x20\0\0\0\x77\
+-\0\0\0\x20\0\0\0\x55\0\x7d\0\0\0\0\0\x05\0\x88\xfe\0\0\0\0\xb7\x09\0\0\x2b\0\0\
+-\0\x05\0\xc6\xff\0\0\0\0\x61\xa1\x78\xff\0\0\0\0\x67\x01\0\0\x20\0\0\0\x61\xa2\
+-\x74\xff\0\0\0\0\x4f\x21\0\0\0\0\0\0\x7b\x1a\xb8\xff\0\0\0\0\x61\xa1\x70\xff\0\
+-\0\0\0\x67\x01\0\0\x20\0\0\0\x61\xa2\x6c\xff\0\0\0\0\x4f\x21\0\0\0\0\0\0\x7b\
+-\x1a\xb0\xff\0\0\0\0\xb7\x01\0\0\0\0\0\0\x07\x07\0\0\x04\0\0\0\x61\x03\0\0\0\0\
+-\0\0\xb7\x05\0\0\0\0\0\0\x05\0\x4e\0\0\0\0\0\xaf\x52\0\0\0\0\0\0\xbf\x75\0\0\0\
+-\0\0\0\x0f\x15\0\0\0\0\0\0\x71\x55\0\0\0\0\0\0\x67\x03\0\0\x01\0\0\0\xbf\x50\0\
+-\0\0\0\0\0\x77\0\0\0\x07\0\0\0\x4f\x03\0\0\0\0\0\0\xbf\x40\0\0\0\0\0\0\x67\0\0\
+-\0\x39\0\0\0\xc7\0\0\0\x3f\0\0\0\x5f\x30\0\0\0\0\0\0\xaf\x02\0\0\0\0\0\0\xbf\
+-\x50\0\0\0\0\0\0\x77\0\0\0\x06\0\0\0\x57\0\0\0\x01\0\0\0\x67\x03\0\0\x01\0\0\0\
+-\x4f\x03\0\0\0\0\0\0\xbf\x40\0\0\0\0\0\0\x67\0\0\0\x3a\0\0\0\xc7\0\0\0\x3f\0\0\
+-\0\x5f\x30\0\0\0\0\0\0\xaf\x02\0\0\0\0\0\0\x67\x03\0\0\x01\0\0\0\xbf\x50\0\0\0\
+-\0\0\0\x77\0\0\0\x05\0\0\0\x57\0\0\0\x01\0\0\0\x4f\x03\0\0\0\0\0\0\xbf\x40\0\0\
+-\0\0\0\0\x67\0\0\0\x3b\0\0\0\xc7\0\0\0\x3f\0\0\0\x5f\x30\0\0\0\0\0\0\xaf\x02\0\
+-\0\0\0\0\0\x67\x03\0\0\x01\0\0\0\xbf\x50\0\0\0\0\0\0\x77\0\0\0\x04\0\0\0\x57\0\
+-\0\0\x01\0\0\0\x4f\x03\0\0\0\0\0\0\xbf\x40\0\0\0\0\0\0\x67\0\0\0\x3c\0\0\0\xc7\
+-\0\0\0\x3f\0\0\0\x5f\x30\0\0\0\0\0\0\xaf\x02\0\0\0\0\0\0\xbf\x50\0\0\0\0\0\0\
+-\x77\0\0\0\x03\0\0\0\x57\0\0\0\x01\0\0\0\x67\x03\0\0\x01\0\0\0\x4f\x03\0\0\0\0\
+-\0\0\xbf\x40\0\0\0\0\0\0\x67\0\0\0\x3d\0\0\0\xc7\0\0\0\x3f\0\0\0\x5f\x30\0\0\0\
+-\0\0\0\xaf\x02\0\0\0\0\0\0\xbf\x50\0\0\0\0\0\0\x77\0\0\0\x02\0\0\0\x57\0\0\0\
+-\x01\0\0\0\x67\x03\0\0\x01\0\0\0\x4f\x03\0\0\0\0\0\0\xbf\x40\0\0\0\0\0\0\x67\0\
+-\0\0\x3e\0\0\0\xc7\0\0\0\x3f\0\0\0\x5f\x30\0\0\0\0\0\0\xaf\x02\0\0\0\0\0\0\xbf\
+-\x50\0\0\0\0\0\0\x77\0\0\0\x01\0\0\0\x57\0\0\0\x01\0\0\0\x67\x03\0\0\x01\0\0\0\
+-\x4f\x03\0\0\0\0\0\0\x57\x04\0\0\x01\0\0\0\x87\x04\0\0\0\0\0\0\x5f\x34\0\0\0\0\
+-\0\0\xaf\x42\0\0\0\0\0\0\x57\x05\0\0\x01\0\0\0\x67\x03\0\0\x01\0\0\0\x4f\x53\0\
+-\0\0\0\0\0\x07\x01\0\0\x01\0\0\0\xbf\x25\0\0\0\0\0\0\x15\x01\x0b\0\x24\0\0\0\
+-\xbf\xa2\0\0\0\0\0\0\x07\x02\0\0\xa0\xff\xff\xff\x0f\x12\0\0\0\0\0\0\x71\x24\0\
+-\0\0\0\0\0\xbf\x40\0\0\0\0\0\0\x67\0\0\0\x38\0\0\0\xc7\0\0\0\x38\0\0\0\xb7\x02\
+-\0\0\0\0\0\0\x65\0\xa9\xff\xff\xff\xff\xff\xbf\x32\0\0\0\0\0\0\x05\0\xa7\xff\0\
+-\0\0\0\xbf\x21\0\0\0\0\0\0\x67\x01\0\0\x20\0\0\0\x77\x01\0\0\x20\0\0\0\x15\x01\
+-\x0e\0\0\0\0\0\x71\x63\x06\0\0\0\0\0\x71\x64\x07\0\0\0\0\0\x67\x04\0\0\x08\0\0\
+-\0\x4f\x34\0\0\0\0\0\0\x3f\x41\0\0\0\0\0\0\x2f\x41\0\0\0\0\0\0\x1f\x12\0\0\0\0\
+-\0\0\x63\x2a\x50\xff\0\0\0\0\xbf\xa2\0\0\0\0\0\0\x07\x02\0\0\x50\xff\xff\xff\
+-\x18\x01\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x85\0\0\0\x01\0\0\0\x55\0\x05\0\0\0\0\0\
+-\x71\x61\x08\0\0\0\0\0\x71\x60\x09\0\0\0\0\0\x67\0\0\0\x08\0\0\0\x4f\x10\0\0\0\
+-\0\0\0\x95\0\0\0\0\0\0\0\x69\0\0\0\0\0\0\0\x05\0\xfd\xff\0\0\0\0\x02\0\0\0\x04\
+-\0\0\0\x0a\0\0\0\x01\0\0\0\0\0\0\0\x02\0\0\0\x04\0\0\0\x28\0\0\0\x01\0\0\0\0\0\
+-\0\0\x02\0\0\0\x04\0\0\0\x02\0\0\0\x80\0\0\0\0\0\0\0\x47\x50\x4c\x20\x76\x32\0\
+-\0\0\0\0\0\x10\0\0\0\0\0\0\0\x01\x7a\x52\0\x08\x7c\x0b\x01\x0c\0\0\0\x18\0\0\0\
+-\x18\0\0\0\0\0\0\0\0\0\0\0\xd8\x13\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\
+-\0\0\0\0\0\0\0\0\0\0\0\0\xa0\0\0\0\x04\0\xf1\xff\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\
+-\0\x60\x02\0\0\0\0\x03\0\x20\x02\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x3f\x02\0\0\0\0\
+-\x03\0\xd0\x0f\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xed\x01\0\0\0\0\x03\0\x10\x10\0\0\0\
+-\0\0\0\0\0\0\0\0\0\0\0\xd4\x01\0\0\0\0\x03\0\x20\x10\0\0\0\0\0\0\0\0\0\0\0\0\0\
+-\0\xa3\x01\0\0\0\0\x03\0\xb8\x12\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x63\x01\0\0\0\0\
+-\x03\0\x48\x10\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x2a\x01\0\0\0\0\x03\0\x10\x13\0\0\0\
+-\0\0\0\0\0\0\0\0\0\0\0\xe1\0\0\0\0\0\x03\0\xa0\x13\0\0\0\0\0\0\0\0\0\0\0\0\0\0\
+-\x2e\x02\0\0\0\0\x03\0\x28\x02\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x68\x02\0\0\0\0\x03\
+-\0\xc0\x13\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x36\x02\0\0\0\0\x03\0\xc8\x13\0\0\0\0\0\
+-\0\0\0\0\0\0\0\0\0\x22\x01\0\0\0\0\x03\0\xe8\x02\0\0\0\0\0\0\0\0\0\0\0\0\0\0\
+-\x02\x01\0\0\0\0\x03\0\x40\x03\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xd9\0\0\0\0\0\x03\0\
+-\xf8\x04\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x26\x02\0\0\0\0\x03\0\x20\x0e\0\0\0\0\0\0\
+-\0\0\0\0\0\0\0\0\xcc\x01\0\0\0\0\x03\0\x60\x06\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x9b\
+-\x01\0\0\0\0\x03\0\xc8\x06\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x5b\x01\0\0\0\0\x03\0\
+-\x20\x07\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x7c\x01\0\0\0\0\x03\0\x48\x08\0\0\0\0\0\0\
+-\0\0\0\0\0\0\0\0\x53\x01\0\0\0\0\x03\0\xb8\x08\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x1a\
+-\x01\0\0\0\0\x03\0\xe0\x08\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x84\x01\0\0\0\0\x03\0\
+-\xb8\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x1e\x02\0\0\0\0\x03\0\xd8\x09\0\0\0\0\0\0\0\
+-\0\0\0\0\0\0\0\xc4\x01\0\0\0\0\x03\0\x70\x08\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x93\
+-\x01\0\0\0\0\x03\0\xa8\x08\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x74\x01\0\0\0\0\x03\0\
+-\xf0\x0d\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x4b\x01\0\0\0\0\x03\0\0\x0a\0\0\0\0\0\0\0\
+-\0\0\0\0\0\0\0\x12\x01\0\0\0\0\x03\0\x10\x0a\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xfa\0\
+-\0\0\0\0\x03\0\xc0\x0a\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x58\x02\0\0\0\0\x03\0\x88\
+-\x0a\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x16\x02\0\0\0\0\x03\0\xb8\x0a\0\0\0\0\0\0\0\0\
+-\0\0\0\0\0\0\xe5\x01\0\0\0\0\x03\0\xc0\x0f\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xbc\x01\
+-\0\0\0\0\x03\0\0\x0e\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x8b\x01\0\0\0\0\x03\0\x18\x0e\
+-\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xd1\0\0\0\0\0\x03\0\0\x04\0\0\0\0\0\0\0\0\0\0\0\0\
+-\0\0\x50\x02\0\0\0\0\x03\0\x20\x04\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x0e\x02\0\0\0\0\
+-\x03\0\x48\x0f\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x6c\x01\0\0\0\0\x03\0\xb0\x04\0\0\0\
+-\0\0\0\0\0\0\0\0\0\0\0\x43\x01\0\0\0\0\x03\0\xc8\x0c\0\0\0\0\0\0\0\0\0\0\0\0\0\
+-\0\xc9\0\0\0\0\0\x03\0\xf8\x0c\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x06\x02\0\0\0\0\x03\
+-\0\xd0\x0a\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x3b\x01\0\0\0\0\x03\0\x98\x0b\0\0\0\0\0\
+-\0\0\0\0\0\0\0\0\0\xf2\0\0\0\0\0\x03\0\xb8\x0b\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x48\
+-\x02\0\0\0\0\x03\0\xf0\x0b\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xfe\x01\0\0\0\0\x03\0\
+-\xf8\x0b\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xdd\x01\0\0\0\0\x03\0\0\x0c\0\0\0\0\0\0\0\
+-\0\0\0\0\0\0\0\xb4\x01\0\0\0\0\x03\0\x30\x0d\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x0a\
+-\x01\0\0\0\0\x03\0\x90\x0d\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xc1\0\0\0\0\0\x03\0\xa8\
+-\x0d\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xba\0\0\0\0\0\x03\0\xd0\x01\0\0\0\0\0\0\0\0\0\
+-\0\0\0\0\0\xf6\x01\0\0\0\0\x03\0\xe0\x0d\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xac\x01\0\
+-\0\0\0\x03\0\x30\x0e\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x33\x01\0\0\0\0\x03\0\x80\x0e\
+-\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xea\0\0\0\0\0\x03\0\x98\x0e\0\0\0\0\0\0\0\0\0\0\0\
+-\0\0\0\0\0\0\0\x03\0\x03\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x6b\0\0\0\x11\0\x06\
+-\0\0\0\0\0\0\0\0\0\x07\0\0\0\0\0\0\0\x25\0\0\0\x11\0\x05\0\0\0\0\0\0\0\0\0\x14\
+-\0\0\0\0\0\0\0\x82\0\0\0\x11\0\x05\0\x28\0\0\0\0\0\0\0\x14\0\0\0\0\0\0\0\x01\0\
+-\0\0\x11\0\x05\0\x14\0\0\0\0\0\0\0\x14\0\0\0\0\0\0\0\x40\0\0\0\x12\0\x03\0\0\0\
+-\0\0\0\0\0\0\xd8\x13\0\0\0\0\0\0\x28\0\0\0\0\0\0\0\x01\0\0\0\x3a\0\0\0\x50\0\0\
+-\0\0\0\0\0\x01\0\0\0\x3c\0\0\0\x80\x13\0\0\0\0\0\0\x01\0\0\0\x3b\0\0\0\x1c\0\0\
+-\0\0\0\0\0\x01\0\0\0\x38\0\0\0\0\x74\x61\x70\x5f\x72\x73\x73\x5f\x6d\x61\x70\
+-\x5f\x74\x6f\x65\x70\x6c\x69\x74\x7a\x5f\x6b\x65\x79\0\x2e\x74\x65\x78\x74\0\
+-\x6d\x61\x70\x73\0\x74\x61\x70\x5f\x72\x73\x73\x5f\x6d\x61\x70\x5f\x63\x6f\x6e\
+-\x66\x69\x67\x75\x72\x61\x74\x69\x6f\x6e\x73\0\x74\x75\x6e\x5f\x72\x73\x73\x5f\
+-\x73\x74\x65\x65\x72\x69\x6e\x67\x5f\x70\x72\x6f\x67\0\x2e\x72\x65\x6c\x74\x75\
+-\x6e\x5f\x72\x73\x73\x5f\x73\x74\x65\x65\x72\x69\x6e\x67\0\x5f\x6c\x69\x63\x65\
+-\x6e\x73\x65\0\x2e\x72\x65\x6c\x2e\x65\x68\x5f\x66\x72\x61\x6d\x65\0\x74\x61\
+-\x70\x5f\x72\x73\x73\x5f\x6d\x61\x70\x5f\x69\x6e\x64\x69\x72\x65\x63\x74\x69\
+-\x6f\x6e\x5f\x74\x61\x62\x6c\x65\0\x72\x73\x73\x2e\x62\x70\x66\x2e\x63\0\x2e\
+-\x73\x74\x72\x74\x61\x62\0\x2e\x73\x79\x6d\x74\x61\x62\0\x4c\x42\x42\x30\x5f\
+-\x39\0\x4c\x42\x42\x30\x5f\x38\x39\0\x4c\x42\x42\x30\x5f\x36\x39\0\x4c\x42\x42\
+-\x30\x5f\x35\x39\0\x4c\x42\x42\x30\x5f\x31\x39\0\x4c\x42\x42\x30\x5f\x31\x30\
+-\x39\0\x4c\x42\x42\x30\x5f\x39\x38\0\x4c\x42\x42\x30\x5f\x37\x38\0\x4c\x42\x42\
+-\x30\x5f\x34\x38\0\x4c\x42\x42\x30\x5f\x31\x38\0\x4c\x42\x42\x30\x5f\x38\x37\0\
+-\x4c\x42\x42\x30\x5f\x34\x37\0\x4c\x42\x42\x30\x5f\x33\x37\0\x4c\x42\x42\x30\
+-\x5f\x31\x37\0\x4c\x42\x42\x30\x5f\x31\x30\x37\0\x4c\x42\x42\x30\x5f\x39\x36\0\
+-\x4c\x42\x42\x30\x5f\x37\x36\0\x4c\x42\x42\x30\x5f\x36\x36\0\x4c\x42\x42\x30\
+-\x5f\x34\x36\0\x4c\x42\x42\x30\x5f\x33\x36\0\x4c\x42\x42\x30\x5f\x32\x36\0\x4c\
+-\x42\x42\x30\x5f\x31\x30\x36\0\x4c\x42\x42\x30\x5f\x36\x35\0\x4c\x42\x42\x30\
+-\x5f\x34\x35\0\x4c\x42\x42\x30\x5f\x33\x35\0\x4c\x42\x42\x30\x5f\x34\0\x4c\x42\
+-\x42\x30\x5f\x35\x34\0\x4c\x42\x42\x30\x5f\x34\x34\0\x4c\x42\x42\x30\x5f\x32\
+-\x34\0\x4c\x42\x42\x30\x5f\x31\x30\x34\0\x4c\x42\x42\x30\x5f\x39\x33\0\x4c\x42\
+-\x42\x30\x5f\x38\x33\0\x4c\x42\x42\x30\x5f\x35\x33\0\x4c\x42\x42\x30\x5f\x34\
+-\x33\0\x4c\x42\x42\x30\x5f\x32\x33\0\x4c\x42\x42\x30\x5f\x31\x30\x33\0\x4c\x42\
+-\x42\x30\x5f\x38\x32\0\x4c\x42\x42\x30\x5f\x35\x32\0\x4c\x42\x42\x30\x5f\x31\
+-\x30\x32\0\x4c\x42\x42\x30\x5f\x39\x31\0\x4c\x42\x42\x30\x5f\x38\x31\0\x4c\x42\
+-\x42\x30\x5f\x37\x31\0\x4c\x42\x42\x30\x5f\x36\x31\0\x4c\x42\x42\x30\x5f\x35\
+-\x31\0\x4c\x42\x42\x30\x5f\x34\x31\0\x4c\x42\x42\x30\x5f\x32\x31\0\x4c\x42\x42\
+-\x30\x5f\x31\x31\0\x4c\x42\x42\x30\x5f\x31\x31\x31\0\x4c\x42\x42\x30\x5f\x31\
+-\x30\x31\0\x4c\x42\x42\x30\x5f\x38\x30\0\x4c\x42\x42\x30\x5f\x36\x30\0\x4c\x42\
+-\x42\x30\x5f\x35\x30\0\x4c\x42\x42\x30\x5f\x31\x30\0\x4c\x42\x42\x30\x5f\x31\
+-\x31\x30\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\
+-\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xaa\
+-\0\0\0\x03\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xa0\x1a\0\0\0\0\0\0\x71\x02\0\
+-\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x1a\0\0\0\x01\0\0\
+-\0\x06\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x40\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\
+-\0\0\0\0\x04\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x5a\0\0\0\x01\0\0\0\x06\0\0\0\0\0\0\
+-\0\0\0\0\0\0\0\0\0\x40\0\0\0\0\0\0\0\xd8\x13\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x08\0\
+-\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x56\0\0\0\x09\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\
+-\0\x60\x1a\0\0\0\0\0\0\x30\0\0\0\0\0\0\0\x09\0\0\0\x03\0\0\0\x08\0\0\0\0\0\0\0\
+-\x10\0\0\0\0\0\0\0\x20\0\0\0\x01\0\0\0\x03\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x18\
+-\x14\0\0\0\0\0\0\x3c\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x04\0\0\0\0\0\0\0\0\0\0\0\0\
+-\0\0\0\x6c\0\0\0\x01\0\0\0\x03\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x54\x14\0\0\0\0\0\
+-\0\x07\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x78\0\0\
+-\0\x01\0\0\0\x02\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x60\x14\0\0\0\0\0\0\x30\0\0\0\0\
+-\0\0\0\0\0\0\0\0\0\0\0\x08\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x74\0\0\0\x09\0\0\0\0\
+-\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x90\x1a\0\0\0\0\0\0\x10\0\0\0\0\0\0\0\x09\0\0\0\
+-\x07\0\0\0\x08\0\0\0\0\0\0\0\x10\0\0\0\0\0\0\0\xb2\0\0\0\x02\0\0\0\0\0\0\0\0\0\
+-\0\0\0\0\0\0\0\0\0\0\x90\x14\0\0\0\0\0\0\xd0\x05\0\0\0\0\0\0\x01\0\0\0\x39\0\0\
+-\0\x08\0\0\0\0\0\0\0\x18\0\0\0\0\0\0\0";
+-
+-	return 0;
+-err:
+-	bpf_object__destroy_skeleton(s);
+-	return -1;
+-}
+-
+-#endif /* __RSS_BPF_SKEL_H__ */
+diff --git a/ebpf/trace-events b/ebpf/trace-events
+deleted file mode 100644
+index 411b1e2be3..0000000000
+--- a/ebpf/trace-events
++++ /dev/null
+@@ -1,4 +0,0 @@
+-# See docs/devel/tracing.txt for syntax documentation.
+-
+-# ebpf-rss.c
+-ebpf_error(const char *s1, const char *s2) "error in %s: %s"
+diff --git a/ebpf/trace.h b/ebpf/trace.h
+deleted file mode 100644
+index abefc46ab1..0000000000
+--- a/ebpf/trace.h
++++ /dev/null
+@@ -1 +0,0 @@
+-#include "trace/trace-ebpf.h"
+diff --git a/hw/net/vhost_net.c b/hw/net/vhost_net.c
+index 44c1ed92dc..24d555e764 100644
+--- a/hw/net/vhost_net.c
++++ b/hw/net/vhost_net.c
+@@ -45,7 +45,6 @@ static const int kernel_feature_bits[] = {
+     VIRTIO_NET_F_MTU,
+     VIRTIO_F_IOMMU_PLATFORM,
+     VIRTIO_F_RING_PACKED,
+-    VIRTIO_NET_F_HASH_REPORT,
+     VHOST_INVALID_FEATURE_BIT
+ };
+ 
+@@ -72,8 +71,6 @@ static const int user_feature_bits[] = {
+     VIRTIO_NET_F_MTU,
+     VIRTIO_F_IOMMU_PLATFORM,
+     VIRTIO_F_RING_PACKED,
+-    VIRTIO_NET_F_RSS,
+-    VIRTIO_NET_F_HASH_REPORT,
+ 
+     /* This bit implies RARP isn't sent by QEMU out of band */
+     VIRTIO_NET_F_GUEST_ANNOUNCE,
+diff --git a/hw/net/virtio-net.c b/hw/net/virtio-net.c
+index bd7958b9f0..05bd50d3f6 100644
+--- a/hw/net/virtio-net.c
++++ b/hw/net/virtio-net.c
+@@ -737,9 +737,8 @@ static uint64_t virtio_net_get_features(VirtIODevice *vdev, uint64_t features,
+         return features;
+     }
+ 
+-    if (!ebpf_rss_is_loaded(&n->ebpf_rss)) {
+-        virtio_clear_feature(&features, VIRTIO_NET_F_RSS);
+-    }
++    virtio_clear_feature(&features, VIRTIO_NET_F_RSS);
++    virtio_clear_feature(&features, VIRTIO_NET_F_HASH_REPORT);
+     features = vhost_net_get_features(get_vhost_net(nc->peer), features);
+     vdev->backend_features = features;
+ 
+@@ -1164,79 +1163,12 @@ static int virtio_net_handle_announce(VirtIONet *n, uint8_t cmd,
+     }
+ }
+ 
+-static void virtio_net_detach_epbf_rss(VirtIONet *n);
+-
+ static void virtio_net_disable_rss(VirtIONet *n)
+ {
+     if (n->rss_data.enabled) {
+         trace_virtio_net_rss_disable();
+     }
+     n->rss_data.enabled = false;
+-
+-    virtio_net_detach_epbf_rss(n);
+-}
+-
+-static bool virtio_net_attach_ebpf_to_backend(NICState *nic, int prog_fd)
+-{
+-    NetClientState *nc = qemu_get_peer(qemu_get_queue(nic), 0);
+-    if (nc == NULL || nc->info->set_steering_ebpf == NULL) {
+-        return false;
+-    }
+-
+-    return nc->info->set_steering_ebpf(nc, prog_fd);
+-}
+-
+-static void rss_data_to_rss_config(struct VirtioNetRssData *data,
+-                                   struct EBPFRSSConfig *config)
+-{
+-    config->redirect = data->redirect;
+-    config->populate_hash = data->populate_hash;
+-    config->hash_types = data->hash_types;
+-    config->indirections_len = data->indirections_len;
+-    config->default_queue = data->default_queue;
+-}
+-
+-static bool virtio_net_attach_epbf_rss(VirtIONet *n)
+-{
+-    struct EBPFRSSConfig config = {};
+-
+-    if (!ebpf_rss_is_loaded(&n->ebpf_rss)) {
+-        return false;
+-    }
+-
+-    rss_data_to_rss_config(&n->rss_data, &config);
+-
+-    if (!ebpf_rss_set_all(&n->ebpf_rss, &config,
+-                          n->rss_data.indirections_table, n->rss_data.key)) {
+-        return false;
+-    }
+-
+-    if (!virtio_net_attach_ebpf_to_backend(n->nic, n->ebpf_rss.program_fd)) {
+-        return false;
+-    }
+-
+-    return true;
+-}
+-
+-static void virtio_net_detach_epbf_rss(VirtIONet *n)
+-{
+-    virtio_net_attach_ebpf_to_backend(n->nic, -1);
+-}
+-
+-static bool virtio_net_load_ebpf(VirtIONet *n)
+-{
+-    if (!virtio_net_attach_ebpf_to_backend(n->nic, -1)) {
+-        /* backend does't support steering ebpf */
+-        return false;
+-    }
+-
+-    return ebpf_rss_load(&n->ebpf_rss);
+-}
+-
+-static void virtio_net_unload_ebpf(VirtIONet *n)
+-{
+-    virtio_net_attach_ebpf_to_backend(n->nic, -1);
+-    ebpf_rss_unload(&n->ebpf_rss);
+ }
+ 
+ static uint16_t virtio_net_handle_rss(VirtIONet *n,
+@@ -1351,25 +1283,6 @@ static uint16_t virtio_net_handle_rss(VirtIONet *n,
+         goto error;
+     }
+     n->rss_data.enabled = true;
+-
+-    if (!n->rss_data.populate_hash) {
+-        if (!virtio_net_attach_epbf_rss(n)) {
+-            /* EBPF must be loaded for vhost */
+-            if (get_vhost_net(qemu_get_queue(n->nic)->peer)) {
+-                warn_report("Can't load eBPF RSS for vhost");
+-                goto error;
+-            }
+-            /* fallback to software RSS */
+-            warn_report("Can't load eBPF RSS - fallback to software RSS");
+-            n->rss_data.enabled_software_rss = true;
+-        }
+-    } else {
+-        /* use software RSS for hash populating */
+-        /* and detach eBPF if was loaded before */
+-        virtio_net_detach_epbf_rss(n);
+-        n->rss_data.enabled_software_rss = true;
+-    }
+-
+     trace_virtio_net_rss_enable(n->rss_data.hash_types,
+                                 n->rss_data.indirections_len,
+                                 temp.b);
+@@ -1755,7 +1668,7 @@ static ssize_t virtio_net_receive_rcu(NetClientState *nc, const uint8_t *buf,
+         return -1;
+     }
+ 
+-    if (!no_rss && n->rss_data.enabled && n->rss_data.enabled_software_rss) {
++    if (!no_rss && n->rss_data.enabled) {
+         int index = virtio_net_process_rss(nc, buf, size);
+         if (index >= 0) {
+             NetClientState *nc2 = qemu_get_subqueue(n->nic, index);
+@@ -2859,19 +2772,6 @@ static int virtio_net_post_load_device(void *opaque, int version_id)
+     }
+ 
+     if (n->rss_data.enabled) {
+-        n->rss_data.enabled_software_rss = n->rss_data.populate_hash;
+-        if (!n->rss_data.populate_hash) {
+-            if (!virtio_net_attach_epbf_rss(n)) {
+-                if (get_vhost_net(qemu_get_queue(n->nic)->peer)) {
+-                    warn_report("Can't post-load eBPF RSS for vhost");
+-                } else {
+-                    warn_report("Can't post-load eBPF RSS - "
+-                                "fallback to software RSS");
+-                    n->rss_data.enabled_software_rss = true;
+-                }
+-            }
+-        }
+-
+         trace_virtio_net_rss_enable(n->rss_data.hash_types,
+                                     n->rss_data.indirections_len,
+                                     sizeof(n->rss_data.key));
+@@ -3452,10 +3352,6 @@ static void virtio_net_device_realize(DeviceState *dev, Error **errp)
+     n->qdev = dev;
+ 
+     net_rx_pkt_init(&n->rx_pkt, false);
+-
+-    if (virtio_has_feature(n->host_features, VIRTIO_NET_F_RSS)) {
+-        virtio_net_load_ebpf(n);
+-    }
+ }
+ 
+ static void virtio_net_device_unrealize(DeviceState *dev)
+@@ -3464,10 +3360,6 @@ static void virtio_net_device_unrealize(DeviceState *dev)
+     VirtIONet *n = VIRTIO_NET(dev);
+     int i, max_queues;
+ 
+-    if (virtio_has_feature(n->host_features, VIRTIO_NET_F_RSS)) {
+-        virtio_net_unload_ebpf(n);
+-    }
+-
+     /* This will stop vhost backend if appropriate. */
+     virtio_net_set_status(vdev, 0);
+ 
+@@ -3511,8 +3403,6 @@ static void virtio_net_instance_init(Object *obj)
+     device_add_bootindex_property(obj, &n->nic_conf.bootindex,
+                                   "bootindex", "/ethernet-phy@0",
+                                   DEVICE(n));
+-
+-    ebpf_rss_init(&n->ebpf_rss);
+ }
+ 
+ static int virtio_net_pre_save(void *opaque)
+diff --git a/include/block/qdict.h b/include/block/qdict.h
+index d8cb502d7d..ced2acfb92 100644
+--- a/include/block/qdict.h
++++ b/include/block/qdict.h
+@@ -20,8 +20,6 @@ void qdict_join(QDict *dest, QDict *src, bool overwrite);
+ void qdict_extract_subqdict(QDict *src, QDict **dst, const char *start);
+ void qdict_array_split(QDict *src, QList **dst);
+ int qdict_array_entries(QDict *src, const char *subqdict);
+-QObject *qdict_crumple(const QDict *src, Error **errp);
+-void qdict_flatten(QDict *qdict);
+ 
+ typedef struct QDictRenames {
+     const char *from;
+diff --git a/include/hw/virtio/virtio-net.h b/include/hw/virtio/virtio-net.h
+index 824a69c23f..7e96d193aa 100644
+--- a/include/hw/virtio/virtio-net.h
++++ b/include/hw/virtio/virtio-net.h
+@@ -21,8 +21,6 @@
+ #include "qemu/option_int.h"
+ #include "qom/object.h"
+ 
+-#include "ebpf/ebpf_rss.h"
+-
+ #define TYPE_VIRTIO_NET "virtio-net-device"
+ OBJECT_DECLARE_SIMPLE_TYPE(VirtIONet, VIRTIO_NET)
+ 
+@@ -132,7 +130,6 @@ typedef struct VirtioNetRscChain {
+ 
+ typedef struct VirtioNetRssData {
+     bool    enabled;
+-    bool    enabled_software_rss;
+     bool    redirect;
+     bool    populate_hash;
+     uint32_t hash_types;
+@@ -212,7 +209,6 @@ struct VirtIONet {
+     Notifier migration_state;
+     VirtioNetRssData rss_data;
+     struct NetRxPkt *rx_pkt;
+-    struct EBPFRSSContext ebpf_rss;
+ };
+ 
+ void virtio_net_set_netclient_name(VirtIONet *n, const char *name,
+diff --git a/include/net/net.h b/include/net/net.h
+index 5d1508081f..1ef536d771 100644
+--- a/include/net/net.h
++++ b/include/net/net.h
+@@ -61,7 +61,6 @@ typedef int (SetVnetBE)(NetClientState *, bool);
+ typedef struct SocketReadState SocketReadState;
+ typedef void (SocketReadStateFinalize)(SocketReadState *rs);
+ typedef void (NetAnnounce)(NetClientState *);
+-typedef bool (SetSteeringEBPF)(NetClientState *, int);
+ 
+ typedef struct NetClientInfo {
+     NetClientDriver type;
+@@ -83,7 +82,6 @@ typedef struct NetClientInfo {
+     SetVnetLE *set_vnet_le;
+     SetVnetBE *set_vnet_be;
+     NetAnnounce *announce;
+-    SetSteeringEBPF *set_steering_ebpf;
+ } NetClientInfo;
+ 
+ struct NetClientState {
+diff --git a/include/qapi/qmp/qdict.h b/include/qapi/qmp/qdict.h
+index 9934539c1b..d5b5430e21 100644
+--- a/include/qapi/qmp/qdict.h
++++ b/include/qapi/qmp/qdict.h
+@@ -64,4 +64,7 @@ const char *qdict_get_try_str(const QDict *qdict, const char *key);
+ 
+ QDict *qdict_clone_shallow(const QDict *src);
+ 
++QObject *qdict_crumple(const QDict *src, Error **errp);
++void qdict_flatten(QDict *qdict);
++
+ #endif /* QDICT_H */
+diff --git a/include/qemu/config-file.h b/include/qemu/config-file.h
+index 0500b3668d..f605423321 100644
+--- a/include/qemu/config-file.h
++++ b/include/qemu/config-file.h
+@@ -1,6 +1,8 @@
+ #ifndef QEMU_CONFIG_FILE_H
+ #define QEMU_CONFIG_FILE_H
+ 
++typedef void QEMUConfigCB(const char *group, QDict *qdict, void *opaque, Error **errp);
++
+ void qemu_load_module_for_opts(const char *group);
+ QemuOptsList *qemu_find_opts(const char *group);
+ QemuOptsList *qemu_find_opts_err(const char *group, Error **errp);
+@@ -14,7 +16,10 @@ void qemu_config_write(FILE *fp);
+ int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname,
+                       Error **errp);
+ 
+-int qemu_read_config_file(const char *filename, Error **errp);
++/* A default callback for qemu_read_config_file().  */
++void qemu_config_do_parse(const char *group, QDict *qdict, void *opaque, Error **errp);
++
++int qemu_read_config_file(const char *filename, QEMUConfigCB *f, Error **errp);
+ 
+ /* Parse QDict options as a replacement for a config file (allowing multiple
+    enumerated (0..(n-1)) configuration "sections") */
+diff --git a/meson.build b/meson.build
+index e63dcf7bd4..913cf2a41a 100644
+--- a/meson.build
++++ b/meson.build
+@@ -163,7 +163,7 @@ if targetos != 'linux' and get_option('multiprocess').enabled()
+ endif
+ multiprocess_allowed = targetos == 'linux' and not get_option('multiprocess').disabled()
+ 
+-m = cc.find_library('m', required: false)
++libm = cc.find_library('m', required: false)
+ util = cc.find_library('util', required: false)
+ winmm = []
+ socket = []
+@@ -1032,23 +1032,6 @@ if not get_option('fuse_lseek').disabled()
+   endif
+ endif
+ 
+-# libbpf
+-libbpf = dependency('libbpf', required: get_option('bpf'), method: 'pkg-config')
+-if libbpf.found() and not cc.links('''
+-   #include <bpf/libbpf.h>
+-   int main(void)
+-   {
+-     bpf_object__destroy_skeleton(NULL);
+-     return 0;
+-   }''', dependencies: libbpf)
+-  libbpf = not_found
+-  if get_option('bpf').enabled()
+-    error('libbpf skeleton test failed')
+-  else
+-    warning('libbpf skeleton test failed, disabling')
+-  endif
+-endif
+-
+ if get_option('cfi')
+   cfi_flags=[]
+   # Check for dependency on LTO
+@@ -1148,7 +1131,6 @@ endif
+ config_host_data.set('CONFIG_GTK', gtk.found())
+ config_host_data.set('CONFIG_LIBATTR', have_old_libattr)
+ config_host_data.set('CONFIG_LIBCAP_NG', libcap_ng.found())
+-config_host_data.set('CONFIG_EBPF', libbpf.found())
+ config_host_data.set('CONFIG_LIBISCSI', libiscsi.found())
+ config_host_data.set('CONFIG_LIBNFS', libnfs.found())
+ config_host_data.set('CONFIG_RBD', rbd.found())
+@@ -1818,7 +1800,6 @@ if have_system
+     'backends',
+     'backends/tpm',
+     'chardev',
+-    'ebpf',
+     'hw/9pfs',
+     'hw/acpi',
+     'hw/adc',
+@@ -1918,7 +1899,7 @@ util_ss.add_all(trace_ss)
+ util_ss = util_ss.apply(config_all, strict: false)
+ libqemuutil = static_library('qemuutil',
+                              sources: util_ss.sources() + stub_ss.sources() + genh,
+-                             dependencies: [util_ss.dependencies(), m, glib, socket, malloc, pixman])
++                             dependencies: [util_ss.dependencies(), libm, glib, socket, malloc, pixman])
+ qemuutil = declare_dependency(link_with: libqemuutil,
+                               sources: genh + version_res)
+ 
+@@ -2011,9 +1992,6 @@ subdir('accel')
+ subdir('plugins')
+ subdir('bsd-user')
+ subdir('linux-user')
+-subdir('ebpf')
+-
+-common_ss.add(libbpf)
+ 
+ bsd_user_ss.add(files('gdbstub.c'))
+ specific_ss.add_all(when: 'CONFIG_BSD_USER', if_true: bsd_user_ss)
+@@ -2724,7 +2702,6 @@ summary_info += {'RDMA support':      config_host.has_key('CONFIG_RDMA')}
+ summary_info += {'PVRDMA support':    config_host.has_key('CONFIG_PVRDMA')}
+ summary_info += {'fdt support':       fdt_opt == 'disabled' ? false : fdt_opt}
+ summary_info += {'libcap-ng support': libcap_ng.found()}
+-summary_info += {'bpf support': libbpf.found()}
+ # TODO: add back protocol and server version
+ summary_info += {'spice support':     config_host.has_key('CONFIG_SPICE')}
+ summary_info += {'rbd support':       rbd.found()}
+diff --git a/meson_options.txt b/meson_options.txt
+index 3d304cac96..91034420a1 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -58,8 +58,6 @@ option('bzip2', type : 'feature', value : 'auto',
+        description: 'bzip2 support for DMG images')
+ option('cap_ng', type : 'feature', value : 'auto',
+        description: 'cap_ng support')
+-option('bpf', type : 'feature', value : 'auto',
+-        description: 'eBPF support')
+ option('cocoa', type : 'feature', value : 'auto',
+        description: 'Cocoa user interface (macOS only)')
+ option('curl', type : 'feature', value : 'auto',
+diff --git a/net/tap-bsd.c b/net/tap-bsd.c
+index e45a6d124e..59dfcdfae0 100644
+--- a/net/tap-bsd.c
++++ b/net/tap-bsd.c
+@@ -251,8 +251,3 @@ int tap_fd_get_ifname(int fd, char *ifname)
+ {
+     return -1;
+ }
+-
+-int tap_fd_set_steering_ebpf(int fd, int prog_fd)
+-{
+-    return -1;
+-}
+diff --git a/net/tap-linux.c b/net/tap-linux.c
+index 9584769740..b0635e9e32 100644
+--- a/net/tap-linux.c
++++ b/net/tap-linux.c
+@@ -316,16 +316,3 @@ int tap_fd_get_ifname(int fd, char *ifname)
+     pstrcpy(ifname, sizeof(ifr.ifr_name), ifr.ifr_name);
+     return 0;
+ }
+-
+-int tap_fd_set_steering_ebpf(int fd, int prog_fd)
+-{
+-    if (ioctl(fd, TUNSETSTEERINGEBPF, (void *) &prog_fd) != 0) {
+-        error_report("Issue while setting TUNSETSTEERINGEBPF:"
+-                    " %s with fd: %d, prog_fd: %d",
+-                    strerror(errno), fd, prog_fd);
+-
+-       return -1;
+-    }
+-
+-    return 0;
+-}
+diff --git a/net/tap-linux.h b/net/tap-linux.h
+index 1d06fe0de6..2f36d100fc 100644
+--- a/net/tap-linux.h
++++ b/net/tap-linux.h
+@@ -31,7 +31,6 @@
+ #define TUNSETQUEUE  _IOW('T', 217, int)
+ #define TUNSETVNETLE _IOW('T', 220, int)
+ #define TUNSETVNETBE _IOW('T', 222, int)
+-#define TUNSETSTEERINGEBPF _IOR('T', 224, int)
+ 
+ #endif
+ 
+diff --git a/net/tap-solaris.c b/net/tap-solaris.c
+index d85224242b..0475a58207 100644
+--- a/net/tap-solaris.c
++++ b/net/tap-solaris.c
+@@ -255,8 +255,3 @@ int tap_fd_get_ifname(int fd, char *ifname)
+ {
+     return -1;
+ }
+-
+-int tap_fd_set_steering_ebpf(int fd, int prog_fd)
+-{
+-    return -1;
+-}
+diff --git a/net/tap-stub.c b/net/tap-stub.c
+index a0fa25804b..de525a2e69 100644
+--- a/net/tap-stub.c
++++ b/net/tap-stub.c
+@@ -85,8 +85,3 @@ int tap_fd_get_ifname(int fd, char *ifname)
+ {
+     return -1;
+ }
+-
+-int tap_fd_set_steering_ebpf(int fd, int prog_fd)
+-{
+-    return -1;
+-}
+diff --git a/net/tap.c b/net/tap.c
+index f5686bbf77..bae895e287 100644
+--- a/net/tap.c
++++ b/net/tap.c
+@@ -347,14 +347,6 @@ static void tap_poll(NetClientState *nc, bool enable)
+     tap_write_poll(s, enable);
+ }
+ 
+-static bool tap_set_steering_ebpf(NetClientState *nc, int prog_fd)
+-{
+-    TAPState *s = DO_UPCAST(TAPState, nc, nc);
+-    assert(nc->info->type == NET_CLIENT_DRIVER_TAP);
+-
+-    return tap_fd_set_steering_ebpf(s->fd, prog_fd) == 0;
+-}
+-
+ int tap_get_fd(NetClientState *nc)
+ {
+     TAPState *s = DO_UPCAST(TAPState, nc, nc);
+@@ -380,7 +372,6 @@ static NetClientInfo net_tap_info = {
+     .set_vnet_hdr_len = tap_set_vnet_hdr_len,
+     .set_vnet_le = tap_set_vnet_le,
+     .set_vnet_be = tap_set_vnet_be,
+-    .set_steering_ebpf = tap_set_steering_ebpf,
+ };
+ 
+ static TAPState *net_tap_fd_init(NetClientState *peer,
+diff --git a/net/tap_int.h b/net/tap_int.h
+index 547f8a5a28..225a49ea48 100644
+--- a/net/tap_int.h
++++ b/net/tap_int.h
+@@ -44,6 +44,5 @@ int tap_fd_set_vnet_be(int fd, int vnet_is_be);
+ int tap_fd_enable(int fd);
+ int tap_fd_disable(int fd);
+ int tap_fd_get_ifname(int fd, char *ifname);
+-int tap_fd_set_steering_ebpf(int fd, int prog_fd);
+ 
+ #endif /* NET_TAP_INT_H */
+diff --git a/net/vhost-vdpa.c b/net/vhost-vdpa.c
+index 8b14215549..fe659ec9e2 100644
+--- a/net/vhost-vdpa.c
++++ b/net/vhost-vdpa.c
+@@ -54,8 +54,6 @@ const int vdpa_feature_bits[] = {
+     VIRTIO_NET_F_MTU,
+     VIRTIO_F_IOMMU_PLATFORM,
+     VIRTIO_F_RING_PACKED,
+-    VIRTIO_NET_F_RSS,
+-    VIRTIO_NET_F_HASH_REPORT,
+     VIRTIO_NET_F_GUEST_ANNOUNCE,
+     VIRTIO_NET_F_STATUS,
+     VHOST_INVALID_FEATURE_BIT
+diff --git a/softmmu/vl.c b/softmmu/vl.c
+index 6054f6f0b9..326c1e9080 100644
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
+@@ -121,6 +121,7 @@
+ #include "qapi/qapi-commands-misc.h"
+ #include "qapi/qapi-visit-qom.h"
+ #include "qapi/qapi-commands-ui.h"
++#include "qapi/qmp/qdict.h"
+ #include "qapi/qmp/qerror.h"
+ #include "sysemu/iothread.h"
+ #include "qemu/guest-random.h"
+@@ -1721,9 +1722,15 @@ static void object_option_foreach_add(bool (*type_opt_predicate)(const char *))
+     }
+ }
+ 
++static void object_option_add_visitor(Visitor *v)
++{
++    ObjectOption *opt = g_new0(ObjectOption, 1);
++    visit_type_ObjectOptions(v, NULL, &opt->opts, &error_fatal);
++    QTAILQ_INSERT_TAIL(&object_opts, opt, next);
++}
++
+ static void object_option_parse(const char *optarg)
+ {
+-    ObjectOption *opt;
+     QemuOpts *opts;
+     const char *type;
+     Visitor *v;
+@@ -1751,11 +1758,8 @@ static void object_option_parse(const char *optarg)
+         v = opts_visitor_new(opts);
+     }
+ 
+-    opt = g_new0(ObjectOption, 1);
+-    visit_type_ObjectOptions(v, NULL, &opt->opts, &error_fatal);
++    object_option_add_visitor(v);
+     visit_free(v);
+-
+-    QTAILQ_INSERT_TAIL(&object_opts, opt, next);
+ }
+ 
+ /*
+@@ -2127,13 +2131,62 @@ static int global_init_func(void *opaque, QemuOpts *opts, Error **errp)
+     return 0;
+ }
+ 
++/*
++ * Return whether configuration group @group is stored in QemuOpts, or
++ * recorded as one or more QDicts by qemu_record_config_group.
++ */
++static bool is_qemuopts_group(const char *group)
++{
++    if (g_str_equal(group, "object")) {
++        return false;
++    }
++    return true;
++}
++
++static void qemu_record_config_group(const char *group, QDict *dict,
++                                     bool from_json, Error **errp)
++{
++    if (g_str_equal(group, "object")) {
++        Visitor *v = qobject_input_visitor_new_keyval(QOBJECT(dict));
++        object_option_add_visitor(v);
++        visit_free(v);
++    } else {
++        abort();
++    }
++}
++
++/*
++ * Parse non-QemuOpts config file groups, pass the rest to
++ * qemu_config_do_parse.
++ */
++static void qemu_parse_config_group(const char *group, QDict *qdict,
++                                    void *opaque, Error **errp)
++{
++    QObject *crumpled;
++    if (is_qemuopts_group(group)) {
++        qemu_config_do_parse(group, qdict, opaque, errp);
++        return;
++    }
++
++    crumpled = qdict_crumple(qdict, errp);
++    if (!crumpled) {
++        return;
++    }
++    if (qobject_type(crumpled) != QTYPE_QDICT) {
++        assert(qobject_type(crumpled) == QTYPE_QLIST);
++        error_setg(errp, "Lists cannot be at top level of a configuration section");
++        return;
++    }
++    qemu_record_config_group(group, qobject_to(QDict, crumpled), false, errp);
++}
++
+ static void qemu_read_default_config_file(Error **errp)
+ {
+     ERRP_GUARD();
+     int ret;
+     g_autofree char *file = get_relocated_path(CONFIG_QEMU_CONFDIR "/qemu.conf");
+ 
+-    ret = qemu_read_config_file(file, errp);
++    ret = qemu_read_config_file(file, qemu_parse_config_group, errp);
+     if (ret < 0) {
+         if (ret == -ENOENT) {
+             error_free(*errp);
+@@ -2142,9 +2195,8 @@ static void qemu_read_default_config_file(Error **errp)
+     }
+ }
+ 
+-static int qemu_set_option(const char *str)
++static void qemu_set_option(const char *str, Error **errp)
+ {
+-    Error *local_err = NULL;
+     char group[64], id[64], arg[64];
+     QemuOptsList *list;
+     QemuOpts *opts;
+@@ -2152,27 +2204,23 @@ static int qemu_set_option(const char *str)
+ 
+     rc = sscanf(str, "%63[^.].%63[^.].%63[^=]%n", group, id, arg, &offset);
+     if (rc < 3 || str[offset] != '=') {
+-        error_report("can't parse: \"%s\"", str);
+-        return -1;
+-    }
+-
+-    list = qemu_find_opts(group);
+-    if (list == NULL) {
+-        return -1;
+-    }
+-
+-    opts = qemu_opts_find(list, id);
+-    if (!opts) {
+-        error_report("there is no %s \"%s\" defined",
+-                     list->name, id);
+-        return -1;
++        error_setg(errp, "can't parse: \"%s\"", str);
++        return;
+     }
+ 
+-    if (!qemu_opt_set(opts, arg, str + offset + 1, &local_err)) {
+-        error_report_err(local_err);
+-        return -1;
++    if (!is_qemuopts_group(group)) {
++        error_setg(errp, "-set is not supported with %s", group);
++    } else {
++        list = qemu_find_opts_err(group, errp);
++        if (list) {
++            opts = qemu_opts_find(list, id);
++            if (!opts) {
++                error_setg(errp, "there is no %s \"%s\" defined", group, id);
++                return;
++            }
++            qemu_opt_set(opts, arg, str + offset + 1, errp);
++        }
+     }
+-    return 0;
+ }
+ 
+ static void user_register_global_props(void)
+@@ -2766,8 +2814,7 @@ void qemu_init(int argc, char **argv, char **envp)
+                 }
+                 break;
+             case QEMU_OPTION_set:
+-                if (qemu_set_option(optarg) != 0)
+-                    exit(1);
++                qemu_set_option(optarg, &error_fatal);
+                 break;
+             case QEMU_OPTION_global:
+                 if (qemu_global_option(optarg) != 0)
+@@ -3399,7 +3446,7 @@ void qemu_init(int argc, char **argv, char **envp)
+                 qemu_plugin_opt_parse(optarg, &plugin_list);
+                 break;
+             case QEMU_OPTION_readconfig:
+-                qemu_read_config_file(optarg, &error_fatal);
++                qemu_read_config_file(optarg, qemu_parse_config_group, &error_fatal);
+                 break;
+             case QEMU_OPTION_spice:
+                 olist = qemu_find_opts_err("spice", NULL);
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index e0ba36cc23..a9fe1662d3 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -6089,39 +6089,17 @@ static void x86_cpu_realizefn(DeviceState *dev, Error **errp)
+     Error *local_err = NULL;
+     static bool ht_warned;
+ 
+-    /* Process Hyper-V enlightenments */
+-    x86_cpu_hyperv_realize(cpu);
+-
+-    cpu_exec_realizefn(cs, &local_err);
+-    if (local_err != NULL) {
+-        error_propagate(errp, local_err);
+-        return;
+-    }
+-
+-    if (xcc->host_cpuid_required && !accel_uses_host_cpuid()) {
+-        g_autofree char *name = x86_cpu_class_get_model_name(xcc);
+-        error_setg(&local_err, "CPU model '%s' requires KVM or HVF", name);
+-        goto out;
+-    }
+-
+-    if (cpu->ucode_rev == 0) {
+-        /* The default is the same as KVM's.  */
+-        if (IS_AMD_CPU(env)) {
+-            cpu->ucode_rev = 0x01000065;
+-        } else {
+-            cpu->ucode_rev = 0x100000000ULL;
+-        }
+-    }
+-
+-    /* mwait extended info: needed for Core compatibility */
+-    /* We always wake on interrupt even if host does not have the capability */
+-    cpu->mwait.ecx |= CPUID_MWAIT_EMX | CPUID_MWAIT_IBE;
+-
+     if (cpu->apic_id == UNASSIGNED_APIC_ID) {
+         error_setg(errp, "apic-id property was not initialized properly");
+         return;
+     }
+ 
++    /*
++     * Process Hyper-V enlightenments.
++     * Note: this currently has to happen before the expansion of CPU features.
++     */
++    x86_cpu_hyperv_realize(cpu);
++
+     x86_cpu_expand_features(cpu, &local_err);
+     if (local_err) {
+         goto out;
+@@ -6146,11 +6124,56 @@ static void x86_cpu_realizefn(DeviceState *dev, Error **errp)
+            & CPUID_EXT2_AMD_ALIASES);
+     }
+ 
++    /*
++     * note: the call to the framework needs to happen after feature expansion,
++     * but before the checks/modifications to ucode_rev, mwait, phys_bits.
++     * These may be set by the accel-specific code,
++     * and the results are subsequently checked / assumed in this function.
++     */
++    cpu_exec_realizefn(cs, &local_err);
++    if (local_err != NULL) {
++        error_propagate(errp, local_err);
++        return;
++    }
++
++    if (xcc->host_cpuid_required && !accel_uses_host_cpuid()) {
++        g_autofree char *name = x86_cpu_class_get_model_name(xcc);
++        error_setg(&local_err, "CPU model '%s' requires KVM or HVF", name);
++        goto out;
++    }
++
++    if (cpu->ucode_rev == 0) {
++        /*
++         * The default is the same as KVM's. Note that this check
++         * needs to happen after the evenual setting of ucode_rev in
++         * accel-specific code in cpu_exec_realizefn.
++         */
++        if (IS_AMD_CPU(env)) {
++            cpu->ucode_rev = 0x01000065;
++        } else {
++            cpu->ucode_rev = 0x100000000ULL;
++        }
++    }
++
++    /*
++     * mwait extended info: needed for Core compatibility
++     * We always wake on interrupt even if host does not have the capability.
++     *
++     * requires the accel-specific code in cpu_exec_realizefn to
++     * have already acquired the CPUID data into cpu->mwait.
++     */
++    cpu->mwait.ecx |= CPUID_MWAIT_EMX | CPUID_MWAIT_IBE;
++
+     /* For 64bit systems think about the number of physical bits to present.
+      * ideally this should be the same as the host; anything other than matching
+      * the host can cause incorrect guest behaviour.
+      * QEMU used to pick the magic value of 40 bits that corresponds to
+      * consumer AMD devices but nothing else.
++     *
++     * Note that this code assumes features expansion has already been done
++     * (as it checks for CPUID_EXT2_LM), and also assumes that potential
++     * phys_bits adjustments to match the host have been already done in
++     * accel-specific code in cpu_exec_realizefn.
+      */
+     if (env->features[FEAT_8000_0001_EDX] & CPUID_EXT2_LM) {
+         if (cpu->phys_bits &&
+@@ -6378,6 +6401,11 @@ static void x86_cpu_register_feature_bit_props(X86CPUClass *xcc,
+     x86_cpu_register_bit_prop(xcc, name, w, bitnr);
+ }
+ 
++static void x86_cpu_post_initfn(Object *obj)
++{
++    accel_cpu_instance_init(CPU(obj));
++}
++
+ static void x86_cpu_initfn(Object *obj)
+ {
+     X86CPU *cpu = X86_CPU(obj);
+@@ -6429,9 +6457,6 @@ static void x86_cpu_initfn(Object *obj)
+     if (xcc->model) {
+         x86_cpu_load_model(cpu, xcc->model);
+     }
+-
+-    /* if required, do accelerator-specific cpu initializations */
+-    accel_cpu_instance_init(CPU(obj));
+ }
+ 
+ static int64_t x86_cpu_get_arch_id(CPUState *cs)
+@@ -6776,6 +6801,8 @@ static const TypeInfo x86_cpu_type_info = {
+     .parent = TYPE_CPU,
+     .instance_size = sizeof(X86CPU),
+     .instance_init = x86_cpu_initfn,
++    .instance_post_init = x86_cpu_post_initfn,
++
+     .abstract = true,
+     .class_size = sizeof(X86CPUClass),
+     .class_init = x86_cpu_common_class_init,
+diff --git a/target/i386/kvm/kvm-cpu.c b/target/i386/kvm/kvm-cpu.c
+index 5235bce8dc..00369c2000 100644
+--- a/target/i386/kvm/kvm-cpu.c
++++ b/target/i386/kvm/kvm-cpu.c
+@@ -26,10 +26,18 @@ static bool kvm_cpu_realizefn(CPUState *cs, Error **errp)
+     /*
+      * The realize order is important, since x86_cpu_realize() checks if
+      * nothing else has been set by the user (or by accelerators) in
+-     * cpu->ucode_rev and cpu->phys_bits.
++     * cpu->ucode_rev and cpu->phys_bits, and updates the CPUID results in
++     * mwait.ecx.
++     * This accel realization code also assumes cpu features are already expanded.
+      *
+      * realize order:
+-     * kvm_cpu -> host_cpu -> x86_cpu
++     *
++     * x86_cpu_realize():
++     *  -> x86_cpu_expand_features()
++     *  -> cpu_exec_realizefn():
++     *            -> accel_cpu_realizefn()
++     *               kvm_cpu_realizefn() -> host_cpu_realizefn()
++     *  -> check/update ucode_rev, phys_bits, mwait
+      */
+     if (cpu->max_features) {
+         if (enable_cpu_pm && kvm_has_waitpkg()) {
+diff --git a/target/i386/tcg/seg_helper.c b/target/i386/tcg/seg_helper.c
+index 2f6cdc8239..3ed20ca31d 100644
+--- a/target/i386/tcg/seg_helper.c
++++ b/target/i386/tcg/seg_helper.c
+@@ -277,11 +277,10 @@ static void switch_tss_ra(CPUX86State *env, int tss_selector,
+         new_eip = cpu_lduw_kernel_ra(env, tss_base + 0x0e, retaddr);
+         new_eflags = cpu_lduw_kernel_ra(env, tss_base + 0x10, retaddr);
+         for (i = 0; i < 8; i++) {
+-            new_regs[i] = cpu_lduw_kernel_ra(env, tss_base + (0x12 + i * 2),
+-                                             retaddr) | 0xffff0000;
++            new_regs[i] = cpu_lduw_kernel_ra(env, tss_base + (0x12 + i * 2), retaddr);
+         }
+         for (i = 0; i < 4; i++) {
+-            new_segs[i] = cpu_lduw_kernel_ra(env, tss_base + (0x22 + i * 4),
++            new_segs[i] = cpu_lduw_kernel_ra(env, tss_base + (0x22 + i * 2),
+                                              retaddr);
+         }
+         new_ldt = cpu_lduw_kernel_ra(env, tss_base + 0x2a, retaddr);
+@@ -320,7 +319,7 @@ static void switch_tss_ra(CPUX86State *env, int tss_selector,
+     }
+ 
+     /* save the current state in the old TSS */
+-    if (type & 8) {
++    if (old_type & 8) {
+         /* 32 bit */
+         cpu_stl_kernel_ra(env, env->tr.base + 0x20, next_eip, retaddr);
+         cpu_stl_kernel_ra(env, env->tr.base + 0x24, old_eflags, retaddr);
+@@ -349,7 +348,7 @@ static void switch_tss_ra(CPUX86State *env, int tss_selector,
+         cpu_stw_kernel_ra(env, env->tr.base + (0x12 + 6 * 2), env->regs[R_ESI], retaddr);
+         cpu_stw_kernel_ra(env, env->tr.base + (0x12 + 7 * 2), env->regs[R_EDI], retaddr);
+         for (i = 0; i < 4; i++) {
+-            cpu_stw_kernel_ra(env, env->tr.base + (0x22 + i * 4),
++            cpu_stw_kernel_ra(env, env->tr.base + (0x22 + i * 2),
+                               env->segs[i].selector, retaddr);
+         }
+     }
+@@ -391,19 +390,17 @@ static void switch_tss_ra(CPUX86State *env, int tss_selector,
+     env->eip = new_eip;
+     eflags_mask = TF_MASK | AC_MASK | ID_MASK |
+         IF_MASK | IOPL_MASK | VM_MASK | RF_MASK | NT_MASK;
+-    if (!(type & 8)) {
+-        eflags_mask &= 0xffff;
++    if (type & 8) {
++        cpu_load_eflags(env, new_eflags, eflags_mask);
++        for (i = 0; i < 8; i++) {
++            env->regs[i] = new_regs[i];
++        }
++    } else {
++        cpu_load_eflags(env, new_eflags, eflags_mask & 0xffff);
++        for (i = 0; i < 8; i++) {
++            env->regs[i] = (env->regs[i] & 0xffff0000) | new_regs[i];
++        }
+     }
+-    cpu_load_eflags(env, new_eflags, eflags_mask);
+-    /* XXX: what to do in 16 bit case? */
+-    env->regs[R_EAX] = new_regs[0];
+-    env->regs[R_ECX] = new_regs[1];
+-    env->regs[R_EDX] = new_regs[2];
+-    env->regs[R_EBX] = new_regs[3];
+-    env->regs[R_ESP] = new_regs[4];
+-    env->regs[R_EBP] = new_regs[5];
+-    env->regs[R_ESI] = new_regs[6];
+-    env->regs[R_EDI] = new_regs[7];
+     if (new_eflags & VM_MASK) {
+         for (i = 0; i < 6; i++) {
+             load_seg_vm(env, i, new_segs[i]);
+diff --git a/target/i386/tcg/translate.c b/target/i386/tcg/translate.c
+index 834186bcae..a7f5c0c8f2 100644
+--- a/target/i386/tcg/translate.c
++++ b/target/i386/tcg/translate.c
+@@ -8091,6 +8091,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
+         case 2:
+         case 3:
+         case 4:
++        case 8:
+             break;
+         default:
+             goto unknown_op;
+diff --git a/tests/qtest/virtio-scsi-test.c b/tests/qtest/virtio-scsi-test.c
+index 1b7ecc1c8f..8ceb12aacd 100644
+--- a/tests/qtest/virtio-scsi-test.c
++++ b/tests/qtest/virtio-scsi-test.c
+@@ -200,6 +200,42 @@ static void test_unaligned_write_same(void *obj, void *data,
+     qvirtio_scsi_pci_free(vs);
+ }
+ 
++/* Test UNMAP with a large LBA, issue #345 */
++static void test_unmap_large_lba(void *obj, void *data,
++                                      QGuestAllocator *t_alloc)
++{
++    QVirtioSCSI *scsi = obj;
++    QVirtioSCSIQueues *vs;
++    const uint8_t unmap[VIRTIO_SCSI_CDB_SIZE] = {
++        0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x00
++    };
++
++    /*
++     * Default null-co device size is 2**30
++     * LBA 0x7fff is ~ 1/8 into device, with 4k blocks
++     * if check_lba_range incorrectly using 512 bytes, will trigger sense error
++     */
++    uint8_t unmap_params[0x18] = {
++        0x00, 0x16, /* unmap data length */
++        0x00, 0x10, /* unmap block descriptor data length */
++        0x00, 0x00, 0x00, 0x00, /* reserved */
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0xff, /* LBA */
++        0x00, 0x00, 0x03, 0xff, /* sector count */
++        0x00, 0x00, 0x00, 0x00, /* reserved */
++    };
++    struct virtio_scsi_cmd_resp resp;
++
++    alloc = t_alloc;
++    vs = qvirtio_scsi_init(scsi->vdev);
++
++    virtio_scsi_do_command(vs, unmap, NULL, 0, unmap_params,
++                           sizeof(unmap_params), &resp);
++    g_assert_cmphex(resp.response, ==, 0);
++    g_assert_cmphex(resp.status, !=, CHECK_CONDITION);
++
++    qvirtio_scsi_pci_free(vs);
++}
++
+ static void test_write_to_cdrom(void *obj, void *data,
+                                 QGuestAllocator *t_alloc)
+ {
+@@ -293,6 +329,17 @@ static void *virtio_scsi_setup(GString *cmd_line, void *arg)
+     return arg;
+ }
+ 
++static void *virtio_scsi_setup_4k(GString *cmd_line, void *arg)
++{
++    g_string_append(cmd_line,
++                    " -drive file=blkdebug::null-co://,"
++                    "file.image.read-zeroes=on,"
++                    "if=none,id=dr1,format=raw "
++                    "-device scsi-hd,drive=dr1,lun=0,scsi-id=1"
++                    ",logical_block_size=4k,physical_block_size=4k");
++    return arg;
++}
++
+ static void *virtio_scsi_setup_cd(GString *cmd_line, void *arg)
+ {
+     g_string_append(cmd_line,
+@@ -323,6 +370,10 @@ static void register_virtio_scsi_test(void)
+     qos_add_test("unaligned-write-same", "virtio-scsi",
+                  test_unaligned_write_same, &opts);
+ 
++    opts.before = virtio_scsi_setup_4k;
++    qos_add_test("large-lba-unmap", "virtio-scsi",
++                 test_unmap_large_lba, &opts);
++
+     opts.before = virtio_scsi_setup_cd;
+     qos_add_test("write-to-cdrom", "virtio-scsi", test_write_to_cdrom, &opts);
+ 
+diff --git a/tools/ebpf/Makefile.ebpf b/tools/ebpf/Makefile.ebpf
+deleted file mode 100755
+index 8f327ae3b8..0000000000
+--- a/tools/ebpf/Makefile.ebpf
++++ /dev/null
+@@ -1,21 +0,0 @@
+-OBJS = rss.bpf.o
+-
+-LLC ?= llc
+-CLANG ?= clang
+-INC_FLAGS = `$(CLANG) -print-file-name=include`
+-EXTRA_CFLAGS ?= -O2 -emit-llvm -fno-stack-protector
+-
+-all: $(OBJS)
+-
+-.PHONY: clean
+-
+-clean:
+-	rm -f $(OBJS)
+-
+-$(OBJS):  %.o:%.c
+-	$(CLANG) $(INC_FLAGS) \
+-                -D__KERNEL__ -D__ASM_SYSREG_H \
+-                -I../include $(LINUXINCLUDE) \
+-                $(EXTRA_CFLAGS) -c $< -o -| $(LLC) -march=bpf -filetype=obj -o $@
+-	bpftool gen skeleton rss.bpf.o > rss.bpf.skeleton.h
+-	cp rss.bpf.skeleton.h ../../ebpf/
+diff --git a/tools/ebpf/rss.bpf.c b/tools/ebpf/rss.bpf.c
+deleted file mode 100644
+index e85ec55f9b..0000000000
+--- a/tools/ebpf/rss.bpf.c
++++ /dev/null
+@@ -1,571 +0,0 @@
+-/*
+- * eBPF RSS program
+- *
+- * Developed by Daynix Computing LTD (http://www.daynix.com)
+- *
+- * Authors:
+- *  Andrew Melnychenko <andrew@daynix.com>
+- *  Yuri Benditovich <yuri.benditovich@daynix.com>
+- *
+- * This work is licensed under the terms of the GNU GPL, version 2.  See
+- * the COPYING file in the top-level directory.
+- *
+- * Prepare:
+- * Requires llvm, clang, bpftool, linux kernel tree
+- *
+- * Build rss.bpf.skeleton.h:
+- * make -f Makefile.ebpf clean all
+- */
+-
+-#include <stddef.h>
+-#include <stdbool.h>
+-#include <linux/bpf.h>
+-
+-#include <linux/in.h>
+-#include <linux/if_ether.h>
+-#include <linux/ip.h>
+-#include <linux/ipv6.h>
+-
+-#include <linux/udp.h>
+-#include <linux/tcp.h>
+-
+-#include <bpf/bpf_helpers.h>
+-#include <bpf/bpf_endian.h>
+-#include <linux/virtio_net.h>
+-
+-#define INDIRECTION_TABLE_SIZE 128
+-#define HASH_CALCULATION_BUFFER_SIZE 36
+-
+-struct rss_config_t {
+-    __u8 redirect;
+-    __u8 populate_hash;
+-    __u32 hash_types;
+-    __u16 indirections_len;
+-    __u16 default_queue;
+-} __attribute__((packed));
+-
+-struct toeplitz_key_data_t {
+-    __u32 leftmost_32_bits;
+-    __u8 next_byte[HASH_CALCULATION_BUFFER_SIZE];
+-};
+-
+-struct packet_hash_info_t {
+-    __u8 is_ipv4;
+-    __u8 is_ipv6;
+-    __u8 is_udp;
+-    __u8 is_tcp;
+-    __u8 is_ipv6_ext_src;
+-    __u8 is_ipv6_ext_dst;
+-    __u8 is_fragmented;
+-
+-    __u16 src_port;
+-    __u16 dst_port;
+-
+-    union {
+-        struct {
+-            __be32 in_src;
+-            __be32 in_dst;
+-        };
+-
+-        struct {
+-            struct in6_addr in6_src;
+-            struct in6_addr in6_dst;
+-            struct in6_addr in6_ext_src;
+-            struct in6_addr in6_ext_dst;
+-        };
+-    };
+-};
+-
+-struct bpf_map_def SEC("maps")
+-tap_rss_map_configurations = {
+-        .type        = BPF_MAP_TYPE_ARRAY,
+-        .key_size    = sizeof(__u32),
+-        .value_size  = sizeof(struct rss_config_t),
+-        .max_entries = 1,
+-};
+-
+-struct bpf_map_def SEC("maps")
+-tap_rss_map_toeplitz_key = {
+-        .type        = BPF_MAP_TYPE_ARRAY,
+-        .key_size    = sizeof(__u32),
+-        .value_size  = sizeof(struct toeplitz_key_data_t),
+-        .max_entries = 1,
+-};
+-
+-struct bpf_map_def SEC("maps")
+-tap_rss_map_indirection_table = {
+-        .type        = BPF_MAP_TYPE_ARRAY,
+-        .key_size    = sizeof(__u32),
+-        .value_size  = sizeof(__u16),
+-        .max_entries = INDIRECTION_TABLE_SIZE,
+-};
+-
+-static inline void net_rx_rss_add_chunk(__u8 *rss_input, size_t *bytes_written,
+-                                        const void *ptr, size_t size) {
+-    __builtin_memcpy(&rss_input[*bytes_written], ptr, size);
+-    *bytes_written += size;
+-}
+-
+-static inline
+-void net_toeplitz_add(__u32 *result,
+-                      __u8 *input,
+-                      __u32 len
+-        , struct toeplitz_key_data_t *key) {
+-
+-    __u32 accumulator = *result;
+-    __u32 leftmost_32_bits = key->leftmost_32_bits;
+-    __u32 byte;
+-
+-    for (byte = 0; byte < HASH_CALCULATION_BUFFER_SIZE; byte++) {
+-        __u8 input_byte = input[byte];
+-        __u8 key_byte = key->next_byte[byte];
+-        __u8 bit;
+-
+-        for (bit = 0; bit < 8; bit++) {
+-            if (input_byte & (1 << 7)) {
+-                accumulator ^= leftmost_32_bits;
+-            }
+-
+-            leftmost_32_bits =
+-                    (leftmost_32_bits << 1) | ((key_byte & (1 << 7)) >> 7);
+-
+-            input_byte <<= 1;
+-            key_byte <<= 1;
+-        }
+-    }
+-
+-    *result = accumulator;
+-}
+-
+-
+-static inline int ip6_extension_header_type(__u8 hdr_type)
+-{
+-    switch (hdr_type) {
+-    case IPPROTO_HOPOPTS:
+-    case IPPROTO_ROUTING:
+-    case IPPROTO_FRAGMENT:
+-    case IPPROTO_ICMPV6:
+-    case IPPROTO_NONE:
+-    case IPPROTO_DSTOPTS:
+-    case IPPROTO_MH:
+-        return 1;
+-    default:
+-        return 0;
+-    }
+-}
+-/*
+- * According to
+- * https://www.iana.org/assignments/ipv6-parameters/ipv6-parameters.xhtml
+- * we expect that there are would be no more than 11 extensions in IPv6 header,
+- * also there is 27 TLV options for Destination and Hop-by-hop extensions.
+- * Need to choose reasonable amount of maximum extensions/options we may
+- * check to find ext src/dst.
+- */
+-#define IP6_EXTENSIONS_COUNT 11
+-#define IP6_OPTIONS_COUNT 30
+-
+-static inline int parse_ipv6_ext(struct __sk_buff *skb,
+-        struct packet_hash_info_t *info,
+-        __u8 *l4_protocol, size_t *l4_offset)
+-{
+-    int err = 0;
+-
+-    if (!ip6_extension_header_type(*l4_protocol)) {
+-        return 0;
+-    }
+-
+-    struct ipv6_opt_hdr ext_hdr = {};
+-
+-    for (unsigned int i = 0; i < IP6_EXTENSIONS_COUNT; ++i) {
+-
+-        err = bpf_skb_load_bytes_relative(skb, *l4_offset, &ext_hdr,
+-                                    sizeof(ext_hdr), BPF_HDR_START_NET);
+-        if (err) {
+-            goto error;
+-        }
+-
+-        if (*l4_protocol == IPPROTO_ROUTING) {
+-            struct ipv6_rt_hdr ext_rt = {};
+-
+-            err = bpf_skb_load_bytes_relative(skb, *l4_offset, &ext_rt,
+-                                        sizeof(ext_rt), BPF_HDR_START_NET);
+-            if (err) {
+-                goto error;
+-            }
+-
+-            if ((ext_rt.type == IPV6_SRCRT_TYPE_2) &&
+-                    (ext_rt.hdrlen == sizeof(struct in6_addr) / 8) &&
+-                    (ext_rt.segments_left == 1)) {
+-
+-                err = bpf_skb_load_bytes_relative(skb,
+-                    *l4_offset + offsetof(struct rt2_hdr, addr),
+-                    &info->in6_ext_dst, sizeof(info->in6_ext_dst),
+-                    BPF_HDR_START_NET);
+-                if (err) {
+-                    goto error;
+-                }
+-
+-                info->is_ipv6_ext_dst = 1;
+-            }
+-
+-        } else if (*l4_protocol == IPPROTO_DSTOPTS) {
+-            struct ipv6_opt_t {
+-                __u8 type;
+-                __u8 length;
+-            } __attribute__((packed)) opt = {};
+-
+-            size_t opt_offset = sizeof(ext_hdr);
+-
+-            for (unsigned int j = 0; j < IP6_OPTIONS_COUNT; ++j) {
+-                err = bpf_skb_load_bytes_relative(skb, *l4_offset + opt_offset,
+-                                        &opt, sizeof(opt), BPF_HDR_START_NET);
+-                if (err) {
+-                    goto error;
+-                }
+-
+-                if (opt.type == IPV6_TLV_HAO) {
+-                    err = bpf_skb_load_bytes_relative(skb,
+-                        *l4_offset + opt_offset
+-                        + offsetof(struct ipv6_destopt_hao, addr),
+-                        &info->in6_ext_src, sizeof(info->in6_ext_src),
+-                        BPF_HDR_START_NET);
+-                    if (err) {
+-                        goto error;
+-                    }
+-
+-                    info->is_ipv6_ext_src = 1;
+-                    break;
+-                }
+-
+-                opt_offset += (opt.type == IPV6_TLV_PAD1) ?
+-                              1 : opt.length + sizeof(opt);
+-
+-                if (opt_offset + 1 >= ext_hdr.hdrlen * 8) {
+-                    break;
+-                }
+-            }
+-        } else if (*l4_protocol == IPPROTO_FRAGMENT) {
+-            info->is_fragmented = true;
+-        }
+-
+-        *l4_protocol = ext_hdr.nexthdr;
+-        *l4_offset += (ext_hdr.hdrlen + 1) * 8;
+-
+-        if (!ip6_extension_header_type(ext_hdr.nexthdr)) {
+-            return 0;
+-        }
+-    }
+-
+-    return 0;
+-error:
+-    return err;
+-}
+-
+-static __be16 parse_eth_type(struct __sk_buff *skb)
+-{
+-    unsigned int offset = 12;
+-    __be16 ret = 0;
+-    int err = 0;
+-
+-    err = bpf_skb_load_bytes_relative(skb, offset, &ret, sizeof(ret),
+-                                BPF_HDR_START_MAC);
+-    if (err) {
+-        return 0;
+-    }
+-
+-    switch (bpf_ntohs(ret)) {
+-    case ETH_P_8021AD:
+-        offset += 4;
+-    case ETH_P_8021Q:
+-        offset += 4;
+-        err = bpf_skb_load_bytes_relative(skb, offset, &ret, sizeof(ret),
+-                                    BPF_HDR_START_MAC);
+-    default:
+-        break;
+-    }
+-
+-    if (err) {
+-        return 0;
+-    }
+-
+-    return ret;
+-}
+-
+-static inline int parse_packet(struct __sk_buff *skb,
+-        struct packet_hash_info_t *info)
+-{
+-    int err = 0;
+-
+-    if (!info || !skb) {
+-        return -1;
+-    }
+-
+-    size_t l4_offset = 0;
+-    __u8 l4_protocol = 0;
+-    __u16 l3_protocol = bpf_ntohs(parse_eth_type(skb));
+-    if (l3_protocol == 0) {
+-        err = -1;
+-        goto error;
+-    }
+-
+-    if (l3_protocol == ETH_P_IP) {
+-        info->is_ipv4 = 1;
+-
+-        struct iphdr ip = {};
+-        err = bpf_skb_load_bytes_relative(skb, 0, &ip, sizeof(ip),
+-                                    BPF_HDR_START_NET);
+-        if (err) {
+-            goto error;
+-        }
+-
+-        info->in_src = ip.saddr;
+-        info->in_dst = ip.daddr;
+-        info->is_fragmented = !!ip.frag_off;
+-
+-        l4_protocol = ip.protocol;
+-        l4_offset = ip.ihl * 4;
+-    } else if (l3_protocol == ETH_P_IPV6) {
+-        info->is_ipv6 = 1;
+-
+-        struct ipv6hdr ip6 = {};
+-        err = bpf_skb_load_bytes_relative(skb, 0, &ip6, sizeof(ip6),
+-                                    BPF_HDR_START_NET);
+-        if (err) {
+-            goto error;
+-        }
+-
+-        info->in6_src = ip6.saddr;
+-        info->in6_dst = ip6.daddr;
+-
+-        l4_protocol = ip6.nexthdr;
+-        l4_offset = sizeof(ip6);
+-
+-        err = parse_ipv6_ext(skb, info, &l4_protocol, &l4_offset);
+-        if (err) {
+-            goto error;
+-        }
+-    }
+-
+-    if (l4_protocol != 0 && !info->is_fragmented) {
+-        if (l4_protocol == IPPROTO_TCP) {
+-            info->is_tcp = 1;
+-
+-            struct tcphdr tcp = {};
+-            err = bpf_skb_load_bytes_relative(skb, l4_offset, &tcp, sizeof(tcp),
+-                                        BPF_HDR_START_NET);
+-            if (err) {
+-                goto error;
+-            }
+-
+-            info->src_port = tcp.source;
+-            info->dst_port = tcp.dest;
+-        } else if (l4_protocol == IPPROTO_UDP) { /* TODO: add udplite? */
+-            info->is_udp = 1;
+-
+-            struct udphdr udp = {};
+-            err = bpf_skb_load_bytes_relative(skb, l4_offset, &udp, sizeof(udp),
+-                                        BPF_HDR_START_NET);
+-            if (err) {
+-                goto error;
+-            }
+-
+-            info->src_port = udp.source;
+-            info->dst_port = udp.dest;
+-        }
+-    }
+-
+-    return 0;
+-
+-error:
+-    return err;
+-}
+-
+-static inline __u32 calculate_rss_hash(struct __sk_buff *skb,
+-        struct rss_config_t *config, struct toeplitz_key_data_t *toe)
+-{
+-    __u8 rss_input[HASH_CALCULATION_BUFFER_SIZE] = {};
+-    size_t bytes_written = 0;
+-    __u32 result = 0;
+-    int err = 0;
+-    struct packet_hash_info_t packet_info = {};
+-
+-    err = parse_packet(skb, &packet_info);
+-    if (err) {
+-        return 0;
+-    }
+-
+-    if (packet_info.is_ipv4) {
+-        if (packet_info.is_tcp &&
+-            config->hash_types & VIRTIO_NET_RSS_HASH_TYPE_TCPv4) {
+-
+-            net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                 &packet_info.in_src,
+-                                 sizeof(packet_info.in_src));
+-            net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                 &packet_info.in_dst,
+-                                 sizeof(packet_info.in_dst));
+-            net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                 &packet_info.src_port,
+-                                 sizeof(packet_info.src_port));
+-            net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                 &packet_info.dst_port,
+-                                 sizeof(packet_info.dst_port));
+-        } else if (packet_info.is_udp &&
+-                   config->hash_types & VIRTIO_NET_RSS_HASH_TYPE_UDPv4) {
+-
+-            net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                 &packet_info.in_src,
+-                                 sizeof(packet_info.in_src));
+-            net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                 &packet_info.in_dst,
+-                                 sizeof(packet_info.in_dst));
+-            net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                 &packet_info.src_port,
+-                                 sizeof(packet_info.src_port));
+-            net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                 &packet_info.dst_port,
+-                                 sizeof(packet_info.dst_port));
+-        } else if (config->hash_types & VIRTIO_NET_RSS_HASH_TYPE_IPv4) {
+-            net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                 &packet_info.in_src,
+-                                 sizeof(packet_info.in_src));
+-            net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                 &packet_info.in_dst,
+-                                 sizeof(packet_info.in_dst));
+-        }
+-    } else if (packet_info.is_ipv6) {
+-        if (packet_info.is_tcp &&
+-            config->hash_types & VIRTIO_NET_RSS_HASH_TYPE_TCPv6) {
+-
+-            if (packet_info.is_ipv6_ext_src &&
+-                config->hash_types & VIRTIO_NET_RSS_HASH_TYPE_TCP_EX) {
+-
+-                net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                     &packet_info.in6_ext_src,
+-                                     sizeof(packet_info.in6_ext_src));
+-            } else {
+-                net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                     &packet_info.in6_src,
+-                                     sizeof(packet_info.in6_src));
+-            }
+-            if (packet_info.is_ipv6_ext_dst &&
+-                config->hash_types & VIRTIO_NET_RSS_HASH_TYPE_TCP_EX) {
+-
+-                net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                     &packet_info.in6_ext_dst,
+-                                     sizeof(packet_info.in6_ext_dst));
+-            } else {
+-                net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                     &packet_info.in6_dst,
+-                                     sizeof(packet_info.in6_dst));
+-            }
+-            net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                 &packet_info.src_port,
+-                                 sizeof(packet_info.src_port));
+-            net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                 &packet_info.dst_port,
+-                                 sizeof(packet_info.dst_port));
+-        } else if (packet_info.is_udp &&
+-                   config->hash_types & VIRTIO_NET_RSS_HASH_TYPE_UDPv6) {
+-
+-            if (packet_info.is_ipv6_ext_src &&
+-               config->hash_types & VIRTIO_NET_RSS_HASH_TYPE_UDP_EX) {
+-
+-                net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                     &packet_info.in6_ext_src,
+-                                     sizeof(packet_info.in6_ext_src));
+-            } else {
+-                net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                     &packet_info.in6_src,
+-                                     sizeof(packet_info.in6_src));
+-            }
+-            if (packet_info.is_ipv6_ext_dst &&
+-               config->hash_types & VIRTIO_NET_RSS_HASH_TYPE_UDP_EX) {
+-
+-                net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                     &packet_info.in6_ext_dst,
+-                                     sizeof(packet_info.in6_ext_dst));
+-            } else {
+-                net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                     &packet_info.in6_dst,
+-                                     sizeof(packet_info.in6_dst));
+-            }
+-
+-            net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                 &packet_info.src_port,
+-                                 sizeof(packet_info.src_port));
+-            net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                 &packet_info.dst_port,
+-                                 sizeof(packet_info.dst_port));
+-
+-        } else if (config->hash_types & VIRTIO_NET_RSS_HASH_TYPE_IPv6) {
+-            if (packet_info.is_ipv6_ext_src &&
+-               config->hash_types & VIRTIO_NET_RSS_HASH_TYPE_IP_EX) {
+-
+-                net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                     &packet_info.in6_ext_src,
+-                                     sizeof(packet_info.in6_ext_src));
+-            } else {
+-                net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                     &packet_info.in6_src,
+-                                     sizeof(packet_info.in6_src));
+-            }
+-            if (packet_info.is_ipv6_ext_dst &&
+-                config->hash_types & VIRTIO_NET_RSS_HASH_TYPE_IP_EX) {
+-
+-                net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                     &packet_info.in6_ext_dst,
+-                                     sizeof(packet_info.in6_ext_dst));
+-            } else {
+-                net_rx_rss_add_chunk(rss_input, &bytes_written,
+-                                     &packet_info.in6_dst,
+-                                     sizeof(packet_info.in6_dst));
+-            }
+-        }
+-    }
+-
+-    if (bytes_written) {
+-        net_toeplitz_add(&result, rss_input, bytes_written, toe);
+-    }
+-
+-    return result;
+-}
+-
+-SEC("tun_rss_steering")
+-int tun_rss_steering_prog(struct __sk_buff *skb)
+-{
+-
+-    struct rss_config_t *config;
+-    struct toeplitz_key_data_t *toe;
+-
+-    __u32 key = 0;
+-    __u32 hash = 0;
+-
+-    config = bpf_map_lookup_elem(&tap_rss_map_configurations, &key);
+-    toe = bpf_map_lookup_elem(&tap_rss_map_toeplitz_key, &key);
+-
+-    if (config && toe) {
+-        if (!config->redirect) {
+-            return config->default_queue;
+-        }
+-
+-        hash = calculate_rss_hash(skb, config, toe);
+-        if (hash) {
+-            __u32 table_idx = hash % config->indirections_len;
+-            __u16 *queue = 0;
+-
+-            queue = bpf_map_lookup_elem(&tap_rss_map_indirection_table,
+-                                        &table_idx);
+-
+-            if (queue) {
+-                return *queue;
+-            }
+-        }
+-
+-        return config->default_queue;
+-    }
+-
+-    return -1;
+-}
+-
+-char _license[] SEC("license") = "GPL v2";
+diff --git a/util/oslib-posix.c b/util/oslib-posix.c
+index 36820fec16..7b4bec1402 100644
+--- a/util/oslib-posix.c
++++ b/util/oslib-posix.c
+@@ -273,17 +273,6 @@ int qemu_try_set_nonblock(int fd)
+         return -errno;
+     }
+     if (fcntl(fd, F_SETFL, f | O_NONBLOCK) == -1) {
+-#ifdef __OpenBSD__
+-        /*
+-         * Previous to OpenBSD 6.3, fcntl(F_SETFL) is not permitted on
+-         * memory devices and sets errno to ENODEV.
+-         * It's OK if we fail to set O_NONBLOCK on devices like /dev/null,
+-         * because they will never block anyway.
+-         */
+-        if (errno == ENODEV) {
+-            return 0;
+-        }
+-#endif
+         return -errno;
+     }
+     return 0;
+diff --git a/util/qemu-config.c b/util/qemu-config.c
+index 34974c4b47..374f3bc460 100644
+--- a/util/qemu-config.c
++++ b/util/qemu-config.c
+@@ -2,6 +2,7 @@
+ #include "block/qdict.h" /* for qdict_extract_subqdict() */
+ #include "qapi/error.h"
+ #include "qapi/qapi-commands-misc.h"
++#include "qapi/qmp/qerror.h"
+ #include "qapi/qmp/qdict.h"
+ #include "qapi/qmp/qlist.h"
+ #include "qemu/error-report.h"
+@@ -351,19 +352,19 @@ void qemu_config_write(FILE *fp)
+ }
+ 
+ /* Returns number of config groups on success, -errno on error */
+-int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname, Error **errp)
++static int qemu_config_foreach(FILE *fp, QEMUConfigCB *cb, void *opaque,
++                               const char *fname, Error **errp)
+ {
+-    char line[1024], group[64], id[64], arg[64], value[1024];
++    char line[1024], prev_group[64], group[64], arg[64], value[1024];
+     Location loc;
+-    QemuOptsList *list = NULL;
+     Error *local_err = NULL;
+-    QemuOpts *opts = NULL;
++    QDict *qdict = NULL;
+     int res = -EINVAL, lno = 0;
+     int count = 0;
+ 
+     loc_push_none(&loc);
+     while (fgets(line, sizeof(line), fp) != NULL) {
+-        loc_set_file(fname, ++lno);
++        ++lno;
+         if (line[0] == '\n') {
+             /* skip empty lines */
+             continue;
+@@ -372,39 +373,39 @@ int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname, Error *
+             /* comment */
+             continue;
+         }
+-        if (sscanf(line, "[%63s \"%63[^\"]\"]", group, id) == 2) {
+-            /* group with id */
+-            list = find_list(lists, group, &local_err);
+-            if (local_err) {
+-                error_propagate(errp, local_err);
+-                goto out;
++        if (line[0] == '[') {
++            QDict *prev = qdict;
++            if (sscanf(line, "[%63s \"%63[^\"]\"]", group, value) == 2) {
++                qdict = qdict_new();
++                qdict_put_str(qdict, "id", value);
++                count++;
++            } else if (sscanf(line, "[%63[^]]]", group) == 1) {
++                qdict = qdict_new();
++                count++;
+             }
+-            opts = qemu_opts_create(list, id, 1, NULL);
+-            count++;
+-            continue;
+-        }
+-        if (sscanf(line, "[%63[^]]]", group) == 1) {
+-            /* group without id */
+-            list = find_list(lists, group, &local_err);
+-            if (local_err) {
+-                error_propagate(errp, local_err);
+-                goto out;
++            if (qdict != prev) {
++                if (prev) {
++                    cb(prev_group, prev, opaque, &local_err);
++                    qobject_unref(prev);
++                    if (local_err) {
++                        error_propagate(errp, local_err);
++                        goto out;
++                    }
++                }
++                strcpy(prev_group, group);
++                continue;
+             }
+-            opts = qemu_opts_create(list, NULL, 0, &error_abort);
+-            count++;
+-            continue;
+         }
++        loc_set_file(fname, lno);
+         value[0] = '\0';
+         if (sscanf(line, " %63s = \"%1023[^\"]\"", arg, value) == 2 ||
+             sscanf(line, " %63s = \"\"", arg) == 1) {
+             /* arg = value */
+-            if (opts == NULL) {
++            if (qdict == NULL) {
+                 error_setg(errp, "no group defined");
+                 goto out;
+             }
+-            if (!qemu_opt_set(opts, arg, value, errp)) {
+-                goto out;
+-            }
++            qdict_put_str(qdict, arg, value);
+             continue;
+         }
+         error_setg(errp, "parse error");
+@@ -417,11 +418,48 @@ int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname, Error *
+     }
+     res = count;
+ out:
++    if (qdict) {
++        cb(group, qdict, opaque, errp);
++        qobject_unref(qdict);
++    }
+     loc_pop(&loc);
+     return res;
+ }
+ 
+-int qemu_read_config_file(const char *filename, Error **errp)
++void qemu_config_do_parse(const char *group, QDict *qdict, void *opaque, Error **errp)
++{
++    QemuOptsList **lists = opaque;
++    const char *id = qdict_get_try_str(qdict, "id");
++    QemuOptsList *list;
++    QemuOpts *opts;
++    const QDictEntry *unrecognized;
++
++    list = find_list(lists, group, errp);
++    if (!list) {
++        return;
++    }
++
++    opts = qemu_opts_create(list, id, 1, errp);
++    if (!opts) {
++        return;
++    }
++    if (!qemu_opts_absorb_qdict(opts, qdict, errp)) {
++        qemu_opts_del(opts);
++        return;
++    }
++    unrecognized = qdict_first(qdict);
++    if (unrecognized) {
++        error_setg(errp, QERR_INVALID_PARAMETER, unrecognized->key);
++        qemu_opts_del(opts);
++    }
++}
++
++int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname, Error **errp)
++{
++    return qemu_config_foreach(fp, qemu_config_do_parse, lists, fname, errp);
++}
++
++int qemu_read_config_file(const char *filename, QEMUConfigCB *cb, Error **errp)
+ {
+     FILE *f = fopen(filename, "r");
+     int ret;
+@@ -431,7 +469,7 @@ int qemu_read_config_file(const char *filename, Error **errp)
+         return -errno;
+     }
+ 
+-    ret = qemu_config_parse(f, vm_config_groups, filename, errp);
++    ret = qemu_config_foreach(f, cb, vm_config_groups, filename, errp);
+     fclose(f);
+     return ret;
+ }

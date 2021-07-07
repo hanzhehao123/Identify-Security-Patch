@@ -1,0 +1,16 @@
+commit e3dd339feec2da3bcd82021e4ce4fe09dbf9c8b4
+Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date:   Thu Jun 24 09:20:41 2021 +0200
+
+    block-copy: move progress_set_remaining in block_copy_task_end
+    
+    Moving this function in task_end ensures to update the progress
+    anyways, even if there is an error.
+    
+    It also helps in next patch, allowing task_end to have only
+    one critical section.
+    
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Message-Id: <20210624072043.180494-4-eesposit@redhat.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>

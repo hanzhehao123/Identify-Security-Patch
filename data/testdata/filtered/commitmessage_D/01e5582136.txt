@@ -1,0 +1,16 @@
+commit 01e5582136188249e748d9af87397076bf814562
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:14 2021 +0200
+
+    i386: always fill Hyper-V CPUID feature leaves from X86CPU data
+    
+    We have all the required data in X86CPU already and as we are about to
+    split hyperv_handle_properties() into hyperv_expand_features()/
+    hyperv_fill_cpuids() we can remove the blind copy. The functional change
+    is that QEMU won't pass CPUID leaves it doesn't currently know about
+    to the guest but arguably this is a good change.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-4-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

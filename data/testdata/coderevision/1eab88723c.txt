@@ -1,0 +1,227 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index 2d0e85b5f7..670361322c 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -72,18 +72,10 @@ import os
+ import re
+ import readline
+ import sys
+-from typing import (
+-    Iterator,
+-    List,
+-    NoReturn,
+-    Optional,
+-    Sequence,
+-)
+ 
+ 
+ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
+ from qemu import qmp
+-from qemu.qmp import QMPMessage
+ 
+ 
+ class QMPCompleter:
+@@ -130,26 +122,25 @@ class FuzzyJSON(ast.NodeTransformer):
+ # TODO: QMPShell's interface is a bit ugly (eg. _fill_completion() and
+ #       _execute_cmd()). Let's design a better one.
+ class QMPShell(qmp.QEMUMonitorProtocol):
+-    def __init__(self, address: str, pretty: bool = False,
+-                 verbose: bool = False):
++    def __init__(self, address, pretty=False, verbose=False):
+         super().__init__(self.parse_address(address))
+-        self._greeting: Optional[QMPMessage] = None
++        self._greeting = None
+         self._completer = QMPCompleter()
+         self._pretty = pretty
+         self._transmode = False
+-        self._actions: List[QMPMessage] = []
++        self._actions = list()
+         self._histfile = os.path.join(os.path.expanduser('~'),
+                                       '.qmp-shell_history')
+         self.verbose = verbose
+ 
+-    def _fill_completion(self) -> None:
++    def _fill_completion(self):
+         cmds = self.cmd('query-commands')
+         if 'error' in cmds:
+             return
+         for cmd in cmds['return']:
+             self._completer.append(cmd['name'])
+ 
+-    def __completer_setup(self) -> None:
++    def __completer_setup(self):
+         self._completer = QMPCompleter()
+         self._fill_completion()
+         readline.set_history_length(1024)
+@@ -166,14 +157,14 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+             print(f"Failed to read history '{self._histfile}': {err!s}")
+         atexit.register(self.__save_history)
+ 
+-    def __save_history(self) -> None:
++    def __save_history(self):
+         try:
+             readline.write_history_file(self._histfile)
+         except IOError as err:
+             print(f"Failed to save history file '{self._histfile}': {err!s}")
+ 
+     @classmethod
+-    def __parse_value(cls, val: str) -> object:
++    def __parse_value(cls, val):
+         try:
+             return int(val)
+         except ValueError:
+@@ -198,9 +189,7 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+                 pass
+         return val
+ 
+-    def __cli_expr(self,
+-                   tokens: Sequence[str],
+-                   parent: qmp.QMPObject) -> None:
++    def __cli_expr(self, tokens, parent):
+         for arg in tokens:
+             (key, sep, val) = arg.partition('=')
+             if sep != '=':
+@@ -226,7 +215,7 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+                 raise QMPShellError(f'Cannot set "{key}" multiple times')
+             parent[optpath[-1]] = value
+ 
+-    def __build_cmd(self, cmdline: str) -> Optional[QMPMessage]:
++    def __build_cmd(self, cmdline):
+         """
+         Build a QMP input object from a user provided command-line in the
+         following format:
+@@ -235,7 +224,6 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         """
+         argument_regex = r'''(?:[^\s"']|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')+'''
+         cmdargs = re.findall(argument_regex, cmdline)
+-        qmpcmd: QMPMessage
+ 
+         # Transactional CLI entry/exit:
+         if cmdargs[0] == 'transaction(':
+@@ -273,14 +261,14 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         self.__cli_expr(cmdargs[1:], qmpcmd['arguments'])
+         return qmpcmd
+ 
+-    def _print(self, qmp_message: object) -> None:
++    def _print(self, qmp_message):
+         indent = None
+         if self._pretty:
+             indent = 4
+         jsobj = json.dumps(qmp_message, indent=indent, sort_keys=self._pretty)
+         print(str(jsobj))
+ 
+-    def _execute_cmd(self, cmdline: str) -> bool:
++    def _execute_cmd(self, cmdline):
+         try:
+             qmpcmd = self.__build_cmd(cmdline)
+         except Exception as err:
+@@ -300,12 +288,11 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         self._print(resp)
+         return True
+ 
+-    def connect(self, negotiate: bool = True) -> None:
++    def connect(self, negotiate: bool = True):
+         self._greeting = super().connect(negotiate)
+         self.__completer_setup()
+ 
+-    def show_banner(self,
+-                    msg: str = 'Welcome to the QMP low-level shell!') -> None:
++    def show_banner(self, msg='Welcome to the QMP low-level shell!'):
+         print(msg)
+         if not self._greeting:
+             print('Connected')
+@@ -314,12 +301,12 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         print("Connected to QEMU {major}.{minor}.{micro}\n".format(**version))
+ 
+     @property
+-    def prompt(self) -> str:
++    def prompt(self):
+         if self._transmode:
+             return 'TRANS> '
+         return '(QEMU) '
+ 
+-    def read_exec_command(self) -> bool:
++    def read_exec_command(self):
+         """
+         Read and execute a command.
+ 
+@@ -339,7 +326,7 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+ 
+         return self._execute_cmd(cmdline)
+ 
+-    def repl(self) -> Iterator[None]:
++    def repl(self):
+         self.show_banner()
+         while self.read_exec_command():
+             yield
+@@ -347,12 +334,11 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+ 
+ 
+ class HMPShell(QMPShell):
+-    def __init__(self, address: str,
+-                 pretty: bool = False, verbose: bool = False):
++    def __init__(self, address, pretty=False, verbose=False):
+         super().__init__(address, pretty, verbose)
+         self.__cpu_index = 0
+ 
+-    def __cmd_completion(self) -> None:
++    def __cmd_completion(self):
+         for cmd in self.__cmd_passthrough('help')['return'].split('\r\n'):
+             if cmd and cmd[0] != '[' and cmd[0] != '\t':
+                 name = cmd.split()[0]  # drop help text
+@@ -369,22 +355,21 @@ class HMPShell(QMPShell):
+                 self._completer.append(name)
+                 self._completer.append('help ' + name)  # help completion
+ 
+-    def __info_completion(self) -> None:
++    def __info_completion(self):
+         for cmd in self.__cmd_passthrough('info')['return'].split('\r\n'):
+             if cmd:
+                 self._completer.append('info ' + cmd.split()[1])
+ 
+-    def __other_completion(self) -> None:
++    def __other_completion(self):
+         # special cases
+         self._completer.append('help info')
+ 
+-    def _fill_completion(self) -> None:
++    def _fill_completion(self):
+         self.__cmd_completion()
+         self.__info_completion()
+         self.__other_completion()
+ 
+-    def __cmd_passthrough(self, cmdline: str,
+-                          cpu_index: int = 0) -> QMPMessage:
++    def __cmd_passthrough(self, cmdline, cpu_index=0):
+         return self.cmd_obj({
+             'execute': 'human-monitor-command',
+             'arguments': {
+@@ -393,7 +378,7 @@ class HMPShell(QMPShell):
+             }
+         })
+ 
+-    def _execute_cmd(self, cmdline: str) -> bool:
++    def _execute_cmd(self, cmdline):
+         if cmdline.split()[0] == "cpu":
+             # trap the cpu command, it requires special setting
+             try:
+@@ -419,16 +404,16 @@ class HMPShell(QMPShell):
+             print('%s: %s' % (resp['error']['class'], resp['error']['desc']))
+         return True
+ 
+-    def show_banner(self, msg: str = 'Welcome to the HMP shell!') -> None:
++    def show_banner(self, msg='Welcome to the HMP shell!'):
+         QMPShell.show_banner(self, msg)
+ 
+ 
+-def die(msg: str) -> NoReturn:
++def die(msg):
+     sys.stderr.write('ERROR: %s\n' % msg)
+     sys.exit(1)
+ 
+ 
+-def main() -> None:
++def main():
+     parser = argparse.ArgumentParser()
+     parser.add_argument('-H', '--hmp', action='store_true',
+                         help='Use HMP interface')

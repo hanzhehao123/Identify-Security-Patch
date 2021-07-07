@@ -1,0 +1,96 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 707b9cbd54..01b6123f25 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -69,15 +69,3 @@ DEF_HELPER_FLAGS_4(mve_vbic, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vorr, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vorn, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_veor, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vaddb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vaddh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vaddw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vsubb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vsubh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vsubw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vmulb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmulh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmulw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index f7d1d303f1..332e0b8d1d 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -33,7 +33,6 @@
+ 
+ @1op .... .... .... size:2 .. .... .... .... .... &1op qd=%qd qm=%qm
+ @1op_nosz .... .... .... .... .... .... .... .... &1op qd=%qd qm=%qm size=0
+-@2op .... .... .. size:2 .... .... .... .... .... &2op qd=%qd qm=%qm qn=%qn
+ @2op_nosz .... .... .... .... .... .... .... .... &2op qd=%qd qm=%qm qn=%qn size=0
+ 
+ # Vector loads and stores
+@@ -78,10 +77,6 @@ VORR             1110 1111 0 . 10 ... 0 ... 0 0001 . 1 . 1 ... 0 @2op_nosz
+ VORN             1110 1111 0 . 11 ... 0 ... 0 0001 . 1 . 1 ... 0 @2op_nosz
+ VEOR             1111 1111 0 . 00 ... 0 ... 0 0001 . 1 . 1 ... 0 @2op_nosz
+ 
+-VADD             1110 1111 0 . .. ... 0 ... 0 1000 . 1 . 0 ... 0 @2op
+-VSUB             1111 1111 0 . .. ... 0 ... 0 1000 . 1 . 0 ... 0 @2op
+-VMUL             1110 1111 0 . .. ... 0 ... 0 1001 . 1 . 1 ... 0 @2op
+-
+ # Vector miscellaneous
+ 
+ VCLS             1111 1111 1 . 11 .. 00 ... 0 0100 01 . 0 ... 0 @1op
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index 23da96402e..da62b0e012 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -337,12 +337,6 @@ DO_1OP(vfnegs, 8, uint64_t, DO_FNEGS)
+         mve_advance_vpt(env);                                           \
+     }
+ 
+-/* provide unsigned 2-op helpers for all sizes */
+-#define DO_2OP_U(OP, FN)                        \
+-    DO_2OP(OP##b, 1, uint8_t, FN)               \
+-    DO_2OP(OP##h, 2, uint16_t, FN)              \
+-    DO_2OP(OP##w, 4, uint32_t, FN)
+-
+ #define DO_AND(N, M)  ((N) & (M))
+ #define DO_BIC(N, M)  ((N) & ~(M))
+ #define DO_ORR(N, M)  ((N) | (M))
+@@ -354,11 +348,3 @@ DO_2OP(vbic, 8, uint64_t, DO_BIC)
+ DO_2OP(vorr, 8, uint64_t, DO_ORR)
+ DO_2OP(vorn, 8, uint64_t, DO_ORN)
+ DO_2OP(veor, 8, uint64_t, DO_EOR)
+-
+-#define DO_ADD(N, M) ((N) + (M))
+-#define DO_SUB(N, M) ((N) - (M))
+-#define DO_MUL(N, M) ((N) * (M))
+-
+-DO_2OP_U(vadd, DO_ADD)
+-DO_2OP_U(vsub, DO_SUB)
+-DO_2OP_U(vmul, DO_MUL)
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index 5d3dee4699..2546567774 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -331,19 +331,3 @@ DO_LOGIC(VBIC, gen_helper_mve_vbic)
+ DO_LOGIC(VORR, gen_helper_mve_vorr)
+ DO_LOGIC(VORN, gen_helper_mve_vorn)
+ DO_LOGIC(VEOR, gen_helper_mve_veor)
+-
+-#define DO_2OP(INSN, FN) \
+-    static bool trans_##INSN(DisasContext *s, arg_2op *a)       \
+-    {                                                           \
+-        static MVEGenTwoOpFn * const fns[] = {                  \
+-            gen_helper_mve_##FN##b,                             \
+-            gen_helper_mve_##FN##h,                             \
+-            gen_helper_mve_##FN##w,                             \
+-            NULL,                                               \
+-        };                                                      \
+-        return do_2op(s, a, fns[a->size]);                      \
+-    }
+-
+-DO_2OP(VADD, vadd)
+-DO_2OP(VSUB, vsub)
+-DO_2OP(VMUL, vmul)

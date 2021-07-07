@@ -1,0 +1,23 @@
+diff --git a/target/ppc/translate.c b/target/ppc/translate.c
+index f65d1e81ea..95e4d9b815 100644
+--- a/target/ppc/translate.c
++++ b/target/ppc/translate.c
+@@ -4320,7 +4320,8 @@ static void gen_lookup_and_goto_ptr(DisasContext *ctx)
+         if (sse & GDBSTUB_SINGLE_STEP) {
+             gen_debug_exception(ctx);
+         } else if (sse & (CPU_SINGLE_STEP | CPU_BRANCH_STEP)) {
+-            gen_helper_raise_exception(cpu_env, tcg_constant_i32(gen_prep_dbgex(ctx)));
++            uint32_t excp = gen_prep_dbgex(ctx);
++            gen_exception(ctx, excp);
+         } else {
+             tcg_gen_exit_tb(NULL, 0);
+         }
+@@ -8671,7 +8672,7 @@ static void ppc_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
+         }
+         /* else CPU_SINGLE_STEP... */
+         if (nip <= 0x100 || nip > 0xf00) {
+-            gen_helper_raise_exception(cpu_env, tcg_constant_i32(gen_prep_dbgex(ctx)));
++            gen_exception(ctx, gen_prep_dbgex(ctx));
+             return;
+         }
+     }

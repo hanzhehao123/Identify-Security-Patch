@@ -1,0 +1,80 @@
+diff --git a/hw/core/cpu-common.c b/hw/core/cpu-common.c
+index 9d73c9a28c..ddddf4b10e 100644
+--- a/hw/core/cpu-common.c
++++ b/hw/core/cpu-common.c
+@@ -185,6 +185,11 @@ static int cpu_common_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg)
+     return 0;
+ }
+ 
++static bool cpu_common_virtio_is_big_endian(CPUState *cpu)
++{
++    return target_words_bigendian();
++}
++
+ void cpu_dump_state(CPUState *cpu, FILE *f, int flags)
+ {
+     CPUClass *cc = CPU_GET_CLASS(cpu);
+@@ -383,6 +388,7 @@ static void cpu_class_init(ObjectClass *klass, void *data)
+     k->write_elf64_note = cpu_common_write_elf64_note;
+     k->gdb_read_register = cpu_common_gdb_read_register;
+     k->gdb_write_register = cpu_common_gdb_write_register;
++    k->virtio_is_big_endian = cpu_common_virtio_is_big_endian;
+     set_bit(DEVICE_CATEGORY_CPU, dc->categories);
+     dc->realize = cpu_common_realizefn;
+     dc->unrealize = cpu_common_unrealizefn;
+diff --git a/hw/core/cpu-sysemu.c b/hw/core/cpu-sysemu.c
+index 078e1a84a5..fe90dde868 100644
+--- a/hw/core/cpu-sysemu.c
++++ b/hw/core/cpu-sysemu.c
+@@ -54,16 +54,6 @@ int cpu_asidx_from_attrs(CPUState *cpu, MemTxAttrs attrs)
+     return ret;
+ }
+ 
+-bool cpu_virtio_is_big_endian(CPUState *cpu)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-
+-    if (cc->virtio_is_big_endian) {
+-        return cc->virtio_is_big_endian(cpu);
+-    }
+-    return target_words_bigendian();
+-}
+-
+ GuestPanicInformation *cpu_get_crash_info(CPUState *cpu)
+ {
+     CPUClass *cc = CPU_GET_CLASS(cpu);
+diff --git a/hw/virtio/virtio.c b/hw/virtio/virtio.c
+index ab516ac614..e02544b2df 100644
+--- a/hw/virtio/virtio.c
++++ b/hw/virtio/virtio.c
+@@ -1972,7 +1972,9 @@ static enum virtio_device_endian virtio_default_endian(void)
+ 
+ static enum virtio_device_endian virtio_current_cpu_endian(void)
+ {
+-    if (cpu_virtio_is_big_endian(current_cpu)) {
++    CPUClass *cc = CPU_GET_CLASS(current_cpu);
++
++    if (cc->virtio_is_big_endian(current_cpu)) {
+         return VIRTIO_DEVICE_ENDIAN_BIG;
+     } else {
+         return VIRTIO_DEVICE_ENDIAN_LITTLE;
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index d96ff4dace..df49528785 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -610,15 +610,6 @@ hwaddr cpu_get_phys_page_debug(CPUState *cpu, vaddr addr);
+  */
+ int cpu_asidx_from_attrs(CPUState *cpu, MemTxAttrs attrs);
+ 
+-/**
+- * cpu_virtio_is_big_endian:
+- * @cpu: CPU
+-
+- * Returns %true if a CPU which supports runtime configurable endianness
+- * is currently big-endian.
+- */
+-bool cpu_virtio_is_big_endian(CPUState *cpu);
+-
+ #endif /* CONFIG_USER_ONLY */
+ 
+ /**

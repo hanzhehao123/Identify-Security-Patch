@@ -1,0 +1,12 @@
+commit bd80936a4f18075e0e407df180801a9743ce290c
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Tue Jun 15 08:34:52 2021 +0200
+
+    file-posix: handle EINTR during ioctl
+    
+    Similar to other handle_aiocb_* functions, handle_aiocb_ioctl needs to cater
+    for the possibility that ioctl is interrupted by a signal.  Otherwise, the
+    I/O is incorrectly reported as a failure to the guest.
+    
+    Reported-by: Gordon Watson <gwatson@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

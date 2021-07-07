@@ -1,0 +1,13 @@
+commit f8bb7e1c25b3d9c55975ca0f428f03d1049f2b06
+Author: David Michael <fedora.dm0@gmail.com>
+Date:   Wed Jun 9 08:28:39 2021 -0400
+
+    configure: map x32 to cpu_family x86_64 for meson
+    
+    The meson.build file defines supported_cpus which does not contain
+    x32, and x32 is not one of meson's stable built-in values:
+    https://mesonbuild.com/Reference-tables.html#cpu-families
+    
+    Signed-off-by: David Michael <fedora.dm0@gmail.com>
+    Message-Id: <878s3jrzm0.fsf@gmail.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

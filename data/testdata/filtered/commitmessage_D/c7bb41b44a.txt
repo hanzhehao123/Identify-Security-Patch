@@ -1,0 +1,12 @@
+commit c7bb41b44ad63515adccffa8a6486da46b0c2e26
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Fri Mar 19 14:18:30 2021 -0600
+
+    plugins: Drop tcg_flags from struct qemu_plugin_dyn_cb
+    
+    As noted by qemu-plugins.h, enum qemu_plugin_cb_flags is
+    currently unused -- plugins can neither read nor write
+    guest registers.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

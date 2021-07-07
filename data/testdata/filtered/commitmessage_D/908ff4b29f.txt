@@ -1,0 +1,41 @@
+commit 908ff4b29f6ff8a990cc7e895feb4ebf9cf6d2c9
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:06 2021 -0400
+
+    scripts/qmp: redirect qom-xxx scripts to python/qemu/qmp/
+    
+    Redirect to the new qom scripts. These forwarders can be deleted
+    eventually when there has been more time for the dust on the Python
+    packaging to settle and people understand how to find these commands.
+    
+    Note: You can run these by setting $PYTHONPATH in your shell and then
+    running "python3 -m qemu.qmp.qom", or you can install the qemu namespace
+    package and use the "qom" or "qom-set" scripts.
+    
+    I've written how to install the package elsewhere, but for the sake of
+    git-blame, cd to ./python, and then do:
+    
+    - pip3 install [--user] [-e] .
+    
+    --user will install to your local user install (will not work inside of
+      a venv), omitting this flag installs to your system-wide packages
+      (outside of a venv) or to your current virtual environment (inside the
+      venv).
+    
+      When installing to a venv or to your system-wide packages, "qom"
+      should be in your $PATH already. If you do a user install, you may
+      need to add ~/.local/bin to your $PATH if you haven't already.
+    
+    -e installs in editable mode: the installed package is effectively just
+     a symlink to this folder; so changes to your git working tree are
+     reflected in the installed package.
+    
+    Note: installing these packages to an environment outside a venv can be
+    dangerous: Many QEMU scripts will begin to prefer the installed version
+    instead of the version directly in the tree. Use with caution. editable
+    mode is recommended when working outside of a venv.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210603003719.1321369-7-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

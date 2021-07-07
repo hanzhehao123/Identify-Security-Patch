@@ -1,0 +1,132 @@
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index dd584f3bba..6472c6a8f4 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -785,16 +785,10 @@ void tcg_prologue_init(TCGContext *s)
+     }
+ #endif
+ 
+-#ifndef CONFIG_TCG_INTERPRETER
+-    /*
+-     * Assert that goto_ptr is implemented completely, setting an epilogue.
+-     * For tci, we use NULL as the signal to return from the interpreter,
+-     * so skip this check.
+-     */
++    /* Assert that goto_ptr is implemented completely.  */
+     if (TCG_TARGET_HAS_goto_ptr) {
+         tcg_debug_assert(tcg_code_gen_epilogue != NULL);
+     }
+-#endif
+ }
+ 
+ void tcg_func_start(TCGContext *s)
+diff --git a/tcg/tci.c b/tcg/tci.c
+index 4696ca161c..c82d5b2f51 100644
+--- a/tcg/tci.c
++++ b/tcg/tci.c
+@@ -73,11 +73,6 @@ static void tci_args_l(uint32_t insn, const void *tb_ptr, void **l0)
+     *l0 = diff ? (void *)tb_ptr + diff : NULL;
+ }
+ 
+-static void tci_args_r(uint32_t insn, TCGReg *r0)
+-{
+-    *r0 = extract32(insn, 8, 4);
+-}
+-
+ static void tci_args_nl(uint32_t insn, const void *tb_ptr,
+                         uint8_t *n0, void **l1)
+ {
+@@ -744,15 +739,6 @@ uintptr_t QEMU_DISABLE_CFI tcg_qemu_tb_exec(CPUArchState *env,
+             tb_ptr = *(void **)ptr;
+             break;
+ 
+-        case INDEX_op_goto_ptr:
+-            tci_args_r(insn, &r0);
+-            ptr = (void *)regs[r0];
+-            if (!ptr) {
+-                return 0;
+-            }
+-            tb_ptr = ptr;
+-            break;
+-
+         case INDEX_op_qemu_ld_i32:
+             if (TARGET_LONG_BITS <= TCG_TARGET_REG_BITS) {
+                 tci_args_rrm(insn, &r0, &r1, &oi);
+@@ -1010,11 +996,6 @@ int print_insn_tci(bfd_vma addr, disassemble_info *info)
+         info->fprintf_func(info->stream, "%-12s  %p", op_name, ptr);
+         break;
+ 
+-    case INDEX_op_goto_ptr:
+-        tci_args_r(insn, &r0);
+-        info->fprintf_func(info->stream, "%-12s  %s", op_name, str_r(r0));
+-        break;
+-
+     case INDEX_op_call:
+         tci_args_nl(insn, tb_ptr, &len, &ptr);
+         info->fprintf_func(info->stream, "%-12s  %d, %p", op_name, len, ptr);
+diff --git a/tcg/tci/tcg-target-con-set.h b/tcg/tci/tcg-target-con-set.h
+index ae2dc3b844..316730f32c 100644
+--- a/tcg/tci/tcg-target-con-set.h
++++ b/tcg/tci/tcg-target-con-set.h
+@@ -9,7 +9,6 @@
+  * Each operand should be a sequence of constraint letters as defined by
+  * tcg-target-con-str.h; the constraint combination is inclusive or.
+  */
+-C_O0_I1(r)
+ C_O0_I2(r, r)
+ C_O0_I3(r, r, r)
+ C_O0_I4(r, r, r, r)
+diff --git a/tcg/tci/tcg-target.c.inc b/tcg/tci/tcg-target.c.inc
+index fc73c199a0..f74328dcbd 100644
+--- a/tcg/tci/tcg-target.c.inc
++++ b/tcg/tci/tcg-target.c.inc
+@@ -27,9 +27,6 @@
+ static TCGConstraintSetIndex tcg_target_op_def(TCGOpcode op)
+ {
+     switch (op) {
+-    case INDEX_op_goto_ptr:
+-        return C_O0_I1(r);
+-
+     case INDEX_op_ld8u_i32:
+     case INDEX_op_ld8s_i32:
+     case INDEX_op_ld16u_i32:
+@@ -266,15 +263,6 @@ static void tcg_out_op_p(TCGContext *s, TCGOpcode op, void *p0)
+     tcg_out32(s, insn);
+ }
+ 
+-static void tcg_out_op_r(TCGContext *s, TCGOpcode op, TCGReg r0)
+-{
+-    tcg_insn_unit insn = 0;
+-
+-    insn = deposit32(insn, 0, 8, op);
+-    insn = deposit32(insn, 8, 4, r0);
+-    tcg_out32(s, insn);
+-}
+-
+ static void tcg_out_op_v(TCGContext *s, TCGOpcode op)
+ {
+     tcg_out32(s, (uint8_t)op);
+@@ -577,10 +565,6 @@ static void tcg_out_op(TCGContext *s, TCGOpcode opc,
+         set_jmp_reset_offset(s, args[0]);
+         break;
+ 
+-    case INDEX_op_goto_ptr:
+-        tcg_out_op_r(s, opc, args[0]);
+-        break;
+-
+     case INDEX_op_br:
+         tcg_out_op_l(s, opc, arg_label(args[0]));
+         break;
+diff --git a/tcg/tci/tcg-target.h b/tcg/tci/tcg-target.h
+index 6ced9282c1..c9cbe505a7 100644
+--- a/tcg/tci/tcg-target.h
++++ b/tcg/tci/tcg-target.h
+@@ -87,7 +87,7 @@
+ #define TCG_TARGET_HAS_muls2_i32        0
+ #define TCG_TARGET_HAS_muluh_i32        0
+ #define TCG_TARGET_HAS_mulsh_i32        0
+-#define TCG_TARGET_HAS_goto_ptr         1
++#define TCG_TARGET_HAS_goto_ptr         0
+ #define TCG_TARGET_HAS_direct_jump      0
+ #define TCG_TARGET_HAS_qemu_st8_i32     0
+ 

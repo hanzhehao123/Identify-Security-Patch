@@ -1,0 +1,3924 @@
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index 1c46392b2f..6a0d311cf4 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -27,9 +27,9 @@ include:
+     - cd build
+     - if test -n "$TARGETS";
+       then
+-        ../configure --enable-werror --disable-docs ${LD_JOBS:+--meson=git} $CONFIGURE_ARGS --target-list="$TARGETS" ;
++        ../configure --enable-werror --disable-docs ${LD_JOBS:+--meson=internal} $CONFIGURE_ARGS --target-list="$TARGETS" ;
+       else
+-        ../configure --enable-werror --disable-docs ${LD_JOBS:+--meson=git} $CONFIGURE_ARGS ;
++        ../configure --enable-werror --disable-docs ${LD_JOBS:+--meson=internal} $CONFIGURE_ARGS ;
+       fi || { cat config.log meson-logs/meson-log.txt && exit 1; }
+     - if test -n "$LD_JOBS";
+       then
+diff --git a/Makefile b/Makefile
+index 30f19d33bb..4cab10a2a4 100644
+--- a/Makefile
++++ b/Makefile
+@@ -48,11 +48,9 @@ Makefile: .git-submodule-status
+ 
+ .PHONY: git-submodule-update
+ git-submodule-update:
+-ifneq ($(GIT_SUBMODULES_ACTION),ignore)
+ 	$(call quiet-command, \
+ 		(GIT="$(GIT)" "$(SRC_PATH)/scripts/git-submodule.sh" $(GIT_SUBMODULES_ACTION) $(GIT_SUBMODULES)), \
+ 		"GIT","$(GIT_SUBMODULES)")
+-endif
+ 
+ # 0. ensure the build tree is okay
+ 
+diff --git a/accel/kvm/kvm-all.c b/accel/kvm/kvm-all.c
+index c7ec538850..4e0168e88b 100644
+--- a/accel/kvm/kvm-all.c
++++ b/accel/kvm/kvm-all.c
+@@ -15,7 +15,6 @@
+ 
+ #include "qemu/osdep.h"
+ #include <sys/ioctl.h>
+-#include <poll.h>
+ 
+ #include <linux/kvm.h>
+ 
+@@ -79,25 +78,6 @@ struct KVMParkedVcpu {
+     QLIST_ENTRY(KVMParkedVcpu) node;
+ };
+ 
+-enum KVMDirtyRingReaperState {
+-    KVM_DIRTY_RING_REAPER_NONE = 0,
+-    /* The reaper is sleeping */
+-    KVM_DIRTY_RING_REAPER_WAIT,
+-    /* The reaper is reaping for dirty pages */
+-    KVM_DIRTY_RING_REAPER_REAPING,
+-};
+-
+-/*
+- * KVM reaper instance, responsible for collecting the KVM dirty bits
+- * via the dirty ring.
+- */
+-struct KVMDirtyRingReaper {
+-    /* The reaper thread */
+-    QemuThread reaper_thr;
+-    volatile uint64_t reaper_iteration; /* iteration number of reaper thr */
+-    volatile enum KVMDirtyRingReaperState reaper_state; /* reap thr state */
+-};
+-
+ struct KVMState
+ {
+     AccelState parent_obj;
+@@ -146,9 +126,6 @@ struct KVMState
+         KVMMemoryListener *ml;
+         AddressSpace *as;
+     } *as;
+-    uint64_t kvm_dirty_ring_bytes;  /* Size of the per-vcpu dirty ring */
+-    uint32_t kvm_dirty_ring_size;   /* Number of dirty GFNs per ring */
+-    struct KVMDirtyRingReaper reaper;
+ };
+ 
+ KVMState *kvm_state;
+@@ -195,12 +172,8 @@ typedef struct KVMResampleFd KVMResampleFd;
+ static QLIST_HEAD(, KVMResampleFd) kvm_resample_fd_list =
+     QLIST_HEAD_INITIALIZER(kvm_resample_fd_list);
+ 
+-static QemuMutex kml_slots_lock;
+-
+-#define kvm_slots_lock()    qemu_mutex_lock(&kml_slots_lock)
+-#define kvm_slots_unlock()  qemu_mutex_unlock(&kml_slots_lock)
+-
+-static void kvm_slot_init_dirty_bitmap(KVMSlot *mem);
++#define kvm_slots_lock(kml)      qemu_mutex_lock(&(kml)->slots_lock)
++#define kvm_slots_unlock(kml)    qemu_mutex_unlock(&(kml)->slots_lock)
+ 
+ static inline void kvm_resample_fd_remove(int gsi)
+ {
+@@ -266,9 +239,9 @@ bool kvm_has_free_slot(MachineState *ms)
+     bool result;
+     KVMMemoryListener *kml = &s->memory_listener;
+ 
+-    kvm_slots_lock();
++    kvm_slots_lock(kml);
+     result = !!kvm_get_free_slot(kml);
+-    kvm_slots_unlock();
++    kvm_slots_unlock(kml);
+ 
+     return result;
+ }
+@@ -334,7 +307,7 @@ int kvm_physical_memory_addr_from_host(KVMState *s, void *ram,
+     KVMMemoryListener *kml = &s->memory_listener;
+     int i, ret = 0;
+ 
+-    kvm_slots_lock();
++    kvm_slots_lock(kml);
+     for (i = 0; i < s->nr_slots; i++) {
+         KVMSlot *mem = &kml->slots[i];
+ 
+@@ -344,7 +317,7 @@ int kvm_physical_memory_addr_from_host(KVMState *s, void *ram,
+             break;
+         }
+     }
+-    kvm_slots_unlock();
++    kvm_slots_unlock(kml);
+ 
+     return ret;
+ }
+@@ -410,13 +383,6 @@ static int do_kvm_destroy_vcpu(CPUState *cpu)
+         goto err;
+     }
+ 
+-    if (cpu->kvm_dirty_gfns) {
+-        ret = munmap(cpu->kvm_dirty_gfns, s->kvm_dirty_ring_size);
+-        if (ret < 0) {
+-            goto err;
+-        }
+-    }
+-
+     vcpu = g_malloc0(sizeof(*vcpu));
+     vcpu->vcpu_id = kvm_arch_vcpu_id(cpu);
+     vcpu->kvm_fd = cpu->kvm_fd;
+@@ -493,19 +459,6 @@ int kvm_init_vcpu(CPUState *cpu, Error **errp)
+             (void *)cpu->kvm_run + s->coalesced_mmio * PAGE_SIZE;
+     }
+ 
+-    if (s->kvm_dirty_ring_size) {
+-        /* Use MAP_SHARED to share pages with the kernel */
+-        cpu->kvm_dirty_gfns = mmap(NULL, s->kvm_dirty_ring_size,
+-                                   PROT_READ | PROT_WRITE, MAP_SHARED,
+-                                   cpu->kvm_fd,
+-                                   PAGE_SIZE * KVM_DIRTY_LOG_PAGE_OFFSET);
+-        if (cpu->kvm_dirty_gfns == MAP_FAILED) {
+-            ret = -errno;
+-            DPRINTF("mmap'ing vcpu dirty gfns failed: %d\n", ret);
+-            goto err;
+-        }
+-    }
+-
+     ret = kvm_arch_init_vcpu(cpu);
+     if (ret < 0) {
+         error_setg_errno(errp, -ret,
+@@ -545,7 +498,6 @@ static int kvm_slot_update_flags(KVMMemoryListener *kml, KVMSlot *mem,
+         return 0;
+     }
+ 
+-    kvm_slot_init_dirty_bitmap(mem);
+     return kvm_set_user_memory_region(kml, mem, false);
+ }
+ 
+@@ -561,7 +513,7 @@ static int kvm_section_update_flags(KVMMemoryListener *kml,
+         return 0;
+     }
+ 
+-    kvm_slots_lock();
++    kvm_slots_lock(kml);
+ 
+     while (size && !ret) {
+         slot_size = MIN(kvm_max_slot_size, size);
+@@ -577,7 +529,7 @@ static int kvm_section_update_flags(KVMMemoryListener *kml,
+     }
+ 
+ out:
+-    kvm_slots_unlock();
++    kvm_slots_unlock(kml);
+     return ret;
+ }
+ 
+@@ -616,28 +568,22 @@ static void kvm_log_stop(MemoryListener *listener,
+ }
+ 
+ /* get kvm's dirty pages bitmap and update qemu's */
+-static void kvm_slot_sync_dirty_pages(KVMSlot *slot)
++static int kvm_get_dirty_pages_log_range(MemoryRegionSection *section,
++                                         unsigned long *bitmap)
+ {
+-    ram_addr_t start = slot->ram_start_offset;
+-    ram_addr_t pages = slot->memory_size / qemu_real_host_page_size;
+-
+-    cpu_physical_memory_set_dirty_lebitmap(slot->dirty_bmap, start, pages);
+-}
++    ram_addr_t start = section->offset_within_region +
++                       memory_region_get_ram_addr(section->mr);
++    ram_addr_t pages = int128_get64(section->size) / qemu_real_host_page_size;
+ 
+-static void kvm_slot_reset_dirty_pages(KVMSlot *slot)
+-{
+-    memset(slot->dirty_bmap, 0, slot->dirty_bmap_size);
++    cpu_physical_memory_set_dirty_lebitmap(bitmap, start, pages);
++    return 0;
+ }
+ 
+ #define ALIGN(x, y)  (((x)+(y)-1) & ~((y)-1))
+ 
+ /* Allocate the dirty bitmap for a slot  */
+-static void kvm_slot_init_dirty_bitmap(KVMSlot *mem)
++static void kvm_memslot_init_dirty_bitmap(KVMSlot *mem)
+ {
+-    if (!(mem->flags & KVM_MEM_LOG_DIRTY_PAGES) || mem->dirty_bmap) {
+-        return;
+-    }
+-
+     /*
+      * XXX bad kernel interface alert
+      * For dirty bitmap, kernel allocates array of size aligned to
+@@ -658,196 +604,6 @@ static void kvm_slot_init_dirty_bitmap(KVMSlot *mem)
+     hwaddr bitmap_size = ALIGN(mem->memory_size / qemu_real_host_page_size,
+                                         /*HOST_LONG_BITS*/ 64) / 8;
+     mem->dirty_bmap = g_malloc0(bitmap_size);
+-    mem->dirty_bmap_size = bitmap_size;
+-}
+-
+-/*
+- * Sync dirty bitmap from kernel to KVMSlot.dirty_bmap, return true if
+- * succeeded, false otherwise
+- */
+-static bool kvm_slot_get_dirty_log(KVMState *s, KVMSlot *slot)
+-{
+-    struct kvm_dirty_log d = {};
+-    int ret;
+-
+-    d.dirty_bitmap = slot->dirty_bmap;
+-    d.slot = slot->slot | (slot->as_id << 16);
+-    ret = kvm_vm_ioctl(s, KVM_GET_DIRTY_LOG, &d);
+-
+-    if (ret == -ENOENT) {
+-        /* kernel does not have dirty bitmap in this slot */
+-        ret = 0;
+-    }
+-    if (ret) {
+-        error_report_once("%s: KVM_GET_DIRTY_LOG failed with %d",
+-                          __func__, ret);
+-    }
+-    return ret == 0;
+-}
+-
+-/* Should be with all slots_lock held for the address spaces. */
+-static void kvm_dirty_ring_mark_page(KVMState *s, uint32_t as_id,
+-                                     uint32_t slot_id, uint64_t offset)
+-{
+-    KVMMemoryListener *kml;
+-    KVMSlot *mem;
+-
+-    if (as_id >= s->nr_as) {
+-        return;
+-    }
+-
+-    kml = s->as[as_id].ml;
+-    mem = &kml->slots[slot_id];
+-
+-    if (!mem->memory_size || offset >=
+-        (mem->memory_size / qemu_real_host_page_size)) {
+-        return;
+-    }
+-
+-    set_bit(offset, mem->dirty_bmap);
+-}
+-
+-static bool dirty_gfn_is_dirtied(struct kvm_dirty_gfn *gfn)
+-{
+-    return gfn->flags == KVM_DIRTY_GFN_F_DIRTY;
+-}
+-
+-static void dirty_gfn_set_collected(struct kvm_dirty_gfn *gfn)
+-{
+-    gfn->flags = KVM_DIRTY_GFN_F_RESET;
+-}
+-
+-/*
+- * Should be with all slots_lock held for the address spaces.  It returns the
+- * dirty page we've collected on this dirty ring.
+- */
+-static uint32_t kvm_dirty_ring_reap_one(KVMState *s, CPUState *cpu)
+-{
+-    struct kvm_dirty_gfn *dirty_gfns = cpu->kvm_dirty_gfns, *cur;
+-    uint32_t ring_size = s->kvm_dirty_ring_size;
+-    uint32_t count = 0, fetch = cpu->kvm_fetch_index;
+-
+-    assert(dirty_gfns && ring_size);
+-    trace_kvm_dirty_ring_reap_vcpu(cpu->cpu_index);
+-
+-    while (true) {
+-        cur = &dirty_gfns[fetch % ring_size];
+-        if (!dirty_gfn_is_dirtied(cur)) {
+-            break;
+-        }
+-        kvm_dirty_ring_mark_page(s, cur->slot >> 16, cur->slot & 0xffff,
+-                                 cur->offset);
+-        dirty_gfn_set_collected(cur);
+-        trace_kvm_dirty_ring_page(cpu->cpu_index, fetch, cur->offset);
+-        fetch++;
+-        count++;
+-    }
+-    cpu->kvm_fetch_index = fetch;
+-
+-    return count;
+-}
+-
+-/* Must be with slots_lock held */
+-static uint64_t kvm_dirty_ring_reap_locked(KVMState *s)
+-{
+-    int ret;
+-    CPUState *cpu;
+-    uint64_t total = 0;
+-    int64_t stamp;
+-
+-    stamp = get_clock();
+-
+-    CPU_FOREACH(cpu) {
+-        total += kvm_dirty_ring_reap_one(s, cpu);
+-    }
+-
+-    if (total) {
+-        ret = kvm_vm_ioctl(s, KVM_RESET_DIRTY_RINGS);
+-        assert(ret == total);
+-    }
+-
+-    stamp = get_clock() - stamp;
+-
+-    if (total) {
+-        trace_kvm_dirty_ring_reap(total, stamp / 1000);
+-    }
+-
+-    return total;
+-}
+-
+-/*
+- * Currently for simplicity, we must hold BQL before calling this.  We can
+- * consider to drop the BQL if we're clear with all the race conditions.
+- */
+-static uint64_t kvm_dirty_ring_reap(KVMState *s)
+-{
+-    uint64_t total;
+-
+-    /*
+-     * We need to lock all kvm slots for all address spaces here,
+-     * because:
+-     *
+-     * (1) We need to mark dirty for dirty bitmaps in multiple slots
+-     *     and for tons of pages, so it's better to take the lock here
+-     *     once rather than once per page.  And more importantly,
+-     *
+-     * (2) We must _NOT_ publish dirty bits to the other threads
+-     *     (e.g., the migration thread) via the kvm memory slot dirty
+-     *     bitmaps before correctly re-protect those dirtied pages.
+-     *     Otherwise we can have potential risk of data corruption if
+-     *     the page data is read in the other thread before we do
+-     *     reset below.
+-     */
+-    kvm_slots_lock();
+-    total = kvm_dirty_ring_reap_locked(s);
+-    kvm_slots_unlock();
+-
+-    return total;
+-}
+-
+-static void do_kvm_cpu_synchronize_kick(CPUState *cpu, run_on_cpu_data arg)
+-{
+-    /* No need to do anything */
+-}
+-
+-/*
+- * Kick all vcpus out in a synchronized way.  When returned, we
+- * guarantee that every vcpu has been kicked and at least returned to
+- * userspace once.
+- */
+-static void kvm_cpu_synchronize_kick_all(void)
+-{
+-    CPUState *cpu;
+-
+-    CPU_FOREACH(cpu) {
+-        run_on_cpu(cpu, do_kvm_cpu_synchronize_kick, RUN_ON_CPU_NULL);
+-    }
+-}
+-
+-/*
+- * Flush all the existing dirty pages to the KVM slot buffers.  When
+- * this call returns, we guarantee that all the touched dirty pages
+- * before calling this function have been put into the per-kvmslot
+- * dirty bitmap.
+- *
+- * This function must be called with BQL held.
+- */
+-static void kvm_dirty_ring_flush(void)
+-{
+-    trace_kvm_dirty_ring_flush(0);
+-    /*
+-     * The function needs to be serialized.  Since this function
+-     * should always be with BQL held, serialization is guaranteed.
+-     * However, let's be sure of it.
+-     */
+-    assert(qemu_mutex_iothread_locked());
+-    /*
+-     * First make sure to flush the hardware buffers by kicking all
+-     * vcpus out in a synchronous way.
+-     */
+-    kvm_cpu_synchronize_kick_all();
+-    kvm_dirty_ring_reap(kvm_state);
+-    trace_kvm_dirty_ring_flush(1);
+ }
+ 
+ /**
+@@ -861,28 +617,53 @@ static void kvm_dirty_ring_flush(void)
+  * @kml: the KVM memory listener object
+  * @section: the memory section to sync the dirty bitmap with
+  */
+-static void kvm_physical_sync_dirty_bitmap(KVMMemoryListener *kml,
+-                                           MemoryRegionSection *section)
++static int kvm_physical_sync_dirty_bitmap(KVMMemoryListener *kml,
++                                          MemoryRegionSection *section)
+ {
+     KVMState *s = kvm_state;
++    struct kvm_dirty_log d = {};
+     KVMSlot *mem;
+     hwaddr start_addr, size;
+-    hwaddr slot_size;
++    hwaddr slot_size, slot_offset = 0;
++    int ret = 0;
+ 
+     size = kvm_align_section(section, &start_addr);
+     while (size) {
++        MemoryRegionSection subsection = *section;
++
+         slot_size = MIN(kvm_max_slot_size, size);
+         mem = kvm_lookup_matching_slot(kml, start_addr, slot_size);
+         if (!mem) {
+             /* We don't have a slot if we want to trap every access. */
+-            return;
++            goto out;
+         }
+-        if (kvm_slot_get_dirty_log(s, mem)) {
+-            kvm_slot_sync_dirty_pages(mem);
++
++        if (!mem->dirty_bmap) {
++            /* Allocate on the first log_sync, once and for all */
++            kvm_memslot_init_dirty_bitmap(mem);
++        }
++
++        d.dirty_bitmap = mem->dirty_bmap;
++        d.slot = mem->slot | (kml->as_id << 16);
++        ret = kvm_vm_ioctl(s, KVM_GET_DIRTY_LOG, &d);
++        if (ret == -ENOENT) {
++            /* kernel does not have dirty bitmap in this slot */
++            ret = 0;
++        } else if (ret < 0) {
++            error_report("ioctl KVM_GET_DIRTY_LOG failed: %d", errno);
++            goto out;
++        } else {
++            subsection.offset_within_region += slot_offset;
++            subsection.size = int128_make64(slot_size);
++            kvm_get_dirty_pages_log_range(&subsection, d.dirty_bitmap);
+         }
++
++        slot_offset += slot_size;
+         start_addr += slot_size;
+         size -= slot_size;
+     }
++out:
++    return ret;
+ }
+ 
+ /* Alignment requirement for KVM_CLEAR_DIRTY_LOG - 64 pages */
+@@ -1029,7 +810,7 @@ static int kvm_physical_log_clear(KVMMemoryListener *kml,
+         return ret;
+     }
+ 
+-    kvm_slots_lock();
++    kvm_slots_lock(kml);
+ 
+     for (i = 0; i < s->nr_slots; i++) {
+         mem = &kml->slots[i];
+@@ -1055,7 +836,7 @@ static int kvm_physical_log_clear(KVMMemoryListener *kml,
+         }
+     }
+ 
+-    kvm_slots_unlock();
++    kvm_slots_unlock(kml);
+ 
+     return ret;
+ }
+@@ -1338,8 +1119,7 @@ static void kvm_set_phys_mem(KVMMemoryListener *kml,
+     int err;
+     MemoryRegion *mr = section->mr;
+     bool writeable = !mr->readonly && !mr->rom_device;
+-    hwaddr start_addr, size, slot_size, mr_offset;
+-    ram_addr_t ram_start_offset;
++    hwaddr start_addr, size, slot_size;
+     void *ram;
+ 
+     if (!memory_region_is_ram(mr)) {
+@@ -1357,15 +1137,11 @@ static void kvm_set_phys_mem(KVMMemoryListener *kml,
+         return;
+     }
+ 
+-    /* The offset of the kvmslot within the memory region */
+-    mr_offset = section->offset_within_region + start_addr -
+-        section->offset_within_address_space;
++    /* use aligned delta to align the ram address */
++    ram = memory_region_get_ram_ptr(mr) + section->offset_within_region +
++          (start_addr - section->offset_within_address_space);
+ 
+-    /* use aligned delta to align the ram address and offset */
+-    ram = memory_region_get_ram_ptr(mr) + mr_offset;
+-    ram_start_offset = memory_region_get_ram_addr(mr) + mr_offset;
+-
+-    kvm_slots_lock();
++    kvm_slots_lock(kml);
+ 
+     if (!add) {
+         do {
+@@ -1375,25 +1151,7 @@ static void kvm_set_phys_mem(KVMMemoryListener *kml,
+                 goto out;
+             }
+             if (mem->flags & KVM_MEM_LOG_DIRTY_PAGES) {
+-                /*
+-                 * NOTE: We should be aware of the fact that here we're only
+-                 * doing a best effort to sync dirty bits.  No matter whether
+-                 * we're using dirty log or dirty ring, we ignored two facts:
+-                 *
+-                 * (1) dirty bits can reside in hardware buffers (PML)
+-                 *
+-                 * (2) after we collected dirty bits here, pages can be dirtied
+-                 * again before we do the final KVM_SET_USER_MEMORY_REGION to
+-                 * remove the slot.
+-                 *
+-                 * Not easy.  Let's cross the fingers until it's fixed.
+-                 */
+-                if (kvm_state->kvm_dirty_ring_size) {
+-                    kvm_dirty_ring_reap_locked(kvm_state);
+-                } else {
+-                    kvm_slot_get_dirty_log(kvm_state, mem);
+-                }
+-                kvm_slot_sync_dirty_pages(mem);
++                kvm_physical_sync_dirty_bitmap(kml, section);
+             }
+ 
+             /* unregister the slot */
+@@ -1417,13 +1175,18 @@ static void kvm_set_phys_mem(KVMMemoryListener *kml,
+     do {
+         slot_size = MIN(kvm_max_slot_size, size);
+         mem = kvm_alloc_slot(kml);
+-        mem->as_id = kml->as_id;
+         mem->memory_size = slot_size;
+         mem->start_addr = start_addr;
+-        mem->ram_start_offset = ram_start_offset;
+         mem->ram = ram;
+         mem->flags = kvm_mem_flags(mr);
+-        kvm_slot_init_dirty_bitmap(mem);
++
++        if (mem->flags & KVM_MEM_LOG_DIRTY_PAGES) {
++            /*
++             * Reallocate the bmap; it means it doesn't disappear in
++             * middle of a migrate.
++             */
++            kvm_memslot_init_dirty_bitmap(mem);
++        }
+         err = kvm_set_user_memory_region(kml, mem, true);
+         if (err) {
+             fprintf(stderr, "%s: error registering slot: %s\n", __func__,
+@@ -1431,58 +1194,12 @@ static void kvm_set_phys_mem(KVMMemoryListener *kml,
+             abort();
+         }
+         start_addr += slot_size;
+-        ram_start_offset += slot_size;
+         ram += slot_size;
+         size -= slot_size;
+     } while (size);
+ 
+ out:
+-    kvm_slots_unlock();
+-}
+-
+-static void *kvm_dirty_ring_reaper_thread(void *data)
+-{
+-    KVMState *s = data;
+-    struct KVMDirtyRingReaper *r = &s->reaper;
+-
+-    rcu_register_thread();
+-
+-    trace_kvm_dirty_ring_reaper("init");
+-
+-    while (true) {
+-        r->reaper_state = KVM_DIRTY_RING_REAPER_WAIT;
+-        trace_kvm_dirty_ring_reaper("wait");
+-        /*
+-         * TODO: provide a smarter timeout rather than a constant?
+-         */
+-        sleep(1);
+-
+-        trace_kvm_dirty_ring_reaper("wakeup");
+-        r->reaper_state = KVM_DIRTY_RING_REAPER_REAPING;
+-
+-        qemu_mutex_lock_iothread();
+-        kvm_dirty_ring_reap(s);
+-        qemu_mutex_unlock_iothread();
+-
+-        r->reaper_iteration++;
+-    }
+-
+-    trace_kvm_dirty_ring_reaper("exit");
+-
+-    rcu_unregister_thread();
+-
+-    return NULL;
+-}
+-
+-static int kvm_dirty_ring_reaper_init(KVMState *s)
+-{
+-    struct KVMDirtyRingReaper *r = &s->reaper;
+-
+-    qemu_thread_create(&r->reaper_thr, "kvm-reaper",
+-                       kvm_dirty_ring_reaper_thread,
+-                       s, QEMU_THREAD_JOINABLE);
+-
+-    return 0;
++    kvm_slots_unlock(kml);
+ }
+ 
+ static void kvm_region_add(MemoryListener *listener,
+@@ -1507,40 +1224,14 @@ static void kvm_log_sync(MemoryListener *listener,
+                          MemoryRegionSection *section)
+ {
+     KVMMemoryListener *kml = container_of(listener, KVMMemoryListener, listener);
++    int r;
+ 
+-    kvm_slots_lock();
+-    kvm_physical_sync_dirty_bitmap(kml, section);
+-    kvm_slots_unlock();
+-}
+-
+-static void kvm_log_sync_global(MemoryListener *l)
+-{
+-    KVMMemoryListener *kml = container_of(l, KVMMemoryListener, listener);
+-    KVMState *s = kvm_state;
+-    KVMSlot *mem;
+-    int i;
+-
+-    /* Flush all kernel dirty addresses into KVMSlot dirty bitmap */
+-    kvm_dirty_ring_flush();
+-
+-    /*
+-     * TODO: make this faster when nr_slots is big while there are
+-     * only a few used slots (small VMs).
+-     */
+-    kvm_slots_lock();
+-    for (i = 0; i < s->nr_slots; i++) {
+-        mem = &kml->slots[i];
+-        if (mem->memory_size && mem->flags & KVM_MEM_LOG_DIRTY_PAGES) {
+-            kvm_slot_sync_dirty_pages(mem);
+-            /*
+-             * This is not needed by KVM_GET_DIRTY_LOG because the
+-             * ioctl will unconditionally overwrite the whole region.
+-             * However kvm dirty ring has no such side effect.
+-             */
+-            kvm_slot_reset_dirty_pages(mem);
+-        }
++    kvm_slots_lock(kml);
++    r = kvm_physical_sync_dirty_bitmap(kml, section);
++    kvm_slots_unlock(kml);
++    if (r < 0) {
++        abort();
+     }
+-    kvm_slots_unlock();
+ }
+ 
+ static void kvm_log_clear(MemoryListener *listener,
+@@ -1637,6 +1328,7 @@ void kvm_memory_listener_register(KVMState *s, KVMMemoryListener *kml,
+ {
+     int i;
+ 
++    qemu_mutex_init(&kml->slots_lock);
+     kml->slots = g_malloc0(s->nr_slots * sizeof(KVMSlot));
+     kml->as_id = as_id;
+ 
+@@ -1648,15 +1340,10 @@ void kvm_memory_listener_register(KVMState *s, KVMMemoryListener *kml,
+     kml->listener.region_del = kvm_region_del;
+     kml->listener.log_start = kvm_log_start;
+     kml->listener.log_stop = kvm_log_stop;
++    kml->listener.log_sync = kvm_log_sync;
++    kml->listener.log_clear = kvm_log_clear;
+     kml->listener.priority = 10;
+ 
+-    if (s->kvm_dirty_ring_size) {
+-        kml->listener.log_sync_global = kvm_log_sync_global;
+-    } else {
+-        kml->listener.log_sync = kvm_log_sync;
+-        kml->listener.log_clear = kvm_log_clear;
+-    }
+-
+     memory_listener_register(&kml->listener, as);
+ 
+     for (i = 0; i < s->nr_as; ++i) {
+@@ -2314,8 +2001,6 @@ static int kvm_init(MachineState *ms)
+     int type = 0;
+     uint64_t dirty_log_manual_caps;
+ 
+-    qemu_mutex_init(&kml_slots_lock);
+-
+     s = KVM_STATE(ms->accelerator);
+ 
+     /*
+@@ -2332,6 +2017,7 @@ static int kvm_init(MachineState *ms)
+     QTAILQ_INIT(&s->kvm_sw_breakpoints);
+ #endif
+     QLIST_INIT(&s->kvm_parked_vcpus);
++    s->vmfd = -1;
+     s->fd = qemu_open_old("/dev/kvm", O_RDWR);
+     if (s->fd == -1) {
+         fprintf(stderr, "Could not access KVM kernel module: %m\n");
+@@ -2439,70 +2125,20 @@ static int kvm_init(MachineState *ms)
+     s->coalesced_pio = s->coalesced_mmio &&
+                        kvm_check_extension(s, KVM_CAP_COALESCED_PIO);
+ 
+-    /*
+-     * Enable KVM dirty ring if supported, otherwise fall back to
+-     * dirty logging mode
+-     */
+-    if (s->kvm_dirty_ring_size > 0) {
+-        uint64_t ring_bytes;
+-
+-        ring_bytes = s->kvm_dirty_ring_size * sizeof(struct kvm_dirty_gfn);
+-
+-        /* Read the max supported pages */
+-        ret = kvm_vm_check_extension(s, KVM_CAP_DIRTY_LOG_RING);
+-        if (ret > 0) {
+-            if (ring_bytes > ret) {
+-                error_report("KVM dirty ring size %" PRIu32 " too big "
+-                             "(maximum is %ld).  Please use a smaller value.",
+-                             s->kvm_dirty_ring_size,
+-                             (long)ret / sizeof(struct kvm_dirty_gfn));
+-                ret = -EINVAL;
+-                goto err;
+-            }
+-
+-            ret = kvm_vm_enable_cap(s, KVM_CAP_DIRTY_LOG_RING, 0, ring_bytes);
+-            if (ret) {
+-                error_report("Enabling of KVM dirty ring failed: %s. "
+-                             "Suggested mininum value is 1024.", strerror(-ret));
+-                goto err;
+-            }
+-
+-            s->kvm_dirty_ring_bytes = ring_bytes;
+-         } else {
+-             warn_report("KVM dirty ring not available, using bitmap method");
+-             s->kvm_dirty_ring_size = 0;
+-        }
+-    }
+-
+-    /*
+-     * KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2 is not needed when dirty ring is
+-     * enabled.  More importantly, KVM_DIRTY_LOG_INITIALLY_SET will assume no
+-     * page is wr-protected initially, which is against how kvm dirty ring is
+-     * usage - kvm dirty ring requires all pages are wr-protected at the very
+-     * beginning.  Enabling this feature for dirty ring causes data corruption.
+-     *
+-     * TODO: Without KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2 and kvm clear dirty log,
+-     * we may expect a higher stall time when starting the migration.  In the
+-     * future we can enable KVM_CLEAR_DIRTY_LOG to work with dirty ring too:
+-     * instead of clearing dirty bit, it can be a way to explicitly wr-protect
+-     * guest pages.
+-     */
+-    if (!s->kvm_dirty_ring_size) {
+-        dirty_log_manual_caps =
+-            kvm_check_extension(s, KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2);
+-        dirty_log_manual_caps &= (KVM_DIRTY_LOG_MANUAL_PROTECT_ENABLE |
+-                                  KVM_DIRTY_LOG_INITIALLY_SET);
+-        s->manual_dirty_log_protect = dirty_log_manual_caps;
+-        if (dirty_log_manual_caps) {
+-            ret = kvm_vm_enable_cap(s, KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2, 0,
+-                                    dirty_log_manual_caps);
+-            if (ret) {
+-                warn_report("Trying to enable capability %"PRIu64" of "
+-                            "KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2 but failed. "
+-                            "Falling back to the legacy mode. ",
+-                            dirty_log_manual_caps);
+-                s->manual_dirty_log_protect = 0;
+-            }
++    dirty_log_manual_caps =
++        kvm_check_extension(s, KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2);
++    dirty_log_manual_caps &= (KVM_DIRTY_LOG_MANUAL_PROTECT_ENABLE |
++                              KVM_DIRTY_LOG_INITIALLY_SET);
++    s->manual_dirty_log_protect = dirty_log_manual_caps;
++    if (dirty_log_manual_caps) {
++        ret = kvm_vm_enable_cap(s, KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2, 0,
++                                   dirty_log_manual_caps);
++        if (ret) {
++            warn_report("Trying to enable capability %"PRIu64" of "
++                        "KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2 but failed. "
++                        "Falling back to the legacy mode. ",
++                        dirty_log_manual_caps);
++            s->manual_dirty_log_protect = 0;
+         }
+     }
+ 
+@@ -2588,14 +2224,6 @@ static int kvm_init(MachineState *ms)
+         ret = ram_block_discard_disable(true);
+         assert(!ret);
+     }
+-
+-    if (s->kvm_dirty_ring_size) {
+-        ret = kvm_dirty_ring_reaper_init(s);
+-        if (ret) {
+-            goto err;
+-        }
+-    }
+-
+     return 0;
+ 
+ err:
+@@ -2908,17 +2536,6 @@ int kvm_cpu_exec(CPUState *cpu)
+         case KVM_EXIT_INTERNAL_ERROR:
+             ret = kvm_handle_internal_error(cpu, run);
+             break;
+-        case KVM_EXIT_DIRTY_RING_FULL:
+-            /*
+-             * We shouldn't continue if the dirty ring of this vcpu is
+-             * still full.  Got kicked by KVM_RESET_DIRTY_RINGS.
+-             */
+-            trace_kvm_dirty_ring_full(cpu->cpu_index);
+-            qemu_mutex_lock_iothread();
+-            kvm_dirty_ring_reap(kvm_state);
+-            qemu_mutex_unlock_iothread();
+-            ret = 0;
+-            break;
+         case KVM_EXIT_SYSTEM_EVENT:
+             switch (run->system_event.type) {
+             case KVM_SYSTEM_EVENT_SHUTDOWN:
+@@ -3495,11 +3112,6 @@ static void kvm_set_kvm_shadow_mem(Object *obj, Visitor *v,
+     KVMState *s = KVM_STATE(obj);
+     int64_t value;
+ 
+-    if (s->fd != -1) {
+-        error_setg(errp, "Cannot set properties after the accelerator has been initialized");
+-        return;
+-    }
+-
+     if (!visit_type_int(v, name, &value, errp)) {
+         return;
+     }
+@@ -3514,11 +3126,6 @@ static void kvm_set_kernel_irqchip(Object *obj, Visitor *v,
+     KVMState *s = KVM_STATE(obj);
+     OnOffSplit mode;
+ 
+-    if (s->fd != -1) {
+-        error_setg(errp, "Cannot set properties after the accelerator has been initialized");
+-        return;
+-    }
+-
+     if (!visit_type_OnOffSplit(v, name, &mode, errp)) {
+         return;
+     }
+@@ -3561,53 +3168,13 @@ bool kvm_kernel_irqchip_split(void)
+     return kvm_state->kernel_irqchip_split == ON_OFF_AUTO_ON;
+ }
+ 
+-static void kvm_get_dirty_ring_size(Object *obj, Visitor *v,
+-                                    const char *name, void *opaque,
+-                                    Error **errp)
+-{
+-    KVMState *s = KVM_STATE(obj);
+-    uint32_t value = s->kvm_dirty_ring_size;
+-
+-    visit_type_uint32(v, name, &value, errp);
+-}
+-
+-static void kvm_set_dirty_ring_size(Object *obj, Visitor *v,
+-                                    const char *name, void *opaque,
+-                                    Error **errp)
+-{
+-    KVMState *s = KVM_STATE(obj);
+-    Error *error = NULL;
+-    uint32_t value;
+-
+-    if (s->fd != -1) {
+-        error_setg(errp, "Cannot set properties after the accelerator has been initialized");
+-        return;
+-    }
+-
+-    visit_type_uint32(v, name, &value, &error);
+-    if (error) {
+-        error_propagate(errp, error);
+-        return;
+-    }
+-    if (value & (value - 1)) {
+-        error_setg(errp, "dirty-ring-size must be a power of two.");
+-        return;
+-    }
+-
+-    s->kvm_dirty_ring_size = value;
+-}
+-
+ static void kvm_accel_instance_init(Object *obj)
+ {
+     KVMState *s = KVM_STATE(obj);
+ 
+-    s->fd = -1;
+-    s->vmfd = -1;
+     s->kvm_shadow_mem = -1;
+     s->kernel_irqchip_allowed = true;
+     s->kernel_irqchip_split = ON_OFF_AUTO_AUTO;
+-    /* KVM dirty ring is by default off */
+-    s->kvm_dirty_ring_size = 0;
+ }
+ 
+ static void kvm_accel_class_init(ObjectClass *oc, void *data)
+@@ -3629,12 +3196,6 @@ static void kvm_accel_class_init(ObjectClass *oc, void *data)
+         NULL, NULL);
+     object_class_property_set_description(oc, "kvm-shadow-mem",
+         "KVM shadow MMU size");
+-
+-    object_class_property_add(oc, "dirty-ring-size", "uint32",
+-        kvm_get_dirty_ring_size, kvm_set_dirty_ring_size,
+-        NULL, NULL);
+-    object_class_property_set_description(oc, "dirty-ring-size",
+-        "Size of KVM dirty page ring buffer (default: 0, i.e. use bitmap)");
+ }
+ 
+ static const TypeInfo kvm_accel_type = {
+diff --git a/accel/kvm/trace-events b/accel/kvm/trace-events
+index 72a01320a1..e15ae8980d 100644
+--- a/accel/kvm/trace-events
++++ b/accel/kvm/trace-events
+@@ -18,11 +18,4 @@ kvm_set_ioeventfd_pio(int fd, uint16_t addr, uint32_t val, bool assign, uint32_t
+ kvm_set_user_memory(uint32_t slot, uint32_t flags, uint64_t guest_phys_addr, uint64_t memory_size, uint64_t userspace_addr, int ret) "Slot#%d flags=0x%x gpa=0x%"PRIx64 " size=0x%"PRIx64 " ua=0x%"PRIx64 " ret=%d"
+ kvm_clear_dirty_log(uint32_t slot, uint64_t start, uint32_t size) "slot#%"PRId32" start 0x%"PRIx64" size 0x%"PRIx32
+ kvm_resample_fd_notify(int gsi) "gsi %d"
+-kvm_dirty_ring_full(int id) "vcpu %d"
+-kvm_dirty_ring_reap_vcpu(int id) "vcpu %d"
+-kvm_dirty_ring_page(int vcpu, uint32_t slot, uint64_t offset) "vcpu %d fetch %"PRIu32" offset 0x%"PRIx64
+-kvm_dirty_ring_reaper(const char *s) "%s"
+-kvm_dirty_ring_reap(uint64_t count, int64_t t) "reaped %"PRIu64" pages (took %"PRIi64" us)"
+-kvm_dirty_ring_reaper_kick(const char *reason) "%s"
+-kvm_dirty_ring_flush(int finished) "%d"
+ 
+diff --git a/block/replication.c b/block/replication.c
+index 52163f2d1f..97be7ef4de 100644
+--- a/block/replication.c
++++ b/block/replication.c
+@@ -22,7 +22,7 @@
+ #include "sysemu/block-backend.h"
+ #include "qapi/error.h"
+ #include "qapi/qmp/qdict.h"
+-#include "block/replication.h"
++#include "replication.h"
+ 
+ typedef enum {
+     BLOCK_REPLICATION_NONE,             /* block replication is not started */
+diff --git a/configure b/configure
+index 90c0807347..676239c697 100755
+--- a/configure
++++ b/configure
+@@ -256,11 +256,31 @@ gdb_bin=$(command -v "gdb-multiarch" || command -v "gdb")
+ if test -e "$source_path/.git"
+ then
+     git_submodules_action="update"
++    git_submodules="ui/keycodemapdb"
++    git_submodules="$git_submodules tests/fp/berkeley-testfloat-3"
++    git_submodules="$git_submodules tests/fp/berkeley-softfloat-3"
+ else
+     git_submodules_action="ignore"
+-fi
++    git_submodules=""
+ 
+-git_submodules="ui/keycodemapdb"
++    if ! test -f "$source_path/ui/keycodemapdb/README"
++    then
++        echo
++        echo "ERROR: missing file $source_path/ui/keycodemapdb/README"
++        echo
++        echo "This is not a GIT checkout but module content appears to"
++        echo "be missing. Do not use 'git archive' or GitHub download links"
++        echo "to acquire QEMU source archives. Non-GIT builds are only"
++        echo "supported with source archives linked from:"
++        echo
++        echo "  https://www.qemu.org/download/#source"
++        echo
++        echo "Developers working with GIT can use scripts/archive-source.sh"
++        echo "if they need to create valid source archives."
++        echo
++        exit 1
++    fi
++fi
+ git="git"
+ 
+ # Don't accept a target_list environment variable.
+@@ -1573,28 +1593,6 @@ case $git_submodules_action in
+         fi
+     ;;
+     ignore)
+-        if ! test -f "$source_path/ui/keycodemapdb/README"
+-        then
+-            echo
+-            echo "ERROR: missing GIT submodules"
+-            echo
+-            if test -e "$source_path/.git"; then
+-                echo "--with-git-submodules=ignore specified but submodules were not"
+-                echo "checked out.  Please initialize and update submodules."
+-            else
+-                echo "This is not a GIT checkout but module content appears to"
+-                echo "be missing. Do not use 'git archive' or GitHub download links"
+-                echo "to acquire QEMU source archives. Non-GIT builds are only"
+-                echo "supported with source archives linked from:"
+-                echo
+-                echo "  https://www.qemu.org/download/#source"
+-                echo
+-                echo "Developers working with GIT can use scripts/archive-source.sh"
+-                echo "if they need to create valid source archives."
+-            fi
+-            echo
+-            exit 1
+-        fi
+     ;;
+     *)
+         echo "ERROR: invalid --with-git-submodules= value '$git_submodules_action'"
+@@ -2283,11 +2281,6 @@ if test "$solaris" = "yes" ; then
+   fi
+ fi
+ 
+-if test "$tcg" = "enabled"; then
+-    git_submodules="$git_submodules tests/fp/berkeley-testfloat-3"
+-    git_submodules="$git_submodules tests/fp/berkeley-softfloat-3"
+-fi
+-
+ if test -z "${target_list+xxx}" ; then
+     default_targets=yes
+     for target in $default_target_list; do
+@@ -3627,7 +3620,9 @@ fi
+ case "$fdt" in
+   auto | enabled | internal)
+     # Simpler to always update submodule, even if not needed.
+-    git_submodules="${git_submodules} dtc"
++    if test "$git_submodules_action" != "ignore"; then
++      git_submodules="${git_submodules} dtc"
++    fi
+     ;;
+ esac
+ 
+@@ -4349,7 +4344,9 @@ fi
+ case "$capstone" in
+   auto | enabled | internal)
+     # Simpler to always update submodule, even if not needed.
+-    git_submodules="${git_submodules} capstone"
++    if test "$git_submodules_action" != "ignore"; then
++      git_submodules="${git_submodules} capstone"
++    fi
+     ;;
+ esac
+ 
+@@ -5279,7 +5276,9 @@ fi
+ case "$slirp" in
+   auto | enabled | internal)
+     # Simpler to always update submodule, even if not needed.
+-    git_submodules="${git_submodules} slirp"
++    if test "$git_submodules_action" != "ignore"; then
++      git_submodules="${git_submodules} slirp"
++    fi
+     ;;
+ esac
+ 
+@@ -5471,7 +5470,9 @@ if test "$cpu" = "s390x" ; then
+     roms="$roms s390-ccw"
+     # SLOF is required for building the s390-ccw firmware on s390x,
+     # since it is using the libnet code from SLOF for network booting.
+-    git_submodules="${git_submodules} roms/SLOF"
++    if test "$git_submodules_action" != "ignore"; then
++      git_submodules="${git_submodules} roms/SLOF"
++    fi
+   fi
+ fi
+ 
+@@ -6503,14 +6504,10 @@ fi
+ 
+ # Create list of config switches that should be poisoned in common code...
+ # but filter out CONFIG_TCG and CONFIG_USER_ONLY which are special.
+-target_configs_h=$(ls *-config-devices.h *-config-target.h 2>/dev/null)
+-if test -n "$target_configs_h" ; then
+-    sed -n -e '/CONFIG_TCG/d' -e '/CONFIG_USER_ONLY/d' \
+-        -e '/^#define / { s///; s/ .*//; s/^/#pragma GCC poison /p; }' \
+-        $target_configs_h | sort -u > config-poison.h
+-else
+-    :> config-poison.h
+-fi
++sed -n -e '/CONFIG_TCG/d' -e '/CONFIG_USER_ONLY/d' \
++    -e '/^#define / { s///; s/ .*//; s/^/#pragma GCC poison /p; }' \
++    *-config-devices.h *-config-target.h | \
++    sort -u > config-poison.h
+ 
+ # Save the configure command line for later reuse.
+ cat <<EOD >config.status
+diff --git a/contrib/vhost-user-gpu/vhost-user-gpu.c b/contrib/vhost-user-gpu/vhost-user-gpu.c
+index f73f292c9f..6dc6a44f4e 100644
+--- a/contrib/vhost-user-gpu/vhost-user-gpu.c
++++ b/contrib/vhost-user-gpu/vhost-user-gpu.c
+@@ -49,6 +49,8 @@ static char *opt_render_node;
+ static gboolean opt_virgl;
+ 
+ static void vg_handle_ctrl(VuDev *dev, int qidx);
++static void vg_cleanup_mapping(VuGpu *g,
++                               struct virtio_gpu_simple_resource *res);
+ 
+ static const char *
+ vg_cmd_to_string(int cmd)
+@@ -349,6 +351,7 @@ vg_resource_create_2d(VuGpu *g,
+         g_critical("%s: resource creation failed %d %d %d",
+                    __func__, c2d.resource_id, c2d.width, c2d.height);
+         g_free(res);
++        vugbm_buffer_destroy(&res->buffer);
+         cmd->error = VIRTIO_GPU_RESP_ERR_OUT_OF_MEMORY;
+         return;
+     }
+@@ -399,6 +402,7 @@ vg_resource_destroy(VuGpu *g,
+     }
+ 
+     vugbm_buffer_destroy(&res->buffer);
++    vg_cleanup_mapping(g, res);
+     pixman_image_unref(res->image);
+     QTAILQ_REMOVE(&g->reslist, res, next);
+     g_free(res);
+@@ -488,6 +492,11 @@ vg_resource_attach_backing(VuGpu *g,
+         return;
+     }
+ 
++    if (res->iov) {
++        cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
++        return;
++    }
++
+     ret = vg_create_mapping_iov(g, &ab, cmd, &res->iov);
+     if (ret != 0) {
+         cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
+@@ -497,6 +506,22 @@ vg_resource_attach_backing(VuGpu *g,
+     res->iov_cnt = ab.nr_entries;
+ }
+ 
++/* Though currently only free iov, maybe later will do more work. */
++void vg_cleanup_mapping_iov(VuGpu *g,
++                            struct iovec *iov, uint32_t count)
++{
++    g_free(iov);
++}
++
++static void
++vg_cleanup_mapping(VuGpu *g,
++                   struct virtio_gpu_simple_resource *res)
++{
++    vg_cleanup_mapping_iov(g, res->iov, res->iov_cnt);
++    res->iov = NULL;
++    res->iov_cnt = 0;
++}
++
+ static void
+ vg_resource_detach_backing(VuGpu *g,
+                            struct virtio_gpu_ctrl_command *cmd)
+@@ -515,9 +540,7 @@ vg_resource_detach_backing(VuGpu *g,
+         return;
+     }
+ 
+-    g_free(res->iov);
+-    res->iov = NULL;
+-    res->iov_cnt = 0;
++    vg_cleanup_mapping(g, res);
+ }
+ 
+ static void
+diff --git a/contrib/vhost-user-gpu/virgl.c b/contrib/vhost-user-gpu/virgl.c
+index 9e6660c7ab..3e45e1bd33 100644
+--- a/contrib/vhost-user-gpu/virgl.c
++++ b/contrib/vhost-user-gpu/virgl.c
+@@ -108,9 +108,17 @@ virgl_cmd_resource_unref(VuGpu *g,
+                          struct virtio_gpu_ctrl_command *cmd)
+ {
+     struct virtio_gpu_resource_unref unref;
++    struct iovec *res_iovs = NULL;
++    int num_iovs = 0;
+ 
+     VUGPU_FILL_CMD(unref);
+ 
++    virgl_renderer_resource_detach_iov(unref.resource_id,
++                                       &res_iovs,
++                                       &num_iovs);
++    if (res_iovs != NULL && num_iovs != 0) {
++        vg_cleanup_mapping_iov(g, res_iovs, num_iovs);
++    }
+     virgl_renderer_resource_unref(unref.resource_id);
+ }
+ 
+@@ -128,6 +136,7 @@ virgl_cmd_get_capset_info(VuGpu *g,
+ 
+     VUGPU_FILL_CMD(info);
+ 
++    memset(&resp, 0, sizeof(resp));
+     if (info.capset_index == 0) {
+         resp.capset_id = VIRTIO_GPU_CAPSET_VIRGL;
+         virgl_renderer_get_cap_set(resp.capset_id,
+@@ -169,6 +178,10 @@ virgl_cmd_get_capset(VuGpu *g,
+ 
+     virgl_renderer_get_cap_set(gc.capset_id, &max_ver,
+                                &max_size);
++    if (!max_size) {
++        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
++        return;
++    }
+     resp = g_malloc0(sizeof(*resp) + max_size);
+ 
+     resp->hdr.type = VIRTIO_GPU_RESP_OK_CAPSET;
+@@ -279,8 +292,11 @@ virgl_resource_attach_backing(VuGpu *g,
+         return;
+     }
+ 
+-    virgl_renderer_resource_attach_iov(att_rb.resource_id,
++    ret = virgl_renderer_resource_attach_iov(att_rb.resource_id,
+                                        res_iovs, att_rb.nr_entries);
++    if (ret != 0) {
++        vg_cleanup_mapping_iov(g, res_iovs, att_rb.nr_entries);
++    }
+ }
+ 
+ static void
+@@ -299,7 +315,7 @@ virgl_resource_detach_backing(VuGpu *g,
+     if (res_iovs == NULL || num_iovs == 0) {
+         return;
+     }
+-    g_free(res_iovs);
++    vg_cleanup_mapping_iov(g, res_iovs, num_iovs);
+ }
+ 
+ static void
+diff --git a/contrib/vhost-user-gpu/vugpu.h b/contrib/vhost-user-gpu/vugpu.h
+index 04d5615812..e2864bba68 100644
+--- a/contrib/vhost-user-gpu/vugpu.h
++++ b/contrib/vhost-user-gpu/vugpu.h
+@@ -169,7 +169,7 @@ int     vg_create_mapping_iov(VuGpu *g,
+                               struct virtio_gpu_resource_attach_backing *ab,
+                               struct virtio_gpu_ctrl_command *cmd,
+                               struct iovec **iov);
+-
++void    vg_cleanup_mapping_iov(VuGpu *g, struct iovec *iov, uint32_t count);
+ void    vg_get_display_info(VuGpu *vg, struct virtio_gpu_ctrl_command *cmd);
+ 
+ void    vg_wait_ok(VuGpu *g);
+diff --git a/default-configs/devices/ppc64-softmmu.mak b/default-configs/devices/ppc64-softmmu.mak
+index cca52665d9..ae0841fa3a 100644
+--- a/default-configs/devices/ppc64-softmmu.mak
++++ b/default-configs/devices/ppc64-softmmu.mak
+@@ -8,3 +8,4 @@ CONFIG_POWERNV=y
+ 
+ # For pSeries
+ CONFIG_PSERIES=y
++CONFIG_NVDIMM=y
+diff --git a/hmp-commands.hx b/hmp-commands.hx
+index 2d21fe5ad4..5ee9cfd520 100644
+--- a/hmp-commands.hx
++++ b/hmp-commands.hx
+@@ -1297,7 +1297,6 @@ ERST
+         .help       = "create QOM object",
+         .cmd        = hmp_object_add,
+         .command_completion = object_add_completion,
+-        .flags      = "p",
+     },
+ 
+ SRST
+@@ -1312,7 +1311,6 @@ ERST
+         .help       = "destroy QOM object",
+         .cmd        = hmp_object_del,
+         .command_completion = object_del_completion,
+-        .flags      = "p",
+     },
+ 
+ SRST
+diff --git a/hw/arm/Kconfig b/hw/arm/Kconfig
+index 67723d9ea6..b887f6a5b1 100644
+--- a/hw/arm/Kconfig
++++ b/hw/arm/Kconfig
+@@ -6,7 +6,6 @@ config ARM_VIRT
+     imply VFIO_PLATFORM
+     imply VFIO_XGMAC
+     imply TPM_TIS_SYSBUS
+-    imply NVDIMM
+     select ARM_GIC
+     select ACPI
+     select ARM_SMMUV3
+diff --git a/hw/display/meson.build b/hw/display/meson.build
+index aaf797c5e9..e1f473c1df 100644
+--- a/hw/display/meson.build
++++ b/hw/display/meson.build
+@@ -56,6 +56,7 @@ if config_all_devices.has_key('CONFIG_VIRTIO_GPU')
+   virtio_gpu_ss = ss.source_set()
+   virtio_gpu_ss.add(when: 'CONFIG_VIRTIO_GPU',
+                     if_true: [files('virtio-gpu-base.c', 'virtio-gpu.c'), pixman])
++  virtio_gpu_ss.add(when: 'CONFIG_LINUX', if_true: files('virtio-gpu-udmabuf.c'))
+   virtio_gpu_ss.add(when: 'CONFIG_VHOST_USER_GPU', if_true: files('vhost-user-gpu.c'))
+   hw_display_modules += {'virtio-gpu': virtio_gpu_ss}
+ 
+diff --git a/hw/display/qxl.c b/hw/display/qxl.c
+index 2ba75637ec..6e1f8ff1b2 100644
+--- a/hw/display/qxl.c
++++ b/hw/display/qxl.c
+@@ -321,7 +321,7 @@ static ram_addr_t qxl_rom_size(void)
+ #define QXL_ROM_SZ 8192
+ 
+     QEMU_BUILD_BUG_ON(QXL_REQUIRED_SZ > QXL_ROM_SZ);
+-    return QXL_ROM_SZ;
++    return QEMU_ALIGN_UP(QXL_REQUIRED_SZ, qemu_real_host_page_size);
+ }
+ 
+ static void init_qxl_rom(PCIQXLDevice *d)
+diff --git a/hw/display/trace-events b/hw/display/trace-events
+index 9fccca18a1..e47264af5d 100644
+--- a/hw/display/trace-events
++++ b/hw/display/trace-events
+@@ -30,8 +30,10 @@ virtio_gpu_features(bool virgl) "virgl %d"
+ virtio_gpu_cmd_get_display_info(void) ""
+ virtio_gpu_cmd_get_edid(uint32_t scanout) "scanout %d"
+ virtio_gpu_cmd_set_scanout(uint32_t id, uint32_t res, uint32_t w, uint32_t h, uint32_t x, uint32_t y) "id %d, res 0x%x, w %d, h %d, x %d, y %d"
++virtio_gpu_cmd_set_scanout_blob(uint32_t id, uint32_t res, uint32_t w, uint32_t h, uint32_t x, uint32_t y) "id %d, res 0x%x, w %d, h %d, x %d, y %d"
+ virtio_gpu_cmd_res_create_2d(uint32_t res, uint32_t fmt, uint32_t w, uint32_t h) "res 0x%x, fmt 0x%x, w %d, h %d"
+ virtio_gpu_cmd_res_create_3d(uint32_t res, uint32_t fmt, uint32_t w, uint32_t h, uint32_t d) "res 0x%x, fmt 0x%x, w %d, h %d, d %d"
++virtio_gpu_cmd_res_create_blob(uint32_t res, uint64_t size) "res 0x%x, size %" PRId64
+ virtio_gpu_cmd_res_unref(uint32_t res) "res 0x%x"
+ virtio_gpu_cmd_res_back_attach(uint32_t res) "res 0x%x"
+ virtio_gpu_cmd_res_back_detach(uint32_t res) "res 0x%x"
+diff --git a/hw/display/virtio-gpu-base.c b/hw/display/virtio-gpu-base.c
+index afb3ee7d9a..dd294276cb 100644
+--- a/hw/display/virtio-gpu-base.c
++++ b/hw/display/virtio-gpu-base.c
+@@ -208,6 +208,9 @@ virtio_gpu_base_get_features(VirtIODevice *vdev, uint64_t features,
+     if (virtio_gpu_edid_enabled(g->conf)) {
+         features |= (1 << VIRTIO_GPU_F_EDID);
+     }
++    if (virtio_gpu_blob_enabled(g->conf)) {
++        features |= (1 << VIRTIO_GPU_F_RESOURCE_BLOB);
++    }
+ 
+     return features;
+ }
+diff --git a/hw/display/virtio-gpu-udmabuf.c b/hw/display/virtio-gpu-udmabuf.c
+new file mode 100644
+index 0000000000..3c01a415e7
+--- /dev/null
++++ b/hw/display/virtio-gpu-udmabuf.c
+@@ -0,0 +1,223 @@
++/*
++ * Virtio GPU Device
++ *
++ * Copyright Red Hat, Inc. 2013-2014
++ *
++ * Authors:
++ *     Dave Airlie <airlied@redhat.com>
++ *     Gerd Hoffmann <kraxel@redhat.com>
++ *
++ * This work is licensed under the terms of the GNU GPL, version 2 or later.
++ * See the COPYING file in the top-level directory.
++ */
++
++#include "qemu/osdep.h"
++#include "qemu/units.h"
++#include "qemu-common.h"
++#include "qemu/iov.h"
++#include "ui/console.h"
++#include "hw/virtio/virtio-gpu.h"
++#include "hw/virtio/virtio-gpu-pixman.h"
++#include "trace.h"
++#include "exec/ramblock.h"
++#include "sysemu/hostmem.h"
++#include <sys/ioctl.h>
++#include <fcntl.h>
++#include <linux/memfd.h>
++#include "qemu/memfd.h"
++#include "standard-headers/linux/udmabuf.h"
++
++static void virtio_gpu_create_udmabuf(struct virtio_gpu_simple_resource *res)
++{
++    struct udmabuf_create_list *list;
++    RAMBlock *rb;
++    ram_addr_t offset;
++    int udmabuf, i;
++
++    udmabuf = udmabuf_fd();
++    if (udmabuf < 0) {
++        return;
++    }
++
++    list = g_malloc0(sizeof(struct udmabuf_create_list) +
++                     sizeof(struct udmabuf_create_item) * res->iov_cnt);
++
++    for (i = 0; i < res->iov_cnt; i++) {
++        rcu_read_lock();
++        rb = qemu_ram_block_from_host(res->iov[i].iov_base, false, &offset);
++        rcu_read_unlock();
++
++        if (!rb || rb->fd < 0) {
++            g_free(list);
++            return;
++        }
++
++        list->list[i].memfd  = rb->fd;
++        list->list[i].offset = offset;
++        list->list[i].size   = res->iov[i].iov_len;
++    }
++
++    list->count = res->iov_cnt;
++    list->flags = UDMABUF_FLAGS_CLOEXEC;
++
++    res->dmabuf_fd = ioctl(udmabuf, UDMABUF_CREATE_LIST, list);
++    if (res->dmabuf_fd < 0) {
++        warn_report("%s: UDMABUF_CREATE_LIST: %s", __func__,
++                    strerror(errno));
++    }
++    g_free(list);
++}
++
++static void virtio_gpu_remap_udmabuf(struct virtio_gpu_simple_resource *res)
++{
++    res->remapped = mmap(NULL, res->blob_size, PROT_READ,
++                         MAP_SHARED, res->dmabuf_fd, 0);
++    if (res->remapped == MAP_FAILED) {
++        warn_report("%s: dmabuf mmap failed: %s", __func__,
++                    strerror(errno));
++        res->remapped = NULL;
++    }
++}
++
++static void virtio_gpu_destroy_udmabuf(struct virtio_gpu_simple_resource *res)
++{
++    if (res->remapped) {
++        munmap(res->remapped, res->blob_size);
++        res->remapped = NULL;
++    }
++    if (res->dmabuf_fd >= 0) {
++        close(res->dmabuf_fd);
++        res->dmabuf_fd = -1;
++    }
++}
++
++static int find_memory_backend_type(Object *obj, void *opaque)
++{
++    bool *memfd_backend = opaque;
++    int ret;
++
++    if (object_dynamic_cast(obj, TYPE_MEMORY_BACKEND)) {
++        HostMemoryBackend *backend = MEMORY_BACKEND(obj);
++        RAMBlock *rb = backend->mr.ram_block;
++
++        if (rb && rb->fd > 0) {
++            ret = fcntl(rb->fd, F_GET_SEALS);
++            if (ret > 0) {
++                *memfd_backend = true;
++            }
++        }
++    }
++
++    return 0;
++}
++
++bool virtio_gpu_have_udmabuf(void)
++{
++    Object *memdev_root;
++    int udmabuf;
++    bool memfd_backend = false;
++
++    udmabuf = udmabuf_fd();
++    if (udmabuf < 0) {
++        return false;
++    }
++
++    memdev_root = object_resolve_path("/objects", NULL);
++    object_child_foreach(memdev_root, find_memory_backend_type, &memfd_backend);
++
++    return memfd_backend;
++}
++
++void virtio_gpu_init_udmabuf(struct virtio_gpu_simple_resource *res)
++{
++    void *pdata = NULL;
++
++    res->dmabuf_fd = -1;
++    if (res->iov_cnt == 1) {
++        pdata = res->iov[0].iov_base;
++    } else {
++        virtio_gpu_create_udmabuf(res);
++        if (res->dmabuf_fd < 0) {
++            return;
++        }
++        virtio_gpu_remap_udmabuf(res);
++        if (!res->remapped) {
++            return;
++        }
++        pdata = res->remapped;
++    }
++
++    res->blob = pdata;
++}
++
++void virtio_gpu_fini_udmabuf(struct virtio_gpu_simple_resource *res)
++{
++    if (res->remapped) {
++        virtio_gpu_destroy_udmabuf(res);
++    }
++}
++
++static void virtio_gpu_free_dmabuf(VirtIOGPU *g, VGPUDMABuf *dmabuf)
++{
++    struct virtio_gpu_scanout *scanout;
++
++    scanout = &g->parent_obj.scanout[dmabuf->scanout_id];
++    dpy_gl_release_dmabuf(scanout->con, &dmabuf->buf);
++    QTAILQ_REMOVE(&g->dmabuf.bufs, dmabuf, next);
++    g_free(dmabuf);
++}
++
++static VGPUDMABuf
++*virtio_gpu_create_dmabuf(VirtIOGPU *g,
++                          uint32_t scanout_id,
++                          struct virtio_gpu_simple_resource *res,
++                          struct virtio_gpu_framebuffer *fb)
++{
++    VGPUDMABuf *dmabuf;
++
++    if (res->dmabuf_fd < 0) {
++        return NULL;
++    }
++
++    dmabuf = g_new0(VGPUDMABuf, 1);
++    dmabuf->buf.width = fb->width;
++    dmabuf->buf.height = fb->height;
++    dmabuf->buf.stride = fb->stride;
++    dmabuf->buf.fourcc = qemu_pixman_to_drm_format(fb->format);
++    dmabuf->buf.fd = res->dmabuf_fd;
++
++    dmabuf->scanout_id = scanout_id;
++    QTAILQ_INSERT_HEAD(&g->dmabuf.bufs, dmabuf, next);
++
++    return dmabuf;
++}
++
++int virtio_gpu_update_dmabuf(VirtIOGPU *g,
++                             uint32_t scanout_id,
++                             struct virtio_gpu_simple_resource *res,
++                             struct virtio_gpu_framebuffer *fb)
++{
++    struct virtio_gpu_scanout *scanout = &g->parent_obj.scanout[scanout_id];
++    VGPUDMABuf *new_primary, *old_primary = NULL;
++
++    new_primary = virtio_gpu_create_dmabuf(g, scanout_id, res, fb);
++    if (!new_primary) {
++        return -EINVAL;
++    }
++
++    if (g->dmabuf.primary) {
++        old_primary = g->dmabuf.primary;
++    }
++
++    g->dmabuf.primary = new_primary;
++    qemu_console_resize(scanout->con,
++                        new_primary->buf.width,
++                        new_primary->buf.height);
++    dpy_gl_scanout_dmabuf(scanout->con, &new_primary->buf);
++
++    if (old_primary) {
++        virtio_gpu_free_dmabuf(g, old_primary);
++    }
++
++    return 0;
++}
+diff --git a/hw/display/virtio-gpu-virgl.c b/hw/display/virtio-gpu-virgl.c
+index 72c14d9132..092c6dc380 100644
+--- a/hw/display/virtio-gpu-virgl.c
++++ b/hw/display/virtio-gpu-virgl.c
+@@ -289,7 +289,8 @@ static void virgl_resource_attach_backing(VirtIOGPU *g,
+     VIRTIO_GPU_FILL_CMD(att_rb);
+     trace_virtio_gpu_cmd_res_back_attach(att_rb.resource_id);
+ 
+-    ret = virtio_gpu_create_mapping_iov(g, &att_rb, cmd, NULL, &res_iovs, &res_niov);
++    ret = virtio_gpu_create_mapping_iov(g, att_rb.nr_entries, sizeof(att_rb),
++                                        cmd, NULL, &res_iovs, &res_niov);
+     if (ret != 0) {
+         cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
+         return;
+diff --git a/hw/display/virtio-gpu.c b/hw/display/virtio-gpu.c
+index db56f0454a..4d549377cb 100644
+--- a/hw/display/virtio-gpu.c
++++ b/hw/display/virtio-gpu.c
+@@ -35,6 +35,10 @@
+ 
+ static struct virtio_gpu_simple_resource*
+ virtio_gpu_find_resource(VirtIOGPU *g, uint32_t resource_id);
++static struct virtio_gpu_simple_resource *
++virtio_gpu_find_check_resource(VirtIOGPU *g, uint32_t resource_id,
++                               bool require_backing,
++                               const char *caller, uint32_t *error);
+ 
+ static void virtio_gpu_cleanup_mapping(VirtIOGPU *g,
+                                        struct virtio_gpu_simple_resource *res);
+@@ -45,20 +49,30 @@ void virtio_gpu_update_cursor_data(VirtIOGPU *g,
+ {
+     struct virtio_gpu_simple_resource *res;
+     uint32_t pixels;
++    void *data;
+ 
+-    res = virtio_gpu_find_resource(g, resource_id);
++    res = virtio_gpu_find_check_resource(g, resource_id, false,
++                                         __func__, NULL);
+     if (!res) {
+         return;
+     }
+ 
+-    if (pixman_image_get_width(res->image)  != s->current_cursor->width ||
+-        pixman_image_get_height(res->image) != s->current_cursor->height) {
+-        return;
++    if (res->blob_size) {
++        if (res->blob_size < (s->current_cursor->width *
++                              s->current_cursor->height * 4)) {
++            return;
++        }
++        data = res->blob;
++    } else {
++        if (pixman_image_get_width(res->image)  != s->current_cursor->width ||
++            pixman_image_get_height(res->image) != s->current_cursor->height) {
++            return;
++        }
++        data = pixman_image_get_data(res->image);
+     }
+ 
+     pixels = s->current_cursor->width * s->current_cursor->height;
+-    memcpy(s->current_cursor->data,
+-           pixman_image_get_data(res->image),
++    memcpy(s->current_cursor->data, data,
+            pixels * sizeof(uint32_t));
+ }
+ 
+@@ -114,6 +128,37 @@ virtio_gpu_find_resource(VirtIOGPU *g, uint32_t resource_id)
+     return NULL;
+ }
+ 
++static struct virtio_gpu_simple_resource *
++virtio_gpu_find_check_resource(VirtIOGPU *g, uint32_t resource_id,
++                               bool require_backing,
++                               const char *caller, uint32_t *error)
++{
++    struct virtio_gpu_simple_resource *res;
++
++    res = virtio_gpu_find_resource(g, resource_id);
++    if (!res) {
++        qemu_log_mask(LOG_GUEST_ERROR, "%s: invalid resource specified %d\n",
++                      caller, resource_id);
++        if (error) {
++            *error = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
++        }
++        return NULL;
++    }
++
++    if (require_backing) {
++        if (!res->iov || (!res->image && !res->blob)) {
++            qemu_log_mask(LOG_GUEST_ERROR, "%s: no backing storage %d\n",
++                          caller, resource_id);
++            if (error) {
++                *error = VIRTIO_GPU_RESP_ERR_UNSPEC;
++            }
++            return NULL;
++        }
++    }
++
++    return res;
++}
++
+ void virtio_gpu_ctrl_response(VirtIOGPU *g,
+                               struct virtio_gpu_ctrl_command *cmd,
+                               struct virtio_gpu_ctrl_hdr *resp,
+@@ -277,6 +322,62 @@ static void virtio_gpu_resource_create_2d(VirtIOGPU *g,
+     g->hostmem += res->hostmem;
+ }
+ 
++static void virtio_gpu_resource_create_blob(VirtIOGPU *g,
++                                            struct virtio_gpu_ctrl_command *cmd)
++{
++    struct virtio_gpu_simple_resource *res;
++    struct virtio_gpu_resource_create_blob cblob;
++    int ret;
++
++    VIRTIO_GPU_FILL_CMD(cblob);
++    virtio_gpu_create_blob_bswap(&cblob);
++    trace_virtio_gpu_cmd_res_create_blob(cblob.resource_id, cblob.size);
++
++    if (cblob.resource_id == 0) {
++        qemu_log_mask(LOG_GUEST_ERROR, "%s: resource id 0 is not allowed\n",
++                      __func__);
++        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
++        return;
++    }
++
++    res = virtio_gpu_find_resource(g, cblob.resource_id);
++    if (res) {
++        qemu_log_mask(LOG_GUEST_ERROR, "%s: resource already exists %d\n",
++                      __func__, cblob.resource_id);
++        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
++        return;
++    }
++
++    res = g_new0(struct virtio_gpu_simple_resource, 1);
++    res->resource_id = cblob.resource_id;
++    res->blob_size = cblob.size;
++
++    if (cblob.blob_mem != VIRTIO_GPU_BLOB_MEM_GUEST &&
++        cblob.blob_flags != VIRTIO_GPU_BLOB_FLAG_USE_SHAREABLE) {
++        qemu_log_mask(LOG_GUEST_ERROR, "%s: invalid memory type\n",
++                      __func__);
++        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
++        g_free(res);
++        return;
++    }
++
++    if (res->iov) {
++        cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
++        return;
++    }
++
++    ret = virtio_gpu_create_mapping_iov(g, cblob.nr_entries, sizeof(cblob),
++                                        cmd, &res->addrs, &res->iov,
++                                        &res->iov_cnt);
++    if (ret != 0) {
++        cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
++        return;
++    }
++
++    virtio_gpu_init_udmabuf(res);
++    QTAILQ_INSERT_HEAD(&g->reslist, res, next);
++}
++
+ static void virtio_gpu_disable_scanout(VirtIOGPU *g, int scanout_id)
+ {
+     struct virtio_gpu_scanout *scanout = &g->parent_obj.scanout[scanout_id];
+@@ -311,7 +412,7 @@ static void virtio_gpu_resource_destroy(VirtIOGPU *g,
+         }
+     }
+ 
+-    pixman_image_unref(res->image);
++    qemu_pixman_image_unref(res->image);
+     virtio_gpu_cleanup_mapping(g, res);
+     QTAILQ_REMOVE(&g->reslist, res, next);
+     g->hostmem -= res->hostmem;
+@@ -352,11 +453,9 @@ static void virtio_gpu_transfer_to_host_2d(VirtIOGPU *g,
+     virtio_gpu_t2d_bswap(&t2d);
+     trace_virtio_gpu_cmd_res_xfer_toh_2d(t2d.resource_id);
+ 
+-    res = virtio_gpu_find_resource(g, t2d.resource_id);
+-    if (!res || !res->iov) {
+-        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal resource specified %d\n",
+-                      __func__, t2d.resource_id);
+-        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
++    res = virtio_gpu_find_check_resource(g, t2d.resource_id, true,
++                                         __func__, &cmd->error);
++    if (!res || res->blob) {
+         return;
+     }
+ 
+@@ -402,6 +501,7 @@ static void virtio_gpu_resource_flush(VirtIOGPU *g,
+ {
+     struct virtio_gpu_simple_resource *res;
+     struct virtio_gpu_resource_flush rf;
++    struct virtio_gpu_scanout *scanout;
+     pixman_region16_t flush_region;
+     int i;
+ 
+@@ -410,20 +510,31 @@ static void virtio_gpu_resource_flush(VirtIOGPU *g,
+     trace_virtio_gpu_cmd_res_flush(rf.resource_id,
+                                    rf.r.width, rf.r.height, rf.r.x, rf.r.y);
+ 
+-    res = virtio_gpu_find_resource(g, rf.resource_id);
++    res = virtio_gpu_find_check_resource(g, rf.resource_id, false,
++                                         __func__, &cmd->error);
+     if (!res) {
+-        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal resource specified %d\n",
+-                      __func__, rf.resource_id);
+-        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
+         return;
+     }
+ 
+-    if (rf.r.x > res->width ||
++    if (res->blob) {
++        for (i = 0; i < g->parent_obj.conf.max_outputs; i++) {
++            scanout = &g->parent_obj.scanout[i];
++            if (scanout->resource_id == res->resource_id &&
++                console_has_gl(scanout->con)) {
++                dpy_gl_update(scanout->con, 0, 0, scanout->width,
++                              scanout->height);
++                return;
++            }
++        }
++    }
++
++    if (!res->blob &&
++        (rf.r.x > res->width ||
+         rf.r.y > res->height ||
+         rf.r.width > res->width ||
+         rf.r.height > res->height ||
+         rf.r.x + rf.r.width > res->width ||
+-        rf.r.y + rf.r.height > res->height) {
++        rf.r.y + rf.r.height > res->height)) {
+         qemu_log_mask(LOG_GUEST_ERROR, "%s: flush bounds outside resource"
+                       " bounds for resource %d: %d %d %d %d vs %d %d\n",
+                       __func__, rf.resource_id, rf.r.x, rf.r.y,
+@@ -435,7 +546,6 @@ static void virtio_gpu_resource_flush(VirtIOGPU *g,
+     pixman_region_init_rect(&flush_region,
+                             rf.r.x, rf.r.y, rf.r.width, rf.r.height);
+     for (i = 0; i < g->parent_obj.conf.max_outputs; i++) {
+-        struct virtio_gpu_scanout *scanout;
+         pixman_region16_t region, finalregion;
+         pixman_box16_t *extents;
+ 
+@@ -468,14 +578,115 @@ static void virtio_unref_resource(pixman_image_t *image, void *data)
+     pixman_image_unref(data);
+ }
+ 
++static void virtio_gpu_update_scanout(VirtIOGPU *g,
++                                      uint32_t scanout_id,
++                                      struct virtio_gpu_simple_resource *res,
++                                      struct virtio_gpu_rect *r)
++{
++    struct virtio_gpu_simple_resource *ores;
++    struct virtio_gpu_scanout *scanout;
++
++    scanout = &g->parent_obj.scanout[scanout_id];
++    ores = virtio_gpu_find_resource(g, scanout->resource_id);
++    if (ores) {
++        ores->scanout_bitmask &= ~(1 << scanout_id);
++    }
++
++    res->scanout_bitmask |= (1 << scanout_id);
++    scanout->resource_id = res->resource_id;
++    scanout->x = r->x;
++    scanout->y = r->y;
++    scanout->width = r->width;
++    scanout->height = r->height;
++}
++
++static void virtio_gpu_do_set_scanout(VirtIOGPU *g,
++                                      uint32_t scanout_id,
++                                      struct virtio_gpu_framebuffer *fb,
++                                      struct virtio_gpu_simple_resource *res,
++                                      struct virtio_gpu_rect *r,
++                                      uint32_t *error)
++{
++    struct virtio_gpu_scanout *scanout;
++    uint8_t *data;
++
++    if (scanout_id >= g->parent_obj.conf.max_outputs) {
++        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal scanout id specified %d",
++                      __func__, scanout_id);
++        *error = VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID;
++        return;
++    }
++    scanout = &g->parent_obj.scanout[scanout_id];
++
++    if (r->x > fb->width ||
++        r->y > fb->height ||
++        r->width < 16 ||
++        r->height < 16 ||
++        r->width > fb->width ||
++        r->height > fb->height ||
++        r->x + r->width > fb->width ||
++        r->y + r->height > fb->height) {
++        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal scanout %d bounds for"
++                      " resource %d, rect (%d,%d)+%d,%d, fb %d %d\n",
++                      __func__, scanout_id, res->resource_id,
++                      r->x, r->y, r->width, r->height,
++                      fb->width, fb->height);
++        *error = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
++        return;
++    }
++
++    g->parent_obj.enable = 1;
++
++    if (res->blob) {
++        if (console_has_gl(scanout->con)) {
++            if (!virtio_gpu_update_dmabuf(g, scanout_id, res, fb)) {
++                virtio_gpu_update_scanout(g, scanout_id, res, r);
++                return;
++            }
++        }
++
++        data = res->blob;
++    } else {
++        data = (uint8_t *)pixman_image_get_data(res->image);
++    }
++
++    /* create a surface for this scanout */
++    if ((res->blob && !console_has_gl(scanout->con)) ||
++        !scanout->ds ||
++        surface_data(scanout->ds) != data + fb->offset ||
++        scanout->width != r->width ||
++        scanout->height != r->height) {
++        pixman_image_t *rect;
++        void *ptr = data + fb->offset;
++        rect = pixman_image_create_bits(fb->format, r->width, r->height,
++                                        ptr, fb->stride);
++
++        if (res->image) {
++            pixman_image_ref(res->image);
++            pixman_image_set_destroy_function(rect, virtio_unref_resource,
++                                              res->image);
++        }
++
++        /* realloc the surface ptr */
++        scanout->ds = qemu_create_displaysurface_pixman(rect);
++        if (!scanout->ds) {
++            *error = VIRTIO_GPU_RESP_ERR_UNSPEC;
++            return;
++        }
++
++        pixman_image_unref(rect);
++        dpy_gfx_replace_surface(g->parent_obj.scanout[scanout_id].con,
++                                scanout->ds);
++    }
++
++    virtio_gpu_update_scanout(g, scanout_id, res, r);
++}
++
+ static void virtio_gpu_set_scanout(VirtIOGPU *g,
+                                    struct virtio_gpu_ctrl_command *cmd)
+ {
+-    struct virtio_gpu_simple_resource *res, *ores;
+-    struct virtio_gpu_scanout *scanout;
+-    pixman_format_code_t format;
+-    uint32_t offset;
+-    int bpp;
++    struct virtio_gpu_simple_resource *res;
++    struct virtio_gpu_framebuffer fb = { 0 };
+     struct virtio_gpu_set_scanout ss;
+ 
+     VIRTIO_GPU_FILL_CMD(ss);
+@@ -483,86 +694,85 @@ static void virtio_gpu_set_scanout(VirtIOGPU *g,
+     trace_virtio_gpu_cmd_set_scanout(ss.scanout_id, ss.resource_id,
+                                      ss.r.width, ss.r.height, ss.r.x, ss.r.y);
+ 
+-    if (ss.scanout_id >= g->parent_obj.conf.max_outputs) {
+-        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal scanout id specified %d",
+-                      __func__, ss.scanout_id);
+-        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID;
++    if (ss.resource_id == 0) {
++        virtio_gpu_disable_scanout(g, ss.scanout_id);
+         return;
+     }
+ 
+-    g->parent_obj.enable = 1;
++    res = virtio_gpu_find_check_resource(g, ss.resource_id, true,
++                                         __func__, &cmd->error);
++    if (!res) {
++        return;
++    }
++
++    fb.format = pixman_image_get_format(res->image);
++    fb.bytes_pp = DIV_ROUND_UP(PIXMAN_FORMAT_BPP(fb.format), 8);
++    fb.width  = pixman_image_get_width(res->image);
++    fb.height = pixman_image_get_height(res->image);
++    fb.stride = pixman_image_get_stride(res->image);
++    fb.offset = ss.r.x * fb.bytes_pp + ss.r.y * fb.stride;
++
++    virtio_gpu_do_set_scanout(g, ss.scanout_id,
++                              &fb, res, &ss.r, &cmd->error);
++}
++
++static void virtio_gpu_set_scanout_blob(VirtIOGPU *g,
++                                        struct virtio_gpu_ctrl_command *cmd)
++{
++    struct virtio_gpu_simple_resource *res;
++    struct virtio_gpu_framebuffer fb = { 0 };
++    struct virtio_gpu_set_scanout_blob ss;
++    uint64_t fbend;
++
++    VIRTIO_GPU_FILL_CMD(ss);
++    virtio_gpu_scanout_blob_bswap(&ss);
++    trace_virtio_gpu_cmd_set_scanout_blob(ss.scanout_id, ss.resource_id,
++                                          ss.r.width, ss.r.height, ss.r.x,
++                                          ss.r.y);
++
+     if (ss.resource_id == 0) {
+         virtio_gpu_disable_scanout(g, ss.scanout_id);
+         return;
+     }
+ 
+-    /* create a surface for this scanout */
+-    res = virtio_gpu_find_resource(g, ss.resource_id);
++    res = virtio_gpu_find_check_resource(g, ss.resource_id, true,
++                                         __func__, &cmd->error);
+     if (!res) {
+-        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal resource specified %d\n",
+-                      __func__, ss.resource_id);
+-        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
+         return;
+     }
+ 
+-    if (ss.r.x > res->width ||
+-        ss.r.y > res->height ||
+-        ss.r.width < 16 ||
+-        ss.r.height < 16 ||
+-        ss.r.width > res->width ||
+-        ss.r.height > res->height ||
+-        ss.r.x + ss.r.width > res->width ||
+-        ss.r.y + ss.r.height > res->height) {
+-        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal scanout %d bounds for"
+-                      " resource %d, (%d,%d)+%d,%d vs %d %d\n",
+-                      __func__, ss.scanout_id, ss.resource_id, ss.r.x, ss.r.y,
+-                      ss.r.width, ss.r.height, res->width, res->height);
++    fb.format = virtio_gpu_get_pixman_format(ss.format);
++    if (!fb.format) {
++        qemu_log_mask(LOG_GUEST_ERROR,
++                      "%s: host couldn't handle guest format %d\n",
++                      __func__, ss.format);
+         cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
+         return;
+     }
+ 
+-    scanout = &g->parent_obj.scanout[ss.scanout_id];
+-
+-    format = pixman_image_get_format(res->image);
+-    bpp = DIV_ROUND_UP(PIXMAN_FORMAT_BPP(format), 8);
+-    offset = (ss.r.x * bpp) + ss.r.y * pixman_image_get_stride(res->image);
+-    if (!scanout->ds || surface_data(scanout->ds)
+-        != ((uint8_t *)pixman_image_get_data(res->image) + offset) ||
+-        scanout->width != ss.r.width ||
+-        scanout->height != ss.r.height) {
+-        pixman_image_t *rect;
+-        void *ptr = (uint8_t *)pixman_image_get_data(res->image) + offset;
+-        rect = pixman_image_create_bits(format, ss.r.width, ss.r.height, ptr,
+-                                        pixman_image_get_stride(res->image));
+-        pixman_image_ref(res->image);
+-        pixman_image_set_destroy_function(rect, virtio_unref_resource,
+-                                          res->image);
+-        /* realloc the surface ptr */
+-        scanout->ds = qemu_create_displaysurface_pixman(rect);
+-        if (!scanout->ds) {
+-            cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
+-            return;
+-        }
+-        pixman_image_unref(rect);
+-        dpy_gfx_replace_surface(g->parent_obj.scanout[ss.scanout_id].con,
+-                                scanout->ds);
+-    }
++    fb.bytes_pp = DIV_ROUND_UP(PIXMAN_FORMAT_BPP(fb.format), 8);
++    fb.width = ss.width;
++    fb.height = ss.height;
++    fb.stride = ss.strides[0];
++    fb.offset = ss.offsets[0] + ss.r.x * fb.bytes_pp + ss.r.y * fb.stride;
+ 
+-    ores = virtio_gpu_find_resource(g, scanout->resource_id);
+-    if (ores) {
+-        ores->scanout_bitmask &= ~(1 << ss.scanout_id);
++    fbend = fb.offset;
++    fbend += fb.stride * (ss.r.height - 1);
++    fbend += fb.bytes_pp * ss.r.width;
++    if (fbend > res->blob_size) {
++        qemu_log_mask(LOG_GUEST_ERROR,
++                      "%s: fb end out of range\n",
++                      __func__);
++        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
++        return;
+     }
+ 
+-    res->scanout_bitmask |= (1 << ss.scanout_id);
+-    scanout->resource_id = ss.resource_id;
+-    scanout->x = ss.r.x;
+-    scanout->y = ss.r.y;
+-    scanout->width = ss.r.width;
+-    scanout->height = ss.r.height;
++    virtio_gpu_do_set_scanout(g, ss.scanout_id,
++                              &fb, res, &ss.r, &cmd->error);
+ }
+ 
+ int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
+-                                  struct virtio_gpu_resource_attach_backing *ab,
++                                  uint32_t nr_entries, uint32_t offset,
+                                   struct virtio_gpu_ctrl_command *cmd,
+                                   uint64_t **addr, struct iovec **iov,
+                                   uint32_t *niov)
+@@ -571,17 +781,17 @@ int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
+     size_t esize, s;
+     int e, v;
+ 
+-    if (ab->nr_entries > 16384) {
++    if (nr_entries > 16384) {
+         qemu_log_mask(LOG_GUEST_ERROR,
+                       "%s: nr_entries is too big (%d > 16384)\n",
+-                      __func__, ab->nr_entries);
++                      __func__, nr_entries);
+         return -1;
+     }
+ 
+-    esize = sizeof(*ents) * ab->nr_entries;
++    esize = sizeof(*ents) * nr_entries;
+     ents = g_malloc(esize);
+     s = iov_to_buf(cmd->elem.out_sg, cmd->elem.out_num,
+-                   sizeof(*ab), ents, esize);
++                   offset, ents, esize);
+     if (s != esize) {
+         qemu_log_mask(LOG_GUEST_ERROR,
+                       "%s: command data size incorrect %zu vs %zu\n",
+@@ -594,7 +804,7 @@ int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
+     if (addr) {
+         *addr = NULL;
+     }
+-    for (e = 0, v = 0; e < ab->nr_entries; e++) {
++    for (e = 0, v = 0; e < nr_entries; e++) {
+         uint64_t a = le64_to_cpu(ents[e].addr);
+         uint32_t l = le32_to_cpu(ents[e].length);
+         hwaddr len;
+@@ -606,8 +816,7 @@ int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
+                                  a, &len, DMA_DIRECTION_TO_DEVICE);
+             if (!map) {
+                 qemu_log_mask(LOG_GUEST_ERROR, "%s: failed to map MMIO memory for"
+-                              " resource %d element %d\n",
+-                              __func__, ab->resource_id, e);
++                              " element %d\n", __func__, e);
+                 virtio_gpu_cleanup_mapping_iov(g, *iov, v);
+                 g_free(ents);
+                 *iov = NULL;
+@@ -663,6 +872,10 @@ static void virtio_gpu_cleanup_mapping(VirtIOGPU *g,
+     res->iov_cnt = 0;
+     g_free(res->addrs);
+     res->addrs = NULL;
++
++    if (res->blob) {
++        virtio_gpu_fini_udmabuf(res);
++    }
+ }
+ 
+ static void
+@@ -690,8 +903,8 @@ virtio_gpu_resource_attach_backing(VirtIOGPU *g,
+         return;
+     }
+ 
+-    ret = virtio_gpu_create_mapping_iov(g, &ab, cmd, &res->addrs,
+-                                        &res->iov, &res->iov_cnt);
++    ret = virtio_gpu_create_mapping_iov(g, ab.nr_entries, sizeof(ab), cmd,
++                                        &res->addrs, &res->iov, &res->iov_cnt);
+     if (ret != 0) {
+         cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
+         return;
+@@ -709,11 +922,9 @@ virtio_gpu_resource_detach_backing(VirtIOGPU *g,
+     virtio_gpu_bswap_32(&detach, sizeof(detach));
+     trace_virtio_gpu_cmd_res_back_detach(detach.resource_id);
+ 
+-    res = virtio_gpu_find_resource(g, detach.resource_id);
+-    if (!res || !res->iov) {
+-        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal resource specified %d\n",
+-                      __func__, detach.resource_id);
+-        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
++    res = virtio_gpu_find_check_resource(g, detach.resource_id, true,
++                                         __func__, &cmd->error);
++    if (!res) {
+         return;
+     }
+     virtio_gpu_cleanup_mapping(g, res);
+@@ -735,6 +946,13 @@ void virtio_gpu_simple_process_cmd(VirtIOGPU *g,
+     case VIRTIO_GPU_CMD_RESOURCE_CREATE_2D:
+         virtio_gpu_resource_create_2d(g, cmd);
+         break;
++    case VIRTIO_GPU_CMD_RESOURCE_CREATE_BLOB:
++        if (!virtio_gpu_blob_enabled(g->parent_obj.conf)) {
++            cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
++            break;
++        }
++        virtio_gpu_resource_create_blob(g, cmd);
++        break;
+     case VIRTIO_GPU_CMD_RESOURCE_UNREF:
+         virtio_gpu_resource_unref(g, cmd);
+         break;
+@@ -747,6 +965,13 @@ void virtio_gpu_simple_process_cmd(VirtIOGPU *g,
+     case VIRTIO_GPU_CMD_SET_SCANOUT:
+         virtio_gpu_set_scanout(g, cmd);
+         break;
++    case VIRTIO_GPU_CMD_SET_SCANOUT_BLOB:
++        if (!virtio_gpu_blob_enabled(g->parent_obj.conf)) {
++            cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
++            break;
++        }
++        virtio_gpu_set_scanout_blob(g, cmd);
++        break;
+     case VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING:
+         virtio_gpu_resource_attach_backing(g, cmd);
+         break;
+@@ -1058,6 +1283,18 @@ void virtio_gpu_device_realize(DeviceState *qdev, Error **errp)
+     VirtIODevice *vdev = VIRTIO_DEVICE(qdev);
+     VirtIOGPU *g = VIRTIO_GPU(qdev);
+ 
++    if (virtio_gpu_blob_enabled(g->parent_obj.conf)) {
++        if (!virtio_gpu_have_udmabuf()) {
++            error_setg(errp, "cannot enable blob resources without udmabuf");
++            return;
++        }
++
++        if (virtio_gpu_virgl_enabled(g->parent_obj.conf)) {
++            error_setg(errp, "blobs and virgl are not compatible (yet)");
++            return;
++        }
++    }
++
+     if (!virtio_gpu_base_device_realize(qdev,
+                                         virtio_gpu_handle_ctrl_cb,
+                                         virtio_gpu_handle_cursor_cb,
+@@ -1151,6 +1388,8 @@ static Property virtio_gpu_properties[] = {
+     VIRTIO_GPU_BASE_PROPERTIES(VirtIOGPU, parent_obj.conf),
+     DEFINE_PROP_SIZE("max_hostmem", VirtIOGPU, conf_max_hostmem,
+                      256 * MiB),
++    DEFINE_PROP_BIT("blob", VirtIOGPU, parent_obj.conf.flags,
++                    VIRTIO_GPU_FLAG_BLOB_ENABLED, false),
+     DEFINE_PROP_END_OF_LIST(),
+ };
+ 
+diff --git a/hw/i386/Kconfig b/hw/i386/Kconfig
+index 66838fa397..7f91f30877 100644
+--- a/hw/i386/Kconfig
++++ b/hw/i386/Kconfig
+@@ -23,7 +23,6 @@ config PC
+     imply TPM_TIS_ISA
+     imply VGA_PCI
+     imply VIRTIO_VGA
+-    imply NVDIMM
+     select FDC
+     select I8259
+     select I8254
+diff --git a/hw/mem/Kconfig b/hw/mem/Kconfig
+index 8b19fdc49f..a0ef2cf648 100644
+--- a/hw/mem/Kconfig
++++ b/hw/mem/Kconfig
+@@ -7,4 +7,6 @@ config MEM_DEVICE
+ 
+ config NVDIMM
+     bool
++    default y
++    depends on (PC || PSERIES || ARM_VIRT)
+     select MEM_DEVICE
+diff --git a/hw/ppc/Kconfig b/hw/ppc/Kconfig
+index 66e0b15d9e..e51e0e5e5a 100644
+--- a/hw/ppc/Kconfig
++++ b/hw/ppc/Kconfig
+@@ -3,7 +3,6 @@ config PSERIES
+     imply PCI_DEVICES
+     imply TEST_DEVICES
+     imply VIRTIO_VGA
+-    imply NVDIMM
+     select DIMM
+     select PCI
+     select SPAPR_VSCSI
+diff --git a/hw/scsi/scsi-disk.c b/hw/scsi/scsi-disk.c
+index e8a547dbb7..3580e7ee61 100644
+--- a/hw/scsi/scsi-disk.c
++++ b/hw/scsi/scsi-disk.c
+@@ -1582,7 +1582,6 @@ invalid_field:
+     scsi_check_condition(r, SENSE_CODE(INVALID_FIELD));
+ }
+ 
+-/* sector_num and nb_sectors expected to be in qdev blocksize */
+ static inline bool check_lba_range(SCSIDiskState *s,
+                                    uint64_t sector_num, uint32_t nb_sectors)
+ {
+@@ -1615,12 +1614,11 @@ static void scsi_unmap_complete_noio(UnmapCBData *data, int ret)
+     assert(r->req.aiocb == NULL);
+ 
+     if (data->count > 0) {
+-        uint64_t sector_num = ldq_be_p(&data->inbuf[0]);
+-        uint32_t nb_sectors = ldl_be_p(&data->inbuf[8]) & 0xffffffffULL;
+-        r->sector = sector_num * (s->qdev.blocksize / BDRV_SECTOR_SIZE);
+-        r->sector_count = nb_sectors * (s->qdev.blocksize / BDRV_SECTOR_SIZE);
+-
+-        if (!check_lba_range(s, sector_num, nb_sectors)) {
++        r->sector = ldq_be_p(&data->inbuf[0])
++            * (s->qdev.blocksize / BDRV_SECTOR_SIZE);
++        r->sector_count = (ldl_be_p(&data->inbuf[8]) & 0xffffffffULL)
++            * (s->qdev.blocksize / BDRV_SECTOR_SIZE);
++        if (!check_lba_range(s, r->sector, r->sector_count)) {
+             block_acct_invalid(blk_get_stats(s->qdev.conf.blk),
+                                BLOCK_ACCT_UNMAP);
+             scsi_check_condition(r, SENSE_CODE(LBA_OUT_OF_RANGE));
+diff --git a/include/exec/memory.h b/include/exec/memory.h
+index e38b7e3dce..c8b9088924 100644
+--- a/include/exec/memory.h
++++ b/include/exec/memory.h
+@@ -616,18 +616,6 @@ struct MemoryListener {
+      */
+     void (*log_sync)(MemoryListener *listener, MemoryRegionSection *section);
+ 
+-    /**
+-     * @log_sync_global:
+-     *
+-     * This is the global version of @log_sync when the listener does
+-     * not have a way to synchronize the log with finer granularity.
+-     * When the listener registers with @log_sync_global defined, then
+-     * its @log_sync must be NULL.  Vice versa.
+-     *
+-     * @listener: The #MemoryListener.
+-     */
+-    void (*log_sync_global)(MemoryListener *listener);
+-
+     /**
+      * @log_clear:
+      *
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index 753ca90668..d45f78290e 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -329,10 +329,6 @@ struct qemu_work_item;
+  * @ignore_memory_transaction_failures: Cached copy of the MachineState
+  *    flag of the same name: allows the board to suppress calling of the
+  *    CPU do_transaction_failed hook function.
+- * @kvm_dirty_gfns: Points to the KVM dirty ring for this CPU when KVM dirty
+- *    ring is enabled.
+- * @kvm_fetch_index: Keeps the index that we last fetched from the per-vCPU
+- *    dirty ring structure.
+  *
+  * State of one CPU core or thread.
+  */
+@@ -404,12 +400,9 @@ struct CPUState {
+      */
+     uintptr_t mem_io_pc;
+ 
+-    /* Only used in KVM */
+     int kvm_fd;
+     struct KVMState *kvm_state;
+     struct kvm_run *kvm_run;
+-    struct kvm_dirty_gfn *kvm_dirty_gfns;
+-    uint32_t kvm_fetch_index;
+ 
+     /* Used for events with 'vcpu' and *without* the 'disabled' properties */
+     DECLARE_BITMAP(trace_dstate_delayed, CPU_TRACE_DSTATE_MAX_EVENTS);
+diff --git a/include/hw/virtio/virtio-gpu-bswap.h b/include/hw/virtio/virtio-gpu-bswap.h
+index 203f9e1718..e2bee8f595 100644
+--- a/include/hw/virtio/virtio-gpu-bswap.h
++++ b/include/hw/virtio/virtio-gpu-bswap.h
+@@ -59,4 +59,20 @@ virtio_gpu_t2d_bswap(struct virtio_gpu_transfer_to_host_2d *t2d)
+     le32_to_cpus(&t2d->padding);
+ }
+ 
++static inline void
++virtio_gpu_create_blob_bswap(struct virtio_gpu_resource_create_blob *cblob)
++{
++    virtio_gpu_ctrl_hdr_bswap(&cblob->hdr);
++    le32_to_cpus(&cblob->resource_id);
++    le32_to_cpus(&cblob->blob_flags);
++    le64_to_cpus(&cblob->size);
++}
++
++static inline void
++virtio_gpu_scanout_blob_bswap(struct virtio_gpu_set_scanout_blob *ssb)
++{
++    virtio_gpu_bswap_32(ssb, sizeof(*ssb) - sizeof(ssb->offsets[3]));
++    le32_to_cpus(&ssb->offsets[3]);
++}
++
+ #endif
+diff --git a/include/hw/virtio/virtio-gpu.h b/include/hw/virtio/virtio-gpu.h
+index 8ca2c55d9a..bcf54d970f 100644
+--- a/include/hw/virtio/virtio-gpu.h
++++ b/include/hw/virtio/virtio-gpu.h
+@@ -50,9 +50,23 @@ struct virtio_gpu_simple_resource {
+     uint32_t scanout_bitmask;
+     pixman_image_t *image;
+     uint64_t hostmem;
++
++    uint64_t blob_size;
++    void *blob;
++    int dmabuf_fd;
++    uint8_t *remapped;
++
+     QTAILQ_ENTRY(virtio_gpu_simple_resource) next;
+ };
+ 
++struct virtio_gpu_framebuffer {
++    pixman_format_code_t format;
++    uint32_t bytes_pp;
++    uint32_t width, height;
++    uint32_t stride;
++    uint32_t offset;
++};
++
+ struct virtio_gpu_scanout {
+     QemuConsole *con;
+     DisplaySurface *ds;
+@@ -75,6 +89,7 @@ enum virtio_gpu_base_conf_flags {
+     VIRTIO_GPU_FLAG_STATS_ENABLED,
+     VIRTIO_GPU_FLAG_EDID_ENABLED,
+     VIRTIO_GPU_FLAG_DMABUF_ENABLED,
++    VIRTIO_GPU_FLAG_BLOB_ENABLED,
+ };
+ 
+ #define virtio_gpu_virgl_enabled(_cfg) \
+@@ -85,6 +100,8 @@ enum virtio_gpu_base_conf_flags {
+     (_cfg.flags & (1 << VIRTIO_GPU_FLAG_EDID_ENABLED))
+ #define virtio_gpu_dmabuf_enabled(_cfg) \
+     (_cfg.flags & (1 << VIRTIO_GPU_FLAG_DMABUF_ENABLED))
++#define virtio_gpu_blob_enabled(_cfg) \
++    (_cfg.flags & (1 << VIRTIO_GPU_FLAG_BLOB_ENABLED))
+ 
+ struct virtio_gpu_base_conf {
+     uint32_t max_outputs;
+@@ -133,6 +150,12 @@ struct VirtIOGPUBaseClass {
+     DEFINE_PROP_UINT32("xres", _state, _conf.xres, 1024), \
+     DEFINE_PROP_UINT32("yres", _state, _conf.yres, 768)
+ 
++typedef struct VGPUDMABuf {
++    QemuDmaBuf buf;
++    uint32_t scanout_id;
++    QTAILQ_ENTRY(VGPUDMABuf) next;
++} VGPUDMABuf;
++
+ struct VirtIOGPU {
+     VirtIOGPUBase parent_obj;
+ 
+@@ -161,6 +184,11 @@ struct VirtIOGPU {
+         uint32_t req_3d;
+         uint32_t bytes_3d;
+     } stats;
++
++    struct {
++        QTAILQ_HEAD(, VGPUDMABuf) bufs;
++        VGPUDMABuf *primary;
++    } dmabuf;
+ };
+ 
+ struct VirtIOGPUClass {
+@@ -224,7 +252,7 @@ void virtio_gpu_get_display_info(VirtIOGPU *g,
+ void virtio_gpu_get_edid(VirtIOGPU *g,
+                          struct virtio_gpu_ctrl_command *cmd);
+ int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
+-                                  struct virtio_gpu_resource_attach_backing *ab,
++                                  uint32_t nr_entries, uint32_t offset,
+                                   struct virtio_gpu_ctrl_command *cmd,
+                                   uint64_t **addr, struct iovec **iov,
+                                   uint32_t *niov);
+@@ -238,6 +266,15 @@ void virtio_gpu_update_cursor_data(VirtIOGPU *g,
+                                    struct virtio_gpu_scanout *s,
+                                    uint32_t resource_id);
+ 
++/* virtio-gpu-udmabuf.c */
++bool virtio_gpu_have_udmabuf(void);
++void virtio_gpu_init_udmabuf(struct virtio_gpu_simple_resource *res);
++void virtio_gpu_fini_udmabuf(struct virtio_gpu_simple_resource *res);
++int virtio_gpu_update_dmabuf(VirtIOGPU *g,
++                             uint32_t scanout_id,
++                             struct virtio_gpu_simple_resource *res,
++                             struct virtio_gpu_framebuffer *fb);
++
+ /* virtio-gpu-3d.c */
+ void virtio_gpu_virgl_process_cmd(VirtIOGPU *g,
+                                   struct virtio_gpu_ctrl_command *cmd);
+diff --git a/include/qemu/config-file.h b/include/qemu/config-file.h
+index 0500b3668d..8d3e53ae4d 100644
+--- a/include/qemu/config-file.h
++++ b/include/qemu/config-file.h
+@@ -1,7 +1,7 @@
+ #ifndef QEMU_CONFIG_FILE_H
+ #define QEMU_CONFIG_FILE_H
+ 
+-void qemu_load_module_for_opts(const char *group);
++
+ QemuOptsList *qemu_find_opts(const char *group);
+ QemuOptsList *qemu_find_opts_err(const char *group, Error **errp);
+ QemuOpts *qemu_find_opts_singleton(const char *group);
+diff --git a/include/standard-headers/linux/udmabuf.h b/include/standard-headers/linux/udmabuf.h
+new file mode 100644
+index 0000000000..e19eb5b5ce
+--- /dev/null
++++ b/include/standard-headers/linux/udmabuf.h
+@@ -0,0 +1,32 @@
++/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
++#ifndef _LINUX_UDMABUF_H
++#define _LINUX_UDMABUF_H
++
++#include "standard-headers/linux/types.h"
++
++#define UDMABUF_FLAGS_CLOEXEC	0x01
++
++struct udmabuf_create {
++	uint32_t memfd;
++	uint32_t flags;
++	uint64_t offset;
++	uint64_t size;
++};
++
++struct udmabuf_create_item {
++	uint32_t memfd;
++	uint32_t __pad;
++	uint64_t offset;
++	uint64_t size;
++};
++
++struct udmabuf_create_list {
++	uint32_t flags;
++	uint32_t count;
++	struct udmabuf_create_item list[];
++};
++
++#define UDMABUF_CREATE       _IOW('u', 0x42, struct udmabuf_create)
++#define UDMABUF_CREATE_LIST  _IOW('u', 0x43, struct udmabuf_create_list)
++
++#endif /* _LINUX_UDMABUF_H */
+diff --git a/include/sysemu/kvm_int.h b/include/sysemu/kvm_int.h
+index c788452cd9..ccb8869f01 100644
+--- a/include/sysemu/kvm_int.h
++++ b/include/sysemu/kvm_int.h
+@@ -23,15 +23,12 @@ typedef struct KVMSlot
+     int old_flags;
+     /* Dirty bitmap cache for the slot */
+     unsigned long *dirty_bmap;
+-    unsigned long dirty_bmap_size;
+-    /* Cache of the address space ID */
+-    int as_id;
+-    /* Cache of the offset in ram address space */
+-    ram_addr_t ram_start_offset;
+ } KVMSlot;
+ 
+ typedef struct KVMMemoryListener {
+     MemoryListener listener;
++    /* Protects the slots and all inside them */
++    QemuMutex slots_lock;
+     KVMSlot *slots;
+     int as_id;
+ } KVMMemoryListener;
+diff --git a/include/ui/console.h b/include/ui/console.h
+index ca3c7af6a6..b30b63976a 100644
+--- a/include/ui/console.h
++++ b/include/ui/console.h
+@@ -471,4 +471,7 @@ bool vnc_display_reload_certs(const char *id,  Error **errp);
+ /* input.c */
+ int index_from_key(const char *key, size_t key_length);
+ 
++/* udmabuf.c */
++int udmabuf_fd(void);
++
+ #endif
+diff --git a/include/ui/qemu-pixman.h b/include/ui/qemu-pixman.h
+index 87737a6f16..806ddcd7cd 100644
+--- a/include/ui/qemu-pixman.h
++++ b/include/ui/qemu-pixman.h
+@@ -62,6 +62,7 @@ typedef struct PixelFormat {
+ PixelFormat qemu_pixelformat_from_pixman(pixman_format_code_t format);
+ pixman_format_code_t qemu_default_pixman_format(int bpp, bool native_endian);
+ pixman_format_code_t qemu_drm_format_to_pixman(uint32_t drm_format);
++uint32_t qemu_pixman_to_drm_format(pixman_format_code_t pixman);
+ int qemu_pixman_get_type(int rshift, int gshift, int bshift);
+ pixman_format_code_t qemu_pixman_get_format(PixelFormat *pf);
+ bool qemu_pixman_check_format(DisplayChangeListener *dcl,
+diff --git a/meson.build b/meson.build
+index 20d7035e44..9b6d93b8bb 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1899,7 +1899,7 @@ util_ss.add_all(trace_ss)
+ util_ss = util_ss.apply(config_all, strict: false)
+ libqemuutil = static_library('qemuutil',
+                              sources: util_ss.sources() + stub_ss.sources() + genh,
+-                             dependencies: [util_ss.dependencies(), m, glib, socket, malloc])
++                             dependencies: [util_ss.dependencies(), m, glib, socket, malloc, pixman])
+ qemuutil = declare_dependency(link_with: libqemuutil,
+                               sources: genh + version_res)
+ 
+@@ -2145,7 +2145,6 @@ common_all = common_ss.apply(config_all, strict: false)
+ common_all = static_library('common',
+                             build_by_default: false,
+                             sources: common_all.sources() + genh,
+-                            implicit_include_directories: false,
+                             dependencies: common_all.dependencies(),
+                             name_suffix: 'fa')
+ 
+diff --git a/migration/colo.c b/migration/colo.c
+index e498fdb125..de27662cab 100644
+--- a/migration/colo.c
++++ b/migration/colo.c
+@@ -28,7 +28,7 @@
+ #include "migration/failover.h"
+ #include "migration/ram.h"
+ #ifdef CONFIG_REPLICATION
+-#include "block/replication.h"
++#include "replication.h"
+ #endif
+ #include "net/colo-compare.h"
+ #include "net/colo.h"
+diff --git a/migration/rdma.c b/migration/rdma.c
+index 1cdb4561f3..00eac34232 100644
+--- a/migration/rdma.c
++++ b/migration/rdma.c
+@@ -36,7 +36,6 @@
+ #include <rdma/rdma_cma.h>
+ #include "trace.h"
+ #include "qom/object.h"
+-#include <poll.h>
+ 
+ /*
+  * Print and error on both the Monitor and the Log file.
+@@ -317,7 +316,6 @@ typedef struct RDMALocalBlocks {
+ typedef struct RDMAContext {
+     char *host;
+     int port;
+-    char *host_port;
+ 
+     RDMAWorkRequestData wr_data[RDMA_WRID_MAX];
+ 
+@@ -989,12 +987,10 @@ static int qemu_rdma_resolve_host(RDMAContext *rdma, Error **errp)
+         }
+     }
+ 
+-    rdma_freeaddrinfo(res);
+     ERROR(errp, "could not resolve address %s", rdma->host);
+     goto err_resolve_get_addr;
+ 
+ route:
+-    rdma_freeaddrinfo(res);
+     qemu_rdma_dump_gid("source_resolve_addr", rdma->cm_id);
+ 
+     ret = rdma_get_cm_event(rdma->channel, &cm_event);
+@@ -2394,9 +2390,7 @@ static void qemu_rdma_cleanup(RDMAContext *rdma)
+         rdma->channel = NULL;
+     }
+     g_free(rdma->host);
+-    g_free(rdma->host_port);
+     rdma->host = NULL;
+-    rdma->host_port = NULL;
+ }
+ 
+ 
+@@ -2461,36 +2455,7 @@ err_rdma_source_init:
+     return -1;
+ }
+ 
+-static int qemu_get_cm_event_timeout(RDMAContext *rdma,
+-                                     struct rdma_cm_event **cm_event,
+-                                     long msec, Error **errp)
+-{
+-    int ret;
+-    struct pollfd poll_fd = {
+-                                .fd = rdma->channel->fd,
+-                                .events = POLLIN,
+-                                .revents = 0
+-                            };
+-
+-    do {
+-        ret = poll(&poll_fd, 1, msec);
+-    } while (ret < 0 && errno == EINTR);
+-
+-    if (ret == 0) {
+-        ERROR(errp, "poll cm event timeout");
+-        return -1;
+-    } else if (ret < 0) {
+-        ERROR(errp, "failed to poll cm event, errno=%i", errno);
+-        return -1;
+-    } else if (poll_fd.revents & POLLIN) {
+-        return rdma_get_cm_event(rdma->channel, cm_event);
+-    } else {
+-        ERROR(errp, "no POLLIN event, revent=%x", poll_fd.revents);
+-        return -1;
+-    }
+-}
+-
+-static int qemu_rdma_connect(RDMAContext *rdma, Error **errp, bool return_path)
++static int qemu_rdma_connect(RDMAContext *rdma, Error **errp)
+ {
+     RDMACapabilities cap = {
+                                 .version = RDMA_CONTROL_VERSION_CURRENT,
+@@ -2528,14 +2493,11 @@ static int qemu_rdma_connect(RDMAContext *rdma, Error **errp, bool return_path)
+         goto err_rdma_source_connect;
+     }
+ 
+-    if (return_path) {
+-        ret = qemu_get_cm_event_timeout(rdma, &cm_event, 5000, errp);
+-    } else {
+-        ret = rdma_get_cm_event(rdma->channel, &cm_event);
+-    }
++    ret = rdma_get_cm_event(rdma->channel, &cm_event);
+     if (ret) {
+         perror("rdma_get_cm_event after rdma_connect");
+         ERROR(errp, "connecting to destination!");
++        rdma_ack_cm_event(cm_event);
+         goto err_rdma_source_connect;
+     }
+ 
+@@ -2632,7 +2594,6 @@ static int qemu_rdma_dest_init(RDMAContext *rdma, Error **errp)
+         break;
+     }
+ 
+-    rdma_freeaddrinfo(res);
+     if (!e) {
+         ERROR(errp, "Error: could not rdma_bind_addr!");
+         goto err_dest_init_bind_addr;
+@@ -2685,7 +2646,6 @@ static void *qemu_rdma_data_init(const char *host_port, Error **errp)
+         if (!inet_parse(addr, host_port, NULL)) {
+             rdma->port = atoi(addr->port);
+             rdma->host = g_strdup(addr->host);
+-            rdma->host_port = g_strdup(host_port);
+         } else {
+             ERROR(errp, "bad RDMA migration address '%s'", host_port);
+             g_free(rdma);
+@@ -3314,7 +3274,6 @@ static int qemu_rdma_accept(RDMAContext *rdma)
+                                             .private_data = &cap,
+                                             .private_data_len = sizeof(cap),
+                                          };
+-    RDMAContext *rdma_return_path = NULL;
+     struct rdma_cm_event *cm_event;
+     struct ibv_context *verbs;
+     int ret = -EINVAL;
+@@ -3330,20 +3289,6 @@ static int qemu_rdma_accept(RDMAContext *rdma)
+         goto err_rdma_dest_wait;
+     }
+ 
+-    /*
+-     * initialize the RDMAContext for return path for postcopy after first
+-     * connection request reached.
+-     */
+-    if (migrate_postcopy() && !rdma->is_return_path) {
+-        rdma_return_path = qemu_rdma_data_init(rdma->host_port, NULL);
+-        if (rdma_return_path == NULL) {
+-            rdma_ack_cm_event(cm_event);
+-            goto err_rdma_dest_wait;
+-        }
+-
+-        qemu_rdma_return_path_dest_init(rdma_return_path, rdma);
+-    }
+-
+     memcpy(&cap, cm_event->param.conn.private_data, sizeof(cap));
+ 
+     network_to_caps(&cap);
+@@ -3459,7 +3404,6 @@ static int qemu_rdma_accept(RDMAContext *rdma)
+ err_rdma_dest_wait:
+     rdma->error_state = ret;
+     qemu_rdma_cleanup(rdma);
+-    g_free(rdma_return_path);
+     return ret;
+ }
+ 
+@@ -4097,22 +4041,29 @@ void rdma_start_incoming_migration(const char *host_port, Error **errp)
+ 
+     if (ret) {
+         ERROR(errp, "listening on socket!");
+-        goto cleanup_rdma;
++        goto err;
+     }
+ 
+     trace_rdma_start_incoming_migration_after_rdma_listen();
+ 
++    /* initialize the RDMAContext for return path */
++    if (migrate_postcopy()) {
++        rdma_return_path = qemu_rdma_data_init(host_port, &local_err);
++
++        if (rdma_return_path == NULL) {
++            goto err;
++        }
++
++        qemu_rdma_return_path_dest_init(rdma_return_path, rdma);
++    }
++
+     qemu_set_fd_handler(rdma->channel->fd, rdma_accept_incoming_migration,
+                         NULL, (void *)(intptr_t)rdma);
+     return;
+-
+-cleanup_rdma:
+-    qemu_rdma_cleanup(rdma);
+ err:
+     error_propagate(errp, local_err);
+     if (rdma) {
+         g_free(rdma->host);
+-        g_free(rdma->host_port);
+     }
+     g_free(rdma);
+     g_free(rdma_return_path);
+@@ -4145,7 +4096,7 @@ void rdma_start_outgoing_migration(void *opaque,
+     }
+ 
+     trace_rdma_start_outgoing_migration_after_rdma_source_init();
+-    ret = qemu_rdma_connect(rdma, errp, false);
++    ret = qemu_rdma_connect(rdma, errp);
+ 
+     if (ret) {
+         goto err;
+@@ -4166,7 +4117,7 @@ void rdma_start_outgoing_migration(void *opaque,
+             goto return_path_err;
+         }
+ 
+-        ret = qemu_rdma_connect(rdma_return_path, errp, true);
++        ret = qemu_rdma_connect(rdma_return_path, errp);
+ 
+         if (ret) {
+             goto return_path_err;
+diff --git a/monitor/hmp-cmds.c b/monitor/hmp-cmds.c
+index d10ee14110..d9bef63373 100644
+--- a/monitor/hmp-cmds.c
++++ b/monitor/hmp-cmds.c
+@@ -1133,7 +1133,7 @@ void hmp_loadvm(Monitor *mon, const QDict *qdict)
+ 
+     vm_stop(RUN_STATE_RESTORE_VM);
+ 
+-    if (load_snapshot(name, NULL, false, NULL, &err) && saved_vm_running) {
++    if (!load_snapshot(name, NULL, false, NULL, &err) && saved_vm_running) {
+         vm_start();
+     }
+     hmp_handle_error(mon, err);
+diff --git a/os-posix.c b/os-posix.c
+index ae6c9f2a5e..a6846f51c1 100644
+--- a/os-posix.c
++++ b/os-posix.c
+@@ -32,7 +32,7 @@
+ #include "qemu-common.h"
+ /* Needed early for CONFIG_BSD etc. */
+ #include "net/slirp.h"
+-#include "qemu/qemu-options.h"
++#include "qemu-options.h"
+ #include "qemu/error-report.h"
+ #include "qemu/log.h"
+ #include "sysemu/runstate.h"
+diff --git a/os-win32.c b/os-win32.c
+index e31c921983..fd1137bab1 100644
+--- a/os-win32.c
++++ b/os-win32.c
+@@ -27,6 +27,7 @@
+ #include <windows.h>
+ #include <mmsystem.h>
+ #include "qemu-common.h"
++#include "qemu-options.h"
+ #include "sysemu/runstate.h"
+ 
+ static BOOL WINAPI qemu_ctrl_handler(DWORD type)
+diff --git a/qapi/qom.json b/qapi/qom.json
+index f7ef30f940..40d70c434a 100644
+--- a/qapi/qom.json
++++ b/qapi/qom.json
+@@ -644,21 +644,6 @@
+ { 'struct': 'PrManagerHelperProperties',
+   'data': { 'path': 'str' } }
+ 
+-##
+-# @QtestProperties:
+-#
+-# Properties for qtest objects.
+-#
+-# @chardev: the chardev to be used to receive qtest commands on.
+-#
+-# @log: the path to a log file
+-#
+-# Since: 6.0
+-##
+-{ 'struct': 'QtestProperties',
+-        'data': { 'chardev': 'str',
+-                  '*log': 'str' } }
+-
+ ##
+ # @RemoteObjectProperties:
+ #
+@@ -784,7 +769,6 @@
+     'memory-backend-ram',
+     'pef-guest',
+     'pr-manager-helper',
+-    'qtest',
+     'rng-builtin',
+     'rng-egd',
+     'rng-random',
+@@ -841,7 +825,6 @@
+                                       'if': 'defined(CONFIG_LINUX)' },
+       'memory-backend-ram':         'MemoryBackendProperties',
+       'pr-manager-helper':          'PrManagerHelperProperties',
+-      'qtest':                      'QtestProperties',
+       'rng-builtin':                'RngProperties',
+       'rng-egd':                    'RngEgdProperties',
+       'rng-random':                 'RngRandomProperties',
+@@ -874,8 +857,7 @@
+ # <- { "return": {} }
+ #
+ ##
+-{ 'command': 'object-add', 'data': 'ObjectOptions', 'boxed': true,
+-  'allow-preconfig': true }
++{ 'command': 'object-add', 'data': 'ObjectOptions', 'boxed': true }
+ 
+ ##
+ # @object-del:
+@@ -895,5 +877,4 @@
+ # <- { "return": {} }
+ #
+ ##
+-{ 'command': 'object-del', 'data': {'id': 'str'},
+-  'allow-preconfig': true }
++{ 'command': 'object-del', 'data': {'id': 'str'} }
+diff --git a/qemu-options-wrapper.h b/qemu-options-wrapper.h
+new file mode 100644
+index 0000000000..6f548e3922
+--- /dev/null
++++ b/qemu-options-wrapper.h
+@@ -0,0 +1,40 @@
++
++#if defined(QEMU_OPTIONS_GENERATE_ENUM)
++
++#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)     \
++    opt_enum,
++#define DEFHEADING(text)
++#define ARCHHEADING(text, arch_mask)
++
++#elif defined(QEMU_OPTIONS_GENERATE_HELP)
++
++#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)    \
++    if ((arch_mask) & arch_type)                               \
++        fputs(opt_help, stdout);
++
++#define ARCHHEADING(text, arch_mask) \
++    if ((arch_mask) & arch_type)    \
++        puts(stringify(text));
++
++#define DEFHEADING(text) ARCHHEADING(text, QEMU_ARCH_ALL)
++
++#elif defined(QEMU_OPTIONS_GENERATE_OPTIONS)
++
++#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)     \
++    { option, opt_arg, opt_enum, arch_mask },
++#define DEFHEADING(text)
++#define ARCHHEADING(text, arch_mask)
++
++#else
++#error "qemu-options-wrapper.h included with no option defined"
++#endif
++
++#include "qemu-options.def"
++
++#undef DEF
++#undef DEFHEADING
++#undef ARCHHEADING
++
++#undef QEMU_OPTIONS_GENERATE_ENUM
++#undef QEMU_OPTIONS_GENERATE_HELP
++#undef QEMU_OPTIONS_GENERATE_OPTIONS
+diff --git a/include/qemu/qemu-options.h b/qemu-options.h
+similarity index 88%
+rename from include/qemu/qemu-options.h
+rename to qemu-options.h
+index 4a62c83c45..b4ee63cd60 100644
+--- a/include/qemu/qemu-options.h
++++ b/qemu-options.h
+@@ -29,13 +29,8 @@
+ #define QEMU_OPTIONS_H
+ 
+ enum {
+-
+-#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)     \
+-    opt_enum,
+-#define DEFHEADING(text)
+-#define ARCHHEADING(text, arch_mask)
+-
+-#include "qemu-options.def"
++#define QEMU_OPTIONS_GENERATE_ENUM
++#include "qemu-options-wrapper.h"
+ };
+ 
+ #endif
+diff --git a/qemu-options.hx b/qemu-options.hx
+index 14258784b3..e22fb94d99 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -141,7 +141,6 @@ DEF("accel", HAS_ARG, QEMU_OPTION_accel,
+     "                kvm-shadow-mem=size of KVM shadow MMU in bytes\n"
+     "                split-wx=on|off (enable TCG split w^x mapping)\n"
+     "                tb-size=n (TCG translation block cache size)\n"
+-    "                dirty-ring-size=n (KVM dirty ring GFN count, default 0)\n"
+     "                thread=single|multi (enable multi-threaded TCG)\n", QEMU_ARCH_ALL)
+ SRST
+ ``-accel name[,prop=value[,...]]``
+@@ -182,17 +181,6 @@ SRST
+         where both the back-end and front-ends support it and no
+         incompatible TCG features have been enabled (e.g.
+         icount/replay).
+-
+-    ``dirty-ring-size=n``
+-        When the KVM accelerator is used, it controls the size of the per-vCPU
+-        dirty page ring buffer (number of entries for each vCPU). It should
+-        be a value that is power of two, and it should be 1024 or bigger (but
+-        still less than the maximum value that the kernel supports).  4096
+-        could be a good initial value if you have no idea which is the best.
+-        Set this value to 0 to disable the feature.  By default, this feature
+-        is disabled (dirty-ring-size=0).  When enabled, KVM will instead
+-        record dirty pages in a bitmap.
+-
+ ERST
+ 
+ DEF("smp", HAS_ARG, QEMU_OPTION_smp,
+@@ -3799,11 +3787,8 @@ DEF("mon", HAS_ARG, QEMU_OPTION_mon, \
+     "-mon [chardev=]name[,mode=readline|control][,pretty[=on|off]]\n", QEMU_ARCH_ALL)
+ SRST
+ ``-mon [chardev=]name[,mode=readline|control][,pretty[=on|off]]``
+-    Setup monitor on chardev name. ``mode=control`` configures 
+-    a QMP monitor (a JSON RPC-style protocol) and it is not the
+-    same as HMP, the human monitor that has a "(qemu)" prompt.
+-    ``pretty`` is only valid when ``mode=control``, 
+-    turning on JSON pretty printing to ease
++    Setup monitor on chardev name. ``pretty`` is only valid when
++    ``mode=control``, turning on JSON pretty printing to ease
+     human reading and debugging.
+ ERST
+ 
+@@ -5279,7 +5264,3 @@ ERST
+ 
+ 
+ HXCOMM This is the last statement. Insert new options before this line!
+-
+-#undef DEF
+-#undef DEFHEADING
+-#undef ARCHHEADING
+diff --git a/replication.c b/replication.c
+index 4acd3f8004..be3a42f9c9 100644
+--- a/replication.c
++++ b/replication.c
+@@ -14,7 +14,7 @@
+ 
+ #include "qemu/osdep.h"
+ #include "qapi/error.h"
+-#include "block/replication.h"
++#include "replication.h"
+ 
+ static QLIST_HEAD(, ReplicationState) replication_states;
+ 
+diff --git a/include/block/replication.h b/replication.h
+similarity index 98%
+rename from include/block/replication.h
+rename to replication.h
+index 21931b4f0c..d49fc22cb9 100644
+--- a/include/block/replication.h
++++ b/replication.h
+@@ -23,7 +23,7 @@ typedef struct ReplicationOps ReplicationOps;
+ typedef struct ReplicationState ReplicationState;
+ 
+ /**
+- * SECTION:block/replication.h
++ * SECTION:replication.h
+  * @title:Base Replication System
+  * @short_description: interfaces for handling replication
+  *
+@@ -32,7 +32,7 @@ typedef struct ReplicationState ReplicationState;
+  * <example>
+  *   <title>How to use replication interfaces</title>
+  *   <programlisting>
+- * #include "block/replication.h"
++ * #include "replication.h"
+  *
+  * typedef struct BDRVReplicationState {
+  *     ReplicationState *rs;
+diff --git a/scripts/update-linux-headers.sh b/scripts/update-linux-headers.sh
+index 1050e36169..fea4d6eb65 100755
+--- a/scripts/update-linux-headers.sh
++++ b/scripts/update-linux-headers.sh
+@@ -34,6 +34,7 @@ cp_portable() {
+     if
+         grep '#include' "$f" | grep -v -e 'linux/virtio' \
+                                      -e 'linux/types' \
++                                     -e 'linux/ioctl' \
+                                      -e 'stdint' \
+                                      -e 'linux/if_ether' \
+                                      -e 'input-event-codes' \
+@@ -66,6 +67,7 @@ cp_portable() {
+         -e 's/__BITS_PER_LONG/HOST_LONG_BITS/' \
+         -e '/\"drm.h\"/d' \
+         -e '/sys\/ioctl.h/d' \
++        -e '/linux\/ioctl.h/d' \
+         -e 's/SW_MAX/SW_MAX_/' \
+         -e 's/atomic_t/int/' \
+         -e 's/__kernel_long_t/long/' \
+@@ -190,6 +192,7 @@ for i in "$tmpdir"/include/linux/*virtio*.h \
+          "$tmpdir/include/linux/fuse.h" \
+          "$tmpdir/include/linux/input.h" \
+          "$tmpdir/include/linux/input-event-codes.h" \
++         "$tmpdir/include/linux/udmabuf.h" \
+          "$tmpdir/include/linux/pci_regs.h" \
+          "$tmpdir/include/linux/ethtool.h" \
+          "$tmpdir/include/linux/const.h" \
+diff --git a/softmmu/memory.c b/softmmu/memory.c
+index c19b0be6b1..3bb533c0bc 100644
+--- a/softmmu/memory.c
++++ b/softmmu/memory.c
+@@ -2055,10 +2055,6 @@ void memory_region_set_dirty(MemoryRegion *mr, hwaddr addr,
+                                         memory_region_get_dirty_log_mask(mr));
+ }
+ 
+-/*
+- * If memory region `mr' is NULL, do global sync.  Otherwise, sync
+- * dirty bitmap for the specified memory region.
+- */
+ static void memory_region_sync_dirty_bitmap(MemoryRegion *mr)
+ {
+     MemoryListener *listener;
+@@ -2072,24 +2068,18 @@ static void memory_region_sync_dirty_bitmap(MemoryRegion *mr)
+      * address space once.
+      */
+     QTAILQ_FOREACH(listener, &memory_listeners, link) {
+-        if (listener->log_sync) {
+-            as = listener->address_space;
+-            view = address_space_get_flatview(as);
+-            FOR_EACH_FLAT_RANGE(fr, view) {
+-                if (fr->dirty_log_mask && (!mr || fr->mr == mr)) {
+-                    MemoryRegionSection mrs = section_from_flat_range(fr, view);
+-                    listener->log_sync(listener, &mrs);
+-                }
++        if (!listener->log_sync) {
++            continue;
++        }
++        as = listener->address_space;
++        view = address_space_get_flatview(as);
++        FOR_EACH_FLAT_RANGE(fr, view) {
++            if (fr->dirty_log_mask && (!mr || fr->mr == mr)) {
++                MemoryRegionSection mrs = section_from_flat_range(fr, view);
++                listener->log_sync(listener, &mrs);
+             }
+-            flatview_unref(view);
+-        } else if (listener->log_sync_global) {
+-            /*
+-             * No matter whether MR is specified, what we can do here
+-             * is to do a global sync, because we are not capable to
+-             * sync in a finer granularity.
+-             */
+-            listener->log_sync_global(listener);
+         }
++        flatview_unref(view);
+     }
+ }
+ 
+@@ -2777,9 +2767,6 @@ void memory_listener_register(MemoryListener *listener, AddressSpace *as)
+ {
+     MemoryListener *other = NULL;
+ 
+-    /* Only one of them can be defined for a listener */
+-    assert(!(listener->log_sync && listener->log_sync_global));
+-
+     listener->address_space = as;
+     if (QTAILQ_EMPTY(&memory_listeners)
+         || listener->priority >= QTAILQ_LAST(&memory_listeners)->priority) {
+diff --git a/softmmu/qtest.c b/softmmu/qtest.c
+index 72751e1fd8..130c366615 100644
+--- a/softmmu/qtest.c
++++ b/softmmu/qtest.c
+@@ -27,8 +27,6 @@
+ #include "qemu/error-report.h"
+ #include "qemu/module.h"
+ #include "qemu/cutils.h"
+-#include "qapi/qmp/qerror.h"
+-#include "qom/object_interfaces.h"
+ #include CONFIG_DEVICES
+ #ifdef CONFIG_PSERIES
+ #include "hw/ppc/spapr_rtas.h"
+@@ -36,25 +34,11 @@
+ 
+ #define MAX_IRQ 256
+ 
+-#define TYPE_QTEST "qtest"
+-
+-OBJECT_DECLARE_SIMPLE_TYPE(QTest, QTEST)
+-
+-struct QTest {
+-    Object parent;
+-
+-    bool has_machine_link;
+-    char *chr_name;
+-    Chardev *chr;
+-    CharBackend qtest_chr;
+-    char *log;
+-};
+-
+ bool qtest_allowed;
+ 
+ static DeviceState *irq_intercept_dev;
+ static FILE *qtest_log_fp;
+-static QTest *qtest;
++static CharBackend qtest_chr;
+ static GString *inbuf;
+ static int irq_levels[MAX_IRQ];
+ static qemu_timeval start_time;
+@@ -336,7 +320,7 @@ static void qtest_irq_handler(void *opaque, int n, int level)
+     qemu_set_irq(old_irq, level);
+ 
+     if (irq_levels[n] != level) {
+-        CharBackend *chr = &qtest->qtest_chr;
++        CharBackend *chr = &qtest_chr;
+         irq_levels[n] = level;
+         qtest_send_prefix(chr);
+         qtest_sendf(chr, "IRQ %s %d\n",
+@@ -865,39 +849,18 @@ static void qtest_event(void *opaque, QEMUChrEvent event)
+         break;
+     }
+ }
+-
+ void qtest_server_init(const char *qtest_chrdev, const char *qtest_log, Error **errp)
+ {
+-    ERRP_GUARD();
+     Chardev *chr;
+-    Object *qtest;
+ 
+     chr = qemu_chr_new("qtest", qtest_chrdev, NULL);
++
+     if (chr == NULL) {
+         error_setg(errp, "Failed to initialize device for qtest: \"%s\"",
+                    qtest_chrdev);
+         return;
+     }
+ 
+-    qtest = object_new(TYPE_QTEST);
+-    object_property_set_str(qtest, "chardev", "qtest", &error_abort);
+-    if (qtest_log) {
+-        object_property_set_str(qtest, "log", qtest_log, &error_abort);
+-    }
+-    object_property_add_child(qdev_get_machine(), "qtest", qtest);
+-    user_creatable_complete(USER_CREATABLE(qtest), errp);
+-    if (*errp) {
+-        object_unparent(qtest);
+-    }
+-    object_unref(OBJECT(chr));
+-    object_unref(qtest);
+-}
+-
+-static bool qtest_server_start(QTest *q, Error **errp)
+-{
+-    Chardev *chr = q->chr;
+-    const char *qtest_log = q->log;
+-
+     if (qtest_log) {
+         if (strcmp(qtest_log, "none") != 0) {
+             qtest_log_fp = fopen(qtest_log, "w+");
+@@ -906,20 +869,16 @@ static bool qtest_server_start(QTest *q, Error **errp)
+         qtest_log_fp = stderr;
+     }
+ 
+-    if (!qemu_chr_fe_init(&q->qtest_chr, chr, errp)) {
+-        return false;
+-    }
+-    qemu_chr_fe_set_handlers(&q->qtest_chr, qtest_can_read, qtest_read,
+-                             qtest_event, NULL, &q->qtest_chr, NULL, true);
+-    qemu_chr_fe_set_echo(&q->qtest_chr, true);
++    qemu_chr_fe_init(&qtest_chr, chr, errp);
++    qemu_chr_fe_set_handlers(&qtest_chr, qtest_can_read, qtest_read,
++                             qtest_event, NULL, &qtest_chr, NULL, true);
++    qemu_chr_fe_set_echo(&qtest_chr, true);
+ 
+     inbuf = g_string_new("");
+ 
+     if (!qtest_server_send) {
+-        qtest_server_set_send_handler(qtest_server_char_be_send, &q->qtest_chr);
++        qtest_server_set_send_handler(qtest_server_char_be_send, &qtest_chr);
+     }
+-    qtest = q;
+-    return true;
+ }
+ 
+ void qtest_server_set_send_handler(void (*send)(void*, const char*),
+@@ -931,7 +890,7 @@ void qtest_server_set_send_handler(void (*send)(void*, const char*),
+ 
+ bool qtest_driver(void)
+ {
+-    return qtest && qtest->qtest_chr.chr != NULL;
++    return qtest_chr.chr != NULL;
+ }
+ 
+ void qtest_server_inproc_recv(void *dummy, const char *buf)
+@@ -946,129 +905,3 @@ void qtest_server_inproc_recv(void *dummy, const char *buf)
+         g_string_truncate(gstr, 0);
+     }
+ }
+-
+-static void qtest_complete(UserCreatable *uc, Error **errp)
+-{
+-    QTest *q = QTEST(uc);
+-    if (qtest) {
+-        error_setg(errp, "Only one instance of qtest can be created");
+-        return;
+-    }
+-    if (!q->chr_name) {
+-        error_setg(errp, "No backend specified");
+-        return;
+-    }
+-
+-    if (OBJECT(uc)->parent != qdev_get_machine()) {
+-        q->has_machine_link = true;
+-        object_property_add_const_link(qdev_get_machine(), "qtest", OBJECT(uc));
+-    } else {
+-        /* -qtest was used.  */
+-    }
+-
+-    qtest_server_start(q, errp);
+-}
+-
+-static void qtest_unparent(Object *obj)
+-{
+-    QTest *q = QTEST(obj);
+-
+-    if (qtest == q) {
+-        qemu_chr_fe_disconnect(&q->qtest_chr);
+-        assert(!qtest_opened);
+-        qemu_chr_fe_deinit(&q->qtest_chr, false);
+-        if (qtest_log_fp) {
+-            fclose(qtest_log_fp);
+-            qtest_log_fp = NULL;
+-        }
+-        qtest = NULL;
+-    }
+-
+-    if (q->has_machine_link) {
+-        object_property_del(qdev_get_machine(), "qtest");
+-        q->has_machine_link = false;
+-    }
+-}
+-
+-static void qtest_set_log(Object *obj, const char *value, Error **errp)
+-{
+-    QTest *q = QTEST(obj);
+-
+-    if (qtest == q) {
+-        error_setg(errp, QERR_PERMISSION_DENIED);
+-    } else {
+-        g_free(q->log);
+-        q->log = g_strdup(value);
+-    }
+-}
+-
+-static char *qtest_get_log(Object *obj, Error **errp)
+-{
+-    QTest *q = QTEST(obj);
+-
+-    return g_strdup(q->log);
+-}
+-
+-static void qtest_set_chardev(Object *obj, const char *value, Error **errp)
+-{
+-    QTest *q = QTEST(obj);
+-    Chardev *chr;
+-
+-    if (qtest == q) {
+-        error_setg(errp, QERR_PERMISSION_DENIED);
+-        return;
+-    }
+-
+-    chr = qemu_chr_find(value);
+-    if (!chr) {
+-        error_setg(errp, "Cannot find character device '%s'", value);
+-        return;
+-    }
+-
+-    g_free(q->chr_name);
+-    q->chr_name = g_strdup(value);
+-
+-    if (q->chr) {
+-        object_unref(q->chr);
+-    }
+-    q->chr = chr;
+-    object_ref(chr);
+-}
+-
+-static char *qtest_get_chardev(Object *obj, Error **errp)
+-{
+-    QTest *q = QTEST(obj);
+-
+-    return g_strdup(q->chr_name);
+-}
+-
+-static void qtest_class_init(ObjectClass *oc, void *data)
+-{
+-    UserCreatableClass *ucc = USER_CREATABLE_CLASS(oc);
+-
+-    oc->unparent = qtest_unparent;
+-    ucc->complete = qtest_complete;
+-
+-    object_class_property_add_str(oc, "chardev",
+-                                  qtest_get_chardev, qtest_set_chardev);
+-    object_class_property_add_str(oc, "log",
+-                                  qtest_get_log, qtest_set_log);
+-}
+-
+-static const TypeInfo qtest_info = {
+-    .name = TYPE_QTEST,
+-    .parent = TYPE_OBJECT,
+-    .class_init = qtest_class_init,
+-    .instance_size = sizeof(QTest),
+-    .interfaces = (InterfaceInfo[]) {
+-        { TYPE_USER_CREATABLE },
+-        { }
+-    }
+-};
+-
+-static void register_types(void)
+-{
+-    type_register_static(&qtest_info);
+-}
+-
+-type_init(register_types);
+diff --git a/softmmu/vl.c b/softmmu/vl.c
+index 6054f6f0b9..93e78469bc 100644
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
+@@ -88,7 +88,7 @@
+ #include "qapi/qobject-input-visitor.h"
+ #include "qemu/option.h"
+ #include "qemu/config-file.h"
+-#include "qemu/qemu-options.h"
++#include "qemu-options.h"
+ #include "qemu/main-loop.h"
+ #ifdef CONFIG_VIRTFS
+ #include "fsdev/qemu-fsdev.h"
+@@ -854,17 +854,8 @@ static void help(int exitcode)
+            "'disk_image' is a raw hard disk image for IDE hard disk 0\n\n",
+             error_get_progname());
+ 
+-#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)    \
+-    if ((arch_mask) & arch_type)                               \
+-        fputs(opt_help, stdout);
+-
+-#define ARCHHEADING(text, arch_mask) \
+-    if ((arch_mask) & arch_type)    \
+-        puts(stringify(text));
+-
+-#define DEFHEADING(text) ARCHHEADING(text, QEMU_ARCH_ALL)
+-
+-#include "qemu-options.def"
++#define QEMU_OPTIONS_GENERATE_HELP
++#include "qemu-options-wrapper.h"
+ 
+     printf("\nDuring emulation, the following keys are useful:\n"
+            "ctrl-alt-f      toggle full screen\n"
+@@ -889,13 +880,8 @@ typedef struct QEMUOption {
+ 
+ static const QEMUOption qemu_options[] = {
+     { "h", 0, QEMU_OPTION_h, QEMU_ARCH_ALL },
+-
+-#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)     \
+-    { option, opt_arg, opt_enum, arch_mask },
+-#define DEFHEADING(text)
+-#define ARCHHEADING(text, arch_mask)
+-
+-#include "qemu-options.def"
++#define QEMU_OPTIONS_GENERATE_OPTIONS
++#include "qemu-options-wrapper.h"
+     { NULL },
+ };
+ 
+@@ -1772,9 +1758,8 @@ static bool object_create_early(const char *type)
+      * add one, state the reason in a comment!
+      */
+ 
+-    /* Reason: property "chardev" */
+-    if (g_str_equal(type, "rng-egd") ||
+-        g_str_equal(type, "qtest")) {
++    /* Reason: rng-egd property "chardev" */
++    if (g_str_equal(type, "rng-egd")) {
+         return false;
+     }
+ 
+@@ -2039,6 +2024,8 @@ static void set_memory_options(MachineClass *mc)
+         exit(EXIT_FAILURE);
+     }
+ 
++    /* store value for the future use */
++    qemu_opt_set_number(opts, "size", ram_size, &error_abort);
+     maxram_size = ram_size;
+ 
+     if (qemu_opt_get(opts, "maxmem")) {
+@@ -2627,23 +2614,6 @@ void qmp_x_exit_preconfig(Error **errp)
+     }
+ }
+ 
+-#ifdef CONFIG_MODULES
+-void qemu_load_module_for_opts(const char *group)
+-{
+-    static bool spice_tried;
+-    if (g_str_equal(group, "spice") && !spice_tried) {
+-        ui_module_load_one("spice-core");
+-        spice_tried = true;
+-    }
+-
+-    static bool iscsi_tried;
+-    if (g_str_equal(group, "iscsi") && !iscsi_tried) {
+-        block_module_load_one("iscsi");
+-        iscsi_tried = true;
+-    }
+-}
+-#endif
+-
+ void qemu_init(int argc, char **argv, char **envp)
+ {
+     QemuOpts *opts;
+@@ -3403,6 +3373,10 @@ void qemu_init(int argc, char **argv, char **envp)
+                 break;
+             case QEMU_OPTION_spice:
+                 olist = qemu_find_opts_err("spice", NULL);
++                if (!olist) {
++                    ui_module_load_one("spice-core");
++                    olist = qemu_find_opts("spice");
++                }
+                 if (!olist) {
+                     error_report("spice support is disabled");
+                     exit(1);
+diff --git a/stubs/meson.build b/stubs/meson.build
+index f3f979c3fe..c32d182585 100644
+--- a/stubs/meson.build
++++ b/stubs/meson.build
+@@ -22,7 +22,6 @@ stub_ss.add(files('isa-bus.c'))
+ stub_ss.add(files('is-daemonized.c'))
+ stub_ss.add(when: 'CONFIG_LINUX_AIO', if_true: files('linux-aio.c'))
+ stub_ss.add(files('migr-blocker.c'))
+-stub_ss.add(files('module-opts.c'))
+ stub_ss.add(files('monitor.c'))
+ stub_ss.add(files('monitor-core.c'))
+ stub_ss.add(files('pci-bus.c'))
+@@ -53,6 +52,7 @@ if have_system
+   stub_ss.add(files('semihost.c'))
+   stub_ss.add(files('usb-dev-stub.c'))
+   stub_ss.add(files('xen-hw-stub.c'))
++  stub_ss.add(files('virtio-gpu-udmabuf.c'))
+ else
+   stub_ss.add(files('qdev.c'))
+ endif
+diff --git a/stubs/module-opts.c b/stubs/module-opts.c
+deleted file mode 100644
+index a7d0e4ad6e..0000000000
+--- a/stubs/module-opts.c
++++ /dev/null
+@@ -1,6 +0,0 @@
+-#include "qemu/osdep.h"
+-#include "qemu/config-file.h"
+-
+-void qemu_load_module_for_opts(const char *group)
+-{
+-}
+diff --git a/stubs/virtio-gpu-udmabuf.c b/stubs/virtio-gpu-udmabuf.c
+new file mode 100644
+index 0000000000..81f661441a
+--- /dev/null
++++ b/stubs/virtio-gpu-udmabuf.c
+@@ -0,0 +1,27 @@
++#include "qemu/osdep.h"
++#include "hw/virtio/virtio-gpu.h"
++
++bool virtio_gpu_have_udmabuf(void)
++{
++    /* nothing (stub) */
++    return false;
++}
++
++void virtio_gpu_init_udmabuf(struct virtio_gpu_simple_resource *res)
++{
++    /* nothing (stub) */
++}
++
++void virtio_gpu_fini_udmabuf(struct virtio_gpu_simple_resource *res)
++{
++    /* nothing (stub) */
++}
++
++int virtio_gpu_update_dmabuf(VirtIOGPU *g,
++                             uint32_t scanout_id,
++                             struct virtio_gpu_simple_resource *res,
++                             struct virtio_gpu_framebuffer *fb)
++{
++    /* nothing (stub) */
++    return 0;
++}
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index 9e211ac2ce..c496bfa1c2 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -940,7 +940,7 @@ FeatureWordInfo feature_word_info[FEATURE_WORDS] = {
+         .type = CPUID_FEATURE_WORD,
+         .feat_names = {
+             NULL, NULL, NULL, NULL,
+-            "avx-vnni", "avx512-bf16", NULL, NULL,
++            NULL, "avx512-bf16", NULL, NULL,
+             NULL, NULL, NULL, NULL,
+             NULL, NULL, NULL, NULL,
+             NULL, NULL, NULL, NULL,
+@@ -3194,7 +3194,7 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             MSR_ARCH_CAP_SKIP_L1DFL_VMENTRY | MSR_ARCH_CAP_MDS_NO |
+             MSR_ARCH_CAP_PSCHANGE_MC_NO | MSR_ARCH_CAP_TAA_NO,
+         .features[FEAT_7_1_EAX] =
+-            CPUID_7_1_EAX_AVX_VNNI | CPUID_7_1_EAX_AVX512_BF16,
++            CPUID_7_1_EAX_AVX512_BF16,
+         /*
+          * Missing: XSAVES (not supported by some Linux versions,
+          * including v4.1 to v4.12).
+diff --git a/target/i386/cpu.h b/target/i386/cpu.h
+index da72aa5228..e6836393f7 100644
+--- a/target/i386/cpu.h
++++ b/target/i386/cpu.h
+@@ -817,8 +817,6 @@ typedef uint64_t FeatureWordArray[FEATURE_WORDS];
+ /* Speculative Store Bypass Disable */
+ #define CPUID_7_0_EDX_SPEC_CTRL_SSBD    (1U << 31)
+ 
+-/* AVX VNNI Instruction */
+-#define CPUID_7_1_EAX_AVX_VNNI          (1U << 4)
+ /* AVX512 BFloat16 Instruction */
+ #define CPUID_7_1_EAX_AVX512_BF16       (1U << 5)
+ 
+diff --git a/tests/qtest/fuzz/fuzz.c b/tests/qtest/fuzz/fuzz.c
+index 5f77c84983..04b70e114b 100644
+--- a/tests/qtest/fuzz/fuzz.c
++++ b/tests/qtest/fuzz/fuzz.c
+@@ -16,7 +16,6 @@
+ #include <wordexp.h>
+ 
+ #include "qemu/datadir.h"
+-#include "sysemu/sysemu.h"
+ #include "sysemu/qtest.h"
+ #include "sysemu/runstate.h"
+ #include "qemu/main-loop.h"
+diff --git a/tests/unit/test-replication.c b/tests/unit/test-replication.c
+index afff908d77..b067240add 100644
+--- a/tests/unit/test-replication.c
++++ b/tests/unit/test-replication.c
+@@ -14,7 +14,7 @@
+ #include "qapi/qmp/qdict.h"
+ #include "qemu/option.h"
+ #include "qemu/main-loop.h"
+-#include "block/replication.h"
++#include "replication.h"
+ #include "block/block_int.h"
+ #include "block/qdict.h"
+ #include "sysemu/block-backend.h"
+diff --git a/tools/virtiofsd/buffer.c b/tools/virtiofsd/buffer.c
+index b5f04be356..874f01c488 100644
+--- a/tools/virtiofsd/buffer.c
++++ b/tools/virtiofsd/buffer.c
+@@ -37,7 +37,7 @@ static ssize_t fuse_buf_writev(struct fuse_buf *out_buf,
+     struct iovec *iov;
+     int fd = out_buf->fd;
+ 
+-    iov = g_try_new0(struct iovec, iovcnt);
++    iov = calloc(iovcnt, sizeof(struct iovec));
+     if (!iov) {
+         return -ENOMEM;
+     }
+@@ -61,7 +61,7 @@ static ssize_t fuse_buf_writev(struct fuse_buf *out_buf,
+         res = -errno;
+     }
+ 
+-    g_free(iov);
++    free(iov);
+     return res;
+ }
+ 
+diff --git a/tools/virtiofsd/fuse_opt.c b/tools/virtiofsd/fuse_opt.c
+index 9d371448e9..f0ab8d22f4 100644
+--- a/tools/virtiofsd/fuse_opt.c
++++ b/tools/virtiofsd/fuse_opt.c
+@@ -272,7 +272,7 @@ static int process_opt_sep_arg(struct fuse_opt_context *ctx,
+     }
+ 
+     param = ctx->argv[ctx->argctr];
+-    newarg = g_try_malloc(sep + strlen(param) + 1);
++    newarg = malloc(sep + strlen(param) + 1);
+     if (!newarg) {
+         return alloc_failed();
+     }
+@@ -280,7 +280,7 @@ static int process_opt_sep_arg(struct fuse_opt_context *ctx,
+     memcpy(newarg, arg, sep);
+     strcpy(newarg + sep, param);
+     res = process_opt(ctx, opt, sep, newarg, iso);
+-    g_free(newarg);
++    free(newarg);
+ 
+     return res;
+ }
+diff --git a/tools/virtiofsd/fuse_virtio.c b/tools/virtiofsd/fuse_virtio.c
+index fa4aff9b0e..9efdbd8ffd 100644
+--- a/tools/virtiofsd/fuse_virtio.c
++++ b/tools/virtiofsd/fuse_virtio.c
+@@ -366,12 +366,14 @@ int virtio_send_data_iov(struct fuse_session *se, struct fuse_chan *ch,
+     if (in_len < sizeof(struct fuse_out_header)) {
+         fuse_log(FUSE_LOG_ERR, "%s: elem %d too short for out_header\n",
+                  __func__, elem->index);
+-        return E2BIG;
++        ret = E2BIG;
++        goto err;
+     }
+     if (in_len < tosend_len) {
+         fuse_log(FUSE_LOG_ERR, "%s: elem %d too small for data len %zd\n",
+                  __func__, elem->index, tosend_len);
+-        return E2BIG;
++        ret = E2BIG;
++        goto err;
+     }
+ 
+     /* TODO: Limit to 'len' */
+@@ -387,46 +389,68 @@ int virtio_send_data_iov(struct fuse_session *se, struct fuse_chan *ch,
+     memcpy(in_sg_cpy, in_sg, sizeof(struct iovec) * in_num);
+     /* These get updated as we skip */
+     struct iovec *in_sg_ptr = in_sg_cpy;
+-    unsigned int in_sg_cpy_count = in_num;
++    int in_sg_cpy_count = in_num;
+ 
+     /* skip over parts of in_sg that contained the header iov */
+-    iov_discard_front(&in_sg_ptr, &in_sg_cpy_count, iov_len);
++    size_t skip_size = iov_len;
+ 
++    size_t in_sg_left = 0;
+     do {
+-        fuse_log(FUSE_LOG_DEBUG, "%s: in_sg_cpy_count=%d len remaining=%zd\n",
+-                 __func__, in_sg_cpy_count, len);
++        while (skip_size != 0 && in_sg_cpy_count) {
++            if (skip_size >= in_sg_ptr[0].iov_len) {
++                skip_size -= in_sg_ptr[0].iov_len;
++                in_sg_ptr++;
++                in_sg_cpy_count--;
++            } else {
++                in_sg_ptr[0].iov_len -= skip_size;
++                in_sg_ptr[0].iov_base += skip_size;
++                break;
++            }
++        }
+ 
++        int i;
++        for (i = 0, in_sg_left = 0; i < in_sg_cpy_count; i++) {
++            in_sg_left += in_sg_ptr[i].iov_len;
++        }
++        fuse_log(FUSE_LOG_DEBUG,
++                 "%s: after skip skip_size=%zd in_sg_cpy_count=%d "
++                 "in_sg_left=%zd\n",
++                 __func__, skip_size, in_sg_cpy_count, in_sg_left);
+         ret = preadv(buf->buf[0].fd, in_sg_ptr, in_sg_cpy_count,
+                      buf->buf[0].pos);
+ 
+         if (ret == -1) {
+             ret = errno;
+-            if (ret == EINTR) {
+-                continue;
+-            }
+             fuse_log(FUSE_LOG_DEBUG, "%s: preadv failed (%m) len=%zd\n",
+                      __func__, len);
+-            return ret;
+-        }
+-
+-        if (!ret) {
+-            /* EOF case? */
+-            fuse_log(FUSE_LOG_DEBUG, "%s: !ret len remaining=%zd\n", __func__,
+-                     len);
+-            break;
++            goto err;
+         }
+         fuse_log(FUSE_LOG_DEBUG, "%s: preadv ret=%d len=%zd\n", __func__,
+                  ret, len);
+-
+-        len -= ret;
+-        /* Short read. Retry reading remaining bytes */
+-        if (len) {
++        if (ret < len && ret) {
+             fuse_log(FUSE_LOG_DEBUG, "%s: ret < len\n", __func__);
+             /* Skip over this much next time around */
+-            iov_discard_front(&in_sg_ptr, &in_sg_cpy_count, ret);
++            skip_size = ret;
+             buf->buf[0].pos += ret;
++            len -= ret;
++
++            /* Lets do another read */
++            continue;
++        }
++        if (!ret) {
++            /* EOF case? */
++            fuse_log(FUSE_LOG_DEBUG, "%s: !ret in_sg_left=%zd\n", __func__,
++                     in_sg_left);
++            break;
+         }
+-    } while (len);
++        if (ret != len) {
++            fuse_log(FUSE_LOG_DEBUG, "%s: ret!=len\n", __func__);
++            ret = EIO;
++            goto err;
++        }
++        in_sg_left -= ret;
++        len -= ret;
++    } while (in_sg_left);
+ 
+     /* Need to fix out->len on EOF */
+     if (len) {
+@@ -436,14 +460,21 @@ int virtio_send_data_iov(struct fuse_session *se, struct fuse_chan *ch,
+         out_sg->len = tosend_len;
+     }
+ 
++    ret = 0;
++
+     vu_dispatch_rdlock(qi->virtio_dev);
+     pthread_mutex_lock(&qi->vq_lock);
+     vu_queue_push(dev, q, elem, tosend_len);
+     vu_queue_notify(dev, q);
+     pthread_mutex_unlock(&qi->vq_lock);
+     vu_dispatch_unlock(qi->virtio_dev);
+-    req->reply_sent = true;
+-    return 0;
++
++err:
++    if (ret == 0) {
++        req->reply_sent = true;
++    }
++
++    return ret;
+ }
+ 
+ static __thread bool clone_fs_called;
+diff --git a/ui/meson.build b/ui/meson.build
+index b5aed14886..a3a187d633 100644
+--- a/ui/meson.build
++++ b/ui/meson.build
+@@ -12,6 +12,7 @@ softmmu_ss.add(files(
+   'kbd-state.c',
+   'keymaps.c',
+   'qemu-pixman.c',
++  'udmabuf.c',
+ ))
+ softmmu_ss.add([spice_headers, files('spice-module.c')])
+ softmmu_ss.add(when: spice_protocol, if_true: files('vdagent.c'))
+diff --git a/ui/qemu-pixman.c b/ui/qemu-pixman.c
+index 85f2945e88..3ab7e2e958 100644
+--- a/ui/qemu-pixman.c
++++ b/ui/qemu-pixman.c
+@@ -89,21 +89,34 @@ pixman_format_code_t qemu_default_pixman_format(int bpp, bool native_endian)
+ }
+ 
+ /* Note: drm is little endian, pixman is native endian */
++static const struct {
++    uint32_t drm_format;
++    pixman_format_code_t pixman_format;
++} drm_format_pixman_map[] = {
++    { DRM_FORMAT_RGB888,   PIXMAN_LE_r8g8b8   },
++    { DRM_FORMAT_ARGB8888, PIXMAN_LE_a8r8g8b8 },
++    { DRM_FORMAT_XRGB8888, PIXMAN_LE_x8r8g8b8 }
++};
++
+ pixman_format_code_t qemu_drm_format_to_pixman(uint32_t drm_format)
+ {
+-    static const struct {
+-        uint32_t drm_format;
+-        pixman_format_code_t pixman;
+-    } map[] = {
+-        { DRM_FORMAT_RGB888,   PIXMAN_LE_r8g8b8   },
+-        { DRM_FORMAT_ARGB8888, PIXMAN_LE_a8r8g8b8 },
+-        { DRM_FORMAT_XRGB8888, PIXMAN_LE_x8r8g8b8 }
+-    };
+     int i;
+ 
+-    for (i = 0; i < ARRAY_SIZE(map); i++) {
+-        if (drm_format == map[i].drm_format) {
+-            return map[i].pixman;
++    for (i = 0; i < ARRAY_SIZE(drm_format_pixman_map); i++) {
++        if (drm_format == drm_format_pixman_map[i].drm_format) {
++            return drm_format_pixman_map[i].pixman_format;
++        }
++    }
++    return 0;
++}
++
++uint32_t qemu_pixman_to_drm_format(pixman_format_code_t pixman_format)
++{
++    int i;
++
++    for (i = 0; i < ARRAY_SIZE(drm_format_pixman_map); i++) {
++        if (pixman_format == drm_format_pixman_map[i].pixman_format) {
++            return drm_format_pixman_map[i].drm_format;
+         }
+     }
+     return 0;
+diff --git a/ui/udmabuf.c b/ui/udmabuf.c
+new file mode 100644
+index 0000000000..23abe1e7eb
+--- /dev/null
++++ b/ui/udmabuf.c
+@@ -0,0 +1,40 @@
++/*
++ * udmabuf helper functions.
++ *
++ * This work is licensed under the terms of the GNU GPL, version 2 or later.
++ * See the COPYING file in the top-level directory.
++ */
++#include "qemu/osdep.h"
++#include "qapi/error.h"
++#include "ui/console.h"
++
++#ifdef CONFIG_LINUX
++
++#include <fcntl.h>
++#include <sys/ioctl.h>
++
++int udmabuf_fd(void)
++{
++    static bool first = true;
++    static int udmabuf;
++
++    if (!first) {
++        return udmabuf;
++    }
++    first = false;
++
++    udmabuf = open("/dev/udmabuf", O_RDWR);
++    if (udmabuf < 0) {
++        warn_report("open /dev/udmabuf: %s", strerror(errno));
++    }
++    return udmabuf;
++}
++
++#else
++
++int udmabuf_fd(void)
++{
++    return -1;
++}
++
++#endif
+diff --git a/util/qemu-config.c b/util/qemu-config.c
+index 34974c4b47..670bd6ebca 100644
+--- a/util/qemu-config.c
++++ b/util/qemu-config.c
+@@ -16,7 +16,6 @@ static QemuOptsList *find_list(QemuOptsList **lists, const char *group,
+ {
+     int i;
+ 
+-    qemu_load_module_for_opts(group);
+     for (i = 0; lists[i] != NULL; i++) {
+         if (strcmp(lists[i]->name, group) == 0)
+             break;

@@ -1,0 +1,73 @@
+diff --git a/target/mips/cpu.c b/target/mips/cpu.c
+index d426918291..96236abc00 100644
+--- a/target/mips/cpu.c
++++ b/target/mips/cpu.c
+@@ -35,7 +35,7 @@
+ #include "qapi/qapi-commands-machine-target.h"
+ #include "fpu_helper.h"
+ 
+-const char regnames[32][3] = {
++const char regnames[32][4] = {
+     "r0", "at", "v0", "v1", "a0", "a1", "a2", "a3",
+     "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
+     "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
+diff --git a/target/mips/internal.h b/target/mips/internal.h
+index eecdd10116..18d5da64a5 100644
+--- a/target/mips/internal.h
++++ b/target/mips/internal.h
+@@ -74,7 +74,7 @@ struct mips_def_t {
+     int32_t SAARP;
+ };
+ 
+-extern const char regnames[32][3];
++extern const char regnames[32][4];
+ extern const char fregnames[32][4];
+ 
+ extern const struct mips_def_t mips_defs[];
+diff --git a/target/mips/tcg/msa_translate.c b/target/mips/tcg/msa_translate.c
+index b0df4f85df..ae6587edf6 100644
+--- a/target/mips/tcg/msa_translate.c
++++ b/target/mips/tcg/msa_translate.c
+@@ -255,7 +255,7 @@ enum {
+     OPC_BINSRI_df   = (0x7 << 23) | OPC_MSA_BIT_09,
+ };
+ 
+-static const char msaregnames[][6] = {
++static const char * const msaregnames[] = {
+     "w0.d0",  "w0.d1",  "w1.d0",  "w1.d1",
+     "w2.d0",  "w2.d1",  "w3.d0",  "w3.d1",
+     "w4.d0",  "w4.d1",  "w5.d0",  "w5.d1",
+diff --git a/target/mips/tcg/mxu_translate.c b/target/mips/tcg/mxu_translate.c
+index 963d4ba8b1..fb0a811af6 100644
+--- a/target/mips/tcg/mxu_translate.c
++++ b/target/mips/tcg/mxu_translate.c
+@@ -447,9 +447,9 @@ enum {
+ static TCGv mxu_gpr[NUMBER_OF_MXU_REGISTERS - 1];
+ static TCGv mxu_CR;
+ 
+-static const char mxuregnames[][4] = {
++static const char * const mxuregnames[] = {
+     "XR1",  "XR2",  "XR3",  "XR4",  "XR5",  "XR6",  "XR7",  "XR8",
+-    "XR9",  "XR10", "XR11", "XR12", "XR13", "XR14", "XR15", "XCR",
++    "XR9",  "XR10", "XR11", "XR12", "XR13", "XR14", "XR15", "MXU_CR",
+ };
+ 
+ void mxu_translate_init(void)
+diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
+index b4a454ec09..d248b5e5d2 100644
+--- a/target/mips/tcg/translate.c
++++ b/target/mips/tcg/translate.c
+@@ -1280,11 +1280,11 @@ TCGv_i64 fpu_f64[32];
+ #define DISAS_STOP       DISAS_TARGET_0
+ #define DISAS_EXIT       DISAS_TARGET_1
+ 
+-static const char regnames_HI[][4] = {
++static const char * const regnames_HI[] = {
+     "HI0", "HI1", "HI2", "HI3",
+ };
+ 
+-static const char regnames_LO[][4] = {
++static const char * const regnames_LO[] = {
+     "LO0", "LO1", "LO2", "LO3",
+ };
+ 

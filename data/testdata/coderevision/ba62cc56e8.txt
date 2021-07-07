@@ -1,0 +1,73 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 5c80b185cc..707b9cbd54 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -81,10 +81,3 @@ DEF_HELPER_FLAGS_4(mve_vsubw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vmulb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vmulh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vmulw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vmulhsb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmulhsh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmulhsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmulhub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmulhuh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmulhuw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index ca4c27209d..f7d1d303f1 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -82,9 +82,6 @@ VADD             1110 1111 0 . .. ... 0 ... 0 1000 . 1 . 0 ... 0 @2op
+ VSUB             1111 1111 0 . .. ... 0 ... 0 1000 . 1 . 0 ... 0 @2op
+ VMUL             1110 1111 0 . .. ... 0 ... 0 1001 . 1 . 1 ... 0 @2op
+ 
+-VMULH_S          111 0 1110 0 . .. ...1 ... 0 1110 . 0 . 0 ... 1 @2op
+-VMULH_U          111 1 1110 0 . .. ...1 ... 0 1110 . 0 . 0 ... 1 @2op
+-
+ # Vector miscellaneous
+ 
+ VCLS             1111 1111 1 . 11 .. 00 ... 0 0100 01 . 0 ... 0 @1op
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index f1dd688f78..23da96402e 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -362,29 +362,3 @@ DO_2OP(veor, 8, uint64_t, DO_EOR)
+ DO_2OP_U(vadd, DO_ADD)
+ DO_2OP_U(vsub, DO_SUB)
+ DO_2OP_U(vmul, DO_MUL)
+-
+-/*
+- * Because the computation type is at least twice as large as required,
+- * these work for both signed and unsigned source types.
+- */
+-static inline uint8_t do_mulh_b(int32_t n, int32_t m)
+-{
+-    return (n * m) >> 8;
+-}
+-
+-static inline uint16_t do_mulh_h(int32_t n, int32_t m)
+-{
+-    return (n * m) >> 16;
+-}
+-
+-static inline uint32_t do_mulh_w(int64_t n, int64_t m)
+-{
+-    return (n * m) >> 32;
+-}
+-
+-DO_2OP(vmulhsb, 1, int8_t, do_mulh_b)
+-DO_2OP(vmulhsh, 2, int16_t, do_mulh_h)
+-DO_2OP(vmulhsw, 4, int32_t, do_mulh_w)
+-DO_2OP(vmulhub, 1, uint8_t, do_mulh_b)
+-DO_2OP(vmulhuh, 2, uint16_t, do_mulh_h)
+-DO_2OP(vmulhuw, 4, uint32_t, do_mulh_w)
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index de7d8b6c75..5d3dee4699 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -347,5 +347,3 @@ DO_LOGIC(VEOR, gen_helper_mve_veor)
+ DO_2OP(VADD, vadd)
+ DO_2OP(VSUB, vsub)
+ DO_2OP(VMUL, vmul)
+-DO_2OP(VMULH_S, vmulhs)
+-DO_2OP(VMULH_U, vmulhu)

@@ -1,0 +1,30 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index a00efe6fea..d5ae8a9b21 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -65,20 +65,18 @@
+ # which will echo back the properly formatted JSON-compliant QMP that is being
+ # sent to QEMU, which is useful for debugging and documentation generation.
+ 
+-import ast
+-import atexit
+-import errno
+ import json
+-import os
+-import re
++import ast
+ import readline
+ import sys
+-
++import os
++import errno
++import atexit
++import re
+ 
+ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
+ from qemu import qmp
+ 
+-
+ class QMPCompleter(list):
+     def complete(self, text, state):
+         for cmd in self:

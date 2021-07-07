@@ -1,0 +1,20 @@
+commit 824f4bac9ffa2757293290c7edd065dc84a6521e
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 24 19:04:52 2021 +0200
+
+    accel/tcg: Reduce 'exec/tb-context.h' inclusion
+    
+    Only 2 headers require "exec/tb-context.h". Instead of having
+    all files including "exec/exec-all.h" also including it, directly
+    include it where it is required:
+    - accel/tcg/cpu-exec.c
+    - accel/tcg/translate-all.c
+    
+    For plugins/plugin.h, we were implicitly relying on
+      exec/exec-all.h -> exec/tb-context.h -> qemu/qht.h
+    which is now included directly.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Message-Id: <20210524170453.3791436-2-f4bug@amsat.org>
+    [rth: Fix plugins/plugin.h compilation]
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

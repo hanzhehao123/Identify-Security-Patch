@@ -1,0 +1,13 @@
+diff --git a/block/file-posix.c b/block/file-posix.c
+index b3fbb9bd63..4189b2bfa6 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -106,6 +106,8 @@
+ #include <xfs/xfs.h>
+ #endif
+ 
++#include "trace.h"
++
+ /* OS X does not have O_DSYNC */
+ #ifndef O_DSYNC
+ #ifdef O_SYNC

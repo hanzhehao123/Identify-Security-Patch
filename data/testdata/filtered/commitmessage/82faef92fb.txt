@@ -1,0 +1,16 @@
+commit 82faef92fb149b6bad699c3275473fda6fd486b6
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 3 18:12:57 2021 +0100
+
+    hw/acpi: Provide stub version of acpi_ghes_record_errors()
+    
+    Generic code in target/arm wants to call acpi_ghes_record_errors();
+    provide a stub version so that we don't fail to link when
+    CONFIG_ACPI_APEI is not set. This requires us to add a new
+    ghes-stub.c file to contain it and the meson.build mechanics
+    to use it when appropriate.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Dongjiu Geng <gengdongjiu1@gmail.com>
+    Message-id: 20210603171259.27962-2-peter.maydell@linaro.org

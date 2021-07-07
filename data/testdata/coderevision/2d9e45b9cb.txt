@@ -1,0 +1,35 @@
+diff --git a/.gitlab-ci.d/static_checks.yml b/.gitlab-ci.d/static_checks.yml
+index 91247a6f67..9c9a771b74 100644
+--- a/.gitlab-ci.d/static_checks.yml
++++ b/.gitlab-ci.d/static_checks.yml
+@@ -4,13 +4,12 @@ check-patch:
+   needs:
+     job: amd64-centos8-container
+   script: .gitlab-ci.d/check-patch.py
++  except:
++    variables:
++      - $CI_PROJECT_NAMESPACE == 'qemu-project' && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+   variables:
+     GIT_DEPTH: 1000
+-  rules:
+-    - if: '$CI_PROJECT_NAMESPACE == "qemu-project" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+-      when: never
+-    - when: on_success
+-      allow_failure: true
++  allow_failure: true
+ 
+ check-dco:
+   stage: build
+@@ -18,9 +17,8 @@ check-dco:
+   needs:
+     job: amd64-centos8-container
+   script: .gitlab-ci.d/check-dco.py
++  except:
++    variables:
++      - $CI_PROJECT_NAMESPACE == 'qemu-project' && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+   variables:
+     GIT_DEPTH: 1000
+-  rules:
+-    - if: '$CI_PROJECT_NAMESPACE == "qemu-project" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+-      when: never
+-    - when: on_success

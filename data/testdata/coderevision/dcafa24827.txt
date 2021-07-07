@@ -1,0 +1,22 @@
+diff --git a/accel/kvm/kvm-all.c b/accel/kvm/kvm-all.c
+index e5b10dd129..c7ec538850 100644
+--- a/accel/kvm/kvm-all.c
++++ b/accel/kvm/kvm-all.c
+@@ -411,7 +411,7 @@ static int do_kvm_destroy_vcpu(CPUState *cpu)
+     }
+ 
+     if (cpu->kvm_dirty_gfns) {
+-        ret = munmap(cpu->kvm_dirty_gfns, s->kvm_dirty_ring_bytes);
++        ret = munmap(cpu->kvm_dirty_gfns, s->kvm_dirty_ring_size);
+         if (ret < 0) {
+             goto err;
+         }
+@@ -495,7 +495,7 @@ int kvm_init_vcpu(CPUState *cpu, Error **errp)
+ 
+     if (s->kvm_dirty_ring_size) {
+         /* Use MAP_SHARED to share pages with the kernel */
+-        cpu->kvm_dirty_gfns = mmap(NULL, s->kvm_dirty_ring_bytes,
++        cpu->kvm_dirty_gfns = mmap(NULL, s->kvm_dirty_ring_size,
+                                    PROT_READ | PROT_WRITE, MAP_SHARED,
+                                    cpu->kvm_fd,
+                                    PAGE_SIZE * KVM_DIRTY_LOG_PAGE_OFFSET);

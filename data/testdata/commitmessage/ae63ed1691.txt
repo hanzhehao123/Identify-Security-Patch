@@ -1,0 +1,15 @@
+commit ae63ed16916304665b45759751a5062638211c14
+Author: Luis Pires <luis.pires@eldorado.org.br>
+Date:   Wed Jun 23 11:27:43 2021 +0100
+
+    docs/devel: Add a single top-level header to MTTCG's doc
+    
+    Without a single top-level header in the .rst file, the index ended
+    up linking to all of the top-level headers separately. Now the index
+    links to the top-level header at the beginning of the document and
+    any inner headers are correctly linked as sub-items in the index.
+    
+    Signed-off-by: Luis Pires <luis.pires@eldorado.org.br>
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-Id: <20210528123526.144065-1-luis.pires@eldorado.org.br>
+    Message-Id: <20210623102749.25686-3-alex.bennee@linaro.org>

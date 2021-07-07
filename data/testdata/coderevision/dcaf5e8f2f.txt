@@ -1,0 +1,20 @@
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index 09ac74fc50..ccd11e1625 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -373,6 +373,15 @@ build-user-plugins:
+     MAKE_CHECK_ARGS: check-tcg
+   timeout: 1h 30m
+ 
++build-user-centos7:
++  extends: .native_build_job_template
++  needs:
++    job: amd64-centos7-container
++  variables:
++    IMAGE: centos7
++    CONFIGURE_ARGS: --disable-system --disable-tools --disable-docs
++    MAKE_CHECK_ARGS: check-tcg
++
+ build-some-softmmu-plugins:
+   extends: .native_build_job_template
+   needs:

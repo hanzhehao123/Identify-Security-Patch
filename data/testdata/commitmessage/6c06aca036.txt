@@ -1,0 +1,10 @@
+commit 6c06aca03678e72ed05aa0762d0935c81f06bfcc
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 16:31:37 2021 -0700
+
+    softfloat: Use _Generic instead of QEMU_GENERIC
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-Id: <20210614233143.1221879-3-richard.henderson@linaro.org>

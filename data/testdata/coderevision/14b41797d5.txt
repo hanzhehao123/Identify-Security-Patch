@@ -1,0 +1,27 @@
+diff --git a/python/qemu/machine.py b/python/qemu/machine.py
+index 04e005f381..5b87e9ce02 100644
+--- a/python/qemu/machine.py
++++ b/python/qemu/machine.py
+@@ -223,16 +223,13 @@ def send_fd_scm(self, fd: Optional[int] = None,
+             assert fd is not None
+             fd_param.append(str(fd))
+ 
+-        proc = subprocess.run(
+-            fd_param,
+-            stdin=subprocess.DEVNULL,
+-            stdout=subprocess.PIPE,
+-            stderr=subprocess.STDOUT,
+-            check=False,
+-            close_fds=False,
++        proc = subprocess.Popen(
++            fd_param, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
++            stderr=subprocess.STDOUT, close_fds=False
+         )
+-        if proc.stdout:
+-            LOG.debug(proc.stdout)
++        output = proc.communicate()[0]
++        if output:
++            LOG.debug(output)
+ 
+         return proc.returncode
+ 

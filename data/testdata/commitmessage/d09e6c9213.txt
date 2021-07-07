@@ -1,0 +1,16 @@
+commit d09e6c921301d4377c73e0bc9010b52f201862dd
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 20:07:42 2021 -0700
+
+    target/s390x: Improve s390_cpu_dump_state vs cc_op
+    
+    Use s390_cpu_get_psw_mask so that we print the correct
+    architectural value of psw.mask.  Do not print cc_op
+    unless tcg_enabled.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: David Hildenbrand <david@redhat.com>
+    Tested-by: jonathan.albrecht <jonathan.albrecht@linux.vnet.ibm.com>
+    Tested-by: <ruixin.bao@ibm.com>
+    Message-Id: <20210615030744.1252385-4-richard.henderson@linaro.org>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

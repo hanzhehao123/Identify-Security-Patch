@@ -1,0 +1,41 @@
+diff --git a/hmp-commands.hx b/hmp-commands.hx
+index 146a13c896..435c591a1c 100644
+--- a/hmp-commands.hx
++++ b/hmp-commands.hx
+@@ -1297,7 +1297,6 @@ ERST
+         .help       = "create QOM object",
+         .cmd        = hmp_object_add,
+         .command_completion = object_add_completion,
+-        .flags      = "p",
+     },
+ 
+ SRST
+@@ -1312,7 +1311,6 @@ ERST
+         .help       = "destroy QOM object",
+         .cmd        = hmp_object_del,
+         .command_completion = object_del_completion,
+-        .flags      = "p",
+     },
+ 
+ SRST
+diff --git a/qapi/qom.json b/qapi/qom.json
+index 4f48035831..40d70c434a 100644
+--- a/qapi/qom.json
++++ b/qapi/qom.json
+@@ -857,8 +857,7 @@
+ # <- { "return": {} }
+ #
+ ##
+-{ 'command': 'object-add', 'data': 'ObjectOptions', 'boxed': true,
+-  'allow-preconfig': true }
++{ 'command': 'object-add', 'data': 'ObjectOptions', 'boxed': true }
+ 
+ ##
+ # @object-del:
+@@ -878,5 +877,4 @@
+ # <- { "return": {} }
+ #
+ ##
+-{ 'command': 'object-del', 'data': {'id': 'str'},
+-  'allow-preconfig': true }
++{ 'command': 'object-del', 'data': {'id': 'str'} }

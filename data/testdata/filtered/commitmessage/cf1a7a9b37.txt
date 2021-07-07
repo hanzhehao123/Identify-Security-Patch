@@ -1,0 +1,13 @@
+commit cf1a7a9b3721544aaa3e43d111eb383c30d71a62
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Tue May 18 22:25:10 2021 +0100
+
+    esp: only assert INTR_DC interrupt flag if selection fails
+    
+    The datasheet sequence tables confirm that when a target selection fails, only
+    the INTR_DC interrupt flag should be asserted.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Fixes: cf47a41e05 ("esp: latch individual bits in ESP_RINTR register")
+    Message-Id: <20210518212511.21688-2-mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

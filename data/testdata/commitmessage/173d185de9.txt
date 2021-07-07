@@ -1,0 +1,13 @@
+commit 173d185de98c4ee358e5615cedcd8773719586c0
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:17 2021 -0400
+
+    scripts/qom-fuse: move to python/qemu/qmp/qom_fuse.py
+    
+    Move qom-fuse over to the python package now that it passes the
+    linter. Update the import paradigms so that it continues to pass in the
+    context of the Python package.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210603003719.1321369-18-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

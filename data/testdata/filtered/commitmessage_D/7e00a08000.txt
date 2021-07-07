@@ -1,0 +1,12 @@
+commit 7e00a0800051655e6fdd85ad5dd6fcadafc2dc47
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Feb 1 11:30:30 2021 -1000
+
+    tcg/tci: Remove tci_write_reg
+    
+    Inline it into its one caller, tci_write_reg64.
+    Drop the asserts that are redundant with tcg_read_r.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

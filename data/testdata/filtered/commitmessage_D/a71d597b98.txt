@@ -1,0 +1,14 @@
+commit a71d597b989fd701b923f09b3c20ac4fcaa55e81
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:08:00 2021 +0300
+
+    block/nbd: reuse nbd_co_do_establish_connection() in nbd_open()
+    
+    The only last step we need to reuse the function is coroutine-wrapper.
+    nbd_open() may be called from non-coroutine context. So, generate the
+    wrapper and use it.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-31-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

@@ -1,0 +1,15 @@
+commit f64766976d39fbf2b81a25b5c5f043180383d408
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 23 11:27:45 2021 +0100
+
+    GitLab: Add "Bug" issue reporting template
+    
+    Based loosely on libvirt's template, written by Peter Krempa.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+    CC: Peter Krempa <pkrempa@redhat.com>
+    Message-Id: <20210607153155.1760158-2-jsnow@redhat.com>
+    Message-Id: <20210623102749.25686-5-alex.bennee@linaro.org>

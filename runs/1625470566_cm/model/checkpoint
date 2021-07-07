@@ -1,0 +1,2 @@
+model_checkpoint_path: "D:\\HarmonyOS\350\256\255\347\273\203\350\220\245\\TextClassification-master\\runs\\1625470566\\model/clf-1000"
+all_model_checkpoint_paths: "D:\\HarmonyOS\350\256\255\347\273\203\350\220\245\\TextClassification-master\\runs\\1625470566\\model/clf-1000"

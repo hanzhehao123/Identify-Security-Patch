@@ -1,0 +1,18 @@
+commit fa95e9fbab2c19fc07ba82988b1690f8a6ff171b
+Author: Thomas Huth <thuth@redhat.com>
+Date:   Thu May 27 19:20:20 2021 +0200
+
+    block/file-posix: Try other fallbacks after invalid FALLOC_FL_ZERO_RANGE
+    
+    If fallocate(... FALLOC_FL_ZERO_RANGE ...) returns EINVAL, it's likely
+    an indication that the file system is buggy and does not implement
+    unaligned accesses right. We still might be lucky with the other
+    fallback fallocate() calls later in this function, though, so we should
+    not return immediately and try the others first.
+    Since FALLOC_FL_ZERO_RANGE could also return EINVAL if the file descriptor
+    is not a regular file, we ignore this filesystem bug silently, without
+    printing an error message for the user.
+    
+    Signed-off-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210527172020.847617-3-thuth@redhat.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

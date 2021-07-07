@@ -1,0 +1,41 @@
+commit c8616fc7670b884de5f74d2767aade224c1c5c3a
+Merge: c5847f5e4e 2d9e45b9cb
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu May 27 16:32:57 2021 +0100
+
+    Merge remote-tracking branch 'remotes/philmd/tags/gitlab-ci-20210527' into staging
+    
+    GitLab CI patches queue
+    
+    - Explode .gitlab-ci.yml in reusable templates
+    - Add job to cross build/test TCI on i386 host
+    - Remove CentOS 7 linux-user build job
+    - Temporarily set Avocado-based jobs in manual mode
+    - Increase time to hold Avocado reports to 1 week
+    
+    # gpg: Signature made Thu 27 May 2021 15:40:58 BST
+    # gpg:                using RSA key FAABE75E12917221DCFD6BB2E3E32C2CDEADC0DE
+    # gpg: Good signature from "Philippe Mathieu-Daudé (F4BUG) <f4bug@amsat.org>" [full]
+    # Primary key fingerprint: FAAB E75E 1291 7221 DCFD  6BB2 E3E3 2C2C DEAD C0DE
+    
+    * remotes/philmd/tags/gitlab-ci-20210527:
+      gitlab: Convert check-dco/check-patch jobs to the 'rules' syntax
+      gitlab: Use $CI_DEFAULT_BRANCH instead of hardcoded 'master'
+      gitlab: Run Avocado tests manually (except mainstream CI)
+      gitlab: Keep Avocado reports during 1 week
+      gitlab: Extract cross-container jobs to container-cross.yml
+      gitlab: Document how forks can use different set of jobs
+      gitlab: Move current job set to qemu-project.yml
+      gitlab: Extract all default build/test jobs to buildtest.yml
+      gitlab: Drop linux user build job for CentOS 7
+      gitlab: Extract core container jobs to container-core.yml
+      gitlab: Extract default build/test jobs templates
+      gitlab: Extract build stages to stages.yml
+      gitlab: Extract DCO/style check jobs to static_checks.yml
+      gitlab: Extract crossbuild job templates to crossbuild-template.yml
+      gitlab: Extract container job template to container-template.yml
+      gitlab: Enable cross-i386 builds of TCI
+      gitlab: Rename ACCEL_CONFIGURE_OPTS to EXTRA_CONFIGURE_OPTS
+      gitlab: Replace YAML anchors by extends (acceptance_test_job)
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

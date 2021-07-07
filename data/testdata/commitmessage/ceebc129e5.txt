@@ -1,0 +1,13 @@
+commit ceebc129e51ea3aa8dc81321046ed42432c49511
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 17 16:27:36 2021 +0200
+
+    softfloat: Implement float128_(min|minnum|minnummag|max|maxnum|maxnummag)
+    
+    The float128 implementation is straight-forward.
+    Unfortuantely, we don't have any tests we can simply adjust/unlock.
+    
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210517142739.38597-24-david@redhat.com>
+    [rth: Update for changed parts_minmax return value]
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

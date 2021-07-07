@@ -1,0 +1,31 @@
+diff --git a/block/file-posix.c b/block/file-posix.c
+index 5ff78ecb34..f37dfc10b3 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -160,7 +160,7 @@ typedef struct BDRVRawState {
+     bool discard_zeroes:1;
+     bool use_linux_aio:1;
+     bool use_linux_io_uring:1;
+-    int page_cache_inconsistent; /* errno from fdatasync failure */
++    bool page_cache_inconsistent:1;
+     bool has_fallocate;
+     bool needs_alignment;
+     bool drop_cache;
+@@ -1333,7 +1333,7 @@ static int handle_aiocb_flush(void *opaque)
+     int ret;
+ 
+     if (s->page_cache_inconsistent) {
+-        return -s->page_cache_inconsistent;
++        return -EIO;
+     }
+ 
+     ret = qemu_fdatasync(aiocb->aio_fildes);
+@@ -1352,7 +1352,7 @@ static int handle_aiocb_flush(void *opaque)
+          * Obviously, this doesn't affect O_DIRECT, which bypasses the page
+          * cache. */
+         if ((s->open_flags & O_DIRECT) == 0) {
+-            s->page_cache_inconsistent = errno;
++            s->page_cache_inconsistent = true;
+         }
+         return -errno;
+     }

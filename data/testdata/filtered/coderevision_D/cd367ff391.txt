@@ -1,0 +1,79 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 5181d3b941..0e496971f0 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -95,17 +95,3 @@ DEF_HELPER_FLAGS_4(mve_vrmulhsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vrmulhub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vrmulhuh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vrmulhuw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vmaxsb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmaxsh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmaxsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmaxub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmaxuh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmaxuw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vminsb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vminsh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vminsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vminub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vminuh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vminuw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index 42d5504500..4ab6c9dba9 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -88,11 +88,6 @@ VMULH_U          111 1 1110 0 . .. ...1 ... 0 1110 . 0 . 0 ... 1 @2op
+ VRMULH_S         111 0 1110 0 . .. ...1 ... 1 1110 . 0 . 0 ... 1 @2op
+ VRMULH_U         111 1 1110 0 . .. ...1 ... 1 1110 . 0 . 0 ... 1 @2op
+ 
+-VMAX_S           111 0 1111 0 . .. ... 0 ... 0 0110 . 1 . 0 ... 0 @2op
+-VMAX_U           111 1 1111 0 . .. ... 0 ... 0 0110 . 1 . 0 ... 0 @2op
+-VMIN_S           111 0 1111 0 . .. ... 0 ... 0 0110 . 1 . 1 ... 0 @2op
+-VMIN_U           111 1 1111 0 . .. ... 0 ... 0 0110 . 1 . 1 ... 0 @2op
+-
+ # Vector miscellaneous
+ 
+ VCLS             1111 1111 1 . 11 .. 00 ... 0 0100 01 . 0 ... 0 @1op
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index c040e42bda..6cd47d3458 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -343,12 +343,6 @@ DO_1OP(vfnegs, 8, uint64_t, DO_FNEGS)
+     DO_2OP(OP##h, 2, uint16_t, FN)              \
+     DO_2OP(OP##w, 4, uint32_t, FN)
+ 
+-/* provide signed 2-op helpers for all sizes */
+-#define DO_2OP_S(OP, FN)                        \
+-    DO_2OP(OP##b, 1, int8_t, FN)                \
+-    DO_2OP(OP##h, 2, int16_t, FN)               \
+-    DO_2OP(OP##w, 4, int32_t, FN)
+-
+ #define DO_AND(N, M)  ((N) & (M))
+ #define DO_BIC(N, M)  ((N) & ~(M))
+ #define DO_ORR(N, M)  ((N) | (M))
+@@ -416,11 +410,3 @@ DO_2OP(vrmulhsw, 4, int32_t, do_rmulh_w)
+ DO_2OP(vrmulhub, 1, uint8_t, do_rmulh_b)
+ DO_2OP(vrmulhuh, 2, uint16_t, do_rmulh_h)
+ DO_2OP(vrmulhuw, 4, uint32_t, do_rmulh_w)
+-
+-#define DO_MAX(N, M)  ((N) >= (M) ? (N) : (M))
+-#define DO_MIN(N, M)  ((N) >= (M) ? (M) : (N))
+-
+-DO_2OP_S(vmaxs, DO_MAX)
+-DO_2OP_U(vmaxu, DO_MAX)
+-DO_2OP_S(vmins, DO_MIN)
+-DO_2OP_U(vminu, DO_MIN)
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index 107c393a99..bc66058fd3 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -351,7 +351,3 @@ DO_2OP(VMULH_S, vmulhs)
+ DO_2OP(VMULH_U, vmulhu)
+ DO_2OP(VRMULH_S, vrmulhs)
+ DO_2OP(VRMULH_U, vrmulhu)
+-DO_2OP(VMAX_S, vmaxs)
+-DO_2OP(VMAX_U, vmaxu)
+-DO_2OP(VMIN_S, vmins)
+-DO_2OP(VMIN_U, vminu)

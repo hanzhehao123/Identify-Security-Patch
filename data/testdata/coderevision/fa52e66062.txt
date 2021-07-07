@@ -1,0 +1,46 @@
+diff --git a/tcg/tcg-internal.h b/tcg/tcg-internal.h
+index 92c91dcde9..6ab8910210 100644
+--- a/tcg/tcg-internal.h
++++ b/tcg/tcg-internal.h
+@@ -44,11 +44,6 @@ bool tcg_region_alloc(TCGContext *s);
+ void tcg_region_initial_alloc(TCGContext *s);
+ void tcg_region_prologue_set(TCGContext *s);
+ 
+-static inline void *tcg_call_func(TCGOp *op)
+-{
+-    return (void *)(uintptr_t)op->args[TCGOP_CALLO(op) + TCGOP_CALLI(op)];
+-}
+-
+ static inline const TCGHelperInfo *tcg_call_info(TCGOp *op)
+ {
+     return (void *)(uintptr_t)op->args[TCGOP_CALLO(op) + TCGOP_CALLI(op) + 1];
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index 8f4f1711cd..0dc99cc65b 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -1740,7 +1740,7 @@ static void tcg_dump_ops(TCGContext *s, bool have_prefs)
+             }
+         } else if (c == INDEX_op_call) {
+             const TCGHelperInfo *info = tcg_call_info(op);
+-            void *func = tcg_call_func(op);
++            void *func;
+ 
+             /* variable number of arguments */
+             nb_oargs = TCGOP_CALLO(op);
+@@ -1754,6 +1754,7 @@ static void tcg_dump_ops(TCGContext *s, bool have_prefs)
+              * Note that plugins have a template function for the info,
+              * but the actual function pointer comes from the plugin.
+              */
++            func = (void *)(uintptr_t)op->args[nb_oargs + nb_iargs];
+             if (func == info->func) {
+                 col += qemu_log("%s", info->name);
+             } else {
+@@ -3788,7 +3789,7 @@ static void tcg_reg_alloc_call(TCGContext *s, TCGOp *op)
+     int allocate_args;
+     TCGRegSet allocated_regs;
+ 
+-    func_addr = tcg_call_func(op);
++    func_addr = (tcg_insn_unit *)(intptr_t)op->args[nb_oargs + nb_iargs];
+     flags = tcg_call_flags(op);
+ 
+     nb_regs = ARRAY_SIZE(tcg_target_call_iarg_regs);

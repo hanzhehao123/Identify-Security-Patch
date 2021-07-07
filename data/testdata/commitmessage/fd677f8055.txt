@@ -1,0 +1,13 @@
+commit fd677f8055fa88d72f01eb9aeb1dd90606d85444
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:20 2021 +0100
+
+    target/arm: Implement MVE VQDMLADH and VQRDMLADH
+    
+    Implement the MVE VQDMLADH and VQRDMLADH insns.  These multiply
+    elements, and then add pairs of products, double, possibly round,
+    saturate and return the high half of the result.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-37-peter.maydell@linaro.org

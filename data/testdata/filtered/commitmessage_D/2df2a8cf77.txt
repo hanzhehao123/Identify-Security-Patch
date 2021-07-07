@@ -1,0 +1,8 @@
+commit 2df2a8cf77e76370698164e3d361e07075d2a699
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon May 3 16:48:07 2021 -0700
+
+    tcg/arm: Implement tcg_out_mov for vector types
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

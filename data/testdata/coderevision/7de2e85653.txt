@@ -1,0 +1,93 @@
+diff --git a/migration/channel.c b/migration/channel.c
+index 01275a9162..c9ee902021 100644
+--- a/migration/channel.c
++++ b/migration/channel.c
+@@ -38,19 +38,18 @@ void migration_channel_process_incoming(QIOChannel *ioc)
+     trace_migration_set_incoming_channel(
+         ioc, object_get_typename(OBJECT(ioc)));
+ 
++    if (object_dynamic_cast(OBJECT(ioc), TYPE_QIO_CHANNEL_SOCKET)) {
++        yank_register_function(MIGRATION_YANK_INSTANCE,
++                               migration_yank_iochannel,
++                               QIO_CHANNEL(ioc));
++    }
++
+     if (s->parameters.tls_creds &&
+         *s->parameters.tls_creds &&
+         !object_dynamic_cast(OBJECT(ioc),
+                              TYPE_QIO_CHANNEL_TLS)) {
+         migration_tls_channel_process_incoming(s, ioc, &local_err);
+     } else {
+-        if (object_dynamic_cast(OBJECT(ioc), TYPE_QIO_CHANNEL_SOCKET) ||
+-            object_dynamic_cast(OBJECT(ioc), TYPE_QIO_CHANNEL_TLS)) {
+-            yank_register_function(MIGRATION_YANK_INSTANCE,
+-                                   migration_yank_iochannel,
+-                                   QIO_CHANNEL(ioc));
+-        }
+-
+         migration_ioc_process_incoming(ioc, &local_err);
+     }
+ 
+@@ -77,6 +76,12 @@ void migration_channel_connect(MigrationState *s,
+         ioc, object_get_typename(OBJECT(ioc)), hostname, error);
+ 
+     if (!error) {
++        if (object_dynamic_cast(OBJECT(ioc), TYPE_QIO_CHANNEL_SOCKET)) {
++            yank_register_function(MIGRATION_YANK_INSTANCE,
++                                   migration_yank_iochannel,
++                                   QIO_CHANNEL(ioc));
++        }
++
+         if (s->parameters.tls_creds &&
+             *s->parameters.tls_creds &&
+             !object_dynamic_cast(OBJECT(ioc),
+@@ -94,13 +99,6 @@ void migration_channel_connect(MigrationState *s,
+         } else {
+             QEMUFile *f = qemu_fopen_channel_output(ioc);
+ 
+-            if (object_dynamic_cast(OBJECT(ioc), TYPE_QIO_CHANNEL_SOCKET) ||
+-                object_dynamic_cast(OBJECT(ioc), TYPE_QIO_CHANNEL_TLS)) {
+-                yank_register_function(MIGRATION_YANK_INSTANCE,
+-                                       migration_yank_iochannel,
+-                                       QIO_CHANNEL(ioc));
+-            }
+-
+             qemu_mutex_lock(&s->qemu_file_lock);
+             s->to_dst_file = f;
+             qemu_mutex_unlock(&s->qemu_file_lock);
+diff --git a/migration/multifd.c b/migration/multifd.c
+index 2e8f001bc0..0a4803cfcc 100644
+--- a/migration/multifd.c
++++ b/migration/multifd.c
+@@ -987,8 +987,7 @@ int multifd_load_cleanup(Error **errp)
+     for (i = 0; i < migrate_multifd_channels(); i++) {
+         MultiFDRecvParams *p = &multifd_recv_state->params[i];
+ 
+-        if ((object_dynamic_cast(OBJECT(p->c), TYPE_QIO_CHANNEL_SOCKET) ||
+-             object_dynamic_cast(OBJECT(p->c), TYPE_QIO_CHANNEL_TLS))
++        if (object_dynamic_cast(OBJECT(p->c), TYPE_QIO_CHANNEL_SOCKET)
+             && OBJECT(p->c)->ref == 1) {
+             yank_unregister_function(MIGRATION_YANK_INSTANCE,
+                                      migration_yank_iochannel,
+diff --git a/migration/qemu-file-channel.c b/migration/qemu-file-channel.c
+index fad340ea7a..876d05a540 100644
+--- a/migration/qemu-file-channel.c
++++ b/migration/qemu-file-channel.c
+@@ -26,7 +26,6 @@
+ #include "qemu-file-channel.h"
+ #include "qemu-file.h"
+ #include "io/channel-socket.h"
+-#include "io/channel-tls.h"
+ #include "qemu/iov.h"
+ #include "qemu/yank.h"
+ #include "yank_functions.h"
+@@ -107,8 +106,7 @@ static int channel_close(void *opaque, Error **errp)
+     int ret;
+     QIOChannel *ioc = QIO_CHANNEL(opaque);
+     ret = qio_channel_close(ioc, errp);
+-    if ((object_dynamic_cast(OBJECT(ioc), TYPE_QIO_CHANNEL_SOCKET) ||
+-         object_dynamic_cast(OBJECT(ioc), TYPE_QIO_CHANNEL_TLS))
++    if (object_dynamic_cast(OBJECT(ioc), TYPE_QIO_CHANNEL_SOCKET)
+         && OBJECT(ioc)->ref == 1) {
+         yank_unregister_function(MIGRATION_YANK_INSTANCE,
+                                  migration_yank_iochannel,

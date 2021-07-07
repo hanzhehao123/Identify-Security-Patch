@@ -1,0 +1,16 @@
+commit d8c6a89968906af24ab27acd936013d3f937fc16
+Author: Cleber Rosa <crosa@redhat.com>
+Date:   Mon Apr 12 00:46:39 2021 -0400
+
+    Acceptance Tests: make username/password configurable
+    
+    This makes the username/password used for authentication configurable,
+    because some guest operating systems may have restrictions on accounts
+    to be used for logins, and it just makes it better documented.
+    
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Reviewed-by: Eric Auger <eric.auger@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210412044644.55083-7-crosa@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>

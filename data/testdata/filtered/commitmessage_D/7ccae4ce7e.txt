@@ -1,0 +1,13 @@
+commit 7ccae4ce7e4bb7c2f873986b6b6b0fc680e0a8bd
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 21 17:32:01 2020 -0800
+
+    tests/fp/fp-test: Reverse order of floatx80 precision tests
+    
+    Many qemu softfloat will check floatx80_rounding_precision
+    even when berkeley testfloat will not.  So begin with
+    floatx80_precision_x, so that's the one we use
+    when !FUNC_EFF_ROUNDINGPRECISION.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

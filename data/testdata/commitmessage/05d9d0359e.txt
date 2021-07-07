@@ -1,0 +1,13 @@
+commit 05d9d0359e6da7dc8255712d745d079a04fa5ae5
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sat May 22 20:16:15 2021 +0200
+
+    target/mips: Do not abort on invalid instruction
+    
+    On real hardware an invalid instruction doesn't halt the world,
+    but usually triggers a RESERVED INSTRUCTION exception.
+    TCG guest code shouldn't abort QEMU anyway.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210617174323.2900831-2-f4bug@amsat.org>

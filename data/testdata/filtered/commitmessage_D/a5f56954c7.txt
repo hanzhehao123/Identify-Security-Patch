@@ -1,0 +1,10 @@
+commit a5f56954c798f81a58f7f68e82143d13bb73509b
+Author: Matheus Ferst <matheus.ferst@eldorado.org.br>
+Date:   Tue Jun 1 16:35:26 2021 -0300
+
+    target/ppc: Implement vcfuged instruction
+    
+    Signed-off-by: Matheus Ferst <matheus.ferst@eldorado.org.br>
+    Message-Id: <20210601193528.2533031-13-matheus.ferst@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

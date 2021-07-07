@@ -1,0 +1,14 @@
+commit 75eebe0b1f15464d19a39c4186bfabf328ab601a
+Author: Katsuhiro Ueno <uenobk@gmail.com>
+Date:   Thu Apr 29 11:43:07 2021 +0900
+
+    meson: Set implicit_include_directories to false
+    
+    Without this, libvixl cannot be compiled with macOS 11.3 SDK due to
+    include file name conflict (usr/include/c++/v1/version conflicts with
+    VERSION).
+    
+    Signed-off-by: Katsuhiro Ueno <uenobk@gmail.com>
+    Message-Id: <CA+pCdY09+OQfXq3YmRNuQE59ACOq7Py2q4hqOwgq4PnepCXhTA@mail.gmail.com>
+    Tested-by: Alexander Graf <agraf@csgraf.de>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

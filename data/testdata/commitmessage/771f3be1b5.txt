@@ -1,0 +1,17 @@
+commit 771f3be1b5d6c540c427bc7274ab36e2cccba694
+Author: Thomas Huth <thuth@redhat.com>
+Date:   Mon Jun 7 19:42:50 2021 +0200
+
+    docs/tools/virtiofsd.rst: Do not hard-code the QEMU binary name
+    
+    In downstream, we want to use a different name for the QEMU binary,
+    and some people might also use the docs for non-x86 binaries, that's
+    why we already created the |qemu_system| placeholder in the past.
+    Use it now in the virtiofsd doc, too.
+    
+    Signed-off-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Message-Id: <20210607174250.920226-1-thuth@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

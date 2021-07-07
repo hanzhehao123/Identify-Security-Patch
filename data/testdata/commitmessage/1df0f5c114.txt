@@ -1,0 +1,12 @@
+commit 1df0f5c1141958368d7473c7bfe8beac7bf86385
+Author: Ilya Leoshkevich <iii@linux.ibm.com>
+Date:   Tue Jun 1 16:56:00 2021 +0200
+
+    tests/tcg/linux-test: Check that sigaction can query SIGKILL/SIGSTOP
+    
+    Verify that querying is allowed, but making changes isn't.
+    
+    Signed-off-by: Ilya Leoshkevich <iii@linux.ibm.com>
+    Reviewed-by: Laurent Vivier <laurent@vivier.eu>
+    Message-Id: <20210601145600.3131040-3-iii@linux.ibm.com>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

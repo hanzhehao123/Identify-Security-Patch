@@ -1,0 +1,14 @@
+commit 9d74e6c3e763ef4095c8a5f853e175b4a9c710a2
+Author: Volker Rümelin <vr_qemu@t-online.de>
+Date:   Tue May 25 20:14:41 2021 +0200
+
+    pckbd: clear outport_present in outer pre_load()
+    
+    The variable outport_present is a flag to show if the outport
+    subsection was loaded. Clear the outport_present flag in the
+    outer pre_load() function. This method is recommended in the QEMU
+    manual for developers in the chapter "Migration, Subsections".
+    
+    Signed-off-by: Volker Rümelin <vr_qemu@t-online.de>
+    Message-Id: <20210525181441.27768-12-vr_qemu@t-online.de>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

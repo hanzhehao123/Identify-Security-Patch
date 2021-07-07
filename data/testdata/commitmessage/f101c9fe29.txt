@@ -1,0 +1,22 @@
+commit f101c9fe29cfb009a7e20b68142a575b3384a4d0
+Author: Alex Bennée <alex.bennee@linaro.org>
+Date:   Wed Jun 23 11:27:47 2021 +0100
+
+    tests/tcg: skip the signals test for hppa/s390x for now
+    
+    There are fixes currently in flight but as this is getting in the way
+    of a green CI we might as well skip for now. For reference the fix
+    series are:
+    
+      linux-user: Move signal trampolines to new page
+      20210616011209.1446045-1-richard.henderson@linaro.org
+    
+    and
+    
+      linux-user: Load a vdso for x86_64 and hppa
+      20210619034329.532318-1-richard.henderson@linaro.org
+    
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Acked-by: Cornelia Huck <cohuck@redhat.com>
+    Cc: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210623102749.25686-7-alex.bennee@linaro.org>

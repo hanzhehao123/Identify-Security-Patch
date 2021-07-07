@@ -1,0 +1,23 @@
+commit 6e802db3c418e522b25a16fd74ea6d98fc2a1480
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 16:09:11 2021 +0100
+
+    target/arm: Provide and use H8 and H1_8 macros
+    
+    Currently we provide Hn and H1_n macros for accessing the correct
+    data within arrays of vector elements of size 1, 2 and 4, accounting
+    for host endianness.  We don't provide any macros for elements of
+    size 8 because there the host endianness doesn't matter.  However,
+    this does result in awkwardness where we need to pass empty arguments
+    to macros, because checkpatch complains about them.  The empty
+    argument is a little confusing for humans to read as well.
+    
+    Add H8() and H1_8() macros and use them where we were previously
+    passing empty arguments to macros.
+    
+    Suggested-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210614151007.4545-2-peter.maydell@linaro.org
+    Message-id: 20210610132505.5827-1-peter.maydell@linaro.org

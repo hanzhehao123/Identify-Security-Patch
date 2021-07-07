@@ -1,0 +1,15 @@
+commit deb60cc77b6743b65d1e830300b6d56ba538b103
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 20:07:43 2021 -0700
+
+    target/s390x: Use s390_cpu_{set_psw, get_psw_mask} in gdbstub
+    
+    No change in behaviour, as gdbstub was correctly written to
+    install and extract the cc value.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: David Hildenbrand <david@redhat.com>
+    Tested-by: jonathan.albrecht <jonathan.albrecht@linux.vnet.ibm.com>
+    Tested-by: <ruixin.bao@ibm.com>
+    Message-Id: <20210615030744.1252385-5-richard.henderson@linaro.org>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

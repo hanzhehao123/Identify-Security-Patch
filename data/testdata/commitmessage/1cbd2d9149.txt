@@ -1,0 +1,24 @@
+commit 1cbd2d914939ee6028e9688d4ba859a528c28405
+Merge: 5a95f5ce3c 90322e646e
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 4 13:38:48 2021 +0100
+
+    Merge remote-tracking branch 'remotes/jasowang/tags/net-pull-request' into staging
+    
+    # gpg: Signature made Fri 04 Jun 2021 08:26:16 BST
+    # gpg:                using RSA key EF04965B398D6211
+    # gpg: Good signature from "Jason Wang (Jason Wang on RedHat) <jasowang@redhat.com>" [marginal]
+    # gpg: WARNING: This key is not certified with sufficiently trusted signatures!
+    # gpg:          It is not certain that the signature belongs to the owner.
+    # Primary key fingerprint: 215D 46F4 8246 689E C77F  3562 EF04 965B 398D 6211
+    
+    * remotes/jasowang/tags/net-pull-request:
+      MAINTAINERS: Added eBPF maintainers information.
+      docs: Added eBPF documentation.
+      virtio-net: Added eBPF RSS to virtio-net.
+      ebpf: Added eBPF RSS loader.
+      ebpf: Added eBPF RSS program.
+      net: Added SetSteeringEBPF method for NetClientState.
+      net/tap: Added TUNSETSTEERINGEBPF code.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

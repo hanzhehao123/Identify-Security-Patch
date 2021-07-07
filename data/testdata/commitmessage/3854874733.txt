@@ -1,0 +1,14 @@
+commit 38548747335a0796ab1d636c8b5bcf5c248ce437
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:05 2021 +0100
+
+    target/arm: Implement MVE VRMLALDAVH, VRMLSLDAVH
+    
+    Implement the MVE VRMLALDAVH and VRMLSLDAVH insns, which accumulate
+    the results of a rounded multiply of pairs of elements into a 72-bit
+    accumulator, returning the top 64 bits in a pair of general purpose
+    registers.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-22-peter.maydell@linaro.org

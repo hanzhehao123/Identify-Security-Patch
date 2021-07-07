@@ -1,0 +1,39 @@
+diff --git a/target/arm/m_helper.c b/target/arm/m_helper.c
+index 074c543455..eda74e5545 100644
+--- a/target/arm/m_helper.c
++++ b/target/arm/m_helper.c
+@@ -2601,7 +2601,10 @@ void HELPER(v7m_msr)(CPUARMState *env, uint32_t maskreg, uint32_t val)
+             limit = is_psp ? env->v7m.psplim[false] : env->v7m.msplim[false];
+ 
+             if (val < limit) {
+-                raise_exception_ra(env, EXCP_STKOF, 0, 1, GETPC());
++                CPUState *cs = env_cpu(env);
++
++                cpu_restore_state(cs, GETPC(), true);
++                raise_exception(env, EXCP_STKOF, 0, 1);
+             }
+ 
+             if (is_psp) {
+diff --git a/target/arm/op_helper.c b/target/arm/op_helper.c
+index e98fd86305..4132f5e430 100644
+--- a/target/arm/op_helper.c
++++ b/target/arm/op_helper.c
+@@ -95,12 +95,15 @@ void HELPER(v8m_stackcheck)(CPUARMState *env, uint32_t newvalue)
+      * raising an exception if the limit is breached.
+      */
+     if (newvalue < v7m_sp_limit(env)) {
++        CPUState *cs = env_cpu(env);
++
+         /*
+          * Stack limit exceptions are a rare case, so rather than syncing
+-         * PC/condbits before the call, we use raise_exception_ra() so
+-         * that cpu_restore_state() will sort them out.
++         * PC/condbits before the call, we use cpu_restore_state() to
++         * get them right before raising the exception.
+          */
+-        raise_exception_ra(env, EXCP_STKOF, 0, 1, GETPC());
++        cpu_restore_state(cs, GETPC(), true);
++        raise_exception(env, EXCP_STKOF, 0, 1);
+     }
+ }
+ 

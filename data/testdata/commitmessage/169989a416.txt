@@ -1,0 +1,15 @@
+commit 169989a416668c819c67dfc683062185d9eeddd5
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Wed May 26 17:21:02 2021 -0300
+
+    target/ppc: removed mentions to DO_PPC_STATISTICS
+    
+    Removed the commented out definition and all ifdefs relating to
+    PPC_DUMP_STATISTICS, as it's hardly ever used.
+    
+    Suggested-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Message-Id: <20210526202104.127910-4-bruno.larsen@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

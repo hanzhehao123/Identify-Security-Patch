@@ -1,0 +1,14 @@
+commit 5aa9ef5e4bb8194e66c4b62d8fe7ef8392786a9f
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:25 2021 +0200
+
+    i386: use global kvm_state in hyperv_enabled() check
+    
+    There is no need to use vCPU-specific kvm state in hyperv_enabled() check
+    and we need to do that when feature expansion happens early, before vCPU
+    specific KVM state is created.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-15-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

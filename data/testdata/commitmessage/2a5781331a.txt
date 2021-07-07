@@ -1,0 +1,15 @@
+commit 2a5781331a08628fa5d5a0e9a5ea415ce462e707
+Author: Tarun Gupta <targupta@nvidia.com>
+Date:   Sun Apr 18 17:52:51 2021 +0530
+
+    docs/devel: Add VFIO device migration documentation
+    
+    Document interfaces used for VFIO device migration. Added flow
+    of state changes during live migration with VFIO device.
+    
+    Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+    Co-developed-by: Kirti Wankhede <kwankhede@nvidia.com>
+    Signed-off-by: Kirti Wankhede <kwankhede@nvidia.com>
+    Signed-off-by: Tarun Gupta <targupta@nvidia.com>
+    Message-Id: <20210418122251.88809-1-targupta@nvidia.com>
+    Signed-off-by: Alex Williamson <alex.williamson@redhat.com>

@@ -1,0 +1,140 @@
+diff --git a/docs/system/arm/emulation.rst b/docs/system/arm/emulation.rst
+index 144dc491d9..836c1ca845 100644
+--- a/docs/system/arm/emulation.rst
++++ b/docs/system/arm/emulation.rst
+@@ -29,7 +29,6 @@ the following architecture extensions:
+ - FEAT_LSE (Large System Extensions)
+ - FEAT_MTE (Memory Tagging Extension)
+ - FEAT_MTE2 (Memory Tagging Extension)
+-- FEAT_MTE3 (MTE Asymmetric Fault Handling)
+ - FEAT_PAN (Privileged access never)
+ - FEAT_PAN2 (AT S1E1R and AT S1E1W instruction variants affected by PSTATE.PAN)
+ - FEAT_PAuth (Pointer authentication)
+diff --git a/target/arm/cpu64.c b/target/arm/cpu64.c
+index c7a1626bec..1c23187d1a 100644
+--- a/target/arm/cpu64.c
++++ b/target/arm/cpu64.c
+@@ -683,7 +683,7 @@ static void aarch64_max_initfn(Object *obj)
+          * during realize if the board provides no tag memory, much like
+          * we do for EL2 with the virtualization=on property.
+          */
+-        t = FIELD_DP64(t, ID_AA64PFR1, MTE, 3);
++        t = FIELD_DP64(t, ID_AA64PFR1, MTE, 2);
+         cpu->isar.id_aa64pfr1 = t;
+ 
+         t = cpu->isar.id_aa64mmfr0;
+diff --git a/target/arm/mte_helper.c b/target/arm/mte_helper.c
+index 724175210b..9e615cc513 100644
+--- a/target/arm/mte_helper.c
++++ b/target/arm/mte_helper.c
+@@ -538,50 +538,13 @@ void HELPER(stzgm_tags)(CPUARMState *env, uint64_t ptr, uint64_t val)
+     }
+ }
+ 
+-static void mte_sync_check_fail(CPUARMState *env, uint32_t desc,
+-                                uint64_t dirty_ptr, uintptr_t ra)
+-{
+-    int is_write, syn;
+-
+-    env->exception.vaddress = dirty_ptr;
+-
+-    is_write = FIELD_EX32(desc, MTEDESC, WRITE);
+-    syn = syn_data_abort_no_iss(arm_current_el(env) != 0, 0, 0, 0, 0, is_write,
+-                                0x11);
+-    raise_exception_ra(env, EXCP_DATA_ABORT, syn, exception_target_el(env), ra);
+-    g_assert_not_reached();
+-}
+-
+-static void mte_async_check_fail(CPUARMState *env, uint64_t dirty_ptr,
+-                                 uintptr_t ra, ARMMMUIdx arm_mmu_idx, int el)
+-{
+-    int select;
+-
+-    if (regime_has_2_ranges(arm_mmu_idx)) {
+-        select = extract64(dirty_ptr, 55, 1);
+-    } else {
+-        select = 0;
+-    }
+-    env->cp15.tfsr_el[el] |= 1 << select;
+-#ifdef CONFIG_USER_ONLY
+-    /*
+-     * Stand in for a timer irq, setting _TIF_MTE_ASYNC_FAULT,
+-     * which then sends a SIGSEGV when the thread is next scheduled.
+-     * This cpu will return to the main loop at the end of the TB,
+-     * which is rather sooner than "normal".  But the alternative
+-     * is waiting until the next syscall.
+-     */
+-    qemu_cpu_kick(env_cpu(env));
+-#endif
+-}
+-
+ /* Record a tag check failure.  */
+ static void mte_check_fail(CPUARMState *env, uint32_t desc,
+                            uint64_t dirty_ptr, uintptr_t ra)
+ {
+     int mmu_idx = FIELD_EX32(desc, MTEDESC, MIDX);
+     ARMMMUIdx arm_mmu_idx = core_to_aa64_mmu_idx(mmu_idx);
+-    int el, reg_el, tcf;
++    int el, reg_el, tcf, select, is_write, syn;
+     uint64_t sctlr;
+ 
+     reg_el = regime_el(env, arm_mmu_idx);
+@@ -601,8 +564,14 @@ static void mte_check_fail(CPUARMState *env, uint32_t desc,
+     switch (tcf) {
+     case 1:
+         /* Tag check fail causes a synchronous exception. */
+-        mte_sync_check_fail(env, desc, dirty_ptr, ra);
+-        break;
++        env->exception.vaddress = dirty_ptr;
++
++        is_write = FIELD_EX32(desc, MTEDESC, WRITE);
++        syn = syn_data_abort_no_iss(arm_current_el(env) != 0, 0, 0, 0, 0,
++                                    is_write, 0x11);
++        raise_exception_ra(env, EXCP_DATA_ABORT, syn,
++                           exception_target_el(env), ra);
++        /* noreturn, but fall through to the assert anyway */
+ 
+     case 0:
+         /*
+@@ -614,19 +583,30 @@ static void mte_check_fail(CPUARMState *env, uint32_t desc,
+ 
+     case 2:
+         /* Tag check fail causes asynchronous flag set.  */
+-        mte_async_check_fail(env, dirty_ptr, ra, arm_mmu_idx, el);
+-        break;
+-
+-    case 3:
+-        /*
+-         * Tag check fail causes asynchronous flag set for stores, or
+-         * a synchronous exception for loads.
+-         */
+-        if (FIELD_EX32(desc, MTEDESC, WRITE)) {
+-            mte_async_check_fail(env, dirty_ptr, ra, arm_mmu_idx, el);
++        if (regime_has_2_ranges(arm_mmu_idx)) {
++            select = extract64(dirty_ptr, 55, 1);
+         } else {
+-            mte_sync_check_fail(env, desc, dirty_ptr, ra);
++            select = 0;
+         }
++        env->cp15.tfsr_el[el] |= 1 << select;
++#ifdef CONFIG_USER_ONLY
++        /*
++         * Stand in for a timer irq, setting _TIF_MTE_ASYNC_FAULT,
++         * which then sends a SIGSEGV when the thread is next scheduled.
++         * This cpu will return to the main loop at the end of the TB,
++         * which is rather sooner than "normal".  But the alternative
++         * is waiting until the next syscall.
++         */
++        qemu_cpu_kick(env_cpu(env));
++#endif
++        break;
++
++    default:
++        /* Case 3: Reserved. */
++        qemu_log_mask(LOG_GUEST_ERROR,
++                      "Tag check failure with SCTLR_EL%d.TCF%s "
++                      "set to reserved value %d\n",
++                      reg_el, el ? "" : "0", tcf);
+         break;
+     }
+ }

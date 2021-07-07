@@ -1,0 +1,11 @@
+commit 8f364e344c3e71d4cc4e683d21241f6c36d62a5e
+Author: Andrew Melnychenko <andrew@daynix.com>
+Date:   Fri May 14 14:48:30 2021 +0300
+
+    net: Added SetSteeringEBPF method for NetClientState.
+    
+    For now, that method supported only by Linux TAP.
+    Linux TAP uses TUNSETSTEERINGEBPF ioctl.
+    
+    Signed-off-by: Andrew Melnychenko <andrew@daynix.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

@@ -1,0 +1,11 @@
+commit cd367ff3919e020b50a10cf4955fc31042e73f24
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:15:59 2021 +0100
+
+    target/arm: Implement MVE VMAX, VMIN
+    
+    Implement the MVE VMAX and VMIN insns.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-16-peter.maydell@linaro.org

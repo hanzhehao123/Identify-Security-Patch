@@ -1,0 +1,14 @@
+commit 43b972b7ebe9b8e84aa535031de7e605f6bf2cb2
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Mar 9 22:52:45 2021 -0600
+
+    accel/tcg: Pass down max_cpus to tcg_init
+    
+    Start removing the include of hw/boards.h from tcg/.
+    Pass down the max_cpus value from tcg_init_machine,
+    where we have the MachineState already.
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

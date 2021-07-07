@@ -1,0 +1,186 @@
+diff --git a/tests/unit/crypto-tls-psk-helpers.c b/tests/unit/crypto-tls-psk-helpers.c
+index 7f8a488961..a8395477c3 100644
+--- a/tests/unit/crypto-tls-psk-helpers.c
++++ b/tests/unit/crypto-tls-psk-helpers.c
+@@ -20,10 +20,14 @@
+ 
+ #include "qemu/osdep.h"
+ 
++/* Include this first because it defines QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+ #include "crypto-tls-x509-helpers.h"
++
+ #include "crypto-tls-psk-helpers.h"
+ #include "qemu/sockets.h"
+ 
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++
+ void test_tls_psk_init(const char *pskfile)
+ {
+     FILE *fp;
+@@ -42,3 +46,5 @@ void test_tls_psk_cleanup(const char *pskfile)
+ {
+     unlink(pskfile);
+ }
++
++#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/crypto-tls-psk-helpers.h b/tests/unit/crypto-tls-psk-helpers.h
+index faa645c629..5aa9951cb6 100644
+--- a/tests/unit/crypto-tls-psk-helpers.h
++++ b/tests/unit/crypto-tls-psk-helpers.h
+@@ -23,7 +23,11 @@
+ 
+ #include <gnutls/gnutls.h>
+ 
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++
+ void test_tls_psk_init(const char *keyfile);
+ void test_tls_psk_cleanup(const char *keyfile);
+ 
++#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
++
+ #endif
+diff --git a/tests/unit/crypto-tls-x509-helpers.c b/tests/unit/crypto-tls-x509-helpers.c
+index fc609b3fd4..97658592a2 100644
+--- a/tests/unit/crypto-tls-x509-helpers.c
++++ b/tests/unit/crypto-tls-x509-helpers.c
+@@ -24,6 +24,8 @@
+ #include "crypto/init.h"
+ #include "qemu/sockets.h"
+ 
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++
+ /*
+  * This stores some static data that is needed when
+  * encoding extensions in the x509 certs
+@@ -502,3 +504,5 @@ void test_tls_discard_cert(QCryptoTLSTestCertReq *req)
+         unlink(req->filename);
+     }
+ }
++
++#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/crypto-tls-x509-helpers.h b/tests/unit/crypto-tls-x509-helpers.h
+index cf6329e653..8fcd7785ab 100644
+--- a/tests/unit/crypto-tls-x509-helpers.h
++++ b/tests/unit/crypto-tls-x509-helpers.h
+@@ -23,7 +23,14 @@
+ 
+ #include <gnutls/gnutls.h>
+ #include <gnutls/x509.h>
+-#include <libtasn1.h>
++
++#if !(defined WIN32) && \
++    defined(CONFIG_TASN1)
++# define QCRYPTO_HAVE_TLS_TEST_SUPPORT
++#endif
++
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++# include <libtasn1.h>
+ 
+ 
+ /*
+@@ -120,4 +127,6 @@ void test_tls_cleanup(const char *keyfile);
+ 
+ extern const asn1_static_node pkix_asn1_tab[];
+ 
++#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
++
+ #endif
+diff --git a/tests/unit/pkix_asn1_tab.c b/tests/unit/pkix_asn1_tab.c
+index 89521408a1..15397cf77a 100644
+--- a/tests/unit/pkix_asn1_tab.c
++++ b/tests/unit/pkix_asn1_tab.c
+@@ -6,6 +6,8 @@
+ #include "qemu/osdep.h"
+ #include "crypto-tls-x509-helpers.h"
+ 
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++
+ const asn1_static_node pkix_asn1_tab[] = {
+   {"PKIX1", 536875024, 0},
+   {0, 1073741836, 0},
+@@ -1103,3 +1105,4 @@ const asn1_static_node pkix_asn1_tab[] = {
+   {0, 1048586, "2"},
+   {0, 0, 0}
+ };
++#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/test-crypto-tlscredsx509.c b/tests/unit/test-crypto-tlscredsx509.c
+index aab4149b56..f487349c32 100644
+--- a/tests/unit/test-crypto-tlscredsx509.c
++++ b/tests/unit/test-crypto-tlscredsx509.c
+@@ -25,6 +25,8 @@
+ #include "qapi/error.h"
+ #include "qemu/module.h"
+ 
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++
+ #define WORKDIR "tests/test-crypto-tlscredsx509-work/"
+ #define KEYFILE WORKDIR "key-ctx.pem"
+ 
+@@ -704,3 +706,13 @@ int main(int argc, char **argv)
+ 
+     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+ }
++
++#else /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
++
++int
++main(void)
++{
++    return EXIT_SUCCESS;
++}
++
++#endif /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/test-crypto-tlssession.c b/tests/unit/test-crypto-tlssession.c
+index 5f0da9192c..8b2453fa79 100644
+--- a/tests/unit/test-crypto-tlssession.c
++++ b/tests/unit/test-crypto-tlssession.c
+@@ -31,6 +31,8 @@
+ #include "qemu/sockets.h"
+ #include "authz/list.h"
+ 
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++
+ #define WORKDIR "tests/test-crypto-tlssession-work/"
+ #define PSKFILE WORKDIR "keys.psk"
+ #define KEYFILE WORKDIR "key-ctx.pem"
+@@ -646,3 +648,13 @@ int main(int argc, char **argv)
+ 
+     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+ }
++
++#else /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
++
++int
++main(void)
++{
++    return EXIT_SUCCESS;
++}
++
++#endif /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/test-io-channel-tls.c b/tests/unit/test-io-channel-tls.c
+index f6fb988c01..ad7554c534 100644
+--- a/tests/unit/test-io-channel-tls.c
++++ b/tests/unit/test-io-channel-tls.c
+@@ -34,6 +34,8 @@
+ #include "authz/list.h"
+ #include "qom/object_interfaces.h"
+ 
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++
+ #define WORKDIR "tests/test-io-channel-tls-work/"
+ #define KEYFILE WORKDIR "key-ctx.pem"
+ 
+@@ -332,3 +334,13 @@ int main(int argc, char **argv)
+ 
+     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+ }
++
++#else /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
++
++int
++main(void)
++{
++    return EXIT_SUCCESS;
++}
++
++#endif /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */

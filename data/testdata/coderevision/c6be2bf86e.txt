@@ -1,0 +1,19 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index c46f4f516b..4027454324 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -94,12 +94,9 @@ class QMPShellError(Exception):
+ 
+ 
+ class FuzzyJSON(ast.NodeTransformer):
+-    """
+-    This extension of ast.NodeTransformer filters literal "true/false/null"
++    '''This extension of ast.NodeTransformer filters literal "true/false/null"
+     values in an AST and replaces them by proper "True/False/None" values that
+-    Python can properly evaluate.
+-    """
+-
++    Python can properly evaluate.'''
+     @classmethod
+     def visit_Name(cls, node):
+         if node.id == 'true':

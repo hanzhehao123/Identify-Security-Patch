@@ -1,0 +1,23 @@
+commit 30ec845c599acc0616a57811316bc506a08344f2
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:15 2021 -0400
+
+    scripts/qom-fuse: add static type hints
+    
+    Because fusepy does not have type hints, add some targeted warning
+    suppressions.
+    
+    Namely, we need to allow subclassing something of an unknown type (in
+    qom_fuse.py), and we need to allow missing imports (recorded against
+    fuse itself) because mypy will be unable to import fusepy (even when
+    installed) as it has no types nor type stubs available.
+    
+    Note: Until now, it was possible to run invocations like 'mypy qemu/'
+    from ./python and have that work. However, these targeted suppressions
+    require that you run 'mypy -p qemu/' instead. The correct, canonical
+    invocation is recorded in ./python/tests/mypy.sh and all of the various
+    CI invocations always use this correct form.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210603003719.1321369-16-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

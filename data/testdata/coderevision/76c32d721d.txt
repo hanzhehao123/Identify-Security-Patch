@@ -1,0 +1,47 @@
+diff --git a/target/arm/t32.decode b/target/arm/t32.decode
+index 087e514e0a..8b2c487fa7 100644
+--- a/target/arm/t32.decode
++++ b/target/arm/t32.decode
+@@ -674,7 +674,5 @@ BL               1111 0. .......... 11.1 ............         @branch24
+     DLS          1111 0 0000 100     rn:4 1110 0000 0000 0001
+     WLS          1111 0 0000 100     rn:4 1100 . .......... 1 imm=%lob_imm
+     LE           1111 0 0000 0 f:1 0 1111 1100 . .......... 1 imm=%lob_imm
+-
+-    LCTP         1111 0 0000 000     1111 1110 0000 0000 0001
+   ]
+ }
+diff --git a/target/arm/translate.c b/target/arm/translate.c
+index c49561590c..f1c2074fa4 100644
+--- a/target/arm/translate.c
++++ b/target/arm/translate.c
+@@ -8191,30 +8191,6 @@ static bool trans_LE(DisasContext *s, arg_LE *a)
+     return true;
+ }
+ 
+-static bool trans_LCTP(DisasContext *s, arg_LCTP *a)
+-{
+-    /*
+-     * M-profile Loop Clear with Tail Predication. Since our implementation
+-     * doesn't cache branch information, all we need to do is reset
+-     * FPSCR.LTPSIZE to 4.
+-     */
+-    TCGv_i32 ltpsize;
+-
+-    if (!dc_isar_feature(aa32_lob, s) ||
+-        !dc_isar_feature(aa32_mve, s)) {
+-        return false;
+-    }
+-
+-    if (!vfp_access_check(s)) {
+-        return true;
+-    }
+-
+-    ltpsize = tcg_const_i32(4);
+-    store_cpu_field(ltpsize, v7m.ltpsize);
+-    return true;
+-}
+-
+-
+ static bool op_tbranch(DisasContext *s, arg_tbranch *a, bool half)
+ {
+     TCGv_i32 addr, tmp;

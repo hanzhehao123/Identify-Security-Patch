@@ -1,0 +1,57 @@
+commit a97978bcc2d1f650c7d411428806e5b03082b8c7
+Merge: 8e6dad2028 eba3c766fe
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 3 10:00:35 2021 +0100
+
+    Merge remote-tracking branch 'remotes/dg-gitlab/tags/ppc-for-6.1-20210603' into staging
+    
+    ppc patch queue 2021-06-03
+    
+    Next batch of ppc target patches.  Highlights are:
+     * A fix for a regression with single-step mode
+     * Start of moving ppc to use decodetree
+     * Implementation of some POWER10 64-bit prefixed instructions
+     * Several cleanups to softmmu code
+     * Continued progress towards allowing --disable-tcg
+     * Fix for the POWER PEF implementation
+     * Fix for LPCR handling of hotplugged CPUs
+     * Assorted other bugfixes and cleanups
+    
+    This patchset does contain a couple of changes to code outside my
+    normal scope of maintainership, related to the removal of cpu_dump and
+    cpu_statistics hooks.  ppc was the last target arch implementing these
+    at all, and they didn't really do anything there either.  The patches
+    should have relevant acks.
+    
+    # gpg: Signature made Thu 03 Jun 2021 09:20:59 BST
+    # gpg:                using RSA key 75F46586AE61A66CC44E87DC6C38CACA20D9B392
+    # gpg: Good signature from "David Gibson <david@gibson.dropbear.id.au>" [full]
+    # gpg:                 aka "David Gibson (Red Hat) <dgibson@redhat.com>" [full]
+    # gpg:                 aka "David Gibson (ozlabs.org) <dgibson@ozlabs.org>" [full]
+    # gpg:                 aka "David Gibson (kernel.org) <dwg@kernel.org>" [unknown]
+    # Primary key fingerprint: 75F4 6586 AE61 A66C C44E  87DC 6C38 CACA 20D9 B392
+    
+    * remotes/dg-gitlab/tags/ppc-for-6.1-20210603: (42 commits)
+      target/ppc: fix single-step exception regression
+      target/ppc: Move cmp/cmpi/cmpl/cmpli to decodetree
+      target/ppc: Move addpcis to decodetree
+      target/ppc: Implement vcfuged instruction
+      target/ppc: Implement cfuged instruction
+      target/ppc: Implement setbc/setbcr/stnbc/setnbcr instructions
+      target/ppc: Implement prefixed integer store instructions
+      target/ppc: Move D/DS/X-form integer stores to decodetree
+      target/ppc: Implement prefixed integer load instructions
+      target/ppc: Move D/DS/X-form integer loads to decodetree
+      target/ppc: Implement PNOP
+      target/ppc: Move ADDI, ADDIS to decodetree, implement PADDI
+      target/ppc: Add infrastructure for prefixed insns
+      target/ppc: Move page crossing check to ppc_tr_translate_insn
+      target/ppc: Introduce macros to check isa extensions
+      target/ppc: powerpc_excp: Consolidade TLB miss code
+      target/ppc: powerpc_excp: Remove dump_syscall_vectored
+      target/ppc: powerpc_excp: Move lpes code to where it is used
+      target/ppc: overhauled and moved logic of storing fpscr
+      target/ppc: removed all mentions to PPC_DUMP_CPU
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

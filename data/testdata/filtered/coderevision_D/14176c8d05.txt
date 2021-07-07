@@ -1,0 +1,177 @@
+diff --git a/block/file-posix.c b/block/file-posix.c
+index e56bb491a1..ea102483b0 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -42,8 +42,6 @@
+ #include "scsi/constants.h"
+ 
+ #if defined(__APPLE__) && (__MACH__)
+-#include <sys/ioctl.h>
+-#if defined(HAVE_HOST_BLOCK_DEVICE)
+ #include <paths.h>
+ #include <sys/param.h>
+ #include <IOKit/IOKitLib.h>
+@@ -54,7 +52,6 @@
+ //#include <IOKit/storage/IOCDTypes.h>
+ #include <IOKit/storage/IODVDMedia.h>
+ #include <CoreFoundation/CoreFoundation.h>
+-#endif /* defined(HAVE_HOST_BLOCK_DEVICE) */
+ #endif
+ 
+ #ifdef __sun__
+@@ -181,17 +178,7 @@ typedef struct BDRVRawReopenState {
+     bool check_cache_dropped;
+ } BDRVRawReopenState;
+ 
+-static int fd_open(BlockDriverState *bs)
+-{
+-    BDRVRawState *s = bs->opaque;
+-
+-    /* this is just to ensure s->fd is sane (its called by io ops) */
+-    if (s->fd >= 0) {
+-        return 0;
+-    }
+-    return -EIO;
+-}
+-
++static int fd_open(BlockDriverState *bs);
+ static int64_t raw_getlength(BlockDriverState *bs);
+ 
+ typedef struct RawPosixAIOData {
+@@ -3046,7 +3033,6 @@ static BlockStatsSpecific *raw_get_specific_stats(BlockDriverState *bs)
+     return stats;
+ }
+ 
+-#if defined(HAVE_HOST_BLOCK_DEVICE)
+ static BlockStatsSpecific *hdev_get_specific_stats(BlockDriverState *bs)
+ {
+     BlockStatsSpecific *stats = g_new(BlockStatsSpecific, 1);
+@@ -3056,7 +3042,6 @@ static BlockStatsSpecific *hdev_get_specific_stats(BlockDriverState *bs)
+ 
+     return stats;
+ }
+-#endif /* HAVE_HOST_BLOCK_DEVICE */
+ 
+ static QemuOptsList raw_create_opts = {
+     .name = "raw-create-opts",
+@@ -3272,8 +3257,6 @@ BlockDriver bdrv_file = {
+ /***********************************************/
+ /* host device */
+ 
+-#if defined(HAVE_HOST_BLOCK_DEVICE)
+-
+ #if defined(__APPLE__) && defined(__MACH__)
+ static kern_return_t GetBSDPath(io_iterator_t mediaIterator, char *bsdPath,
+                                 CFIndex maxPathSize, int flags);
+@@ -3566,6 +3549,16 @@ hdev_co_ioctl(BlockDriverState *bs, unsigned long int req, void *buf)
+ }
+ #endif /* linux */
+ 
++static int fd_open(BlockDriverState *bs)
++{
++    BDRVRawState *s = bs->opaque;
++
++    /* this is just to ensure s->fd is sane (its called by io ops) */
++    if (s->fd >= 0)
++        return 0;
++    return -EIO;
++}
++
+ static coroutine_fn int
+ hdev_co_pdiscard(BlockDriverState *bs, int64_t offset, int bytes)
+ {
+@@ -3889,8 +3882,6 @@ static BlockDriver bdrv_host_cdrom = {
+ };
+ #endif /* __FreeBSD__ */
+ 
+-#endif /* HAVE_HOST_BLOCK_DEVICE */
+-
+ static void bdrv_file_init(void)
+ {
+     /*
+@@ -3898,7 +3889,6 @@ static void bdrv_file_init(void)
+      * registered last will get probed first.
+      */
+     bdrv_register(&bdrv_file);
+-#if defined(HAVE_HOST_BLOCK_DEVICE)
+     bdrv_register(&bdrv_host_device);
+ #ifdef __linux__
+     bdrv_register(&bdrv_host_cdrom);
+@@ -3906,7 +3896,6 @@ static void bdrv_file_init(void)
+ #if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
+     bdrv_register(&bdrv_host_cdrom);
+ #endif
+-#endif /* HAVE_HOST_BLOCK_DEVICE */
+ }
+ 
+ block_init(bdrv_file_init);
+diff --git a/meson.build b/meson.build
+index 6419d4ee41..64e23175ab 100644
+--- a/meson.build
++++ b/meson.build
+@@ -183,7 +183,7 @@ if targetos == 'windows'
+                                       include_directories: include_directories('.'))
+ elif targetos == 'darwin'
+   coref = dependency('appleframeworks', modules: 'CoreFoundation')
+-  iokit = dependency('appleframeworks', modules: 'IOKit', required: false)
++  iokit = dependency('appleframeworks', modules: 'IOKit')
+ elif targetos == 'sunos'
+   socket = [cc.find_library('socket'),
+             cc.find_library('nsl'),
+@@ -1148,9 +1148,6 @@ if get_option('cfi')
+   add_global_link_arguments(cfi_flags, native: false, language: ['c', 'cpp', 'objc'])
+ endif
+ 
+-have_host_block_device = (targetos != 'darwin' or
+-    cc.has_header('IOKit/storage/IOMedia.h'))
+-
+ #################
+ # config-host.h #
+ #################
+@@ -1250,7 +1247,6 @@ config_host_data.set('HAVE_PTY_H', cc.has_header('pty.h'))
+ config_host_data.set('HAVE_SYS_IOCCOM_H', cc.has_header('sys/ioccom.h'))
+ config_host_data.set('HAVE_SYS_KCOV_H', cc.has_header('sys/kcov.h'))
+ config_host_data.set('HAVE_SYSTEM_FUNCTION', cc.has_function('system', prefix: '#include <stdlib.h>'))
+-config_host_data.set('HAVE_HOST_BLOCK_DEVICE', have_host_block_device)
+ 
+ config_host_data.set('CONFIG_PREADV', cc.has_function('preadv', prefix: '#include <sys/uio.h>'))
+ 
+diff --git a/qapi/block-core.json b/qapi/block-core.json
+index a54f37dbef..2ea294129e 100644
+--- a/qapi/block-core.json
++++ b/qapi/block-core.json
+@@ -897,8 +897,7 @@
+   'discriminator': 'driver',
+   'data': {
+       'file': 'BlockStatsSpecificFile',
+-      'host_device': { 'type': 'BlockStatsSpecificFile',
+-                       'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
++      'host_device': 'BlockStatsSpecificFile',
+       'nvme': 'BlockStatsSpecificNvme' } }
+ 
+ ##
+@@ -2815,10 +2814,7 @@
+ { 'enum': 'BlockdevDriver',
+   'data': [ 'blkdebug', 'blklogwrites', 'blkreplay', 'blkverify', 'bochs',
+             'cloop', 'compress', 'copy-on-read', 'dmg', 'file', 'ftp', 'ftps',
+-            'gluster',
+-            {'name': 'host_cdrom', 'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
+-            {'name': 'host_device', 'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
+-            'http', 'https', 'iscsi',
++            'gluster', 'host_cdrom', 'host_device', 'http', 'https', 'iscsi',
+             'luks', 'nbd', 'nfs', 'null-aio', 'null-co', 'nvme', 'parallels',
+             'preallocate', 'qcow', 'qcow2', 'qed', 'quorum', 'raw', 'rbd',
+             { 'name': 'replication', 'if': 'defined(CONFIG_REPLICATION)' },
+@@ -3999,10 +3995,8 @@
+       'ftp':        'BlockdevOptionsCurlFtp',
+       'ftps':       'BlockdevOptionsCurlFtps',
+       'gluster':    'BlockdevOptionsGluster',
+-      'host_cdrom':  { 'type': 'BlockdevOptionsFile',
+-                       'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
+-      'host_device': { 'type': 'BlockdevOptionsFile',
+-                       'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
++      'host_cdrom': 'BlockdevOptionsFile',
++      'host_device':'BlockdevOptionsFile',
+       'http':       'BlockdevOptionsCurlHttp',
+       'https':      'BlockdevOptionsCurlHttps',
+       'iscsi':      'BlockdevOptionsIscsi',

@@ -1,0 +1,11 @@
+commit 732d58979c9d6ab1b955b65264a15d0696ea477e
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Jun 19 06:32:03 2021 -0700
+
+    tcg: Restart when exhausting the stack frame
+    
+    Assume that we'll have fewer temps allocated after
+    restarting with a fewer number of instructions.
+    
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

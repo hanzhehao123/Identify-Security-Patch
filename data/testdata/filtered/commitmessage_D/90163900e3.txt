@@ -1,0 +1,12 @@
+commit 90163900e3c71ed2743cafd27542d941c4e25991
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Thu Mar 18 10:21:45 2021 -0600
+
+    tcg: Add tcg_call_flags
+    
+    We're going to change how to look up the call flags from a TCGop,
+    so extract it as a helper.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

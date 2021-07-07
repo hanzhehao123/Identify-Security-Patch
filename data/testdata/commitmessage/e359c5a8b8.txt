@@ -1,0 +1,9 @@
+commit e359c5a8b8e6184c15806d1408de085aab9c268b
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:46 2021 -0400
+
+    scripts/qmp-shell: add docstrings
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-40-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

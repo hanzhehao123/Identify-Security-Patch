@@ -1,0 +1,12 @@
+commit eeae5466c47ef06e8cc59e2cb114e094e722e389
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Wed Jun 2 19:07:59 2021 +0200
+
+    scripts/oss-fuzz: Fix typo in documentation
+    
+    While we only use stdin, the chardev is named 'stdio'.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Alexander Bulekov <alxndr@bu.edu>
+    Message-Id: <20210602170759.2500248-4-f4bug@amsat.org>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

@@ -1,0 +1,31 @@
+commit d0c389d2ce6031d80e872e8e1b6ebb0f96afbe69
+Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date:   Thu Jun 24 09:20:42 2021 +0200
+
+    block-copy: add CoMutex lock
+    
+    Group various structures fields, to better understand what we need to
+    protect with a lock and what doesn't need it.
+    Then, add a CoMutex to protect concurrent access of block-copy
+    data structures. This mutex also protects .copy_bitmap, because its thread-safe
+    API does not prevent it from assigning two tasks to the same
+    bitmap region.
+    
+    Exceptions to the lock:
+    - .sleep_state is handled in the series "coroutine: new sleep/wake API"
+    and thus here left as TODO.
+    
+    - .finished, .cancelled and reads to .ret and .error_is_read will be
+    protected in the following patch, because are used also outside
+    coroutines.
+    
+    - .skip_unallocated is atomic. Including it under the mutex would
+    increase the critical sections and make them also much more complex.
+    We can have it as atomic since it is only written from outside and
+    read by block-copy coroutines.
+    
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Message-Id: <20210624072043.180494-5-eesposit@redhat.com>
+      [vsementsov: fix typo in comment]
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>

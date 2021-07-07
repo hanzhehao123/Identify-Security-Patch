@@ -1,0 +1,18 @@
+commit 29f2316761ef2c83581893bcffa43f11fba5b2fe
+Author: Stefano Garzarella <sgarzare@redhat.com>
+Date:   Mon May 17 17:16:59 2021 +0200
+
+    docs: fix references to docs/devel/atomics.rst
+    
+    Commit 15e8699f00 ("atomics: convert to reStructuredText") converted
+    docs/devel/atomics.txt to docs/devel/atomics.rst.
+    
+    We still have several references to the old file, so let's fix them
+    with the following command:
+    
+      sed -i s/atomics.txt/atomics.rst/ $(git grep -l docs/devel/atomics.txt)
+    
+    Signed-off-by: Stefano Garzarella <sgarzare@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210517151702.109066-3-sgarzare@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

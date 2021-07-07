@@ -1,0 +1,13 @@
+commit 92f117326af14d9bffc2ec99e0f112d33c0615ca
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:21 2021 +0100
+
+    target/arm: Implement MVE VQDMLSDH and VQRDMLSDH
+    
+    Implement the MVE VQDMLSDH and VQRDMLSDH insns, which are
+    like VQDMLADH and VQRDMLADH except that products are subtracted
+    rather than added.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-38-peter.maydell@linaro.org

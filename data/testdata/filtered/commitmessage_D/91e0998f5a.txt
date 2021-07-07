@@ -1,0 +1,13 @@
+commit 91e0998f5ab88e575b5d1b9bc55e0d179b9224f1
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:08:01 2021 +0300
+
+    block/nbd: add nbd_client_connected() helper
+    
+    We already have two similar helpers for other state. Let's add another
+    one for convenience.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-32-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

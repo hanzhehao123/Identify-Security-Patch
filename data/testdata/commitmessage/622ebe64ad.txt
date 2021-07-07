@@ -1,0 +1,10 @@
+commit 622ebe64ada4bf1bb3ce6bbfd7ea107ed166023c
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:17 2021 +0200
+
+    s390x/tcg: Simplify vftci64() handling
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-7-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

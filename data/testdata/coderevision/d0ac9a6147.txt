@@ -1,0 +1,365 @@
+diff --git a/.github/lockdown.yml b/.github/lockdown.yml
+index d3546bd2bc..07fc2f31ee 100644
+--- a/.github/lockdown.yml
++++ b/.github/lockdown.yml
+@@ -14,11 +14,11 @@ issues:
+     at https://gitlab.com/qemu-project/qemu.git.
+     The project does not process issues filed on GitHub.
+ 
+-    The project issues are tracked on GitLab:
+-    https://gitlab.com/qemu-project/qemu/-/issues
++    The project issues are tracked on Launchpad:
++    https://bugs.launchpad.net/qemu
+ 
+     QEMU welcomes bug report contributions. You can file new ones on:
+-    https://gitlab.com/qemu-project/qemu/-/issues/new
++    https://bugs.launchpad.net/qemu/+filebug
+ 
+ pulls:
+   comment: |
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 1a041eaf86..0ca6b7de94 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -155,7 +155,6 @@ S: Maintained
+ F: target/arm/
+ F: tests/tcg/arm/
+ F: tests/tcg/aarch64/
+-F: tests/qtest/arm-cpu-features.c
+ F: hw/arm/
+ F: hw/cpu/a*mpcore.c
+ F: include/hw/cpu/a*mpcore.h
+diff --git a/README.rst b/README.rst
+index 79b19f1481..a92c7394b7 100644
+--- a/README.rst
++++ b/README.rst
+@@ -131,16 +131,16 @@ will be tagged as my-feature-v2.
+ Bug reporting
+ =============
+ 
+-The QEMU project uses GitLab issues to track bugs. Bugs
++The QEMU project uses Launchpad as its primary upstream bug tracker. Bugs
+ found when running code built from QEMU git or upstream released sources
+ should be reported via:
+ 
+-* `<https://gitlab.com/qemu-project/qemu/-/issues>`_
++* `<https://bugs.launchpad.net/qemu/>`_
+ 
+ If using QEMU via an operating system vendor pre-built binary package, it
+ is preferable to report bugs to the vendor's own bug tracker first. If
+ the bug is also known to affect latest upstream code, it can also be
+-reported via GitLab.
++reported via launchpad.
+ 
+ For additional information on bug reporting consult:
+ 
+diff --git a/block/snapshot.c b/block/snapshot.c
+index 6702c75e42..ccacda8bd5 100644
+--- a/block/snapshot.c
++++ b/block/snapshot.c
+@@ -275,13 +275,16 @@ int bdrv_snapshot_goto(BlockDriverState *bs,
+         qobject_unref(file_options);
+         g_free(subqdict_prefix);
+ 
++        /* Force .bdrv_open() below to re-attach fallback_bs on *fallback_ptr */
+         qdict_put_str(options, (*fallback_ptr)->name,
+                       bdrv_get_node_name(fallback_bs));
+ 
++        /* Now close bs, apply the snapshot on fallback_bs, and re-open bs */
+         if (drv->bdrv_close) {
+             drv->bdrv_close(bs);
+         }
+ 
++        /* .bdrv_open() will re-attach it */
+         bdrv_unref_child(bs, *fallback_ptr);
+         *fallback_ptr = NULL;
+ 
+@@ -296,7 +299,16 @@ int bdrv_snapshot_goto(BlockDriverState *bs,
+             return ret < 0 ? ret : open_ret;
+         }
+ 
+-        assert(fallback_bs == (*fallback_ptr)->bs);
++        /*
++         * fallback_ptr is &bs->file or &bs->backing.  *fallback_ptr
++         * was closed above and set to NULL, but the .bdrv_open() call
++         * has opened it again, because we set the respective option
++         * (with the qdict_put_str() call above).
++         * Assert that .bdrv_open() has attached some child on
++         * *fallback_ptr, and that it has attached the one we wanted
++         * it to (i.e., fallback_bs).
++         */
++        assert(*fallback_ptr && fallback_bs == (*fallback_ptr)->bs);
+         bdrv_unref(fallback_bs);
+         return ret;
+     }
+diff --git a/docs/interop/live-block-operations.rst b/docs/interop/live-block-operations.rst
+index 477d085f54..1073b930dc 100644
+--- a/docs/interop/live-block-operations.rst
++++ b/docs/interop/live-block-operations.rst
+@@ -127,15 +127,13 @@ Interacting with a QEMU instance
+ 
+ To show some example invocations of command-line, we will use the
+ following invocation of QEMU, with a QMP server running over UNIX
+-socket:
++socket::
+ 
+-.. parsed-literal::
+-
+-  $ |qemu_system| -display none -no-user-config -nodefaults \\
+-    -m 512 -blockdev \\
+-    node-name=node-A,driver=qcow2,file.driver=file,file.node-name=file,file.filename=./a.qcow2 \\
+-    -device virtio-blk,drive=node-A,id=virtio0 \\
+-    -monitor stdio -qmp unix:/tmp/qmp-sock,server=on,wait=off
++    $ ./qemu-system-x86_64 -display none -no-user-config \
++        -M q35 -nodefaults -m 512 \
++        -blockdev node-name=node-A,driver=qcow2,file.driver=file,file.node-name=file,file.filename=./a.qcow2 \
++        -device virtio-blk,drive=node-A,id=virtio0 \
++        -monitor stdio -qmp unix:/tmp/qmp-sock,server=on,wait=off
+ 
+ The ``-blockdev`` command-line option, used above, is available from
+ QEMU 2.9 onwards.  In the above invocation, notice the ``node-name``
+@@ -694,16 +692,14 @@ And start the destination QEMU (we already have the source QEMU running
+ -- discussed in the section: `Interacting with a QEMU instance`_)
+ instance, with the following invocation.  (As noted earlier, for
+ simplicity's sake, the destination QEMU is started on the same host, but
+-it could be located elsewhere):
+-
+-.. parsed-literal::
+-
+-  $ |qemu_system| -display none -no-user-config -nodefaults \\
+-    -m 512 -blockdev \\
+-    node-name=node-TargetDisk,driver=qcow2,file.driver=file,file.node-name=file,file.filename=./target-disk.qcow2 \\
+-    -device virtio-blk,drive=node-TargetDisk,id=virtio0 \\
+-    -S -monitor stdio -qmp unix:./qmp-sock2,server=on,wait=off \\
+-    -incoming tcp:localhost:6666
++it could be located elsewhere)::
++
++    $ ./qemu-system-x86_64 -display none -no-user-config \
++        -M q35 -nodefaults -m 512 \
++        -blockdev node-name=node-TargetDisk,driver=qcow2,file.driver=file,file.node-name=file,file.filename=./target-disk.qcow2 \
++        -device virtio-blk,drive=node-TargetDisk,id=virtio0 \
++        -S -monitor stdio -qmp unix:./qmp-sock2,server=on,wait=off \
++        -incoming tcp:localhost:6666
+ 
+ Given the disk image chain on source QEMU::
+ 
+diff --git a/docs/tools/virtiofsd.rst b/docs/tools/virtiofsd.rst
+index 4911e797cb..00554c75bd 100644
+--- a/docs/tools/virtiofsd.rst
++++ b/docs/tools/virtiofsd.rst
+@@ -239,7 +239,7 @@ xattr-mapping Examples
+ 
+ ::
+ 
+- -o xattrmap=":prefix:all::user.virtiofs.::bad:all:::"
++-o xattrmap=":prefix:all::user.virtiofs.::bad:all:::"
+ 
+ 
+ This uses two rules, using : as the field separator;
+@@ -250,8 +250,7 @@ the host set.
+ This is equivalent to the 'map' rule:
+ 
+ ::
+-
+- -o xattrmap=":map::user.virtiofs.:"
++-o xattrmap=":map::user.virtiofs.:"
+ 
+ 2) Prefix 'trusted.' attributes, allow others through
+ 
+@@ -278,8 +277,7 @@ through.
+ This is equivalent to the 'map' rule:
+ 
+ ::
+-
+- -o xattrmap="/map/trusted./user.virtiofs./"
++-o xattrmap="/map/trusted./user.virtiofs./"
+ 
+ 3) Hide 'security.' attributes, and allow everything else
+ 
+@@ -300,13 +298,13 @@ Examples
+ Export ``/var/lib/fs/vm001/`` on vhost-user UNIX domain socket
+ ``/var/run/vm001-vhost-fs.sock``:
+ 
+-.. parsed-literal::
++::
+ 
+   host# virtiofsd --socket-path=/var/run/vm001-vhost-fs.sock -o source=/var/lib/fs/vm001
+-  host# |qemu_system| \\
+-        -chardev socket,id=char0,path=/var/run/vm001-vhost-fs.sock \\
+-        -device vhost-user-fs-pci,chardev=char0,tag=myfs \\
+-        -object memory-backend-memfd,id=mem,size=4G,share=on \\
+-        -numa node,memdev=mem \\
+-        ...
++  host# qemu-system-x86_64 \
++      -chardev socket,id=char0,path=/var/run/vm001-vhost-fs.sock \
++      -device vhost-user-fs-pci,chardev=char0,tag=myfs \
++      -object memory-backend-memfd,id=mem,size=4G,share=on \
++      -numa node,memdev=mem \
++      ...
+   guest# mount -t virtiofs myfs /mnt
+diff --git a/include/fpu/softfloat-helpers.h b/include/fpu/softfloat-helpers.h
+index a98d759cd3..34f4cf92ae 100644
+--- a/include/fpu/softfloat-helpers.h
++++ b/include/fpu/softfloat-helpers.h
+@@ -48,8 +48,8 @@ this code that are retained.
+ ===============================================================================
+ */
+ 
+-#ifndef SOFTFLOAT_HELPERS_H
+-#define SOFTFLOAT_HELPERS_H
++#ifndef _SOFTFLOAT_HELPERS_H_
++#define _SOFTFLOAT_HELPERS_H_
+ 
+ #include "fpu/softfloat-types.h"
+ 
+diff --git a/include/hw/usb/dwc2-regs.h b/include/hw/usb/dwc2-regs.h
+index a7eb531485..40af23a0ba 100644
+--- a/include/hw/usb/dwc2-regs.h
++++ b/include/hw/usb/dwc2-regs.h
+@@ -39,8 +39,8 @@
+  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
+-#ifndef DWC2_HW_H
+-#define DWC2_HW_H
++#ifndef __DWC2_HW_H__
++#define __DWC2_HW_H__
+ 
+ #define HSOTG_REG(x)	(x)
+ 
+diff --git a/include/hw/usb/xlnx-usb-subsystem.h b/include/hw/usb/xlnx-usb-subsystem.h
+index 999e423951..739bef7f45 100644
+--- a/include/hw/usb/xlnx-usb-subsystem.h
++++ b/include/hw/usb/xlnx-usb-subsystem.h
+@@ -22,8 +22,8 @@
+  * THE SOFTWARE.
+  */
+ 
+-#ifndef XLNX_VERSAL_USB_SUBSYSTEM_H
+-#define XLNX_VERSAL_USB_SUBSYSTEM_H
++#ifndef _XLNX_VERSAL_USB_SUBSYSTEM_H_
++#define _XLNX_VERSAL_USB_SUBSYSTEM_H_
+ 
+ #include "hw/usb/xlnx-versal-usb2-ctrl-regs.h"
+ #include "hw/usb/hcd-dwc3.h"
+diff --git a/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h b/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h
+index b76dce0419..975a717627 100644
+--- a/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h
++++ b/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h
+@@ -23,8 +23,8 @@
+  * THE SOFTWARE.
+  */
+ 
+-#ifndef XLNX_USB2_REGS_H
+-#define XLNX_USB2_REGS_H
++#ifndef _XLNX_USB2_REGS_H_
++#define _XLNX_USB2_REGS_H_
+ 
+ #define TYPE_XILINX_VERSAL_USB2_CTRL_REGS "xlnx.versal-usb2-ctrl-regs"
+ 
+diff --git a/include/qemu/plugin-memory.h b/include/qemu/plugin-memory.h
+index b36def27d7..fbbe99474b 100644
+--- a/include/qemu/plugin-memory.h
++++ b/include/qemu/plugin-memory.h
+@@ -6,8 +6,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef PLUGIN_MEMORY_H
+-#define PLUGIN_MEMORY_H
++#ifndef _PLUGIN_MEMORY_H_
++#define _PLUGIN_MEMORY_H_
+ 
+ struct qemu_plugin_hwaddr {
+     bool is_io;
+diff --git a/include/qemu/selfmap.h b/include/qemu/selfmap.h
+index 80cf920fba..8382c4c779 100644
+--- a/include/qemu/selfmap.h
++++ b/include/qemu/selfmap.h
+@@ -6,8 +6,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef SELFMAP_H
+-#define SELFMAP_H
++#ifndef _SELFMAP_H_
++#define _SELFMAP_H_
+ 
+ typedef struct {
+     unsigned long start;
+diff --git a/include/user/syscall-trace.h b/include/user/syscall-trace.h
+index 614cfacfa5..42e3b48b03 100644
+--- a/include/user/syscall-trace.h
++++ b/include/user/syscall-trace.h
+@@ -7,8 +7,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef SYSCALL_TRACE_H
+-#define SYSCALL_TRACE_H
++#ifndef _SYSCALL_TRACE_H_
++#define _SYSCALL_TRACE_H_
+ 
+ #include "trace/trace-root.h"
+ 
+diff --git a/plugins/plugin.h b/plugins/plugin.h
+index b13677d0dc..55017e3581 100644
+--- a/plugins/plugin.h
++++ b/plugins/plugin.h
+@@ -9,8 +9,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef PLUGIN_INTERNAL_H
+-#define PLUGIN_INTERNAL_H
++#ifndef _PLUGIN_INTERNAL_H_
++#define _PLUGIN_INTERNAL_H_
+ 
+ #include <gmodule.h>
+ #include "qemu/qht.h"
+diff --git a/tests/qtest/fuzz/generic_fuzz.c b/tests/qtest/fuzz/generic_fuzz.c
+index 6c67522717..cea7d4058e 100644
+--- a/tests/qtest/fuzz/generic_fuzz.c
++++ b/tests/qtest/fuzz/generic_fuzz.c
+@@ -841,9 +841,9 @@ static void generic_pre_fuzz(QTestState *s)
+ 
+     g_hash_table_iter_init(&iter, fuzzable_memoryregions);
+     while (g_hash_table_iter_next(&iter, (gpointer)&mr, NULL)) {
+-        printf("  * %s (size 0x%" PRIx64 ")\n",
++        printf("  * %s (size %lx)\n",
+                object_get_canonical_path_component(&(mr->parent_obj)),
+-               memory_region_size(mr));
++               (uint64_t)mr->size);
+     }
+ 
+     if (!g_hash_table_size(fuzzable_memoryregions)) {
+diff --git a/tests/qtest/fuzz/qos_fuzz.h b/tests/qtest/fuzz/qos_fuzz.h
+index 63d8459b71..477f11b02b 100644
+--- a/tests/qtest/fuzz/qos_fuzz.h
++++ b/tests/qtest/fuzz/qos_fuzz.h
+@@ -10,8 +10,8 @@
+  * See the COPYING file in the top-level directory.
+  */
+ 
+-#ifndef QOS_FUZZ_H
+-#define QOS_FUZZ_H
++#ifndef _QOS_FUZZ_H_
++#define _QOS_FUZZ_H_
+ 
+ #include "tests/qtest/fuzz/fuzz.h"
+ #include "tests/qtest/libqos/qgraph.h"
+diff --git a/tests/tcg/minilib/minilib.h b/tests/tcg/minilib/minilib.h
+index 17d0f2f314..e23361380a 100644
+--- a/tests/tcg/minilib/minilib.h
++++ b/tests/tcg/minilib/minilib.h
+@@ -9,8 +9,8 @@
+  * SPDX-License-Identifier: GPL-2.0-only
+  */
+ 
+-#ifndef MINILIB_H
+-#define MINILIB_H
++#ifndef _MINILIB_H_
++#define _MINILIB_H_
+ 
+ /*
+  * Provided by the individual arch

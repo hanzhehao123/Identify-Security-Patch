@@ -1,0 +1,17 @@
+commit 380822edb3252962001a47c02facb7c7e977dc7d
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue May 25 14:44:54 2021 +0100
+
+    tests/qtest/e1000e-test: Check qemu_recv() succeeded
+    
+    The e1000e_send_verify() test calls qemu_recv() but doesn't
+    check that the call succeeded, which annoys Coverity. Add
+    an explicit test check for the length of the data.
+    
+    (This is a test check, not a "we assume this syscall always
+    succeeds", so we use g_assert_cmpint() rather than g_assert().)
+    
+    Fixes: Coverity CID 1432324
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Stefan Berger <stefanb@linux.ibm.com>
+    Message-id: 20210525134458.6675-3-peter.maydell@linaro.org

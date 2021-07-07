@@ -1,0 +1,12 @@
+commit e51896b3866ffb74df5aaa3b33c35e7113e5c6b9
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:06 2021 +0100
+
+    target/arm: Implement MVE VADD (scalar)
+    
+    Implement the scalar form of the MVE VADD insn. This takes the
+    scalar operand from a general purpose register.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-23-peter.maydell@linaro.org

@@ -1,0 +1,3886 @@
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 3443d2a5b5..7ab02764b2 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -1671,6 +1671,9 @@ M: John Snow <jsnow@redhat.com>
+ L: qemu-block@nongnu.org
+ S: Supported
+ F: hw/block/fdc.c
++F: hw/block/fdc-internal.h
++F: hw/block/fdc-isa.c
++F: hw/block/fdc-sysbus.c
+ F: include/hw/block/fdc.h
+ F: tests/qtest/fdc-test.c
+ T: git https://gitlab.com/jsnow/qemu.git ide
+diff --git a/accel/kvm/kvm-all.c b/accel/kvm/kvm-all.c
+index e5b10dd129..c7ec538850 100644
+--- a/accel/kvm/kvm-all.c
++++ b/accel/kvm/kvm-all.c
+@@ -411,7 +411,7 @@ static int do_kvm_destroy_vcpu(CPUState *cpu)
+     }
+ 
+     if (cpu->kvm_dirty_gfns) {
+-        ret = munmap(cpu->kvm_dirty_gfns, s->kvm_dirty_ring_bytes);
++        ret = munmap(cpu->kvm_dirty_gfns, s->kvm_dirty_ring_size);
+         if (ret < 0) {
+             goto err;
+         }
+@@ -495,7 +495,7 @@ int kvm_init_vcpu(CPUState *cpu, Error **errp)
+ 
+     if (s->kvm_dirty_ring_size) {
+         /* Use MAP_SHARED to share pages with the kernel */
+-        cpu->kvm_dirty_gfns = mmap(NULL, s->kvm_dirty_ring_bytes,
++        cpu->kvm_dirty_gfns = mmap(NULL, s->kvm_dirty_ring_size,
+                                    PROT_READ | PROT_WRITE, MAP_SHARED,
+                                    cpu->kvm_fd,
+                                    PAGE_SIZE * KVM_DIRTY_LOG_PAGE_OFFSET);
+diff --git a/authz/meson.build b/authz/meson.build
+index 42a1ec0ff6..88fa7769cb 100644
+--- a/authz/meson.build
++++ b/authz/meson.build
+@@ -6,4 +6,4 @@ authz_ss.add(files(
+   'simple.c',
+ ))
+ 
+-authz_ss.add(when: pam, if_true: files('pamacct.c'))
++authz_ss.add(when: ['CONFIG_AUTH_PAM', pam], if_true: files('pamacct.c'))
+diff --git a/block.c b/block.c
+index 1d37f133a8..3f456892d0 100644
+--- a/block.c
++++ b/block.c
+@@ -54,7 +54,7 @@
+ #ifdef CONFIG_BSD
+ #include <sys/ioctl.h>
+ #include <sys/queue.h>
+-#if defined(HAVE_SYS_DISK_H)
++#ifndef __DragonFly__
+ #include <sys/disk.h>
+ #endif
+ #endif
+diff --git a/block/block-backend.c b/block/block-backend.c
+index deb55c272e..15f1ea4288 100644
+--- a/block/block-backend.c
++++ b/block/block-backend.c
+@@ -1953,29 +1953,16 @@ uint32_t blk_get_request_alignment(BlockBackend *blk)
+     return bs ? bs->bl.request_alignment : BDRV_SECTOR_SIZE;
+ }
+ 
+-/* Returns the maximum hardware transfer length, in bytes; guaranteed nonzero */
+-uint64_t blk_get_max_hw_transfer(BlockBackend *blk)
+-{
+-    BlockDriverState *bs = blk_bs(blk);
+-    uint64_t max = INT_MAX;
+-
+-    if (bs) {
+-        max = MIN_NON_ZERO(max, bs->bl.max_hw_transfer);
+-        max = MIN_NON_ZERO(max, bs->bl.max_transfer);
+-    }
+-    return ROUND_DOWN(max, blk_get_request_alignment(blk));
+-}
+-
+ /* Returns the maximum transfer length, in bytes; guaranteed nonzero */
+ uint32_t blk_get_max_transfer(BlockBackend *blk)
+ {
+     BlockDriverState *bs = blk_bs(blk);
+-    uint32_t max = INT_MAX;
++    uint32_t max = 0;
+ 
+     if (bs) {
+-        max = MIN_NON_ZERO(max, bs->bl.max_transfer);
++        max = bs->bl.max_transfer;
+     }
+-    return ROUND_DOWN(max, blk_get_request_alignment(blk));
++    return MIN_NON_ZERO(max, INT_MAX);
+ }
+ 
+ int blk_get_max_iov(BlockBackend *blk)
+diff --git a/block/file-posix.c b/block/file-posix.c
+index a26eab0ac3..b3fbb9bd63 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -42,8 +42,6 @@
+ #include "scsi/constants.h"
+ 
+ #if defined(__APPLE__) && (__MACH__)
+-#include <sys/ioctl.h>
+-#if defined(HAVE_HOST_BLOCK_DEVICE)
+ #include <paths.h>
+ #include <sys/param.h>
+ #include <IOKit/IOKitLib.h>
+@@ -54,7 +52,6 @@
+ //#include <IOKit/storage/IOCDTypes.h>
+ #include <IOKit/storage/IODVDMedia.h>
+ #include <CoreFoundation/CoreFoundation.h>
+-#endif /* defined(HAVE_HOST_BLOCK_DEVICE) */
+ #endif
+ 
+ #ifdef __sun__
+@@ -181,17 +178,7 @@ typedef struct BDRVRawReopenState {
+     bool check_cache_dropped;
+ } BDRVRawReopenState;
+ 
+-static int fd_open(BlockDriverState *bs)
+-{
+-    BDRVRawState *s = bs->opaque;
+-
+-    /* this is just to ensure s->fd is sane (its called by io ops) */
+-    if (s->fd >= 0) {
+-        return 0;
+-    }
+-    return -EIO;
+-}
+-
++static int fd_open(BlockDriverState *bs);
+ static int64_t raw_getlength(BlockDriverState *bs);
+ 
+ typedef struct RawPosixAIOData {
+@@ -1160,27 +1147,22 @@ static void raw_reopen_abort(BDRVReopenState *state)
+     s->reopen_state = NULL;
+ }
+ 
+-static int hdev_get_max_hw_transfer(int fd, struct stat *st)
++static int sg_get_max_transfer_length(int fd)
+ {
+ #ifdef BLKSECTGET
+-    if (S_ISBLK(st->st_mode)) {
+-        unsigned short max_sectors = 0;
+-        if (ioctl(fd, BLKSECTGET, &max_sectors) == 0) {
+-            return max_sectors * 512;
+-        }
++    int max_bytes = 0;
++
++    if (ioctl(fd, BLKSECTGET, &max_bytes) == 0) {
++        return max_bytes;
+     } else {
+-        int max_bytes = 0;
+-        if (ioctl(fd, BLKSECTGET, &max_bytes) == 0) {
+-            return max_bytes;
+-        }
++        return -errno;
+     }
+-    return -errno;
+ #else
+     return -ENOSYS;
+ #endif
+ }
+ 
+-static int hdev_get_max_segments(int fd, struct stat *st)
++static int sg_get_max_segments(int fd)
+ {
+ #ifdef CONFIG_LINUX
+     char buf[32];
+@@ -1189,20 +1171,15 @@ static int hdev_get_max_segments(int fd, struct stat *st)
+     int ret;
+     int sysfd = -1;
+     long max_segments;
++    struct stat st;
+ 
+-    if (S_ISCHR(st->st_mode)) {
+-        if (ioctl(fd, SG_GET_SG_TABLESIZE, &ret) == 0) {
+-            return ret;
+-        }
+-        return -ENOTSUP;
+-    }
+-
+-    if (!S_ISBLK(st->st_mode)) {
+-        return -ENOTSUP;
++    if (fstat(fd, &st)) {
++        ret = -errno;
++        goto out;
+     }
+ 
+     sysfspath = g_strdup_printf("/sys/dev/block/%u:%u/queue/max_segments",
+-                                major(st->st_rdev), minor(st->st_rdev));
++                                major(st.st_rdev), minor(st.st_rdev));
+     sysfd = open(sysfspath, O_RDONLY);
+     if (sysfd == -1) {
+         ret = -errno;
+@@ -1239,33 +1216,24 @@ out:
+ static void raw_refresh_limits(BlockDriverState *bs, Error **errp)
+ {
+     BDRVRawState *s = bs->opaque;
+-    struct stat st;
+-
+-    raw_probe_alignment(bs, s->fd, errp);
+-    bs->bl.min_mem_alignment = s->buf_align;
+-    bs->bl.opt_mem_alignment = MAX(s->buf_align, qemu_real_host_page_size);
+-
+-    /*
+-     * Maximum transfers are best effort, so it is okay to ignore any
+-     * errors.  That said, based on the man page errors in fstat would be
+-     * very much unexpected; the only possible case seems to be ENOMEM.
+-     */
+-    if (fstat(s->fd, &st)) {
+-        return;
+-    }
+ 
+-    if (bs->sg || S_ISBLK(st.st_mode)) {
+-        int ret = hdev_get_max_hw_transfer(s->fd, &st);
++    if (bs->sg) {
++        int ret = sg_get_max_transfer_length(s->fd);
+ 
+         if (ret > 0 && ret <= BDRV_REQUEST_MAX_BYTES) {
+-            bs->bl.max_hw_transfer = ret;
++            bs->bl.max_transfer = pow2floor(ret);
+         }
+ 
+-        ret = hdev_get_max_segments(s->fd, &st);
++        ret = sg_get_max_segments(s->fd);
+         if (ret > 0) {
+-            bs->bl.max_iov = ret;
++            bs->bl.max_transfer = MIN(bs->bl.max_transfer,
++                                      ret * qemu_real_host_page_size);
+         }
+     }
++
++    raw_probe_alignment(bs, s->fd, errp);
++    bs->bl.min_mem_alignment = s->buf_align;
++    bs->bl.opt_mem_alignment = MAX(s->buf_align, qemu_real_host_page_size);
+ }
+ 
+ static int check_for_dasd(int fd)
+@@ -1347,9 +1315,7 @@ static int handle_aiocb_ioctl(void *opaque)
+     RawPosixAIOData *aiocb = opaque;
+     int ret;
+ 
+-    do {
+-        ret = ioctl(aiocb->aio_fildes, aiocb->ioctl.cmd, aiocb->ioctl.buf);
+-    } while (ret == -1 && errno == EINTR);
++    ret = ioctl(aiocb->aio_fildes, aiocb->ioctl.cmd, aiocb->ioctl.buf);
+     if (ret == -1) {
+         return -errno;
+     }
+@@ -2329,37 +2295,39 @@ static int64_t raw_getlength(BlockDriverState *bs)
+ again:
+ #endif
+     if (!fstat(fd, &sb) && (S_IFCHR & sb.st_mode)) {
+-        size = 0;
+ #ifdef DIOCGMEDIASIZE
+-        if (ioctl(fd, DIOCGMEDIASIZE, (off_t *)&size)) {
+-            size = 0;
+-        }
+-#endif
+-#ifdef DIOCGPART
+-        if (size == 0) {
+-            struct partinfo pi;
+-            if (ioctl(fd, DIOCGPART, &pi) == 0) {
+-                size = pi.media_size;
+-            }
++        if (ioctl(fd, DIOCGMEDIASIZE, (off_t *)&size))
++#elif defined(DIOCGPART)
++        {
++                struct partinfo pi;
++                if (ioctl(fd, DIOCGPART, &pi) == 0)
++                        size = pi.media_size;
++                else
++                        size = 0;
+         }
++        if (size == 0)
+ #endif
+-#if defined(DKIOCGETBLOCKCOUNT) && defined(DKIOCGETBLOCKSIZE)
+-        if (size == 0) {
++#if defined(__APPLE__) && defined(__MACH__)
++        {
+             uint64_t sectors = 0;
+             uint32_t sector_size = 0;
+ 
+             if (ioctl(fd, DKIOCGETBLOCKCOUNT, &sectors) == 0
+                && ioctl(fd, DKIOCGETBLOCKSIZE, &sector_size) == 0) {
+                 size = sectors * sector_size;
++            } else {
++                size = lseek(fd, 0LL, SEEK_END);
++                if (size < 0) {
++                    return -errno;
++                }
+             }
+         }
+-#endif
+-        if (size == 0) {
+-            size = lseek(fd, 0LL, SEEK_END);
+-        }
++#else
++        size = lseek(fd, 0LL, SEEK_END);
+         if (size < 0) {
+             return -errno;
+         }
++#endif
+ #if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
+         switch(s->type) {
+         case FTYPE_CD:
+@@ -3046,7 +3014,6 @@ static BlockStatsSpecific *raw_get_specific_stats(BlockDriverState *bs)
+     return stats;
+ }
+ 
+-#if defined(HAVE_HOST_BLOCK_DEVICE)
+ static BlockStatsSpecific *hdev_get_specific_stats(BlockDriverState *bs)
+ {
+     BlockStatsSpecific *stats = g_new(BlockStatsSpecific, 1);
+@@ -3056,7 +3023,6 @@ static BlockStatsSpecific *hdev_get_specific_stats(BlockDriverState *bs)
+ 
+     return stats;
+ }
+-#endif /* HAVE_HOST_BLOCK_DEVICE */
+ 
+ static QemuOptsList raw_create_opts = {
+     .name = "raw-create-opts",
+@@ -3272,8 +3238,6 @@ BlockDriver bdrv_file = {
+ /***********************************************/
+ /* host device */
+ 
+-#if defined(HAVE_HOST_BLOCK_DEVICE)
+-
+ #if defined(__APPLE__) && defined(__MACH__)
+ static kern_return_t GetBSDPath(io_iterator_t mediaIterator, char *bsdPath,
+                                 CFIndex maxPathSize, int flags);
+@@ -3566,6 +3530,16 @@ hdev_co_ioctl(BlockDriverState *bs, unsigned long int req, void *buf)
+ }
+ #endif /* linux */
+ 
++static int fd_open(BlockDriverState *bs)
++{
++    BDRVRawState *s = bs->opaque;
++
++    /* this is just to ensure s->fd is sane (its called by io ops) */
++    if (s->fd >= 0)
++        return 0;
++    return -EIO;
++}
++
+ static coroutine_fn int
+ hdev_co_pdiscard(BlockDriverState *bs, int64_t offset, int bytes)
+ {
+@@ -3889,8 +3863,6 @@ static BlockDriver bdrv_host_cdrom = {
+ };
+ #endif /* __FreeBSD__ */
+ 
+-#endif /* HAVE_HOST_BLOCK_DEVICE */
+-
+ static void bdrv_file_init(void)
+ {
+     /*
+@@ -3898,7 +3870,6 @@ static void bdrv_file_init(void)
+      * registered last will get probed first.
+      */
+     bdrv_register(&bdrv_file);
+-#if defined(HAVE_HOST_BLOCK_DEVICE)
+     bdrv_register(&bdrv_host_device);
+ #ifdef __linux__
+     bdrv_register(&bdrv_host_cdrom);
+@@ -3906,7 +3877,6 @@ static void bdrv_file_init(void)
+ #if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
+     bdrv_register(&bdrv_host_cdrom);
+ #endif
+-#endif /* HAVE_HOST_BLOCK_DEVICE */
+ }
+ 
+ block_init(bdrv_file_init);
+diff --git a/block/io.c b/block/io.c
+index dd93364258..323854d063 100644
+--- a/block/io.c
++++ b/block/io.c
+@@ -127,8 +127,6 @@ static void bdrv_merge_limits(BlockLimits *dst, const BlockLimits *src)
+ {
+     dst->opt_transfer = MAX(dst->opt_transfer, src->opt_transfer);
+     dst->max_transfer = MIN_NON_ZERO(dst->max_transfer, src->max_transfer);
+-    dst->max_hw_transfer = MIN_NON_ZERO(dst->max_hw_transfer,
+-                                        src->max_hw_transfer);
+     dst->opt_mem_alignment = MAX(dst->opt_mem_alignment,
+                                  src->opt_mem_alignment);
+     dst->min_mem_alignment = MAX(dst->min_mem_alignment,
+diff --git a/configure b/configure
+index e799d908a3..38704b4e11 100755
+--- a/configure
++++ b/configure
+@@ -372,10 +372,10 @@ trace_file="trace"
+ spice="$default_feature"
+ spice_protocol="auto"
+ rbd="auto"
+-smartcard="auto"
++smartcard="$default_feature"
+ u2f="auto"
+-libusb="auto"
+-usb_redir="auto"
++libusb="$default_feature"
++usb_redir="$default_feature"
+ opengl="$default_feature"
+ cpuid_h="no"
+ avx2_opt="$default_feature"
+@@ -404,10 +404,13 @@ seccomp="auto"
+ glusterfs="auto"
+ gtk="auto"
+ tls_priority="NORMAL"
+-gnutls="auto"
+-nettle="auto"
+-gcrypt="auto"
+-auth_pam="auto"
++gnutls="$default_feature"
++nettle="$default_feature"
++nettle_xts="no"
++gcrypt="$default_feature"
++gcrypt_xts="no"
++qemu_private_xts="yes"
++auth_pam="$default_feature"
+ vte="$default_feature"
+ virglrenderer="$default_feature"
+ tpm="$default_feature"
+@@ -1277,21 +1280,21 @@ for opt do
+   ;;
+   --enable-xfsctl) xfs="yes"
+   ;;
+-  --disable-smartcard) smartcard="disabled"
++  --disable-smartcard) smartcard="no"
+   ;;
+-  --enable-smartcard) smartcard="enabled"
++  --enable-smartcard) smartcard="yes"
+   ;;
+   --disable-u2f) u2f="disabled"
+   ;;
+   --enable-u2f) u2f="enabled"
+   ;;
+-  --disable-libusb) libusb="disabled"
++  --disable-libusb) libusb="no"
+   ;;
+-  --enable-libusb) libusb="enabled"
++  --enable-libusb) libusb="yes"
+   ;;
+-  --disable-usb-redir) usb_redir="disabled"
++  --disable-usb-redir) usb_redir="no"
+   ;;
+-  --enable-usb-redir) usb_redir="enabled"
++  --enable-usb-redir) usb_redir="yes"
+   ;;
+   --disable-zlib-test)
+   ;;
+@@ -1371,21 +1374,21 @@ for opt do
+   ;;
+   --tls-priority=*) tls_priority="$optarg"
+   ;;
+-  --disable-gnutls) gnutls="disabled"
++  --disable-gnutls) gnutls="no"
+   ;;
+-  --enable-gnutls) gnutls="enabled"
++  --enable-gnutls) gnutls="yes"
+   ;;
+-  --disable-nettle) nettle="disabled"
++  --disable-nettle) nettle="no"
+   ;;
+-  --enable-nettle) nettle="enabled"
++  --enable-nettle) nettle="yes"
+   ;;
+-  --disable-gcrypt) gcrypt="disabled"
++  --disable-gcrypt) gcrypt="no"
+   ;;
+-  --enable-gcrypt) gcrypt="enabled"
++  --enable-gcrypt) gcrypt="yes"
+   ;;
+-  --disable-auth-pam) auth_pam="disabled"
++  --disable-auth-pam) auth_pam="no"
+   ;;
+-  --enable-auth-pam) auth_pam="enabled"
++  --enable-auth-pam) auth_pam="yes"
+   ;;
+   --enable-rdma) rdma="yes"
+   ;;
+@@ -2799,6 +2802,199 @@ EOF
+   fi
+ fi
+ 
++##########################################
++# GNUTLS probe
++
++if test "$gnutls" != "no"; then
++    pass="no"
++    if $pkg_config --exists "gnutls >= 3.5.18"; then
++        gnutls_cflags=$($pkg_config --cflags gnutls)
++        gnutls_libs=$($pkg_config --libs gnutls)
++        # Packaging for the static libraries is not always correct.
++        # At least ubuntu 18.04 ships only shared libraries.
++        write_c_skeleton
++        if compile_prog "" "$gnutls_libs" ; then
++            pass="yes"
++        fi
++    fi
++    if test "$pass" = "no" && test "$gnutls" = "yes"; then
++	feature_not_found "gnutls" "Install gnutls devel >= 3.1.18"
++    else
++        gnutls="$pass"
++    fi
++fi
++
++
++# If user didn't give a --disable/enable-gcrypt flag,
++# then mark as disabled if user requested nettle
++# explicitly
++if test -z "$gcrypt"
++then
++    if test "$nettle" = "yes"
++    then
++        gcrypt="no"
++    fi
++fi
++
++# If user didn't give a --disable/enable-nettle flag,
++# then mark as disabled if user requested gcrypt
++# explicitly
++if test -z "$nettle"
++then
++    if test "$gcrypt" = "yes"
++    then
++        nettle="no"
++    fi
++fi
++
++has_libgcrypt() {
++    if ! has "libgcrypt-config"
++    then
++	return 1
++    fi
++
++    if test -n "$cross_prefix"
++    then
++	host=$(libgcrypt-config --host)
++	if test "$host-" != $cross_prefix
++	then
++	    return 1
++	fi
++    fi
++
++    maj=`libgcrypt-config --version | awk -F . '{print $1}'`
++    min=`libgcrypt-config --version | awk -F . '{print $2}'`
++
++    if test $maj != 1 || test $min -lt 8
++    then
++       return 1
++    fi
++
++    return 0
++}
++
++
++if test "$nettle" != "no"; then
++    pass="no"
++    if $pkg_config --exists "nettle >= 3.4"; then
++        nettle_cflags=$($pkg_config --cflags nettle)
++        nettle_libs=$($pkg_config --libs nettle)
++        # Link test to make sure the given libraries work (e.g for static).
++        write_c_skeleton
++        if compile_prog "" "$nettle_libs" ; then
++            if test -z "$gcrypt"; then
++               gcrypt="no"
++            fi
++            pass="yes"
++        fi
++    fi
++    if test "$pass" = "yes"
++    then
++        cat > $TMPC << EOF
++#include <nettle/xts.h>
++int main(void) {
++  return 0;
++}
++EOF
++        if compile_prog "$nettle_cflags" "$nettle_libs" ; then
++            nettle_xts=yes
++            qemu_private_xts=no
++        fi
++    fi
++    if test "$pass" = "no" && test "$nettle" = "yes"; then
++        feature_not_found "nettle" "Install nettle devel >= 2.7.1"
++    else
++        nettle="$pass"
++    fi
++fi
++
++if test "$gcrypt" != "no"; then
++    pass="no"
++    if has_libgcrypt; then
++        gcrypt_cflags=$(libgcrypt-config --cflags)
++        gcrypt_libs=$(libgcrypt-config --libs)
++        # Debian has removed -lgpg-error from libgcrypt-config
++        # as it "spreads unnecessary dependencies" which in
++        # turn breaks static builds...
++        if test "$static" = "yes"
++        then
++            gcrypt_libs="$gcrypt_libs -lgpg-error"
++        fi
++
++        # Link test to make sure the given libraries work (e.g for static).
++        write_c_skeleton
++        if compile_prog "" "$gcrypt_libs" ; then
++            pass="yes"
++        fi
++    fi
++    if test "$pass" = "yes"; then
++        gcrypt="yes"
++        cat > $TMPC << EOF
++#include <gcrypt.h>
++int main(void) {
++  gcry_cipher_hd_t handle;
++  gcry_cipher_open(&handle, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_XTS, 0);
++  return 0;
++}
++EOF
++        if compile_prog "$gcrypt_cflags" "$gcrypt_libs" ; then
++            gcrypt_xts=yes
++            qemu_private_xts=no
++        fi
++    elif test "$gcrypt" = "yes"; then
++        feature_not_found "gcrypt" "Install gcrypt devel >= 1.5.0"
++    else
++        gcrypt="no"
++    fi
++fi
++
++
++if test "$gcrypt" = "yes" && test "$nettle" = "yes"
++then
++    error_exit "Only one of gcrypt & nettle can be enabled"
++fi
++
++##########################################
++# libtasn1 - only for the TLS creds/session test suite
++
++tasn1=yes
++tasn1_cflags=""
++tasn1_libs=""
++if $pkg_config --exists "libtasn1"; then
++    tasn1_cflags=$($pkg_config --cflags libtasn1)
++    tasn1_libs=$($pkg_config --libs libtasn1)
++else
++    tasn1=no
++fi
++
++
++##########################################
++# PAM probe
++
++if test "$auth_pam" != "no"; then
++    cat > $TMPC <<EOF
++#include <security/pam_appl.h>
++#include <stdio.h>
++int main(void) {
++   const char *service_name = "qemu";
++   const char *user = "frank";
++   const struct pam_conv pam_conv = { 0 };
++   pam_handle_t *pamh = NULL;
++   pam_start(service_name, user, &pam_conv, &pamh);
++   return 0;
++}
++EOF
++    if compile_prog "" "-lpam" ; then
++        auth_pam=yes
++    else
++        if test "$auth_pam" = "yes"; then
++            feature_not_found "PAM" "Install PAM development package"
++        else
++            auth_pam=no
++        fi
++    fi
++fi
++
+ ##########################################
+ # VTE probe
+ 
+@@ -3980,6 +4176,48 @@ EOF
+   fi
+ fi
+ 
++# check for smartcard support
++if test "$smartcard" != "no"; then
++    if $pkg_config --atleast-version=2.5.1 libcacard; then
++        libcacard_cflags=$($pkg_config --cflags libcacard)
++        libcacard_libs=$($pkg_config --libs libcacard)
++        smartcard="yes"
++    else
++        if test "$smartcard" = "yes"; then
++            feature_not_found "smartcard" "Install libcacard devel"
++        fi
++        smartcard="no"
++    fi
++fi
++
++# check for libusb
++if test "$libusb" != "no" ; then
++    if $pkg_config --atleast-version=1.0.13 libusb-1.0; then
++        libusb="yes"
++        libusb_cflags=$($pkg_config --cflags libusb-1.0)
++        libusb_libs=$($pkg_config --libs libusb-1.0)
++    else
++        if test "$libusb" = "yes"; then
++            feature_not_found "libusb" "Install libusb devel >= 1.0.13"
++        fi
++        libusb="no"
++    fi
++fi
++
++# check for usbredirparser for usb network redirection support
++if test "$usb_redir" != "no" ; then
++    if $pkg_config --atleast-version=0.6 libusbredirparser-0.5; then
++        usb_redir="yes"
++        usb_redir_cflags=$($pkg_config --cflags libusbredirparser-0.5)
++        usb_redir_libs=$($pkg_config --libs libusbredirparser-0.5)
++    else
++        if test "$usb_redir" = "yes"; then
++            feature_not_found "usb-redir" "Install usbredir devel"
++        fi
++        usb_redir="no"
++    fi
++fi
++
+ ##########################################
+ # check if we have VSS SDK headers for win
+ 
+@@ -5471,6 +5709,30 @@ if test "$gdbus_codegen" != "" ; then
+     echo "GDBUS_CODEGEN=$gdbus_codegen" >> $config_host_mak
+ fi
+ echo "CONFIG_TLS_PRIORITY=\"$tls_priority\"" >> $config_host_mak
++if test "$gnutls" = "yes" ; then
++  echo "CONFIG_GNUTLS=y" >> $config_host_mak
++  echo "GNUTLS_CFLAGS=$gnutls_cflags" >> $config_host_mak
++  echo "GNUTLS_LIBS=$gnutls_libs" >> $config_host_mak
++fi
++if test "$gcrypt" = "yes" ; then
++  echo "CONFIG_GCRYPT=y" >> $config_host_mak
++  echo "GCRYPT_CFLAGS=$gcrypt_cflags" >> $config_host_mak
++  echo "GCRYPT_LIBS=$gcrypt_libs" >> $config_host_mak
++fi
++if test "$nettle" = "yes" ; then
++  echo "CONFIG_NETTLE=y" >> $config_host_mak
++  echo "NETTLE_CFLAGS=$nettle_cflags" >> $config_host_mak
++  echo "NETTLE_LIBS=$nettle_libs" >> $config_host_mak
++fi
++if test "$qemu_private_xts" = "yes" ; then
++  echo "CONFIG_QEMU_PRIVATE_XTS=y" >> $config_host_mak
++fi
++if test "$tasn1" = "yes" ; then
++  echo "CONFIG_TASN1=y" >> $config_host_mak
++fi
++if test "$auth_pam" = "yes" ; then
++    echo "CONFIG_AUTH_PAM=y" >> $config_host_mak
++fi
+ if test "$have_broken_size_max" = "yes" ; then
+     echo "HAVE_BROKEN_SIZE_MAX=y" >> $config_host_mak
+ fi
+@@ -5583,6 +5845,24 @@ if test "$spice" = "yes" ; then
+   echo "SPICE_LIBS=$spice_libs" >> $config_host_mak
+ fi
+ 
++if test "$smartcard" = "yes" ; then
++  echo "CONFIG_SMARTCARD=y" >> $config_host_mak
++  echo "SMARTCARD_CFLAGS=$libcacard_cflags" >> $config_host_mak
++  echo "SMARTCARD_LIBS=$libcacard_libs" >> $config_host_mak
++fi
++
++if test "$libusb" = "yes" ; then
++  echo "CONFIG_USB_LIBUSB=y" >> $config_host_mak
++  echo "LIBUSB_CFLAGS=$libusb_cflags" >> $config_host_mak
++  echo "LIBUSB_LIBS=$libusb_libs" >> $config_host_mak
++fi
++
++if test "$usb_redir" = "yes" ; then
++  echo "CONFIG_USB_REDIR=y" >> $config_host_mak
++  echo "USB_REDIR_CFLAGS=$usb_redir_cflags" >> $config_host_mak
++  echo "USB_REDIR_LIBS=$usb_redir_libs" >> $config_host_mak
++fi
++
+ if test "$opengl" = "yes" ; then
+   echo "CONFIG_OPENGL=y" >> $config_host_mak
+   echo "OPENGL_CFLAGS=$opengl_cflags" >> $config_host_mak
+@@ -5910,6 +6190,8 @@ echo "LD_I386_EMULATION=$ld_i386_emulation" >> $config_host_mak
+ echo "EXESUF=$EXESUF" >> $config_host_mak
+ echo "HOST_DSOSUF=$HOST_DSOSUF" >> $config_host_mak
+ echo "LIBS_QGA=$libs_qga" >> $config_host_mak
++echo "TASN1_LIBS=$tasn1_libs" >> $config_host_mak
++echo "TASN1_CFLAGS=$tasn1_cflags" >> $config_host_mak
+ if test "$gcov" = "yes" ; then
+   echo "CONFIG_GCOV=y" >> $config_host_mak
+ fi
+@@ -6155,14 +6437,12 @@ if test "$skip_meson" = no; then
+         -Dkvm=$kvm -Dhax=$hax -Dwhpx=$whpx -Dhvf=$hvf -Dnvmm=$nvmm \
+         -Dxen=$xen -Dxen_pci_passthrough=$xen_pci_passthrough -Dtcg=$tcg \
+         -Dcocoa=$cocoa -Dgtk=$gtk -Dmpath=$mpath -Dsdl=$sdl -Dsdl_image=$sdl_image \
+-        -Dlibusb=$libusb -Dsmartcard=$smartcard -Dusb_redir=$usb_redir \
+         -Dvnc=$vnc -Dvnc_sasl=$vnc_sasl -Dvnc_jpeg=$vnc_jpeg -Dvnc_png=$vnc_png \
+         -Dgettext=$gettext -Dxkbcommon=$xkbcommon -Du2f=$u2f -Dvirtiofsd=$virtiofsd \
+         -Dcapstone=$capstone -Dslirp=$slirp -Dfdt=$fdt -Dbrlapi=$brlapi \
+         -Dcurl=$curl -Dglusterfs=$glusterfs -Dbzip2=$bzip2 -Dlibiscsi=$libiscsi \
+         -Dlibnfs=$libnfs -Diconv=$iconv -Dcurses=$curses -Dlibudev=$libudev\
+         -Drbd=$rbd -Dlzo=$lzo -Dsnappy=$snappy -Dlzfse=$lzfse \
+-        -Dgnutls=$gnutls -Dnettle=$nettle -Dgcrypt=$gcrypt -Dauth_pam=$auth_pam \
+         -Dzstd=$zstd -Dseccomp=$seccomp -Dvirtfs=$virtfs -Dcap_ng=$cap_ng \
+         -Dattr=$attr -Ddefault_devices=$default_devices \
+         -Ddocs=$docs -Dsphinx_build=$sphinx_build -Dinstall_blobs=$blobs \
+diff --git a/crypto/meson.build b/crypto/meson.build
+index 7cbf1a6ba7..af7e80c6f6 100644
+--- a/crypto/meson.build
++++ b/crypto/meson.build
+@@ -22,31 +22,48 @@ crypto_ss.add(files(
+   'tlssession.c',
+ ))
+ 
+-if nettle.found()
+-  crypto_ss.add(nettle, files('hash-nettle.c', 'hmac-nettle.c', 'pbkdf-nettle.c'))
+-elif gcrypt.found()
+-  crypto_ss.add(gcrypt, files('hash-gcrypt.c', 'hmac-gcrypt.c', 'pbkdf-gcrypt.c'))
++if 'CONFIG_NETTLE' in config_host
++  crypto_ss.add(files('hash-nettle.c', 'hmac-nettle.c', 'pbkdf-nettle.c'))
++elif 'CONFIG_GCRYPT' in config_host
++  crypto_ss.add(files('hash-gcrypt.c', 'pbkdf-gcrypt.c'))
++  crypto_ss.add(files('hmac-gcrypt.c'))
+ else
+   crypto_ss.add(files('hash-glib.c', 'hmac-glib.c', 'pbkdf-stub.c'))
+ endif
+-if xts == 'private'
+-  crypto_ss.add(files('xts.c'))
+-endif
+ 
+ crypto_ss.add(when: 'CONFIG_SECRET_KEYRING', if_true: files('secret_keyring.c'))
++crypto_ss.add(when: 'CONFIG_QEMU_PRIVATE_XTS', if_true: files('xts.c'))
+ crypto_ss.add(when: 'CONFIG_AF_ALG', if_true: files('afalg.c', 'cipher-afalg.c', 'hash-afalg.c'))
+-crypto_ss.add(when: gnutls, if_true: files('tls-cipher-suites.c'))
++crypto_ss.add(when: 'CONFIG_GNUTLS', if_true: files('tls-cipher-suites.c'))
++
++if 'CONFIG_NETTLE' in config_host
++  crypto_ss.add(nettle)
++elif 'CONFIG_GCRYPT' in config_host
++  crypto_ss.add(gcrypt)
++endif
++
++if 'CONFIG_GNUTLS' in config_host
++  crypto_ss.add(gnutls)
++endif
++
+ 
+ util_ss.add(files('aes.c'))
+ util_ss.add(files('init.c'))
+ 
+-if gcrypt.found()
+-  util_ss.add(gcrypt, files('random-gcrypt.c'))
+-elif gnutls.found()
+-  util_ss.add(gnutls, files('random-gnutls.c'))
++if 'CONFIG_GCRYPT' in config_host
++  util_ss.add(files('random-gcrypt.c'))
++elif 'CONFIG_GNUTLS' in config_host
++  util_ss.add(files('random-gnutls.c'))
+ elif 'CONFIG_RNG_NONE' in config_host
+   util_ss.add(files('random-none.c'))
+ else
+   util_ss.add(files('random-platform.c'))
+ endif
+ 
++if 'CONFIG_GCRYPT' in config_host
++  util_ss.add(gcrypt)
++endif
++
++if 'CONFIG_GNUTLS' in config_host
++  util_ss.add(gnutls)
++endif
+diff --git a/hw/block/Kconfig b/hw/block/Kconfig
+index 295441e64a..9e8f28f982 100644
+--- a/hw/block/Kconfig
++++ b/hw/block/Kconfig
+@@ -1,8 +1,14 @@
+ config FDC
+     bool
+-    # FIXME: there is no separate file for the MMIO floppy disk controller, so
+-    # select ISA_BUS here instead of polluting each board that requires one
+-    select ISA_BUS
++
++config FDC_ISA
++    bool
++    depends on ISA_BUS
++    select FDC
++
++config FDC_SYSBUS
++    bool
++    select FDC
+ 
+ config SSI_M25P80
+     bool
+diff --git a/hw/block/fdc-internal.h b/hw/block/fdc-internal.h
+new file mode 100644
+index 0000000000..036392e9fc
+--- /dev/null
++++ b/hw/block/fdc-internal.h
+@@ -0,0 +1,158 @@
++/*
++ * QEMU Floppy disk emulator (Intel 82078)
++ *
++ * Copyright (c) 2003, 2007 Jocelyn Mayer
++ * Copyright (c) 2008 Hervé Poussineau
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a copy
++ * of this software and associated documentation files (the "Software"), to deal
++ * in the Software without restriction, including without limitation the rights
++ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the Software is
++ * furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
++ * THE SOFTWARE.
++ */
++#ifndef HW_BLOCK_FDC_INTERNAL_H
++#define HW_BLOCK_FDC_INTERNAL_H
++
++#include "exec/memory.h"
++#include "exec/ioport.h"
++#include "hw/block/block.h"
++#include "hw/block/fdc.h"
++#include "qapi/qapi-types-block.h"
++
++typedef struct FDCtrl FDCtrl;
++
++/* Floppy bus emulation */
++
++typedef struct FloppyBus {
++    BusState bus;
++    FDCtrl *fdc;
++} FloppyBus;
++
++/* Floppy disk drive emulation */
++
++typedef enum FDriveRate {
++    FDRIVE_RATE_500K = 0x00,  /* 500 Kbps */
++    FDRIVE_RATE_300K = 0x01,  /* 300 Kbps */
++    FDRIVE_RATE_250K = 0x02,  /* 250 Kbps */
++    FDRIVE_RATE_1M   = 0x03,  /*   1 Mbps */
++} FDriveRate;
++
++typedef enum FDriveSize {
++    FDRIVE_SIZE_UNKNOWN,
++    FDRIVE_SIZE_350,
++    FDRIVE_SIZE_525,
++} FDriveSize;
++
++typedef struct FDFormat {
++    FloppyDriveType drive;
++    uint8_t last_sect;
++    uint8_t max_track;
++    uint8_t max_head;
++    FDriveRate rate;
++} FDFormat;
++
++typedef enum FDiskFlags {
++    FDISK_DBL_SIDES  = 0x01,
++} FDiskFlags;
++
++typedef struct FDrive {
++    FDCtrl *fdctrl;
++    BlockBackend *blk;
++    BlockConf *conf;
++    /* Drive status */
++    FloppyDriveType drive;    /* CMOS drive type        */
++    uint8_t perpendicular;    /* 2.88 MB access mode    */
++    /* Position */
++    uint8_t head;
++    uint8_t track;
++    uint8_t sect;
++    /* Media */
++    FloppyDriveType disk;     /* Current disk type      */
++    FDiskFlags flags;
++    uint8_t last_sect;        /* Nb sector per track    */
++    uint8_t max_track;        /* Nb of tracks           */
++    uint16_t bps;             /* Bytes per sector       */
++    uint8_t ro;               /* Is read-only           */
++    uint8_t media_changed;    /* Is media changed       */
++    uint8_t media_rate;       /* Data rate of medium    */
++
++    bool media_validated;     /* Have we validated the media? */
++} FDrive;
++
++struct FDCtrl {
++    MemoryRegion iomem;
++    qemu_irq irq;
++    /* Controller state */
++    QEMUTimer *result_timer;
++    int dma_chann;
++    uint8_t phase;
++    IsaDma *dma;
++    /* Controller's identification */
++    uint8_t version;
++    /* HW */
++    uint8_t sra;
++    uint8_t srb;
++    uint8_t dor;
++    uint8_t dor_vmstate; /* only used as temp during vmstate */
++    uint8_t tdr;
++    uint8_t dsr;
++    uint8_t msr;
++    uint8_t cur_drv;
++    uint8_t status0;
++    uint8_t status1;
++    uint8_t status2;
++    /* Command FIFO */
++    uint8_t *fifo;
++    int32_t fifo_size;
++    uint32_t data_pos;
++    uint32_t data_len;
++    uint8_t data_state;
++    uint8_t data_dir;
++    uint8_t eot; /* last wanted sector */
++    /* States kept only to be returned back */
++    /* precompensation */
++    uint8_t precomp_trk;
++    uint8_t config;
++    uint8_t lock;
++    /* Power down config (also with status regB access mode */
++    uint8_t pwrd;
++    /* Floppy drives */
++    FloppyBus bus;
++    uint8_t num_floppies;
++    FDrive drives[MAX_FD];
++    struct {
++        FloppyDriveType type;
++    } qdev_for_drives[MAX_FD];
++    int reset_sensei;
++    FloppyDriveType fallback; /* type=auto failure fallback */
++    /* Timers state */
++    uint8_t timer0;
++    uint8_t timer1;
++    PortioList portio_list;
++};
++
++extern const FDFormat fd_formats[];
++extern const VMStateDescription vmstate_fdc;
++
++uint32_t fdctrl_read(void *opaque, uint32_t reg);
++void fdctrl_write(void *opaque, uint32_t reg, uint32_t value);
++void fdctrl_reset(FDCtrl *fdctrl, int do_irq);
++void fdctrl_realize_common(DeviceState *dev, FDCtrl *fdctrl, Error **errp);
++
++int fdctrl_transfer_handler(void *opaque, int nchan, int dma_pos, int dma_len);
++
++void fdctrl_init_drives(FloppyBus *bus, DriveInfo **fds);
++
++#endif
+diff --git a/hw/block/fdc-isa.c b/hw/block/fdc-isa.c
+new file mode 100644
+index 0000000000..3bf64e0665
+--- /dev/null
++++ b/hw/block/fdc-isa.c
+@@ -0,0 +1,320 @@
++/*
++ * QEMU Floppy disk emulator (Intel 82078)
++ *
++ * Copyright (c) 2003, 2007 Jocelyn Mayer
++ * Copyright (c) 2008 Hervé Poussineau
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a copy
++ * of this software and associated documentation files (the "Software"), to deal
++ * in the Software without restriction, including without limitation the rights
++ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the Software is
++ * furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
++ * THE SOFTWARE.
++ */
++/*
++ * The controller is used in Sun4m systems in a slightly different
++ * way. There are changes in DOR register and DMA is not available.
++ */
++
++#include "qemu/osdep.h"
++#include "hw/block/fdc.h"
++#include "qapi/error.h"
++#include "qemu/error-report.h"
++#include "qemu/timer.h"
++#include "hw/acpi/aml-build.h"
++#include "hw/irq.h"
++#include "hw/isa/isa.h"
++#include "hw/qdev-properties.h"
++#include "hw/qdev-properties-system.h"
++#include "migration/vmstate.h"
++#include "hw/block/block.h"
++#include "sysemu/block-backend.h"
++#include "sysemu/blockdev.h"
++#include "sysemu/sysemu.h"
++#include "qemu/log.h"
++#include "qemu/main-loop.h"
++#include "qemu/module.h"
++#include "trace.h"
++#include "qom/object.h"
++#include "fdc-internal.h"
++
++OBJECT_DECLARE_SIMPLE_TYPE(FDCtrlISABus, ISA_FDC)
++
++struct FDCtrlISABus {
++    /*< private >*/
++    ISADevice parent_obj;
++    /*< public >*/
++
++    uint32_t iobase;
++    uint32_t irq;
++    uint32_t dma;
++    struct FDCtrl state;
++    int32_t bootindexA;
++    int32_t bootindexB;
++};
++
++static void fdctrl_external_reset_isa(DeviceState *d)
++{
++    FDCtrlISABus *isa = ISA_FDC(d);
++    FDCtrl *s = &isa->state;
++
++    fdctrl_reset(s, 0);
++}
++
++void isa_fdc_init_drives(ISADevice *fdc, DriveInfo **fds)
++{
++    fdctrl_init_drives(&ISA_FDC(fdc)->state.bus, fds);
++}
++
++static const MemoryRegionPortio fdc_portio_list[] = {
++    { 1, 5, 1, .read = fdctrl_read, .write = fdctrl_write },
++    { 7, 1, 1, .read = fdctrl_read, .write = fdctrl_write },
++    PORTIO_END_OF_LIST(),
++};
++
++static void isabus_fdc_realize(DeviceState *dev, Error **errp)
++{
++    ISADevice *isadev = ISA_DEVICE(dev);
++    FDCtrlISABus *isa = ISA_FDC(dev);
++    FDCtrl *fdctrl = &isa->state;
++    Error *err = NULL;
++
++    isa_register_portio_list(isadev, &fdctrl->portio_list,
++                             isa->iobase, fdc_portio_list, fdctrl,
++                             "fdc");
++
++    isa_init_irq(isadev, &fdctrl->irq, isa->irq);
++    fdctrl->dma_chann = isa->dma;
++    if (fdctrl->dma_chann != -1) {
++        IsaDmaClass *k;
++        fdctrl->dma = isa_get_dma(isa_bus_from_device(isadev), isa->dma);
++        if (!fdctrl->dma) {
++            error_setg(errp, "ISA controller does not support DMA");
++            return;
++        }
++        k = ISADMA_GET_CLASS(fdctrl->dma);
++        k->register_channel(fdctrl->dma, fdctrl->dma_chann,
++                            &fdctrl_transfer_handler, fdctrl);
++    }
++
++    qdev_set_legacy_instance_id(dev, isa->iobase, 2);
++
++    fdctrl_realize_common(dev, fdctrl, &err);
++    if (err != NULL) {
++        error_propagate(errp, err);
++        return;
++    }
++}
++
++FloppyDriveType isa_fdc_get_drive_type(ISADevice *fdc, int i)
++{
++    FDCtrlISABus *isa = ISA_FDC(fdc);
++
++    return isa->state.drives[i].drive;
++}
++
++static void isa_fdc_get_drive_max_chs(FloppyDriveType type, uint8_t *maxc,
++                                      uint8_t *maxh, uint8_t *maxs)
++{
++    const FDFormat *fdf;
++
++    *maxc = *maxh = *maxs = 0;
++    for (fdf = fd_formats; fdf->drive != FLOPPY_DRIVE_TYPE_NONE; fdf++) {
++        if (fdf->drive != type) {
++            continue;
++        }
++        if (*maxc < fdf->max_track) {
++            *maxc = fdf->max_track;
++        }
++        if (*maxh < fdf->max_head) {
++            *maxh = fdf->max_head;
++        }
++        if (*maxs < fdf->last_sect) {
++            *maxs = fdf->last_sect;
++        }
++    }
++    (*maxc)--;
++}
++
++static Aml *build_fdinfo_aml(int idx, FloppyDriveType type)
++{
++    Aml *dev, *fdi;
++    uint8_t maxc, maxh, maxs;
++
++    isa_fdc_get_drive_max_chs(type, &maxc, &maxh, &maxs);
++
++    dev = aml_device("FLP%c", 'A' + idx);
++
++    aml_append(dev, aml_name_decl("_ADR", aml_int(idx)));
++
++    fdi = aml_package(16);
++    aml_append(fdi, aml_int(idx));  /* Drive Number */
++    aml_append(fdi,
++        aml_int(cmos_get_fd_drive_type(type)));  /* Device Type */
++    /*
++     * the values below are the limits of the drive, and are thus independent
++     * of the inserted media
++     */
++    aml_append(fdi, aml_int(maxc));  /* Maximum Cylinder Number */
++    aml_append(fdi, aml_int(maxs));  /* Maximum Sector Number */
++    aml_append(fdi, aml_int(maxh));  /* Maximum Head Number */
++    /*
++     * SeaBIOS returns the below values for int 0x13 func 0x08 regardless of
++     * the drive type, so shall we
++     */
++    aml_append(fdi, aml_int(0xAF));  /* disk_specify_1 */
++    aml_append(fdi, aml_int(0x02));  /* disk_specify_2 */
++    aml_append(fdi, aml_int(0x25));  /* disk_motor_wait */
++    aml_append(fdi, aml_int(0x02));  /* disk_sector_siz */
++    aml_append(fdi, aml_int(0x12));  /* disk_eot */
++    aml_append(fdi, aml_int(0x1B));  /* disk_rw_gap */
++    aml_append(fdi, aml_int(0xFF));  /* disk_dtl */
++    aml_append(fdi, aml_int(0x6C));  /* disk_formt_gap */
++    aml_append(fdi, aml_int(0xF6));  /* disk_fill */
++    aml_append(fdi, aml_int(0x0F));  /* disk_head_sttl */
++    aml_append(fdi, aml_int(0x08));  /* disk_motor_strt */
++
++    aml_append(dev, aml_name_decl("_FDI", fdi));
++    return dev;
++}
++
++int cmos_get_fd_drive_type(FloppyDriveType fd0)
++{
++    int val;
++
++    switch (fd0) {
++    case FLOPPY_DRIVE_TYPE_144:
++        /* 1.44 Mb 3"5 drive */
++        val = 4;
++        break;
++    case FLOPPY_DRIVE_TYPE_288:
++        /* 2.88 Mb 3"5 drive */
++        val = 5;
++        break;
++    case FLOPPY_DRIVE_TYPE_120:
++        /* 1.2 Mb 5"5 drive */
++        val = 2;
++        break;
++    case FLOPPY_DRIVE_TYPE_NONE:
++    default:
++        val = 0;
++        break;
++    }
++    return val;
++}
++
++static void fdc_isa_build_aml(ISADevice *isadev, Aml *scope)
++{
++    Aml *dev;
++    Aml *crs;
++    int i;
++
++#define ACPI_FDE_MAX_FD 4
++    uint32_t fde_buf[5] = {
++        0, 0, 0, 0,     /* presence of floppy drives #0 - #3 */
++        cpu_to_le32(2)  /* tape presence (2 == never present) */
++    };
++
++    crs = aml_resource_template();
++    aml_append(crs, aml_io(AML_DECODE16, 0x03F2, 0x03F2, 0x00, 0x04));
++    aml_append(crs, aml_io(AML_DECODE16, 0x03F7, 0x03F7, 0x00, 0x01));
++    aml_append(crs, aml_irq_no_flags(6));
++    aml_append(crs,
++        aml_dma(AML_COMPATIBILITY, AML_NOTBUSMASTER, AML_TRANSFER8, 2));
++
++    dev = aml_device("FDC0");
++    aml_append(dev, aml_name_decl("_HID", aml_eisaid("PNP0700")));
++    aml_append(dev, aml_name_decl("_CRS", crs));
++
++    for (i = 0; i < MIN(MAX_FD, ACPI_FDE_MAX_FD); i++) {
++        FloppyDriveType type = isa_fdc_get_drive_type(isadev, i);
++
++        if (type < FLOPPY_DRIVE_TYPE_NONE) {
++            fde_buf[i] = cpu_to_le32(1);  /* drive present */
++            aml_append(dev, build_fdinfo_aml(i, type));
++        }
++    }
++    aml_append(dev, aml_name_decl("_FDE",
++               aml_buffer(sizeof(fde_buf), (uint8_t *)fde_buf)));
++
++    aml_append(scope, dev);
++}
++
++static const VMStateDescription vmstate_isa_fdc = {
++    .name = "fdc",
++    .version_id = 2,
++    .minimum_version_id = 2,
++    .fields = (VMStateField[]) {
++        VMSTATE_STRUCT(state, FDCtrlISABus, 0, vmstate_fdc, FDCtrl),
++        VMSTATE_END_OF_LIST()
++    }
++};
++
++static Property isa_fdc_properties[] = {
++    DEFINE_PROP_UINT32("iobase", FDCtrlISABus, iobase, 0x3f0),
++    DEFINE_PROP_UINT32("irq", FDCtrlISABus, irq, 6),
++    DEFINE_PROP_UINT32("dma", FDCtrlISABus, dma, 2),
++    DEFINE_PROP_SIGNED("fdtypeA", FDCtrlISABus, state.qdev_for_drives[0].type,
++                        FLOPPY_DRIVE_TYPE_AUTO, qdev_prop_fdc_drive_type,
++                        FloppyDriveType),
++    DEFINE_PROP_SIGNED("fdtypeB", FDCtrlISABus, state.qdev_for_drives[1].type,
++                        FLOPPY_DRIVE_TYPE_AUTO, qdev_prop_fdc_drive_type,
++                        FloppyDriveType),
++    DEFINE_PROP_SIGNED("fallback", FDCtrlISABus, state.fallback,
++                        FLOPPY_DRIVE_TYPE_288, qdev_prop_fdc_drive_type,
++                        FloppyDriveType),
++    DEFINE_PROP_END_OF_LIST(),
++};
++
++static void isabus_fdc_class_init(ObjectClass *klass, void *data)
++{
++    DeviceClass *dc = DEVICE_CLASS(klass);
++    ISADeviceClass *isa = ISA_DEVICE_CLASS(klass);
++
++    dc->desc = "virtual floppy controller";
++    dc->realize = isabus_fdc_realize;
++    dc->fw_name = "fdc";
++    dc->reset = fdctrl_external_reset_isa;
++    dc->vmsd = &vmstate_isa_fdc;
++    isa->build_aml = fdc_isa_build_aml;
++    device_class_set_props(dc, isa_fdc_properties);
++    set_bit(DEVICE_CATEGORY_STORAGE, dc->categories);
++}
++
++static void isabus_fdc_instance_init(Object *obj)
++{
++    FDCtrlISABus *isa = ISA_FDC(obj);
++
++    device_add_bootindex_property(obj, &isa->bootindexA,
++                                  "bootindexA", "/floppy@0",
++                                  DEVICE(obj));
++    device_add_bootindex_property(obj, &isa->bootindexB,
++                                  "bootindexB", "/floppy@1",
++                                  DEVICE(obj));
++}
++
++static const TypeInfo isa_fdc_info = {
++    .name          = TYPE_ISA_FDC,
++    .parent        = TYPE_ISA_DEVICE,
++    .instance_size = sizeof(FDCtrlISABus),
++    .class_init    = isabus_fdc_class_init,
++    .instance_init = isabus_fdc_instance_init,
++};
++
++static void isa_fdc_register_types(void)
++{
++    type_register_static(&isa_fdc_info);
++}
++
++type_init(isa_fdc_register_types)
+diff --git a/hw/block/fdc-sysbus.c b/hw/block/fdc-sysbus.c
+new file mode 100644
+index 0000000000..57fc8773f1
+--- /dev/null
++++ b/hw/block/fdc-sysbus.c
+@@ -0,0 +1,251 @@
++/*
++ * QEMU Floppy disk emulator (Intel 82078)
++ *
++ * Copyright (c) 2003, 2007 Jocelyn Mayer
++ * Copyright (c) 2008 Hervé Poussineau
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a copy
++ * of this software and associated documentation files (the "Software"), to deal
++ * in the Software without restriction, including without limitation the rights
++ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the Software is
++ * furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
++ * THE SOFTWARE.
++ */
++
++#include "qemu/osdep.h"
++#include "qapi/error.h"
++#include "qom/object.h"
++#include "hw/sysbus.h"
++#include "hw/block/fdc.h"
++#include "migration/vmstate.h"
++#include "fdc-internal.h"
++#include "trace.h"
++
++#define TYPE_SYSBUS_FDC "base-sysbus-fdc"
++typedef struct FDCtrlSysBusClass FDCtrlSysBusClass;
++typedef struct FDCtrlSysBus FDCtrlSysBus;
++DECLARE_OBJ_CHECKERS(FDCtrlSysBus, FDCtrlSysBusClass,
++                     SYSBUS_FDC, TYPE_SYSBUS_FDC)
++
++struct FDCtrlSysBusClass {
++    /*< private >*/
++    SysBusDeviceClass parent_class;
++    /*< public >*/
++
++    bool use_strict_io;
++};
++
++struct FDCtrlSysBus {
++    /*< private >*/
++    SysBusDevice parent_obj;
++    /*< public >*/
++
++    struct FDCtrl state;
++};
++
++static uint64_t fdctrl_read_mem(void *opaque, hwaddr reg, unsigned ize)
++{
++    return fdctrl_read(opaque, (uint32_t)reg);
++}
++
++static void fdctrl_write_mem(void *opaque, hwaddr reg,
++                             uint64_t value, unsigned size)
++{
++    fdctrl_write(opaque, (uint32_t)reg, value);
++}
++
++static const MemoryRegionOps fdctrl_mem_ops = {
++    .read = fdctrl_read_mem,
++    .write = fdctrl_write_mem,
++    .endianness = DEVICE_NATIVE_ENDIAN,
++};
++
++static const MemoryRegionOps fdctrl_mem_strict_ops = {
++    .read = fdctrl_read_mem,
++    .write = fdctrl_write_mem,
++    .endianness = DEVICE_NATIVE_ENDIAN,
++    .valid = {
++        .min_access_size = 1,
++        .max_access_size = 1,
++    },
++};
++
++static void fdctrl_external_reset_sysbus(DeviceState *d)
++{
++    FDCtrlSysBus *sys = SYSBUS_FDC(d);
++    FDCtrl *s = &sys->state;
++
++    fdctrl_reset(s, 0);
++}
++
++static void fdctrl_handle_tc(void *opaque, int irq, int level)
++{
++    trace_fdctrl_tc_pulse(level);
++}
++
++void fdctrl_init_sysbus(qemu_irq irq, int dma_chann,
++                        hwaddr mmio_base, DriveInfo **fds)
++{
++    FDCtrl *fdctrl;
++    DeviceState *dev;
++    SysBusDevice *sbd;
++    FDCtrlSysBus *sys;
++
++    dev = qdev_new("sysbus-fdc");
++    sys = SYSBUS_FDC(dev);
++    fdctrl = &sys->state;
++    fdctrl->dma_chann = dma_chann; /* FIXME */
++    sbd = SYS_BUS_DEVICE(dev);
++    sysbus_realize_and_unref(sbd, &error_fatal);
++    sysbus_connect_irq(sbd, 0, irq);
++    sysbus_mmio_map(sbd, 0, mmio_base);
++
++    fdctrl_init_drives(&sys->state.bus, fds);
++}
++
++void sun4m_fdctrl_init(qemu_irq irq, hwaddr io_base,
++                       DriveInfo **fds, qemu_irq *fdc_tc)
++{
++    DeviceState *dev;
++    FDCtrlSysBus *sys;
++
++    dev = qdev_new("sun-fdtwo");
++    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
++    sys = SYSBUS_FDC(dev);
++    sysbus_connect_irq(SYS_BUS_DEVICE(sys), 0, irq);
++    sysbus_mmio_map(SYS_BUS_DEVICE(sys), 0, io_base);
++    *fdc_tc = qdev_get_gpio_in(dev, 0);
++
++    fdctrl_init_drives(&sys->state.bus, fds);
++}
++
++static void sysbus_fdc_common_instance_init(Object *obj)
++{
++    DeviceState *dev = DEVICE(obj);
++    FDCtrlSysBusClass *sbdc = SYSBUS_FDC_GET_CLASS(obj);
++    SysBusDevice *sbd = SYS_BUS_DEVICE(dev);
++    FDCtrlSysBus *sys = SYSBUS_FDC(obj);
++    FDCtrl *fdctrl = &sys->state;
++
++    qdev_set_legacy_instance_id(dev, 0 /* io */, 2); /* FIXME */
++
++    memory_region_init_io(&fdctrl->iomem, obj,
++                          sbdc->use_strict_io ? &fdctrl_mem_strict_ops
++                                              : &fdctrl_mem_ops,
++                          fdctrl, "fdc", 0x08);
++    sysbus_init_mmio(sbd, &fdctrl->iomem);
++
++    sysbus_init_irq(sbd, &fdctrl->irq);
++    qdev_init_gpio_in(dev, fdctrl_handle_tc, 1);
++}
++
++static void sysbus_fdc_realize(DeviceState *dev, Error **errp)
++{
++    FDCtrlSysBus *sys = SYSBUS_FDC(dev);
++    FDCtrl *fdctrl = &sys->state;
++
++    fdctrl_realize_common(dev, fdctrl, errp);
++}
++
++static const VMStateDescription vmstate_sysbus_fdc = {
++    .name = "fdc",
++    .version_id = 2,
++    .minimum_version_id = 2,
++    .fields = (VMStateField[]) {
++        VMSTATE_STRUCT(state, FDCtrlSysBus, 0, vmstate_fdc, FDCtrl),
++        VMSTATE_END_OF_LIST()
++    }
++};
++
++static void sysbus_fdc_common_class_init(ObjectClass *klass, void *data)
++{
++    DeviceClass *dc = DEVICE_CLASS(klass);
++
++    dc->realize = sysbus_fdc_realize;
++    dc->reset = fdctrl_external_reset_sysbus;
++    dc->vmsd = &vmstate_sysbus_fdc;
++    set_bit(DEVICE_CATEGORY_STORAGE, dc->categories);
++}
++
++static const TypeInfo sysbus_fdc_common_typeinfo = {
++    .name          = TYPE_SYSBUS_FDC,
++    .parent        = TYPE_SYS_BUS_DEVICE,
++    .instance_size = sizeof(FDCtrlSysBus),
++    .instance_init = sysbus_fdc_common_instance_init,
++    .abstract      = true,
++    .class_init    = sysbus_fdc_common_class_init,
++    .class_size    = sizeof(FDCtrlSysBusClass),
++};
++
++static Property sysbus_fdc_properties[] = {
++    DEFINE_PROP_SIGNED("fdtypeA", FDCtrlSysBus, state.qdev_for_drives[0].type,
++                        FLOPPY_DRIVE_TYPE_AUTO, qdev_prop_fdc_drive_type,
++                        FloppyDriveType),
++    DEFINE_PROP_SIGNED("fdtypeB", FDCtrlSysBus, state.qdev_for_drives[1].type,
++                        FLOPPY_DRIVE_TYPE_AUTO, qdev_prop_fdc_drive_type,
++                        FloppyDriveType),
++    DEFINE_PROP_SIGNED("fallback", FDCtrlSysBus, state.fallback,
++                        FLOPPY_DRIVE_TYPE_144, qdev_prop_fdc_drive_type,
++                        FloppyDriveType),
++    DEFINE_PROP_END_OF_LIST(),
++};
++
++static void sysbus_fdc_class_init(ObjectClass *klass, void *data)
++{
++    DeviceClass *dc = DEVICE_CLASS(klass);
++
++    dc->desc = "virtual floppy controller";
++    device_class_set_props(dc, sysbus_fdc_properties);
++}
++
++static const TypeInfo sysbus_fdc_typeinfo = {
++    .name          = "sysbus-fdc",
++    .parent        = TYPE_SYSBUS_FDC,
++    .class_init    = sysbus_fdc_class_init,
++};
++
++static Property sun4m_fdc_properties[] = {
++    DEFINE_PROP_SIGNED("fdtype", FDCtrlSysBus, state.qdev_for_drives[0].type,
++                        FLOPPY_DRIVE_TYPE_AUTO, qdev_prop_fdc_drive_type,
++                        FloppyDriveType),
++    DEFINE_PROP_SIGNED("fallback", FDCtrlSysBus, state.fallback,
++                        FLOPPY_DRIVE_TYPE_144, qdev_prop_fdc_drive_type,
++                        FloppyDriveType),
++    DEFINE_PROP_END_OF_LIST(),
++};
++
++static void sun4m_fdc_class_init(ObjectClass *klass, void *data)
++{
++    FDCtrlSysBusClass *sbdc = SYSBUS_FDC_CLASS(klass);
++    DeviceClass *dc = DEVICE_CLASS(klass);
++
++    sbdc->use_strict_io = true;
++    dc->desc = "virtual floppy controller";
++    device_class_set_props(dc, sun4m_fdc_properties);
++}
++
++static const TypeInfo sun4m_fdc_typeinfo = {
++    .name          = "sun-fdtwo",
++    .parent        = TYPE_SYSBUS_FDC,
++    .class_init    = sun4m_fdc_class_init,
++};
++
++static void sysbus_fdc_register_types(void)
++{
++    type_register_static(&sysbus_fdc_common_typeinfo);
++    type_register_static(&sysbus_fdc_typeinfo);
++    type_register_static(&sun4m_fdc_typeinfo);
++}
++
++type_init(sysbus_fdc_register_types)
+diff --git a/hw/block/fdc.c b/hw/block/fdc.c
+index a825c2acba..9014cd30b3 100644
+--- a/hw/block/fdc.c
++++ b/hw/block/fdc.c
+@@ -32,12 +32,10 @@
+ #include "qapi/error.h"
+ #include "qemu/error-report.h"
+ #include "qemu/timer.h"
+-#include "hw/acpi/aml-build.h"
+ #include "hw/irq.h"
+ #include "hw/isa/isa.h"
+ #include "hw/qdev-properties.h"
+ #include "hw/qdev-properties-system.h"
+-#include "hw/sysbus.h"
+ #include "migration/vmstate.h"
+ #include "hw/block/block.h"
+ #include "sysemu/block-backend.h"
+@@ -48,6 +46,7 @@
+ #include "qemu/module.h"
+ #include "trace.h"
+ #include "qom/object.h"
++#include "fdc-internal.h"
+ 
+ /********************************************************/
+ /* debug Floppy devices */
+@@ -68,15 +67,8 @@
+ #define TYPE_FLOPPY_BUS "floppy-bus"
+ OBJECT_DECLARE_SIMPLE_TYPE(FloppyBus, FLOPPY_BUS)
+ 
+-typedef struct FDCtrl FDCtrl;
+-typedef struct FDrive FDrive;
+ static FDrive *get_drv(FDCtrl *fdctrl, int unit);
+ 
+-struct FloppyBus {
+-    BusState bus;
+-    FDCtrl *fdc;
+-};
+-
+ static const TypeInfo floppy_bus_info = {
+     .name = TYPE_FLOPPY_BUS,
+     .parent = TYPE_BUS,
+@@ -93,32 +85,11 @@ static void floppy_bus_create(FDCtrl *fdc, FloppyBus *bus, DeviceState *dev)
+ /********************************************************/
+ /* Floppy drive emulation                               */
+ 
+-typedef enum FDriveRate {
+-    FDRIVE_RATE_500K = 0x00,  /* 500 Kbps */
+-    FDRIVE_RATE_300K = 0x01,  /* 300 Kbps */
+-    FDRIVE_RATE_250K = 0x02,  /* 250 Kbps */
+-    FDRIVE_RATE_1M   = 0x03,  /*   1 Mbps */
+-} FDriveRate;
+-
+-typedef enum FDriveSize {
+-    FDRIVE_SIZE_UNKNOWN,
+-    FDRIVE_SIZE_350,
+-    FDRIVE_SIZE_525,
+-} FDriveSize;
+-
+-typedef struct FDFormat {
+-    FloppyDriveType drive;
+-    uint8_t last_sect;
+-    uint8_t max_track;
+-    uint8_t max_head;
+-    FDriveRate rate;
+-} FDFormat;
+-
+ /* In many cases, the total sector size of a format is enough to uniquely
+  * identify it. However, there are some total sector collisions between
+  * formats of different physical size, and these are noted below by
+  * highlighting the total sector size for entries with collisions. */
+-static const FDFormat fd_formats[] = {
++const FDFormat fd_formats[] = {
+     /* First entry is default format */
+     /* 1.44 MB 3"1/2 floppy disks */
+     { FLOPPY_DRIVE_TYPE_144, 18, 80, 1, FDRIVE_RATE_500K, }, /* 3.5" 2880 */
+@@ -186,35 +157,6 @@ static FDriveSize drive_size(FloppyDriveType drive)
+ #define FD_SECTOR_SC           2   /* Sector size code */
+ #define FD_RESET_SENSEI_COUNT  4   /* Number of sense interrupts on RESET */
+ 
+-/* Floppy disk drive emulation */
+-typedef enum FDiskFlags {
+-    FDISK_DBL_SIDES  = 0x01,
+-} FDiskFlags;
+-
+-struct FDrive {
+-    FDCtrl *fdctrl;
+-    BlockBackend *blk;
+-    BlockConf *conf;
+-    /* Drive status */
+-    FloppyDriveType drive;    /* CMOS drive type        */
+-    uint8_t perpendicular;    /* 2.88 MB access mode    */
+-    /* Position */
+-    uint8_t head;
+-    uint8_t track;
+-    uint8_t sect;
+-    /* Media */
+-    FloppyDriveType disk;     /* Current disk type      */
+-    FDiskFlags flags;
+-    uint8_t last_sect;        /* Nb sector per track    */
+-    uint8_t max_track;        /* Nb of tracks           */
+-    uint16_t bps;             /* Bytes per sector       */
+-    uint8_t ro;               /* Is read-only           */
+-    uint8_t media_changed;    /* Is media changed       */
+-    uint8_t media_rate;       /* Data rate of medium    */
+-
+-    bool media_validated;     /* Have we validated the media? */
+-};
+-
+ 
+ static FloppyDriveType get_fallback_drive_type(FDrive *drv);
+ 
+@@ -626,10 +568,7 @@ static const TypeInfo floppy_drive_info = {
+ /********************************************************/
+ /* Intel 82078 floppy disk controller emulation          */
+ 
+-static void fdctrl_reset(FDCtrl *fdctrl, int do_irq);
+ static void fdctrl_to_command_phase(FDCtrl *fdctrl);
+-static int fdctrl_transfer_handler (void *opaque, int nchan,
+-                                    int dma_pos, int dma_len);
+ static void fdctrl_raise_irq(FDCtrl *fdctrl);
+ static FDrive *get_cur_drv(FDCtrl *fdctrl);
+ 
+@@ -828,88 +767,12 @@ enum {
+ #define FD_MULTI_TRACK(state) ((state) & FD_STATE_MULTI)
+ #define FD_FORMAT_CMD(state) ((state) & FD_STATE_FORMAT)
+ 
+-struct FDCtrl {
+-    MemoryRegion iomem;
+-    qemu_irq irq;
+-    /* Controller state */
+-    QEMUTimer *result_timer;
+-    int dma_chann;
+-    uint8_t phase;
+-    IsaDma *dma;
+-    /* Controller's identification */
+-    uint8_t version;
+-    /* HW */
+-    uint8_t sra;
+-    uint8_t srb;
+-    uint8_t dor;
+-    uint8_t dor_vmstate; /* only used as temp during vmstate */
+-    uint8_t tdr;
+-    uint8_t dsr;
+-    uint8_t msr;
+-    uint8_t cur_drv;
+-    uint8_t status0;
+-    uint8_t status1;
+-    uint8_t status2;
+-    /* Command FIFO */
+-    uint8_t *fifo;
+-    int32_t fifo_size;
+-    uint32_t data_pos;
+-    uint32_t data_len;
+-    uint8_t data_state;
+-    uint8_t data_dir;
+-    uint8_t eot; /* last wanted sector */
+-    /* States kept only to be returned back */
+-    /* precompensation */
+-    uint8_t precomp_trk;
+-    uint8_t config;
+-    uint8_t lock;
+-    /* Power down config (also with status regB access mode */
+-    uint8_t pwrd;
+-    /* Floppy drives */
+-    FloppyBus bus;
+-    uint8_t num_floppies;
+-    FDrive drives[MAX_FD];
+-    struct {
+-        FloppyDriveType type;
+-    } qdev_for_drives[MAX_FD];
+-    int reset_sensei;
+-    FloppyDriveType fallback; /* type=auto failure fallback */
+-    /* Timers state */
+-    uint8_t timer0;
+-    uint8_t timer1;
+-    PortioList portio_list;
+-};
+-
+ static FloppyDriveType get_fallback_drive_type(FDrive *drv)
+ {
+     return drv->fdctrl->fallback;
+ }
+ 
+-#define TYPE_SYSBUS_FDC "base-sysbus-fdc"
+-OBJECT_DECLARE_SIMPLE_TYPE(FDCtrlSysBus, SYSBUS_FDC)
+-
+-struct FDCtrlSysBus {
+-    /*< private >*/
+-    SysBusDevice parent_obj;
+-    /*< public >*/
+-
+-    struct FDCtrl state;
+-};
+-
+-OBJECT_DECLARE_SIMPLE_TYPE(FDCtrlISABus, ISA_FDC)
+-
+-struct FDCtrlISABus {
+-    ISADevice parent_obj;
+-
+-    uint32_t iobase;
+-    uint32_t irq;
+-    uint32_t dma;
+-    struct FDCtrl state;
+-    int32_t bootindexA;
+-    int32_t bootindexB;
+-};
+-
+-static uint32_t fdctrl_read (void *opaque, uint32_t reg)
++uint32_t fdctrl_read(void *opaque, uint32_t reg)
+ {
+     FDCtrl *fdctrl = opaque;
+     uint32_t retval;
+@@ -946,7 +809,7 @@ static uint32_t fdctrl_read (void *opaque, uint32_t reg)
+     return retval;
+ }
+ 
+-static void fdctrl_write (void *opaque, uint32_t reg, uint32_t value)
++void fdctrl_write(void *opaque, uint32_t reg, uint32_t value)
+ {
+     FDCtrl *fdctrl = opaque;
+ 
+@@ -973,34 +836,6 @@ static void fdctrl_write (void *opaque, uint32_t reg, uint32_t value)
+     }
+ }
+ 
+-static uint64_t fdctrl_read_mem (void *opaque, hwaddr reg,
+-                                 unsigned ize)
+-{
+-    return fdctrl_read(opaque, (uint32_t)reg);
+-}
+-
+-static void fdctrl_write_mem (void *opaque, hwaddr reg,
+-                              uint64_t value, unsigned size)
+-{
+-    fdctrl_write(opaque, (uint32_t)reg, value);
+-}
+-
+-static const MemoryRegionOps fdctrl_mem_ops = {
+-    .read = fdctrl_read_mem,
+-    .write = fdctrl_write_mem,
+-    .endianness = DEVICE_NATIVE_ENDIAN,
+-};
+-
+-static const MemoryRegionOps fdctrl_mem_strict_ops = {
+-    .read = fdctrl_read_mem,
+-    .write = fdctrl_write_mem,
+-    .endianness = DEVICE_NATIVE_ENDIAN,
+-    .valid = {
+-        .min_access_size = 1,
+-        .max_access_size = 1,
+-    },
+-};
+-
+ static bool fdrive_media_changed_needed(void *opaque)
+ {
+     FDrive *drive = opaque;
+@@ -1178,7 +1013,7 @@ static const VMStateDescription vmstate_fdc_phase = {
+     }
+ };
+ 
+-static const VMStateDescription vmstate_fdc = {
++const VMStateDescription vmstate_fdc = {
+     .name = "fdc",
+     .version_id = 2,
+     .minimum_version_id = 2,
+@@ -1224,32 +1059,6 @@ static const VMStateDescription vmstate_fdc = {
+     }
+ };
+ 
+-static void fdctrl_external_reset_sysbus(DeviceState *d)
+-{
+-    FDCtrlSysBus *sys = SYSBUS_FDC(d);
+-    FDCtrl *s = &sys->state;
+-
+-    fdctrl_reset(s, 0);
+-}
+-
+-static void fdctrl_external_reset_isa(DeviceState *d)
+-{
+-    FDCtrlISABus *isa = ISA_FDC(d);
+-    FDCtrl *s = &isa->state;
+-
+-    fdctrl_reset(s, 0);
+-}
+-
+-static void fdctrl_handle_tc(void *opaque, int irq, int level)
+-{
+-    //FDCtrl *s = opaque;
+-
+-    if (level) {
+-        // XXX
+-        FLOPPY_DPRINTF("TC pulsed\n");
+-    }
+-}
+-
+ /* Change IRQ state */
+ static void fdctrl_reset_irq(FDCtrl *fdctrl)
+ {
+@@ -1273,7 +1082,7 @@ static void fdctrl_raise_irq(FDCtrl *fdctrl)
+ }
+ 
+ /* Reset controller */
+-static void fdctrl_reset(FDCtrl *fdctrl, int do_irq)
++void fdctrl_reset(FDCtrl *fdctrl, int do_irq)
+ {
+     int i;
+ 
+@@ -1752,8 +1561,7 @@ static void fdctrl_start_transfer_del(FDCtrl *fdctrl, int direction)
+ }
+ 
+ /* handlers for DMA transfers */
+-static int fdctrl_transfer_handler (void *opaque, int nchan,
+-                                    int dma_pos, int dma_len)
++int fdctrl_transfer_handler(void *opaque, int nchan, int dma_pos, int dma_len)
+ {
+     FDCtrl *fdctrl;
+     FDrive *cur_drv;
+@@ -2489,7 +2297,7 @@ static void fdctrl_result_timer(void *opaque)
+ 
+ /* Init functions */
+ 
+-static void fdctrl_init_drives(FloppyBus *bus, DriveInfo **fds)
++void fdctrl_init_drives(FloppyBus *bus, DriveInfo **fds)
+ {
+     DeviceState *dev;
+     int i;
+@@ -2506,49 +2314,7 @@ static void fdctrl_init_drives(FloppyBus *bus, DriveInfo **fds)
+     }
+ }
+ 
+-void isa_fdc_init_drives(ISADevice *fdc, DriveInfo **fds)
+-{
+-    fdctrl_init_drives(&ISA_FDC(fdc)->state.bus, fds);
+-}
+-
+-void fdctrl_init_sysbus(qemu_irq irq, int dma_chann,
+-                        hwaddr mmio_base, DriveInfo **fds)
+-{
+-    FDCtrl *fdctrl;
+-    DeviceState *dev;
+-    SysBusDevice *sbd;
+-    FDCtrlSysBus *sys;
+-
+-    dev = qdev_new("sysbus-fdc");
+-    sys = SYSBUS_FDC(dev);
+-    fdctrl = &sys->state;
+-    fdctrl->dma_chann = dma_chann; /* FIXME */
+-    sbd = SYS_BUS_DEVICE(dev);
+-    sysbus_realize_and_unref(sbd, &error_fatal);
+-    sysbus_connect_irq(sbd, 0, irq);
+-    sysbus_mmio_map(sbd, 0, mmio_base);
+-
+-    fdctrl_init_drives(&sys->state.bus, fds);
+-}
+-
+-void sun4m_fdctrl_init(qemu_irq irq, hwaddr io_base,
+-                       DriveInfo **fds, qemu_irq *fdc_tc)
+-{
+-    DeviceState *dev;
+-    FDCtrlSysBus *sys;
+-
+-    dev = qdev_new("sun-fdtwo");
+-    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
+-    sys = SYSBUS_FDC(dev);
+-    sysbus_connect_irq(SYS_BUS_DEVICE(sys), 0, irq);
+-    sysbus_mmio_map(SYS_BUS_DEVICE(sys), 0, io_base);
+-    *fdc_tc = qdev_get_gpio_in(dev, 0);
+-
+-    fdctrl_init_drives(&sys->state.bus, fds);
+-}
+-
+-static void fdctrl_realize_common(DeviceState *dev, FDCtrl *fdctrl,
+-                                  Error **errp)
++void fdctrl_realize_common(DeviceState *dev, FDCtrl *fdctrl, Error **errp)
+ {
+     int i, j;
+     FDrive *drive;
+@@ -2582,14 +2348,6 @@ static void fdctrl_realize_common(DeviceState *dev, FDCtrl *fdctrl,
+     fdctrl->config = FD_CONFIG_EIS | FD_CONFIG_EFIFO; /* Implicit seek, polling & FIFO enabled */
+     fdctrl->num_floppies = MAX_FD;
+ 
+-    if (fdctrl->dma_chann != -1) {
+-        IsaDmaClass *k;
+-        assert(fdctrl->dma);
+-        k = ISADMA_GET_CLASS(fdctrl->dma);
+-        k->register_channel(fdctrl->dma, fdctrl->dma_chann,
+-                            &fdctrl_transfer_handler, fdctrl);
+-    }
+-
+     floppy_bus_create(fdctrl, &fdctrl->bus, dev);
+ 
+     for (i = 0; i < MAX_FD; i++) {
+@@ -2600,369 +2358,8 @@ static void fdctrl_realize_common(DeviceState *dev, FDCtrl *fdctrl,
+     }
+ }
+ 
+-static const MemoryRegionPortio fdc_portio_list[] = {
+-    { 1, 5, 1, .read = fdctrl_read, .write = fdctrl_write },
+-    { 7, 1, 1, .read = fdctrl_read, .write = fdctrl_write },
+-    PORTIO_END_OF_LIST(),
+-};
+-
+-static void isabus_fdc_realize(DeviceState *dev, Error **errp)
+-{
+-    ISADevice *isadev = ISA_DEVICE(dev);
+-    FDCtrlISABus *isa = ISA_FDC(dev);
+-    FDCtrl *fdctrl = &isa->state;
+-    Error *err = NULL;
+-
+-    isa_register_portio_list(isadev, &fdctrl->portio_list,
+-                             isa->iobase, fdc_portio_list, fdctrl,
+-                             "fdc");
+-
+-    isa_init_irq(isadev, &fdctrl->irq, isa->irq);
+-    fdctrl->dma_chann = isa->dma;
+-    if (fdctrl->dma_chann != -1) {
+-        fdctrl->dma = isa_get_dma(isa_bus_from_device(isadev), isa->dma);
+-        if (!fdctrl->dma) {
+-            error_setg(errp, "ISA controller does not support DMA");
+-            return;
+-        }
+-    }
+-
+-    qdev_set_legacy_instance_id(dev, isa->iobase, 2);
+-    fdctrl_realize_common(dev, fdctrl, &err);
+-    if (err != NULL) {
+-        error_propagate(errp, err);
+-        return;
+-    }
+-}
+-
+-static void sysbus_fdc_initfn(Object *obj)
+-{
+-    SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
+-    FDCtrlSysBus *sys = SYSBUS_FDC(obj);
+-    FDCtrl *fdctrl = &sys->state;
+-
+-    fdctrl->dma_chann = -1;
+-
+-    memory_region_init_io(&fdctrl->iomem, obj, &fdctrl_mem_ops, fdctrl,
+-                          "fdc", 0x08);
+-    sysbus_init_mmio(sbd, &fdctrl->iomem);
+-}
+-
+-static void sun4m_fdc_initfn(Object *obj)
+-{
+-    SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
+-    FDCtrlSysBus *sys = SYSBUS_FDC(obj);
+-    FDCtrl *fdctrl = &sys->state;
+-
+-    fdctrl->dma_chann = -1;
+-
+-    memory_region_init_io(&fdctrl->iomem, obj, &fdctrl_mem_strict_ops,
+-                          fdctrl, "fdctrl", 0x08);
+-    sysbus_init_mmio(sbd, &fdctrl->iomem);
+-}
+-
+-static void sysbus_fdc_common_initfn(Object *obj)
+-{
+-    DeviceState *dev = DEVICE(obj);
+-    SysBusDevice *sbd = SYS_BUS_DEVICE(dev);
+-    FDCtrlSysBus *sys = SYSBUS_FDC(obj);
+-    FDCtrl *fdctrl = &sys->state;
+-
+-    qdev_set_legacy_instance_id(dev, 0 /* io */, 2); /* FIXME */
+-
+-    sysbus_init_irq(sbd, &fdctrl->irq);
+-    qdev_init_gpio_in(dev, fdctrl_handle_tc, 1);
+-}
+-
+-static void sysbus_fdc_common_realize(DeviceState *dev, Error **errp)
+-{
+-    FDCtrlSysBus *sys = SYSBUS_FDC(dev);
+-    FDCtrl *fdctrl = &sys->state;
+-
+-    fdctrl_realize_common(dev, fdctrl, errp);
+-}
+-
+-FloppyDriveType isa_fdc_get_drive_type(ISADevice *fdc, int i)
+-{
+-    FDCtrlISABus *isa = ISA_FDC(fdc);
+-
+-    return isa->state.drives[i].drive;
+-}
+-
+-static void isa_fdc_get_drive_max_chs(FloppyDriveType type, uint8_t *maxc,
+-                                      uint8_t *maxh, uint8_t *maxs)
+-{
+-    const FDFormat *fdf;
+-
+-    *maxc = *maxh = *maxs = 0;
+-    for (fdf = fd_formats; fdf->drive != FLOPPY_DRIVE_TYPE_NONE; fdf++) {
+-        if (fdf->drive != type) {
+-            continue;
+-        }
+-        if (*maxc < fdf->max_track) {
+-            *maxc = fdf->max_track;
+-        }
+-        if (*maxh < fdf->max_head) {
+-            *maxh = fdf->max_head;
+-        }
+-        if (*maxs < fdf->last_sect) {
+-            *maxs = fdf->last_sect;
+-        }
+-    }
+-    (*maxc)--;
+-}
+-
+-static Aml *build_fdinfo_aml(int idx, FloppyDriveType type)
+-{
+-    Aml *dev, *fdi;
+-    uint8_t maxc, maxh, maxs;
+-
+-    isa_fdc_get_drive_max_chs(type, &maxc, &maxh, &maxs);
+-
+-    dev = aml_device("FLP%c", 'A' + idx);
+-
+-    aml_append(dev, aml_name_decl("_ADR", aml_int(idx)));
+-
+-    fdi = aml_package(16);
+-    aml_append(fdi, aml_int(idx));  /* Drive Number */
+-    aml_append(fdi,
+-        aml_int(cmos_get_fd_drive_type(type)));  /* Device Type */
+-    /*
+-     * the values below are the limits of the drive, and are thus independent
+-     * of the inserted media
+-     */
+-    aml_append(fdi, aml_int(maxc));  /* Maximum Cylinder Number */
+-    aml_append(fdi, aml_int(maxs));  /* Maximum Sector Number */
+-    aml_append(fdi, aml_int(maxh));  /* Maximum Head Number */
+-    /*
+-     * SeaBIOS returns the below values for int 0x13 func 0x08 regardless of
+-     * the drive type, so shall we
+-     */
+-    aml_append(fdi, aml_int(0xAF));  /* disk_specify_1 */
+-    aml_append(fdi, aml_int(0x02));  /* disk_specify_2 */
+-    aml_append(fdi, aml_int(0x25));  /* disk_motor_wait */
+-    aml_append(fdi, aml_int(0x02));  /* disk_sector_siz */
+-    aml_append(fdi, aml_int(0x12));  /* disk_eot */
+-    aml_append(fdi, aml_int(0x1B));  /* disk_rw_gap */
+-    aml_append(fdi, aml_int(0xFF));  /* disk_dtl */
+-    aml_append(fdi, aml_int(0x6C));  /* disk_formt_gap */
+-    aml_append(fdi, aml_int(0xF6));  /* disk_fill */
+-    aml_append(fdi, aml_int(0x0F));  /* disk_head_sttl */
+-    aml_append(fdi, aml_int(0x08));  /* disk_motor_strt */
+-
+-    aml_append(dev, aml_name_decl("_FDI", fdi));
+-    return dev;
+-}
+-
+-int cmos_get_fd_drive_type(FloppyDriveType fd0)
+-{
+-    int val;
+-
+-    switch (fd0) {
+-    case FLOPPY_DRIVE_TYPE_144:
+-        /* 1.44 Mb 3"5 drive */
+-        val = 4;
+-        break;
+-    case FLOPPY_DRIVE_TYPE_288:
+-        /* 2.88 Mb 3"5 drive */
+-        val = 5;
+-        break;
+-    case FLOPPY_DRIVE_TYPE_120:
+-        /* 1.2 Mb 5"5 drive */
+-        val = 2;
+-        break;
+-    case FLOPPY_DRIVE_TYPE_NONE:
+-    default:
+-        val = 0;
+-        break;
+-    }
+-    return val;
+-}
+-
+-static void fdc_isa_build_aml(ISADevice *isadev, Aml *scope)
+-{
+-    Aml *dev;
+-    Aml *crs;
+-    int i;
+-
+-#define ACPI_FDE_MAX_FD 4
+-    uint32_t fde_buf[5] = {
+-        0, 0, 0, 0,     /* presence of floppy drives #0 - #3 */
+-        cpu_to_le32(2)  /* tape presence (2 == never present) */
+-    };
+-
+-    crs = aml_resource_template();
+-    aml_append(crs, aml_io(AML_DECODE16, 0x03F2, 0x03F2, 0x00, 0x04));
+-    aml_append(crs, aml_io(AML_DECODE16, 0x03F7, 0x03F7, 0x00, 0x01));
+-    aml_append(crs, aml_irq_no_flags(6));
+-    aml_append(crs,
+-        aml_dma(AML_COMPATIBILITY, AML_NOTBUSMASTER, AML_TRANSFER8, 2));
+-
+-    dev = aml_device("FDC0");
+-    aml_append(dev, aml_name_decl("_HID", aml_eisaid("PNP0700")));
+-    aml_append(dev, aml_name_decl("_CRS", crs));
+-
+-    for (i = 0; i < MIN(MAX_FD, ACPI_FDE_MAX_FD); i++) {
+-        FloppyDriveType type = isa_fdc_get_drive_type(isadev, i);
+-
+-        if (type < FLOPPY_DRIVE_TYPE_NONE) {
+-            fde_buf[i] = cpu_to_le32(1);  /* drive present */
+-            aml_append(dev, build_fdinfo_aml(i, type));
+-        }
+-    }
+-    aml_append(dev, aml_name_decl("_FDE",
+-               aml_buffer(sizeof(fde_buf), (uint8_t *)fde_buf)));
+-
+-    aml_append(scope, dev);
+-}
+-
+-static const VMStateDescription vmstate_isa_fdc ={
+-    .name = "fdc",
+-    .version_id = 2,
+-    .minimum_version_id = 2,
+-    .fields = (VMStateField[]) {
+-        VMSTATE_STRUCT(state, FDCtrlISABus, 0, vmstate_fdc, FDCtrl),
+-        VMSTATE_END_OF_LIST()
+-    }
+-};
+-
+-static Property isa_fdc_properties[] = {
+-    DEFINE_PROP_UINT32("iobase", FDCtrlISABus, iobase, 0x3f0),
+-    DEFINE_PROP_UINT32("irq", FDCtrlISABus, irq, 6),
+-    DEFINE_PROP_UINT32("dma", FDCtrlISABus, dma, 2),
+-    DEFINE_PROP_SIGNED("fdtypeA", FDCtrlISABus, state.qdev_for_drives[0].type,
+-                        FLOPPY_DRIVE_TYPE_AUTO, qdev_prop_fdc_drive_type,
+-                        FloppyDriveType),
+-    DEFINE_PROP_SIGNED("fdtypeB", FDCtrlISABus, state.qdev_for_drives[1].type,
+-                        FLOPPY_DRIVE_TYPE_AUTO, qdev_prop_fdc_drive_type,
+-                        FloppyDriveType),
+-    DEFINE_PROP_SIGNED("fallback", FDCtrlISABus, state.fallback,
+-                        FLOPPY_DRIVE_TYPE_288, qdev_prop_fdc_drive_type,
+-                        FloppyDriveType),
+-    DEFINE_PROP_END_OF_LIST(),
+-};
+-
+-static void isabus_fdc_class_init(ObjectClass *klass, void *data)
+-{
+-    DeviceClass *dc = DEVICE_CLASS(klass);
+-    ISADeviceClass *isa = ISA_DEVICE_CLASS(klass);
+-
+-    dc->realize = isabus_fdc_realize;
+-    dc->fw_name = "fdc";
+-    dc->reset = fdctrl_external_reset_isa;
+-    dc->vmsd = &vmstate_isa_fdc;
+-    isa->build_aml = fdc_isa_build_aml;
+-    device_class_set_props(dc, isa_fdc_properties);
+-    set_bit(DEVICE_CATEGORY_STORAGE, dc->categories);
+-}
+-
+-static void isabus_fdc_instance_init(Object *obj)
+-{
+-    FDCtrlISABus *isa = ISA_FDC(obj);
+-
+-    device_add_bootindex_property(obj, &isa->bootindexA,
+-                                  "bootindexA", "/floppy@0",
+-                                  DEVICE(obj));
+-    device_add_bootindex_property(obj, &isa->bootindexB,
+-                                  "bootindexB", "/floppy@1",
+-                                  DEVICE(obj));
+-}
+-
+-static const TypeInfo isa_fdc_info = {
+-    .name          = TYPE_ISA_FDC,
+-    .parent        = TYPE_ISA_DEVICE,
+-    .instance_size = sizeof(FDCtrlISABus),
+-    .class_init    = isabus_fdc_class_init,
+-    .instance_init = isabus_fdc_instance_init,
+-};
+-
+-static const VMStateDescription vmstate_sysbus_fdc ={
+-    .name = "fdc",
+-    .version_id = 2,
+-    .minimum_version_id = 2,
+-    .fields = (VMStateField[]) {
+-        VMSTATE_STRUCT(state, FDCtrlSysBus, 0, vmstate_fdc, FDCtrl),
+-        VMSTATE_END_OF_LIST()
+-    }
+-};
+-
+-static Property sysbus_fdc_properties[] = {
+-    DEFINE_PROP_SIGNED("fdtypeA", FDCtrlSysBus, state.qdev_for_drives[0].type,
+-                        FLOPPY_DRIVE_TYPE_AUTO, qdev_prop_fdc_drive_type,
+-                        FloppyDriveType),
+-    DEFINE_PROP_SIGNED("fdtypeB", FDCtrlSysBus, state.qdev_for_drives[1].type,
+-                        FLOPPY_DRIVE_TYPE_AUTO, qdev_prop_fdc_drive_type,
+-                        FloppyDriveType),
+-    DEFINE_PROP_SIGNED("fallback", FDCtrlSysBus, state.fallback,
+-                        FLOPPY_DRIVE_TYPE_144, qdev_prop_fdc_drive_type,
+-                        FloppyDriveType),
+-    DEFINE_PROP_END_OF_LIST(),
+-};
+-
+-static void sysbus_fdc_class_init(ObjectClass *klass, void *data)
+-{
+-    DeviceClass *dc = DEVICE_CLASS(klass);
+-
+-    device_class_set_props(dc, sysbus_fdc_properties);
+-    set_bit(DEVICE_CATEGORY_STORAGE, dc->categories);
+-}
+-
+-static const TypeInfo sysbus_fdc_info = {
+-    .name          = "sysbus-fdc",
+-    .parent        = TYPE_SYSBUS_FDC,
+-    .instance_init = sysbus_fdc_initfn,
+-    .class_init    = sysbus_fdc_class_init,
+-};
+-
+-static Property sun4m_fdc_properties[] = {
+-    DEFINE_PROP_SIGNED("fdtype", FDCtrlSysBus, state.qdev_for_drives[0].type,
+-                        FLOPPY_DRIVE_TYPE_AUTO, qdev_prop_fdc_drive_type,
+-                        FloppyDriveType),
+-    DEFINE_PROP_SIGNED("fallback", FDCtrlSysBus, state.fallback,
+-                        FLOPPY_DRIVE_TYPE_144, qdev_prop_fdc_drive_type,
+-                        FloppyDriveType),
+-    DEFINE_PROP_END_OF_LIST(),
+-};
+-
+-static void sun4m_fdc_class_init(ObjectClass *klass, void *data)
+-{
+-    DeviceClass *dc = DEVICE_CLASS(klass);
+-
+-    device_class_set_props(dc, sun4m_fdc_properties);
+-    set_bit(DEVICE_CATEGORY_STORAGE, dc->categories);
+-}
+-
+-static const TypeInfo sun4m_fdc_info = {
+-    .name          = "sun-fdtwo",
+-    .parent        = TYPE_SYSBUS_FDC,
+-    .instance_init = sun4m_fdc_initfn,
+-    .class_init    = sun4m_fdc_class_init,
+-};
+-
+-static void sysbus_fdc_common_class_init(ObjectClass *klass, void *data)
+-{
+-    DeviceClass *dc = DEVICE_CLASS(klass);
+-
+-    dc->realize = sysbus_fdc_common_realize;
+-    dc->reset = fdctrl_external_reset_sysbus;
+-    dc->vmsd = &vmstate_sysbus_fdc;
+-}
+-
+-static const TypeInfo sysbus_fdc_type_info = {
+-    .name          = TYPE_SYSBUS_FDC,
+-    .parent        = TYPE_SYS_BUS_DEVICE,
+-    .instance_size = sizeof(FDCtrlSysBus),
+-    .instance_init = sysbus_fdc_common_initfn,
+-    .abstract      = true,
+-    .class_init    = sysbus_fdc_common_class_init,
+-};
+-
+ static void fdc_register_types(void)
+ {
+-    type_register_static(&isa_fdc_info);
+-    type_register_static(&sysbus_fdc_type_info);
+-    type_register_static(&sysbus_fdc_info);
+-    type_register_static(&sun4m_fdc_info);
+     type_register_static(&floppy_bus_info);
+     type_register_static(&floppy_drive_info);
+ }
+diff --git a/hw/block/meson.build b/hw/block/meson.build
+index 8b0de54db1..2389326112 100644
+--- a/hw/block/meson.build
++++ b/hw/block/meson.build
+@@ -5,6 +5,8 @@ softmmu_ss.add(files(
+ ))
+ softmmu_ss.add(when: 'CONFIG_ECC', if_true: files('ecc.c'))
+ softmmu_ss.add(when: 'CONFIG_FDC', if_true: files('fdc.c'))
++softmmu_ss.add(when: 'CONFIG_FDC_ISA', if_true: files('fdc-isa.c'))
++softmmu_ss.add(when: 'CONFIG_FDC_SYSBUS', if_true: files('fdc-sysbus.c'))
+ softmmu_ss.add(when: 'CONFIG_NAND', if_true: files('nand.c'))
+ softmmu_ss.add(when: 'CONFIG_ONENAND', if_true: files('onenand.c'))
+ softmmu_ss.add(when: 'CONFIG_PFLASH_CFI01', if_true: files('pflash_cfi01.c'))
+diff --git a/hw/block/trace-events b/hw/block/trace-events
+index 70bed9ddb7..d86b53520c 100644
+--- a/hw/block/trace-events
++++ b/hw/block/trace-events
+@@ -4,6 +4,9 @@
+ fdc_ioport_read(uint8_t reg, uint8_t value) "read reg 0x%02x val 0x%02x"
+ fdc_ioport_write(uint8_t reg, uint8_t value) "write reg 0x%02x val 0x%02x"
+ 
++# fdc-sysbus.c
++fdctrl_tc_pulse(int level) "TC pulse: %u"
++
+ # pflash_cfi01.c
+ # pflash_cfi02.c
+ pflash_chip_erase_invalid(const char *name, uint64_t offset) "%s: chip erase: invalid address 0x%" PRIx64
+diff --git a/hw/core/machine.c b/hw/core/machine.c
+index d776c8cf20..55b9bc7817 100644
+--- a/hw/core/machine.c
++++ b/hw/core/machine.c
+@@ -970,7 +970,6 @@ static void machine_initfn(Object *obj)
+     ms->smp.cpus = mc->default_cpus;
+     ms->smp.max_cpus = mc->default_cpus;
+     ms->smp.cores = 1;
+-    ms->smp.dies = 1;
+     ms->smp.threads = 1;
+     ms->smp.sockets = 1;
+ }
+diff --git a/hw/i386/Kconfig b/hw/i386/Kconfig
+index 66838fa397..aacb6f6d96 100644
+--- a/hw/i386/Kconfig
++++ b/hw/i386/Kconfig
+@@ -24,7 +24,7 @@ config PC
+     imply VGA_PCI
+     imply VIRTIO_VGA
+     imply NVDIMM
+-    select FDC
++    select FDC_ISA
+     select I8259
+     select I8254
+     select PCKBD
+diff --git a/hw/i386/pc.c b/hw/i386/pc.c
+index 92958e9ad7..c6d8d0d84d 100644
+--- a/hw/i386/pc.c
++++ b/hw/i386/pc.c
+@@ -712,6 +712,8 @@ void pc_acpi_smi_interrupt(void *opaque, int irq, int level)
+  */
+ void pc_smp_parse(MachineState *ms, QemuOpts *opts)
+ {
++    X86MachineState *x86ms = X86_MACHINE(ms);
++
+     if (opts) {
+         unsigned cpus    = qemu_opt_get_number(opts, "cpus", 0);
+         unsigned sockets = qemu_opt_get_number(opts, "sockets", 0);
+@@ -767,7 +769,7 @@ void pc_smp_parse(MachineState *ms, QemuOpts *opts)
+         ms->smp.cores = cores;
+         ms->smp.threads = threads;
+         ms->smp.sockets = sockets;
+-        ms->smp.dies = dies;
++        x86ms->smp_dies = dies;
+     }
+ 
+     if (ms->smp.cpus > 1) {
+diff --git a/hw/i386/x86.c b/hw/i386/x86.c
+index 00448ed55a..d30cf27e29 100644
+--- a/hw/i386/x86.c
++++ b/hw/i386/x86.c
+@@ -64,7 +64,7 @@ inline void init_topo_info(X86CPUTopoInfo *topo_info,
+ {
+     MachineState *ms = MACHINE(x86ms);
+ 
+-    topo_info->dies_per_pkg = ms->smp.dies;
++    topo_info->dies_per_pkg = x86ms->smp_dies;
+     topo_info->cores_per_die = ms->smp.cores;
+     topo_info->threads_per_core = ms->smp.threads;
+ }
+@@ -293,7 +293,7 @@ void x86_cpu_pre_plug(HotplugHandler *hotplug_dev,
+ 
+     init_topo_info(&topo_info, x86ms);
+ 
+-    env->nr_dies = ms->smp.dies;
++    env->nr_dies = x86ms->smp_dies;
+ 
+     /*
+      * If APIC ID is not set,
+@@ -301,13 +301,13 @@ void x86_cpu_pre_plug(HotplugHandler *hotplug_dev,
+      */
+     if (cpu->apic_id == UNASSIGNED_APIC_ID) {
+         int max_socket = (ms->smp.max_cpus - 1) /
+-                                smp_threads / smp_cores / ms->smp.dies;
++                                smp_threads / smp_cores / x86ms->smp_dies;
+ 
+         /*
+          * die-id was optional in QEMU 4.0 and older, so keep it optional
+          * if there's only one die per socket.
+          */
+-        if (cpu->die_id < 0 && ms->smp.dies == 1) {
++        if (cpu->die_id < 0 && x86ms->smp_dies == 1) {
+             cpu->die_id = 0;
+         }
+ 
+@@ -322,9 +322,9 @@ void x86_cpu_pre_plug(HotplugHandler *hotplug_dev,
+         if (cpu->die_id < 0) {
+             error_setg(errp, "CPU die-id is not set");
+             return;
+-        } else if (cpu->die_id > ms->smp.dies - 1) {
++        } else if (cpu->die_id > x86ms->smp_dies - 1) {
+             error_setg(errp, "Invalid CPU die-id: %u must be in range 0:%u",
+-                       cpu->die_id, ms->smp.dies - 1);
++                       cpu->die_id, x86ms->smp_dies - 1);
+             return;
+         }
+         if (cpu->core_id < 0) {
+@@ -477,7 +477,7 @@ const CPUArchIdList *x86_possible_cpu_arch_ids(MachineState *ms)
+                                  &topo_info, &topo_ids);
+         ms->possible_cpus->cpus[i].props.has_socket_id = true;
+         ms->possible_cpus->cpus[i].props.socket_id = topo_ids.pkg_id;
+-        if (ms->smp.dies > 1) {
++        if (x86ms->smp_dies > 1) {
+             ms->possible_cpus->cpus[i].props.has_die_id = true;
+             ms->possible_cpus->cpus[i].props.die_id = topo_ids.die_id;
+         }
+@@ -1269,6 +1269,7 @@ static void x86_machine_initfn(Object *obj)
+ 
+     x86ms->smm = ON_OFF_AUTO_AUTO;
+     x86ms->acpi = ON_OFF_AUTO_AUTO;
++    x86ms->smp_dies = 1;
+     x86ms->pci_irq_mask = ACPI_BUILD_PCI_IRQS;
+     x86ms->oem_id = g_strndup(ACPI_BUILD_APPNAME6, 6);
+     x86ms->oem_table_id = g_strndup(ACPI_BUILD_APPNAME8, 8);
+diff --git a/hw/isa/Kconfig b/hw/isa/Kconfig
+index 55e0003ce4..96db170eff 100644
+--- a/hw/isa/Kconfig
++++ b/hw/isa/Kconfig
+@@ -17,6 +17,7 @@ config ISA_SUPERIO
+     bool
+     select ISA_BUS
+     select PCKBD
++    select FDC_ISA
+ 
+ config PC87312
+     bool
+@@ -27,7 +28,7 @@ config PC87312
+     select MC146818RTC
+     select SERIAL_ISA
+     select PARALLEL
+-    select FDC
++    select FDC_ISA
+     select IDE_ISA
+ 
+ config PIIX3
+@@ -46,7 +47,7 @@ config VT82C686
+     select ISA_SUPERIO
+     select ACPI_SMBUS
+     select SERIAL_ISA
+-    select FDC
++    select FDC_ISA
+     select USB_UHCI
+     select APM
+ 
+@@ -55,7 +56,7 @@ config SMC37C669
+     select ISA_SUPERIO
+     select SERIAL_ISA
+     select PARALLEL
+-    select FDC
++    select FDC_ISA
+ 
+ config LPC_ICH9
+     bool
+diff --git a/hw/mips/Kconfig b/hw/mips/Kconfig
+index aadd436bf4..c245e881a2 100644
+--- a/hw/mips/Kconfig
++++ b/hw/mips/Kconfig
+@@ -20,7 +20,7 @@ config JAZZ
+     select G364FB
+     select DP8393X
+     select ESP
+-    select FDC
++    select FDC_SYSBUS
+     select MC146818RTC
+     select PCKBD
+     select SERIAL
+diff --git a/hw/scsi/scsi-generic.c b/hw/scsi/scsi-generic.c
+index 665baf900e..40e039864f 100644
+--- a/hw/scsi/scsi-generic.c
++++ b/hw/scsi/scsi-generic.c
+@@ -179,12 +179,10 @@ static int scsi_handle_inquiry_reply(SCSIGenericReq *r, SCSIDevice *s, int len)
+         (r->req.cmd.buf[1] & 0x01)) {
+         page = r->req.cmd.buf[2];
+         if (page == 0xb0) {
+-            uint64_t max_transfer = blk_get_max_hw_transfer(s->conf.blk);
+-            uint32_t max_iov = blk_get_max_iov(s->conf.blk);
++            uint32_t max_transfer =
++                blk_get_max_transfer(s->conf.blk) / s->blocksize;
+ 
+             assert(max_transfer);
+-            max_transfer = MIN_NON_ZERO(max_transfer, max_iov * qemu_real_host_page_size)
+-                / s->blocksize;
+             stl_be_p(&r->buf[8], max_transfer);
+             /* Also take care of the opt xfer len. */
+             stl_be_p(&r->buf[12],
+diff --git a/hw/sparc/Kconfig b/hw/sparc/Kconfig
+index 8dcb10086f..79d58beb7a 100644
+--- a/hw/sparc/Kconfig
++++ b/hw/sparc/Kconfig
+@@ -8,7 +8,7 @@ config SUN4M
+     select UNIMP
+     select ESCC
+     select ESP
+-    select FDC
++    select FDC_SYSBUS
+     select SLAVIO
+     select LANCE
+     select M48T59
+diff --git a/hw/sparc64/Kconfig b/hw/sparc64/Kconfig
+index 980a201bb7..7e557ad17b 100644
+--- a/hw/sparc64/Kconfig
++++ b/hw/sparc64/Kconfig
+@@ -6,7 +6,7 @@ config SUN4U
+     imply PARALLEL
+     select M48T59
+     select ISA_BUS
+-    select FDC
++    select FDC_ISA
+     select SERIAL_ISA
+     select PCI_SABRE
+     select IDE_CMD646
+diff --git a/hw/usb/meson.build b/hw/usb/meson.build
+index 4f24b5274d..f357270d0b 100644
+--- a/hw/usb/meson.build
++++ b/hw/usb/meson.build
+@@ -49,7 +49,7 @@ softmmu_ss.add(when: ['CONFIG_POSIX', 'CONFIG_USB_STORAGE_MTP'], if_true: files(
+ # smartcard
+ softmmu_ss.add(when: 'CONFIG_USB_SMARTCARD', if_true: files('dev-smartcard-reader.c'))
+ 
+-if cacard.found()
++if config_host.has_key('CONFIG_SMARTCARD')
+   usbsmartcard_ss = ss.source_set()
+   usbsmartcard_ss.add(when: 'CONFIG_USB_SMARTCARD',
+                       if_true: [cacard, files('ccid-card-emulated.c', 'ccid-card-passthru.c')])
+@@ -64,7 +64,7 @@ if u2f.found()
+ endif
+ 
+ # usb redirect
+-if usbredir.found()
++if config_host.has_key('CONFIG_USB_REDIR')
+   usbredir_ss = ss.source_set()
+   usbredir_ss.add(when: 'CONFIG_USB',
+                   if_true: [usbredir, files('redirect.c', 'quirks.c')])
+@@ -72,7 +72,7 @@ if usbredir.found()
+ endif
+ 
+ # usb pass-through
+-softmmu_ss.add(when: ['CONFIG_USB', libusb],
++softmmu_ss.add(when: ['CONFIG_USB', 'CONFIG_USB_LIBUSB', libusb],
+                if_true: files('host-libusb.c'),
+                if_false: files('host-stub.c'))
+ softmmu_ss.add(when: 'CONFIG_ALL', if_true: files('host-stub.c'))
+diff --git a/include/block/block_int.h b/include/block/block_int.h
+index f1a54db0f8..057d88b1fc 100644
+--- a/include/block/block_int.h
++++ b/include/block/block_int.h
+@@ -695,13 +695,6 @@ typedef struct BlockLimits {
+      * clamped down. */
+     uint32_t max_transfer;
+ 
+-    /* Maximal hardware transfer length in bytes.  Applies whenever
+-     * transfers to the device bypass the kernel I/O scheduler, for
+-     * example with SG_IO.  If larger than max_transfer or if zero,
+-     * blk_get_max_hw_transfer will fall back to max_transfer.
+-     */
+-    uint64_t max_hw_transfer;
+-
+     /* memory alignment, in bytes so that no bounce buffer is needed */
+     size_t min_mem_alignment;
+ 
+diff --git a/include/hw/boards.h b/include/hw/boards.h
+index 87ae5cc300..3d55d2bd62 100644
+--- a/include/hw/boards.h
++++ b/include/hw/boards.h
+@@ -282,7 +282,6 @@ typedef struct DeviceMemoryState {
+  */
+ typedef struct CpuTopology {
+     unsigned int cpus;
+-    unsigned int dies;
+     unsigned int cores;
+     unsigned int threads;
+     unsigned int sockets;
+diff --git a/include/hw/i386/pc.h b/include/hw/i386/pc.h
+index 4c2ca6d36a..1522a3359a 100644
+--- a/include/hw/i386/pc.h
++++ b/include/hw/i386/pc.h
+@@ -19,6 +19,7 @@
+  * PCMachineState:
+  * @acpi_dev: link to ACPI PM device that performs ACPI hotplug handling
+  * @boot_cpus: number of present VCPUs
++ * @smp_dies: number of dies per one package
+  */
+ typedef struct PCMachineState {
+     /*< private >*/
+diff --git a/include/hw/i386/x86.h b/include/hw/i386/x86.h
+index 6e9244a82c..25a1f16f01 100644
+--- a/include/hw/i386/x86.h
++++ b/include/hw/i386/x86.h
+@@ -62,6 +62,7 @@ struct X86MachineState {
+     unsigned pci_irq_mask;
+     unsigned apic_id_limit;
+     uint16_t boot_cpus;
++    unsigned smp_dies;
+ 
+     OnOffAuto smm;
+     OnOffAuto acpi;
+diff --git a/include/qemu/osdep.h b/include/qemu/osdep.h
+index c3656b755a..0a54bf7be8 100644
+--- a/include/qemu/osdep.h
++++ b/include/qemu/osdep.h
+@@ -319,16 +319,11 @@ extern "C" {
+     })
+ #endif
+ 
+-/*
+- * Round number down to multiple. Safe when m is not a power of 2 (see
+- * ROUND_DOWN for a faster version when a power of 2 is guaranteed).
+- */
++/* Round number down to multiple */
+ #define QEMU_ALIGN_DOWN(n, m) ((n) / (m) * (m))
+ 
+-/*
+- * Round number up to multiple. Safe when m is not a power of 2 (see
+- * ROUND_UP for a faster version when a power of 2 is guaranteed).
+- */
++/* Round number up to multiple. Safe when m is not a power of 2 (see
++ * ROUND_UP for a faster version when a power of 2 is guaranteed) */
+ #define QEMU_ALIGN_UP(n, m) QEMU_ALIGN_DOWN((n) + (m) - 1, (m))
+ 
+ /* Check if n is a multiple of m */
+@@ -345,22 +340,11 @@ extern "C" {
+ /* Check if pointer p is n-bytes aligned */
+ #define QEMU_PTR_IS_ALIGNED(p, n) QEMU_IS_ALIGNED((uintptr_t)(p), (n))
+ 
+-/*
+- * Round number down to multiple. Requires that d be a power of 2 (see
++/* Round number up to multiple. Requires that d be a power of 2 (see
+  * QEMU_ALIGN_UP for a safer but slower version on arbitrary
+- * numbers); works even if d is a smaller type than n.
+- */
+-#ifndef ROUND_DOWN
+-#define ROUND_DOWN(n, d) ((n) & -(0 ? (n) : (d)))
+-#endif
+-
+-/*
+- * Round number up to multiple. Requires that d be a power of 2 (see
+- * QEMU_ALIGN_UP for a safer but slower version on arbitrary
+- * numbers); works even if d is a smaller type than n.
+- */
++ * numbers); works even if d is a smaller type than n.  */
+ #ifndef ROUND_UP
+-#define ROUND_UP(n, d) ROUND_DOWN((n) + (d) - 1, (d))
++#define ROUND_UP(n, d) (((n) + (d) - 1) & -(0 ? (n) : (d)))
+ #endif
+ 
+ #ifndef DIV_ROUND_UP
+diff --git a/include/sysemu/block-backend.h b/include/sysemu/block-backend.h
+index 9ac5f7bbd3..5423e3d9c6 100644
+--- a/include/sysemu/block-backend.h
++++ b/include/sysemu/block-backend.h
+@@ -208,7 +208,6 @@ void blk_eject(BlockBackend *blk, bool eject_flag);
+ int blk_get_flags(BlockBackend *blk);
+ uint32_t blk_get_request_alignment(BlockBackend *blk);
+ uint32_t blk_get_max_transfer(BlockBackend *blk);
+-uint64_t blk_get_max_hw_transfer(BlockBackend *blk);
+ int blk_get_max_iov(BlockBackend *blk);
+ void blk_set_guest_block_size(BlockBackend *blk, int align);
+ void *blk_try_blockalign(BlockBackend *blk, size_t size);
+diff --git a/include/ui/clipboard.h b/include/ui/clipboard.h
+index e5bcb365ed..b45b984c9f 100644
+--- a/include/ui/clipboard.h
++++ b/include/ui/clipboard.h
+@@ -187,7 +187,7 @@ void qemu_clipboard_set_data(QemuClipboardPeer *peer,
+                              QemuClipboardInfo *info,
+                              QemuClipboardType type,
+                              uint32_t size,
+-                             void *data,
++                             const void *data,
+                              bool update);
+ 
+ #endif /* QEMU_CLIPBOARD_H */
+diff --git a/meson.build b/meson.build
+index 144456426c..d8a92666fb 100644
+--- a/meson.build
++++ b/meson.build
+@@ -183,7 +183,7 @@ if targetos == 'windows'
+                                       include_directories: include_directories('.'))
+ elif targetos == 'darwin'
+   coref = dependency('appleframeworks', modules: 'CoreFoundation')
+-  iokit = dependency('appleframeworks', modules: 'IOKit', required: false)
++  iokit = dependency('appleframeworks', modules: 'IOKit')
+ elif targetos == 'sunos'
+   socket = [cc.find_library('socket'),
+             cc.find_library('nsl'),
+@@ -320,11 +320,30 @@ urcubp = not_found
+ if 'CONFIG_TRACE_UST' in config_host
+   urcubp = declare_dependency(link_args: config_host['URCU_BP_LIBS'].split())
+ endif
++gcrypt = not_found
++if 'CONFIG_GCRYPT' in config_host
++  gcrypt = declare_dependency(compile_args: config_host['GCRYPT_CFLAGS'].split(),
++                              link_args: config_host['GCRYPT_LIBS'].split())
++endif
++nettle = not_found
++if 'CONFIG_NETTLE' in config_host
++  nettle = declare_dependency(compile_args: config_host['NETTLE_CFLAGS'].split(),
++                              link_args: config_host['NETTLE_LIBS'].split())
++endif
++gnutls = not_found
++if 'CONFIG_GNUTLS' in config_host
++  gnutls = declare_dependency(compile_args: config_host['GNUTLS_CFLAGS'].split(),
++                              link_args: config_host['GNUTLS_LIBS'].split())
++endif
+ pixman = not_found
+ if have_system or have_tools
+   pixman = dependency('pixman-1', required: have_system, version:'>=0.21.8',
+                       method: 'pkg-config', kwargs: static_kwargs)
+ endif
++pam = not_found
++if 'CONFIG_AUTH_PAM' in config_host
++  pam = cc.find_library('pam')
++endif
+ libaio = cc.find_library('aio', required: false)
+ zlib = dependency('zlib', required: true, kwargs: static_kwargs)
+ linux_io_uring = not_found
+@@ -810,54 +829,6 @@ if 'CONFIG_OPENGL' in config_host
+                               link_args: config_host['OPENGL_LIBS'].split())
+ endif
+ 
+-gnutls = not_found
+-if not get_option('gnutls').auto() or have_system
+-  gnutls = dependency('gnutls', version: '>=3.5.18',
+-                      method: 'pkg-config',
+-                      required: get_option('gnutls'),
+-                      kwargs: static_kwargs)
+-endif
+-
+-# Nettle has priority over gcrypt
+-gcrypt = not_found
+-nettle = not_found
+-xts = 'private'
+-if get_option('nettle').enabled() and get_option('gcrypt').enabled()
+-  error('Only one of gcrypt & nettle can be enabled')
+-elif (not get_option('nettle').auto() or have_system) and not get_option('gcrypt').enabled()
+-  nettle = dependency('nettle', version: '>=3.4',
+-                      method: 'pkg-config',
+-                      required: get_option('nettle'),
+-                      kwargs: static_kwargs)
+-  if nettle.found() and cc.has_header('nettle/xts.h', dependencies: nettle)
+-    xts = 'nettle'
+-  endif
+-endif
+-if (not get_option('gcrypt').auto() or have_system) and not nettle.found()
+-  gcrypt = dependency('libgcrypt', version: '>=1.5',
+-                         method: 'config-tool',
+-                         required: get_option('gcrypt'),
+-                         kwargs: static_kwargs)
+-  if gcrypt.found() and cc.compiles('''
+-    #include <gcrypt.h>
+-    int main(void) {
+-      gcry_cipher_hd_t handle;
+-      gcry_cipher_open(&handle, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_XTS, 0);
+-      return 0;
+-    }
+-    ''', dependencies: gcrypt)
+-    xts = 'gcrypt'
+-  endif
+-  # Debian has removed -lgpg-error from libgcrypt-config
+-  # as it "spreads unnecessary dependencies" which in
+-  # turn breaks static builds...
+-  if gcrypt.found() and enable_static
+-    gcrypt = declare_dependency(dependencies: [
+-      gcrypt,
+-      cc.find_library('gpg-error', required: true, kwargs: static_kwargs)])
+-  endif
+-endif
+-
+ gtk = not_found
+ gtkx11 = not_found
+ if not get_option('gtk').auto() or (have_system and not cocoa.found())
+@@ -903,31 +874,6 @@ if get_option('vnc').enabled()
+   endif
+ endif
+ 
+-pam = not_found
+-if not get_option('auth_pam').auto() or have_system
+-  pam = cc.find_library('pam', has_headers: ['security/pam_appl.h'],
+-                        required: get_option('auth_pam'),
+-                        kwargs: static_kwargs)
+-endif
+-if pam.found() and not cc.links('''
+-   #include <stddef.h>
+-   #include <security/pam_appl.h>
+-   int main(void) {
+-     const char *service_name = "qemu";
+-     const char *user = "frank";
+-     const struct pam_conv pam_conv = { 0 };
+-     pam_handle_t *pamh = NULL;
+-     pam_start(service_name, user, &pam_conv, &pamh);
+-     return 0;
+-   }''', dependencies: pam)
+-  pam = not_found
+-  if get_option('auth_pam').enabled()
+-    error('could not link libpam')
+-  else
+-    warning('could not link libpam, disabling')
+-  endif
+-endif
+-
+ snappy = not_found
+ if not get_option('snappy').auto() or have_system
+   snappy = cc.find_library('snappy', has_headers: ['snappy-c.h'],
+@@ -976,10 +922,9 @@ if 'CONFIG_XEN_BACKEND' in config_host
+                            link_args: config_host['XEN_LIBS'].split())
+ endif
+ cacard = not_found
+-if not get_option('smartcard').auto() or have_system
+-  cacard = dependency('libcacard', required: get_option('smartcard'),
+-                      version: '>=2.5.1', method: 'pkg-config',
+-                      kwargs: static_kwargs)
++if 'CONFIG_SMARTCARD' in config_host
++  cacard = declare_dependency(compile_args: config_host['SMARTCARD_CFLAGS'].split(),
++                              link_args: config_host['SMARTCARD_LIBS'].split())
+ endif
+ u2f = not_found
+ if have_system
+@@ -988,18 +933,15 @@ if have_system
+                    kwargs: static_kwargs)
+ endif
+ usbredir = not_found
+-if not get_option('usb_redir').auto() or have_system
+-  usbredir = dependency('libusbredirparser-0.5', required: get_option('usb_redir'),
+-                        version: '>=0.6', method: 'pkg-config',
+-                        kwargs: static_kwargs)
++if 'CONFIG_USB_REDIR' in config_host
++  usbredir = declare_dependency(compile_args: config_host['USB_REDIR_CFLAGS'].split(),
++                                link_args: config_host['USB_REDIR_LIBS'].split())
+ endif
+ libusb = not_found
+-if not get_option('libusb').auto() or have_system
+-  libusb = dependency('libusb-1.0', required: get_option('libusb'),
+-                      version: '>=1.0.13', method: 'pkg-config',
+-                      kwargs: static_kwargs)
++if 'CONFIG_USB_LIBUSB' in config_host
++  libusb = declare_dependency(compile_args: config_host['LIBUSB_CFLAGS'].split(),
++                              link_args: config_host['LIBUSB_LIBS'].split())
+ endif
+-
+ libpmem = not_found
+ if 'CONFIG_LIBPMEM' in config_host
+   libpmem = declare_dependency(compile_args: config_host['LIBPMEM_CFLAGS'].split(),
+@@ -1010,10 +952,9 @@ if 'CONFIG_LIBDAXCTL' in config_host
+   libdaxctl = declare_dependency(link_args: config_host['LIBDAXCTL_LIBS'].split())
+ endif
+ tasn1 = not_found
+-if gnutls.found()
+-  tasn1 = dependency('libtasn1',
+-                     method: 'pkg-config',
+-                     kwargs: static_kwargs)
++if 'CONFIG_TASN1' in config_host
++  tasn1 = declare_dependency(compile_args: config_host['TASN1_CFLAGS'].split(),
++                             link_args: config_host['TASN1_LIBS'].split())
+ endif
+ keyutils = dependency('libkeyutils', required: false,
+                       method: 'pkg-config', kwargs: static_kwargs)
+@@ -1148,9 +1089,6 @@ if get_option('cfi')
+   add_global_link_arguments(cfi_flags, native: false, language: ['c', 'cpp', 'objc'])
+ endif
+ 
+-have_host_block_device = (targetos != 'darwin' or
+-    cc.has_header('IOKit/storage/IOMedia.h'))
+-
+ #################
+ # config-host.h #
+ #################
+@@ -1218,7 +1156,6 @@ config_host_data.set('CONFIG_SDL', sdl.found())
+ config_host_data.set('CONFIG_SDL_IMAGE', sdl_image.found())
+ config_host_data.set('CONFIG_SECCOMP', seccomp.found())
+ config_host_data.set('CONFIG_SNAPPY', snappy.found())
+-config_host_data.set('CONFIG_USB_LIBUSB', libusb.found())
+ config_host_data.set('CONFIG_VHOST_USER_BLK_SERVER', have_vhost_user_blk_server)
+ config_host_data.set('CONFIG_VNC', vnc.found())
+ config_host_data.set('CONFIG_VNC_JPEG', jpeg.found())
+@@ -1228,10 +1165,6 @@ config_host_data.set('CONFIG_VIRTFS', have_virtfs)
+ config_host_data.set('CONFIG_XKBCOMMON', xkbcommon.found())
+ config_host_data.set('CONFIG_KEYUTILS', keyutils.found())
+ config_host_data.set('CONFIG_GETTID', has_gettid)
+-config_host_data.set('CONFIG_GNUTLS', gnutls.found())
+-config_host_data.set('CONFIG_GCRYPT', gcrypt.found())
+-config_host_data.set('CONFIG_NETTLE', nettle.found())
+-config_host_data.set('CONFIG_QEMU_PRIVATE_XTS', xts == 'private')
+ config_host_data.set('CONFIG_MALLOC_TRIM', has_malloc_trim)
+ config_host_data.set('CONFIG_STATX', has_statx)
+ config_host_data.set('CONFIG_ZSTD', zstd.found())
+@@ -1250,8 +1183,6 @@ config_host_data.set('HAVE_PTY_H', cc.has_header('pty.h'))
+ config_host_data.set('HAVE_SYS_IOCCOM_H', cc.has_header('sys/ioccom.h'))
+ config_host_data.set('HAVE_SYS_KCOV_H', cc.has_header('sys/kcov.h'))
+ config_host_data.set('HAVE_SYSTEM_FUNCTION', cc.has_function('system', prefix: '#include <stdlib.h>'))
+-config_host_data.set('HAVE_HOST_BLOCK_DEVICE', have_host_block_device)
+-config_host_data.set('HAVE_SYS_DISK_H', cc.has_header('sys/disk.h'))
+ 
+ config_host_data.set('CONFIG_PREADV', cc.has_function('preadv', prefix: '#include <sys/uio.h>'))
+ 
+@@ -2634,6 +2565,7 @@ summary_info += {'PIE':               get_option('b_pie')}
+ summary_info += {'static build':      config_host.has_key('CONFIG_STATIC')}
+ summary_info += {'malloc trim support': has_malloc_trim}
+ summary_info += {'membarrier':        config_host.has_key('CONFIG_MEMBARRIER')}
++summary_info += {'preadv support':    config_host_data.get('CONFIG_PREADV')}
+ summary_info += {'fdatasync':         config_host.has_key('CONFIG_FDATASYNC')}
+ summary_info += {'madvise':           config_host.has_key('CONFIG_MADVISE')}
+ summary_info += {'posix_madvise':     config_host.has_key('CONFIG_POSIX_MADVISE')}
+@@ -2728,16 +2660,17 @@ summary(summary_info, bool_yn: true, section: 'Block layer support')
+ # Crypto
+ summary_info = {}
+ summary_info += {'TLS priority':      config_host['CONFIG_TLS_PRIORITY']}
+-summary_info += {'GNUTLS support':    gnutls.found()}
++summary_info += {'GNUTLS support':    config_host.has_key('CONFIG_GNUTLS')}
+ # TODO: add back version
+-summary_info += {'libgcrypt':         gcrypt.found()}
+-if gcrypt.found()
+-   summary_info += {'  XTS':             xts != 'private'}
++summary_info += {'libgcrypt':         config_host.has_key('CONFIG_GCRYPT')}
++if config_host.has_key('CONFIG_GCRYPT')
++   summary_info += {'  hmac':            config_host.has_key('CONFIG_GCRYPT_HMAC')}
++   summary_info += {'  XTS':             not config_host.has_key('CONFIG_QEMU_PRIVATE_XTS')}
+ endif
+ # TODO: add back version
+-summary_info += {'nettle':            nettle.found()}
+-if nettle.found()
+-   summary_info += {'  XTS':             xts != 'private'}
++summary_info += {'nettle':            config_host.has_key('CONFIG_NETTLE')}
++if config_host.has_key('CONFIG_NETTLE')
++   summary_info += {'  XTS':             not config_host.has_key('CONFIG_QEMU_PRIVATE_XTS')}
+ endif
+ summary_info += {'crypto afalg':      config_host.has_key('CONFIG_AF_ALG')}
+ summary_info += {'rng-none':          config_host.has_key('CONFIG_RNG_NONE')}
+@@ -2759,8 +2692,8 @@ summary_info += {'pixman':            pixman.found()}
+ summary_info += {'VTE support':       config_host.has_key('CONFIG_VTE')}
+ # TODO: add back version
+ summary_info += {'slirp support':     slirp_opt == 'disabled' ? false : slirp_opt}
+-summary_info += {'libtasn1':          tasn1.found()}
+-summary_info += {'PAM':               pam.found()}
++summary_info += {'libtasn1':          config_host.has_key('CONFIG_TASN1')}
++summary_info += {'PAM':               config_host.has_key('CONFIG_AUTH_PAM')}
+ summary_info += {'iconv support':     iconv.found()}
+ summary_info += {'curses support':    curses.found()}
+ # TODO: add back version
+@@ -2788,10 +2721,10 @@ summary_info += {'bpf support': libbpf.found()}
+ summary_info += {'spice support':     config_host.has_key('CONFIG_SPICE')}
+ summary_info += {'rbd support':       rbd.found()}
+ summary_info += {'xfsctl support':    config_host.has_key('CONFIG_XFS')}
+-summary_info += {'smartcard support': cacard.found()}
++summary_info += {'smartcard support': config_host.has_key('CONFIG_SMARTCARD')}
+ summary_info += {'U2F support':       u2f.found()}
+-summary_info += {'libusb':            libusb.found()}
+-summary_info += {'usb net redir':     usbredir.found()}
++summary_info += {'libusb':            config_host.has_key('CONFIG_USB_LIBUSB')}
++summary_info += {'usb net redir':     config_host.has_key('CONFIG_USB_REDIR')}
+ summary_info += {'OpenGL support':    config_host.has_key('CONFIG_OPENGL')}
+ summary_info += {'GBM':               config_host.has_key('CONFIG_GBM')}
+ summary_info += {'libiscsi support':  libiscsi.found()}
+diff --git a/meson_options.txt b/meson_options.txt
+index f7ec9bee27..3d304cac96 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -52,8 +52,6 @@ option('multiprocess', type: 'feature', value: 'auto',
+ 
+ option('attr', type : 'feature', value : 'auto',
+        description: 'attr/xattr support')
+-option('auth_pam', type : 'feature', value : 'auto',
+-       description: 'PAM access control')
+ option('brlapi', type : 'feature', value : 'auto',
+        description: 'brlapi character device driver')
+ option('bzip2', type : 'feature', value : 'auto',
+@@ -78,16 +76,8 @@ option('iconv', type : 'feature', value : 'auto',
+        description: 'Font glyph conversion support')
+ option('curses', type : 'feature', value : 'auto',
+        description: 'curses UI')
+-option('gnutls', type : 'feature', value : 'auto',
+-       description: 'GNUTLS cryptography support')
+-option('nettle', type : 'feature', value : 'auto',
+-       description: 'nettle cryptography support')
+-option('gcrypt', type : 'feature', value : 'auto',
+-       description: 'libgcrypt cryptography support')
+ option('libudev', type : 'feature', value : 'auto',
+        description: 'Use libudev to enumerate host devices')
+-option('libusb', type : 'feature', value : 'auto',
+-       description: 'libusb support for USB passthrough')
+ option('lzfse', type : 'feature', value : 'auto',
+        description: 'lzfse support for DMG images')
+ option('lzo', type : 'feature', value : 'auto',
+@@ -102,14 +92,10 @@ option('sdl_image', type : 'feature', value : 'auto',
+        description: 'SDL Image support for icons')
+ option('seccomp', type : 'feature', value : 'auto',
+        description: 'seccomp support')
+-option('smartcard', type : 'feature', value : 'auto',
+-       description: 'CA smartcard emulation support')
+ option('snappy', type : 'feature', value : 'auto',
+        description: 'snappy compression support')
+ option('u2f', type : 'feature', value : 'auto',
+        description: 'U2F emulation support')
+-option('usb_redir', type : 'feature', value : 'auto',
+-       description: 'libusbredir support')
+ option('vnc', type : 'feature', value : 'enabled',
+        description: 'VNC server')
+ option('vnc_jpeg', type : 'feature', value : 'auto',
+diff --git a/qapi/block-core.json b/qapi/block-core.json
+index a54f37dbef..2ea294129e 100644
+--- a/qapi/block-core.json
++++ b/qapi/block-core.json
+@@ -897,8 +897,7 @@
+   'discriminator': 'driver',
+   'data': {
+       'file': 'BlockStatsSpecificFile',
+-      'host_device': { 'type': 'BlockStatsSpecificFile',
+-                       'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
++      'host_device': 'BlockStatsSpecificFile',
+       'nvme': 'BlockStatsSpecificNvme' } }
+ 
+ ##
+@@ -2815,10 +2814,7 @@
+ { 'enum': 'BlockdevDriver',
+   'data': [ 'blkdebug', 'blklogwrites', 'blkreplay', 'blkverify', 'bochs',
+             'cloop', 'compress', 'copy-on-read', 'dmg', 'file', 'ftp', 'ftps',
+-            'gluster',
+-            {'name': 'host_cdrom', 'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
+-            {'name': 'host_device', 'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
+-            'http', 'https', 'iscsi',
++            'gluster', 'host_cdrom', 'host_device', 'http', 'https', 'iscsi',
+             'luks', 'nbd', 'nfs', 'null-aio', 'null-co', 'nvme', 'parallels',
+             'preallocate', 'qcow', 'qcow2', 'qed', 'quorum', 'raw', 'rbd',
+             { 'name': 'replication', 'if': 'defined(CONFIG_REPLICATION)' },
+@@ -3999,10 +3995,8 @@
+       'ftp':        'BlockdevOptionsCurlFtp',
+       'ftps':       'BlockdevOptionsCurlFtps',
+       'gluster':    'BlockdevOptionsGluster',
+-      'host_cdrom':  { 'type': 'BlockdevOptionsFile',
+-                       'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
+-      'host_device': { 'type': 'BlockdevOptionsFile',
+-                       'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
++      'host_cdrom': 'BlockdevOptionsFile',
++      'host_device':'BlockdevOptionsFile',
+       'http':       'BlockdevOptionsCurlHttp',
+       'https':      'BlockdevOptionsCurlHttps',
+       'iscsi':      'BlockdevOptionsIscsi',
+diff --git a/qapi/ui.json b/qapi/ui.json
+index 1052ca9c38..fd9677d48e 100644
+--- a/qapi/ui.json
++++ b/qapi/ui.json
+@@ -786,6 +786,9 @@
+ # @muhenkan: since 2.12
+ # @katakanahiragana: since 2.12
+ #
++# @lang1: since 6.1
++# @lang2: since 6.1
++#
+ # 'sysrq' was mistakenly added to hack around the fact that
+ # the ps2 driver was not generating correct scancodes sequences
+ # when 'alt+print' was pressed. This flaw is now fixed and the
+@@ -818,7 +821,8 @@
+             'audionext', 'audioprev', 'audiostop', 'audioplay', 'audiomute',
+             'volumeup', 'volumedown', 'mediaselect',
+             'mail', 'calculator', 'computer',
+-            'ac_home', 'ac_back', 'ac_forward', 'ac_refresh', 'ac_bookmarks' ] }
++            'ac_home', 'ac_back', 'ac_forward', 'ac_refresh', 'ac_bookmarks',
++            'lang1', 'lang2' ] }
+ 
+ ##
+ # @KeyValue:
+@@ -1126,9 +1130,16 @@
+ #
+ ##
+ { 'enum'    : 'DisplayType',
+-  'data'    : [ 'default', 'none', 'gtk', 'sdl',
+-                'egl-headless', 'curses', 'cocoa',
+-                'spice-app'] }
++  'data'    : [
++    { 'name': 'default' },
++    { 'name': 'none' },
++    { 'name': 'gtk', 'if': 'defined(CONFIG_GTK)' },
++    { 'name': 'sdl', 'if': 'defined(CONFIG_SDL)' },
++    { 'name': 'egl-headless',
++              'if': 'defined(CONFIG_OPENGL) && defined(CONFIG_GBM)' },
++    { 'name': 'curses', 'if': 'defined(CONFIG_CURSES)' },
++    { 'name': 'cocoa', 'if': 'defined(CONFIG_COCOA)' },
++    { 'name': 'spice-app', 'if': 'defined(CONFIG_SPICE)'} ] }
+ 
+ ##
+ # @DisplayOptions:
+@@ -1152,9 +1163,13 @@
+                 '*show-cursor'   : 'bool',
+                 '*gl'            : 'DisplayGLMode' },
+   'discriminator' : 'type',
+-  'data'    : { 'gtk'            : 'DisplayGTK',
+-                'curses'         : 'DisplayCurses',
+-                'egl-headless'   : 'DisplayEGLHeadless'} }
++  'data'    : {
++      'gtk': { 'type': 'DisplayGTK', 'if': 'defined(CONFIG_GTK)' },
++      'curses': { 'type': 'DisplayCurses', 'if': 'defined(CONFIG_CURSES)' },
++      'egl-headless': { 'type': 'DisplayEGLHeadless',
++                        'if': 'defined(CONFIG_OPENGL) && defined(CONFIG_GBM)' }
++  }
++}
+ 
+ ##
+ # @query-display-options:
+diff --git a/qemu-options.hx b/qemu-options.hx
+index 14258784b3..ba3ca9da1d 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -1819,11 +1819,22 @@ SRST
+     old style -sdl/-curses/... options. Use ``-display help`` to list
+     the available display types. Valid values for type are
+ 
+-    ``sdl``
++    ``spice-app[,gl=on|off]``
++        Start QEMU as a Spice server and launch the default Spice client
++        application. The Spice server will redirect the serial consoles
++        and QEMU monitors. (Since 4.0)
++
++    ``sdl[,window-close=on|off][,gl=on|core|es|off]``
++
+         Display video output via SDL (usually in a separate graphics
+         window; see the SDL documentation for other possibilities).
+ 
+-    ``curses``
++    ``gtk[,grab-on-hover=on|off][,gl=on|off]``
++        Display video output in a GTK window. This interface provides
++        drop-down menus and other UI elements to configure and control
++        the VM during runtime.
++
++    ``curses [,charset=<encoding>]``
+         Display video output via curses. For graphics device models
+         which support a text mode, QEMU can display this output using a
+         curses/ncurses interface. Nothing is displayed when the graphics
+@@ -1834,6 +1845,11 @@ SRST
+         ``charset=CP850`` for IBM CP850 encoding. The default is
+         ``CP437``.
+ 
++    ``egl-headless[,rendernode<file>]``
++        Offload all OpenGL operations to a local DRI device. For any
++        graphical display, this display needs to be paired with either
++        VNC or SPICE displays.
++
+     ``none``
+         Do not display video output. The guest will still see an
+         emulated graphics card, but its output will not be displayed to
+@@ -1842,23 +1858,8 @@ SRST
+         also changes the destination of the serial and parallel port
+         data.
+ 
+-    ``gtk``
+-        Display video output in a GTK window. This interface provides
+-        drop-down menus and other UI elements to configure and control
+-        the VM during runtime.
+ 
+-    ``vnc``
+-        Start a VNC server on display <arg>
+ 
+-    ``egl-headless``
+-        Offload all OpenGL operations to a local DRI device. For any
+-        graphical display, this display needs to be paired with either
+-        VNC or SPICE displays.
+-
+-    ``spice-app``
+-        Start QEMU as a Spice server and launch the default Spice client
+-        application. The Spice server will redirect the serial consoles
+-        and QEMU monitors. (Since 4.0)
+ ERST
+ 
+ DEF("nographic", 0, QEMU_OPTION_nographic,
+diff --git a/softmmu/vl.c b/softmmu/vl.c
+index feb4d201f3..d99e2cbdbf 100644
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
+@@ -1068,6 +1068,7 @@ static void parse_display(const char *p)
+          *     Not clear yet what happens to them long-term.  Should
+          *     replaced by something better or deprecated and dropped.
+          */
++#if defined(CONFIG_SDL)
+         dpy.type = DISPLAY_TYPE_SDL;
+         while (*opts) {
+             const char *nextopt;
+@@ -1131,6 +1132,10 @@ static void parse_display(const char *p)
+             }
+             opts = nextopt;
+         }
++#else
++        error_report("SDL display supported is not available in this binary");
++        exit(1);
++#endif
+     } else if (strstart(p, "vnc", &opts)) {
+         /*
+          * vnc isn't a (local) DisplayType but a protocol for remote
+@@ -1867,13 +1872,22 @@ static void qemu_apply_machine_options(void)
+ static void qemu_create_early_backends(void)
+ {
+     MachineClass *machine_class = MACHINE_GET_CLASS(current_machine);
++#if defined(CONFIG_SDL)
++    const bool use_sdl = (dpy.type == DISPLAY_TYPE_SDL);
++#else
++    const bool use_sdl = false;
++#endif
++#if defined(CONFIG_GTK)
++    const bool use_gtk = (dpy.type == DISPLAY_TYPE_GTK);
++#else
++    const bool use_gtk = false;
++#endif
+ 
+-    if ((alt_grab || ctrl_grab) && dpy.type != DISPLAY_TYPE_SDL) {
++    if ((alt_grab || ctrl_grab) && !use_sdl) {
+         error_report("-alt-grab and -ctrl-grab are only valid "
+                      "for SDL, ignoring option");
+     }
+-    if (dpy.has_window_close &&
+-        (dpy.type != DISPLAY_TYPE_GTK && dpy.type != DISPLAY_TYPE_SDL)) {
++    if (dpy.has_window_close && !use_gtk && !use_sdl) {
+         error_report("-no-quit is only valid for GTK and SDL, "
+                      "ignoring option");
+     }
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index d8f3ab3192..a9fe1662d3 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -1031,7 +1031,7 @@ FeatureWordInfo feature_word_info[FEATURE_WORDS] = {
+             "vmx-invpcid-exit", "vmx-vmfunc", "vmx-shadow-vmcs", "vmx-encls-exit",
+             "vmx-rdseed-exit", "vmx-pml", NULL, NULL,
+             "vmx-xsaves", NULL, NULL, NULL,
+-            NULL, "vmx-tsc-scaling", NULL, NULL,
++            NULL, NULL, NULL, NULL,
+             NULL, NULL, NULL, NULL,
+         },
+         .msr = {
+diff --git a/target/i386/cpu.h b/target/i386/cpu.h
+index f7fa5870b1..1e11071d81 100644
+--- a/target/i386/cpu.h
++++ b/target/i386/cpu.h
+@@ -972,7 +972,6 @@ typedef uint64_t FeatureWordArray[FEATURE_WORDS];
+ #define VMX_SECONDARY_EXEC_RDSEED_EXITING           0x00010000
+ #define VMX_SECONDARY_EXEC_ENABLE_PML               0x00020000
+ #define VMX_SECONDARY_EXEC_XSAVES                   0x00100000
+-#define VMX_SECONDARY_EXEC_TSC_SCALING              0x02000000
+ 
+ #define VMX_PIN_BASED_EXT_INTR_MASK                 0x00000001
+ #define VMX_PIN_BASED_NMI_EXITING                   0x00000008
+diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
+index 04e4ec063f..ad950c3c27 100644
+--- a/target/i386/kvm/kvm.c
++++ b/target/i386/kvm/kvm.c
+@@ -2700,6 +2700,8 @@ static uint64_t make_vmx_msr_value(uint32_t index, uint32_t features)
+     return must_be_one | (((uint64_t)can_be_one) << 32);
+ }
+ 
++#define VMCS12_MAX_FIELD_INDEX (0x17)
++
+ static void kvm_msr_entry_add_vmx(X86CPU *cpu, FeatureWordArray f)
+ {
+     uint64_t kvm_vmx_basic =
+@@ -2789,14 +2791,8 @@ static void kvm_msr_entry_add_vmx(X86CPU *cpu, FeatureWordArray f)
+                       CR0_PE_MASK | CR0_PG_MASK | CR0_NE_MASK);
+     kvm_msr_entry_add(cpu, MSR_IA32_VMX_CR4_FIXED0,
+                       CR4_VMXE_MASK);
+-
+-    if (f[FEAT_VMX_SECONDARY_CTLS] & VMX_SECONDARY_EXEC_TSC_SCALING) {
+-        /* TSC multiplier (0x2032).  */
+-        kvm_msr_entry_add(cpu, MSR_IA32_VMX_VMCS_ENUM, 0x32);
+-    } else {
+-        /* Preemption timer (0x482E).  */
+-        kvm_msr_entry_add(cpu, MSR_IA32_VMX_VMCS_ENUM, 0x2E);
+-    }
++    kvm_msr_entry_add(cpu, MSR_IA32_VMX_VMCS_ENUM,
++                      VMCS12_MAX_FIELD_INDEX << 1);
+ }
+ 
+ static void kvm_msr_entry_add_perf(X86CPU *cpu, FeatureWordArray f)
+diff --git a/tests/unit/crypto-tls-psk-helpers.c b/tests/unit/crypto-tls-psk-helpers.c
+index 7f8a488961..a8395477c3 100644
+--- a/tests/unit/crypto-tls-psk-helpers.c
++++ b/tests/unit/crypto-tls-psk-helpers.c
+@@ -20,10 +20,14 @@
+ 
+ #include "qemu/osdep.h"
+ 
++/* Include this first because it defines QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+ #include "crypto-tls-x509-helpers.h"
++
+ #include "crypto-tls-psk-helpers.h"
+ #include "qemu/sockets.h"
+ 
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++
+ void test_tls_psk_init(const char *pskfile)
+ {
+     FILE *fp;
+@@ -42,3 +46,5 @@ void test_tls_psk_cleanup(const char *pskfile)
+ {
+     unlink(pskfile);
+ }
++
++#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/crypto-tls-psk-helpers.h b/tests/unit/crypto-tls-psk-helpers.h
+index faa645c629..5aa9951cb6 100644
+--- a/tests/unit/crypto-tls-psk-helpers.h
++++ b/tests/unit/crypto-tls-psk-helpers.h
+@@ -23,7 +23,11 @@
+ 
+ #include <gnutls/gnutls.h>
+ 
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++
+ void test_tls_psk_init(const char *keyfile);
+ void test_tls_psk_cleanup(const char *keyfile);
+ 
++#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
++
+ #endif
+diff --git a/tests/unit/crypto-tls-x509-helpers.c b/tests/unit/crypto-tls-x509-helpers.c
+index fc609b3fd4..97658592a2 100644
+--- a/tests/unit/crypto-tls-x509-helpers.c
++++ b/tests/unit/crypto-tls-x509-helpers.c
+@@ -24,6 +24,8 @@
+ #include "crypto/init.h"
+ #include "qemu/sockets.h"
+ 
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++
+ /*
+  * This stores some static data that is needed when
+  * encoding extensions in the x509 certs
+@@ -502,3 +504,5 @@ void test_tls_discard_cert(QCryptoTLSTestCertReq *req)
+         unlink(req->filename);
+     }
+ }
++
++#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/crypto-tls-x509-helpers.h b/tests/unit/crypto-tls-x509-helpers.h
+index cf6329e653..8fcd7785ab 100644
+--- a/tests/unit/crypto-tls-x509-helpers.h
++++ b/tests/unit/crypto-tls-x509-helpers.h
+@@ -23,7 +23,14 @@
+ 
+ #include <gnutls/gnutls.h>
+ #include <gnutls/x509.h>
+-#include <libtasn1.h>
++
++#if !(defined WIN32) && \
++    defined(CONFIG_TASN1)
++# define QCRYPTO_HAVE_TLS_TEST_SUPPORT
++#endif
++
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++# include <libtasn1.h>
+ 
+ 
+ /*
+@@ -120,4 +127,6 @@ void test_tls_cleanup(const char *keyfile);
+ 
+ extern const asn1_static_node pkix_asn1_tab[];
+ 
++#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
++
+ #endif
+diff --git a/tests/unit/meson.build b/tests/unit/meson.build
+index 3e0504dd21..b3bc2109da 100644
+--- a/tests/unit/meson.build
++++ b/tests/unit/meson.build
+@@ -83,8 +83,8 @@ if have_block
+     'test-crypto-afsplit': [io],
+     'test-crypto-block': [io],
+   }
+-  if gnutls.found() and \
+-     tasn1.found() and \
++  if 'CONFIG_GNUTLS' in config_host and \
++     'CONFIG_TASN1' in config_host and \
+      'CONFIG_POSIX' in config_host
+     tests += {
+       'test-crypto-tlscredsx509': ['crypto-tls-x509-helpers.c', 'pkix_asn1_tab.c',
+@@ -94,10 +94,10 @@ if have_block
+       'test-io-channel-tls': ['io-channel-helpers.c', 'crypto-tls-x509-helpers.c', 'pkix_asn1_tab.c',
+                               tasn1, io, crypto, gnutls]}
+   endif
+-  if pam.found()
++  if 'CONFIG_AUTH_PAM' in config_host
+     tests += {'test-authz-pam': [authz]}
+   endif
+-  if xts == 'private'
++  if 'CONFIG_QEMU_PRIVATE_XTS' in config_host
+     tests += {'test-crypto-xts': [crypto, io]}
+   endif
+   if 'CONFIG_POSIX' in config_host
+@@ -106,7 +106,7 @@ if have_block
+   if 'CONFIG_REPLICATION' in config_host
+     tests += {'test-replication': [testblock]}
+   endif
+-  if nettle.found() or gcrypt.found()
++  if 'CONFIG_NETTLE' in config_host or 'CONFIG_GCRYPT' in config_host
+     tests += {'test-crypto-pbkdf': [io]}
+   endif
+   if 'CONFIG_EPOLL_CREATE1' in config_host
+diff --git a/tests/unit/pkix_asn1_tab.c b/tests/unit/pkix_asn1_tab.c
+index 89521408a1..15397cf77a 100644
+--- a/tests/unit/pkix_asn1_tab.c
++++ b/tests/unit/pkix_asn1_tab.c
+@@ -6,6 +6,8 @@
+ #include "qemu/osdep.h"
+ #include "crypto-tls-x509-helpers.h"
+ 
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++
+ const asn1_static_node pkix_asn1_tab[] = {
+   {"PKIX1", 536875024, 0},
+   {0, 1073741836, 0},
+@@ -1103,3 +1105,4 @@ const asn1_static_node pkix_asn1_tab[] = {
+   {0, 1048586, "2"},
+   {0, 0, 0}
+ };
++#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/test-crypto-tlscredsx509.c b/tests/unit/test-crypto-tlscredsx509.c
+index aab4149b56..f487349c32 100644
+--- a/tests/unit/test-crypto-tlscredsx509.c
++++ b/tests/unit/test-crypto-tlscredsx509.c
+@@ -25,6 +25,8 @@
+ #include "qapi/error.h"
+ #include "qemu/module.h"
+ 
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++
+ #define WORKDIR "tests/test-crypto-tlscredsx509-work/"
+ #define KEYFILE WORKDIR "key-ctx.pem"
+ 
+@@ -704,3 +706,13 @@ int main(int argc, char **argv)
+ 
+     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+ }
++
++#else /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
++
++int
++main(void)
++{
++    return EXIT_SUCCESS;
++}
++
++#endif /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/test-crypto-tlssession.c b/tests/unit/test-crypto-tlssession.c
+index 5f0da9192c..8b2453fa79 100644
+--- a/tests/unit/test-crypto-tlssession.c
++++ b/tests/unit/test-crypto-tlssession.c
+@@ -31,6 +31,8 @@
+ #include "qemu/sockets.h"
+ #include "authz/list.h"
+ 
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++
+ #define WORKDIR "tests/test-crypto-tlssession-work/"
+ #define PSKFILE WORKDIR "keys.psk"
+ #define KEYFILE WORKDIR "key-ctx.pem"
+@@ -646,3 +648,13 @@ int main(int argc, char **argv)
+ 
+     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+ }
++
++#else /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
++
++int
++main(void)
++{
++    return EXIT_SUCCESS;
++}
++
++#endif /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/test-io-channel-tls.c b/tests/unit/test-io-channel-tls.c
+index f6fb988c01..ad7554c534 100644
+--- a/tests/unit/test-io-channel-tls.c
++++ b/tests/unit/test-io-channel-tls.c
+@@ -34,6 +34,8 @@
+ #include "authz/list.h"
+ #include "qom/object_interfaces.h"
+ 
++#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
++
+ #define WORKDIR "tests/test-io-channel-tls-work/"
+ #define KEYFILE WORKDIR "key-ctx.pem"
+ 
+@@ -332,3 +334,13 @@ int main(int argc, char **argv)
+ 
+     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+ }
++
++#else /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
++
++int
++main(void)
++{
++    return EXIT_SUCCESS;
++}
++
++#endif /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/ui/clipboard.c b/ui/clipboard.c
+index abf2b98f1f..3525b30178 100644
+--- a/ui/clipboard.c
++++ b/ui/clipboard.c
+@@ -73,7 +73,7 @@ void qemu_clipboard_set_data(QemuClipboardPeer *peer,
+                              QemuClipboardInfo *info,
+                              QemuClipboardType type,
+                              uint32_t size,
+-                             void *data,
++                             const void *data,
+                              bool update)
+ {
+     if (!info ||
+diff --git a/ui/cocoa.m b/ui/cocoa.m
+index 37e1fb52eb..9f72844b07 100644
+--- a/ui/cocoa.m
++++ b/ui/cocoa.m
+@@ -28,6 +28,7 @@
+ #include <crt_externs.h>
+ 
+ #include "qemu-common.h"
++#include "ui/clipboard.h"
+ #include "ui/console.h"
+ #include "ui/input.h"
+ #include "ui/kbd-state.h"
+@@ -105,6 +106,10 @@ static QemuSemaphore display_init_sem;
+ static QemuSemaphore app_started_sem;
+ static bool allow_events;
+ 
++static NSInteger cbchangecount = -1;
++static QemuClipboardInfo *cbinfo;
++static QemuEvent cbevent;
++
+ // Utility functions to run specified code block with iothread lock held
+ typedef void (^CodeBlock)(void);
+ typedef bool (^BoolCodeBlock)(void);
+@@ -518,6 +523,43 @@ QemuCocoaView *cocoaView;
+     }
+ }
+ 
++- (void) updateUIInfo
++{
++    NSSize frameSize;
++    QemuUIInfo info;
++
++    if (!qemu_console_is_graphic(dcl.con)) {
++        return;
++    }
++
++    if ([self window]) {
++        NSDictionary *description = [[[self window] screen] deviceDescription];
++        CGDirectDisplayID display = [[description objectForKey:@"NSScreenNumber"] unsignedIntValue];
++        NSSize screenSize = [[[self window] screen] frame].size;
++        CGSize screenPhysicalSize = CGDisplayScreenSize(display);
++
++        frameSize = isFullscreen ? screenSize : [self frame].size;
++        info.width_mm = frameSize.width / screenSize.width * screenPhysicalSize.width;
++        info.height_mm = frameSize.height / screenSize.height * screenPhysicalSize.height;
++    } else {
++        frameSize = [self frame].size;
++        info.width_mm = 0;
++        info.height_mm = 0;
++    }
++
++    info.xoff = 0;
++    info.yoff = 0;
++    info.width = frameSize.width;
++    info.height = frameSize.height;
++
++    dpy_set_ui_info(dcl.con, &info);
++}
++
++- (void)viewDidMoveToWindow
++{
++    [self updateUIInfo];
++}
++
+ - (void) switchSurface:(pixman_image_t *)image
+ {
+     COCOA_DEBUG("QemuCocoaView: switchSurface\n");
+@@ -1172,6 +1214,16 @@ QemuCocoaView *cocoaView;
+     return [self verifyQuit];
+ }
+ 
++- (void)windowDidChangeScreen:(NSNotification *)notification
++{
++    [cocoaView updateUIInfo];
++}
++
++- (void)windowDidResize:(NSNotification *)notification
++{
++    [cocoaView updateUIInfo];
++}
++
+ /* Called when the user clicks on a window's close button */
+ - (BOOL)windowShouldClose:(id)sender
+ {
+@@ -1711,6 +1763,93 @@ static void addRemovableDevicesMenuItems(void)
+     qapi_free_BlockInfoList(pointerToFree);
+ }
+ 
++@interface QemuCocoaPasteboardTypeOwner : NSObject<NSPasteboardTypeOwner>
++@end
++
++@implementation QemuCocoaPasteboardTypeOwner
++
++- (void)pasteboard:(NSPasteboard *)sender provideDataForType:(NSPasteboardType)type
++{
++    if (type != NSPasteboardTypeString) {
++        return;
++    }
++
++    with_iothread_lock(^{
++        QemuClipboardInfo *info = qemu_clipboard_info_ref(cbinfo);
++        qemu_event_reset(&cbevent);
++        qemu_clipboard_request(info, QEMU_CLIPBOARD_TYPE_TEXT);
++
++        while (info == cbinfo &&
++               info->types[QEMU_CLIPBOARD_TYPE_TEXT].available &&
++               info->types[QEMU_CLIPBOARD_TYPE_TEXT].data == NULL) {
++            qemu_mutex_unlock_iothread();
++            qemu_event_wait(&cbevent);
++            qemu_mutex_lock_iothread();
++        }
++
++        if (info == cbinfo) {
++            NSData *data = [[NSData alloc] initWithBytes:info->types[QEMU_CLIPBOARD_TYPE_TEXT].data
++                                           length:info->types[QEMU_CLIPBOARD_TYPE_TEXT].size];
++            [sender setData:data forType:NSPasteboardTypeString];
++            [data release];
++        }
++
++        qemu_clipboard_info_unref(info);
++    });
++}
++
++@end
++
++static QemuCocoaPasteboardTypeOwner *cbowner;
++
++static void cocoa_clipboard_notify(Notifier *notifier, void *data);
++static void cocoa_clipboard_request(QemuClipboardInfo *info,
++                                    QemuClipboardType type);
++
++static QemuClipboardPeer cbpeer = {
++    .name = "cocoa",
++    .update = { .notify = cocoa_clipboard_notify },
++    .request = cocoa_clipboard_request
++};
++
++static void cocoa_clipboard_notify(Notifier *notifier, void *data)
++{
++    QemuClipboardInfo *info = data;
++
++    if (info->owner == &cbpeer || info->selection != QEMU_CLIPBOARD_SELECTION_CLIPBOARD) {
++        return;
++    }
++
++    if (info != cbinfo) {
++        NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init];
++        qemu_clipboard_info_unref(cbinfo);
++        cbinfo = qemu_clipboard_info_ref(info);
++        cbchangecount = [[NSPasteboard generalPasteboard] declareTypes:@[NSPasteboardTypeString] owner:cbowner];
++        [pool release];
++    }
++
++    qemu_event_set(&cbevent);
++}
++
++static void cocoa_clipboard_request(QemuClipboardInfo *info,
++                                    QemuClipboardType type)
++{
++    NSData *text;
++
++    switch (type) {
++    case QEMU_CLIPBOARD_TYPE_TEXT:
++        text = [[NSPasteboard generalPasteboard] dataForType:NSPasteboardTypeString];
++        if (text) {
++            qemu_clipboard_set_data(&cbpeer, info, type,
++                                    [text length], [text bytes], true);
++            [text release];
++        }
++        break;
++    default:
++        break;
++    }
++}
++
+ /*
+  * The startup process for the OSX/Cocoa UI is complicated, because
+  * OSX insists that the UI runs on the initial main thread, and so we
+@@ -1745,6 +1884,7 @@ static void *call_qemu_main(void *opaque)
+     COCOA_DEBUG("Second thread: calling qemu_main()\n");
+     status = qemu_main(gArgc, gArgv, *_NSGetEnviron());
+     COCOA_DEBUG("Second thread: qemu_main() returned, exiting\n");
++    [cbowner release];
+     exit(status);
+ }
+ 
+@@ -1836,6 +1976,8 @@ static void cocoa_switch(DisplayChangeListener *dcl,
+ 
+     COCOA_DEBUG("qemu_cocoa: cocoa_switch\n");
+ 
++    [cocoaView updateUIInfo];
++
+     // The DisplaySurface will be freed as soon as this callback returns.
+     // We take a reference to the underlying pixman image here so it does
+     // not disappear from under our feet; the switchSurface method will
+@@ -1865,6 +2007,18 @@ static void cocoa_refresh(DisplayChangeListener *dcl)
+             [cocoaView setAbsoluteEnabled:YES];
+         });
+     }
++
++    if (cbchangecount != [[NSPasteboard generalPasteboard] changeCount]) {
++        qemu_clipboard_info_unref(cbinfo);
++        cbinfo = qemu_clipboard_info_new(&cbpeer, QEMU_CLIPBOARD_SELECTION_CLIPBOARD);
++        if ([[NSPasteboard generalPasteboard] availableTypeFromArray:@[NSPasteboardTypeString]]) {
++            cbinfo->types[QEMU_CLIPBOARD_TYPE_TEXT].available = true;
++        }
++        qemu_clipboard_update(cbinfo);
++        cbchangecount = [[NSPasteboard generalPasteboard] changeCount];
++        qemu_event_set(&cbevent);
++    }
++
+     [pool release];
+ }
+ 
+@@ -1890,6 +2044,10 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+ 
+     // register vga output callbacks
+     register_displaychangelistener(&dcl);
++
++    qemu_event_init(&cbevent, false);
++    cbowner = [[QemuCocoaPasteboardTypeOwner alloc] init];
++    qemu_clipboard_peer_register(&cbpeer);
+ }
+ 
+ static QemuDisplay qemu_display_cocoa = {
+diff --git a/ui/console.c b/ui/console.c
+index 2de5f4105b..1103b65314 100644
+--- a/ui/console.c
++++ b/ui/console.c
+@@ -2370,13 +2370,19 @@ void qemu_display_register(QemuDisplay *ui)
+ bool qemu_display_find_default(DisplayOptions *opts)
+ {
+     static DisplayType prio[] = {
++#if defined(CONFIG_GTK)
+         DISPLAY_TYPE_GTK,
++#endif
++#if defined(CONFIG_SDL)
+         DISPLAY_TYPE_SDL,
++#endif
++#if defined(CONFIG_COCOA)
+         DISPLAY_TYPE_COCOA
++#endif
+     };
+     int i;
+ 
+-    for (i = 0; i < ARRAY_SIZE(prio); i++) {
++    for (i = 0; i < (int)ARRAY_SIZE(prio); i++) {
+         if (dpys[prio[i]] == NULL) {
+             ui_module_load_one(DisplayType_str(prio[i]));
+         }

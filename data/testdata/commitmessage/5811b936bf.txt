@@ -1,0 +1,16 @@
+commit 5811b936bf4b0340a83fea8b5b574670d8c219c4
+Author: Connor Kuehl <ckuehl@redhat.com>
+Date:   Fri Apr 30 08:48:29 2021 -0500
+
+    sev: use explicit indices for mapping firmware error codes to strings
+    
+    This can help lower any margin for error when making future additions to
+    the list, especially if they're made out of order.
+    
+    While doing so, make capitalization of ASID consistent with its usage in
+    the SEV firmware spec (Asid -> ASID).
+    
+    Signed-off-by: Connor Kuehl <ckuehl@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210430134830.254741-2-ckuehl@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

@@ -1,0 +1,13 @@
+commit 6a1105adba41c3cd6371437b46c045ae9ea85314
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:45 2021 -0400
+
+    scripts/qmp-shell: make QMPShellError inherit QMPError
+    
+    In preparation for moving qmp-shell into the qemu.qmp package, make
+    QMPShellError inherit from QMPError so that all custom errors in this
+    package all derive from QMPError.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-39-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

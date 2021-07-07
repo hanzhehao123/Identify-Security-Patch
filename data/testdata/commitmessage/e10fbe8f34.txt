@@ -1,0 +1,12 @@
+commit e10fbe8f34843891b18f68f76320b43606f4df69
+Author: YAMAMOTO Takashi <yamamoto@midokura.com>
+Date:   Mon May 31 14:50:12 2021 +0900
+
+    linux-user: Implement pivot_root
+    
+    Used by runc.
+    
+    Signed-off-by: YAMAMOTO Takashi <yamamoto@midokura.com>
+    Reviewed-by: Laurent Vivier <laurent@vivier.eu>
+    Message-Id: <20210531055019.10149-6-yamamoto@midokura.com>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

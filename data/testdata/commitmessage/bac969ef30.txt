@@ -1,0 +1,26 @@
+commit bac969ef30e8a8b73acbeb6d68abff6f68b2056c
+Author: Alexander Graf <agraf@csgraf.de>
+Date:   Thu Jun 3 14:42:41 2021 +0100
+
+    hvf: Simplify post reset/init/loadvm hooks
+    
+    The hooks we have that call us after reset, init and loadvm really all
+    just want to say "The reference of all register state is in the QEMU
+    vcpu struct, please push it".
+    
+    We already have a working pushing mechanism though called cpu->vcpu_dirty,
+    so we can just reuse that for all of the above, syncing state properly the
+    next time we actually execute a vCPU.
+    
+    This fixes PSCI resets on ARM, as they modify CPU state even after the
+    post init call has completed, but before we execute the vCPU again.
+    
+    To also make the scheme work for x86, we have to make sure we don't
+    move stale eflags into our env when the vcpu state is dirty.
+    
+    Signed-off-by: Alexander Graf <agraf@csgraf.de>
+    Reviewed-by: Roman Bolshakov <r.bolshakov@yadro.com>
+    Tested-by: Roman Bolshakov <r.bolshakov@yadro.com>
+    Reviewed-by: Sergio Lopez <slp@redhat.com>
+    Message-id: 20210519202253.76782-13-agraf@csgraf.de
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

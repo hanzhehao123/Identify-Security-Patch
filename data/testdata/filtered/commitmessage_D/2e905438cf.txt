@@ -1,0 +1,14 @@
+commit 2e905438cf65e8aa4fe720448e90b09eaac75f69
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:24 2021 +0200
+
+    i386: prefer system KVM_GET_SUPPORTED_HV_CPUID ioctl over vCPU's one
+    
+    KVM_GET_SUPPORTED_HV_CPUID was made a system wide ioctl which can be called
+    prior to creating vCPUs and we are going to use that to expand Hyper-V cpu
+    features early. Use it when it is supported by KVM.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-14-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

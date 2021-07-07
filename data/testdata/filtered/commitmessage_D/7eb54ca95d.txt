@@ -1,0 +1,13 @@
+commit 7eb54ca95d369135f2570c10daf1a41a1f8a6b9c
+Author: Lara Lazier <laramglazier@gmail.com>
+Date:   Wed Jun 16 14:39:05 2021 +0200
+
+    target/i386: Added consistency checks for VMRUN intercept and ASID
+    
+    Zero VMRUN intercept and ASID should cause an immediate VMEXIT
+    during the consistency checks performed by VMRUN.
+    (AMD64 Architecture Programmer's Manual, V2, 15.5)
+    
+    Signed-off-by: Lara Lazier <laramglazier@gmail.com>
+    Message-Id: <20210616123907.17765-3-laramglazier@gmail.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

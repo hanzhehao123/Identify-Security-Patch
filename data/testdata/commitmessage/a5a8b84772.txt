@@ -1,0 +1,9 @@
+commit a5a8b84772e13066c6c45f480cc5b5312bbde08e
+Author: Luis Pires <luis.pires@eldorado.org.br>
+Date:   Tue Jun 1 09:51:43 2021 -0300
+
+    docs/devel: Explain in more detail the TB chaining mechanisms
+    
+    Signed-off-by: Luis Pires <luis.pires@eldorado.org.br>
+    Message-Id: <20210601125143.191165-1-luis.pires@eldorado.org.br>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

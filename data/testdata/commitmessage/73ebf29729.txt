@@ -1,0 +1,33 @@
+commit 73ebf29729d1a40feaa9f8ab8951b6ee6dbfbede
+Author: Thomas Huth <thuth@redhat.com>
+Date:   Thu May 27 19:20:19 2021 +0200
+
+    block/file-posix: Fix problem with fallocate(PUNCH_HOLE) on GPFS
+    
+    A customer reported that running
+    
+     qemu-img convert -t none -O qcow2 -f qcow2 input.qcow2 output.qcow2
+    
+    fails for them with the following error message when the images are
+    stored on a GPFS file system :
+    
+     qemu-img: error while writing sector 0: Invalid argument
+    
+    After analyzing the strace output, it seems like the problem is in
+    handle_aiocb_write_zeroes(): The call to fallocate(FALLOC_FL_PUNCH_HOLE)
+    returns EINVAL, which can apparently happen if the file system has
+    a different idea of the granularity of the operation. It's arguably
+    a bug in GPFS, since the PUNCH_HOLE mode should not result in EINVAL
+    according to the man-page of fallocate(), but the file system is out
+    there in production and so we have to deal with it. In commit 294682cc3a
+    ("block: workaround for unaligned byte range in fallocate()") we also
+    already applied the a work-around for the same problem to the earlier
+    fallocate(FALLOC_FL_ZERO_RANGE) call, so do it now similar with the
+    PUNCH_HOLE call. But instead of silently catching and returning
+    -ENOTSUP (which causes the caller to fall back to writing zeroes),
+    let's rather inform the user once about the buggy file system and
+    try the other fallback instead.
+    
+    Signed-off-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210527172020.847617-2-thuth@redhat.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

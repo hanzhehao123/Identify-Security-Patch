@@ -1,0 +1,25 @@
+commit a071578b93e850dcbebbe2c0cfe86e7977ddffa7
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sat May 29 18:08:19 2021 +0200
+
+    target/mips: Raise exception when DINSV opcode used with DSP disabled
+    
+    Per the "MIPS® DSP Module for MIPS64 Architecture" manual, rev. 3.02,
+    Table 5.3 "SPECIAL3 Encoding of Function Field for DSP Module":
+    
+      If the Module/ASE is not implemented, executing such an instruction
+      must cause a Reserved Instruction Exception.
+    
+    The DINSV instruction lists the following exceptions:
+    - Reserved Instruction
+    - DSP Disabled
+    
+    If the MIPS core doesn't support the DSP module, or the DSP is
+    disabled, do not handle the '$rt = $0' case as a no-op but raise
+    the proper exception instead.
+    
+    Cc: Jia Liu <proljc@gmail.com>
+    Fixes: 1cb6686cf92 ("target-mips: Add ASE DSP bit/manipulation instructions")
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210529165443.1114402-1-f4bug@amsat.org>

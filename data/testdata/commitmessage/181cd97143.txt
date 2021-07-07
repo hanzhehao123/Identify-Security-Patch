@@ -1,0 +1,13 @@
+commit 181cd97143629a304f75acf894ca79b26bf32378
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:04 2021 +0100
+
+    target/arm: Implement MVE VMLSLDAV
+    
+    Implement the MVE insn VMLSLDAV, which multiplies source elements,
+    alternately adding and subtracting them, and accumulates into a
+    64-bit result in a pair of general purpose registers.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-21-peter.maydell@linaro.org

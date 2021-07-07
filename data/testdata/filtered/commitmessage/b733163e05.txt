@@ -1,0 +1,42 @@
+commit b733163e057a15b4b81f3f1d21908f3759315c78
+Merge: 0add99ea3e 1c9638667b
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue Jun 22 10:39:16 2021 +0100
+
+    Merge remote-tracking branch 'remotes/rth-gitlab/tags/pull-tcg-20210619-2' into staging
+    
+    TCI cleanup and re-encoding
+    Fixes for #367 and #390.
+    Move TCGCond to tcg/tcg-cond.h.
+    Fix for win32 qemu_try_memalign.
+    
+    # gpg: Signature made Sun 20 Jun 2021 05:23:53 BST
+    # gpg:                using RSA key 7A481E78868B4DB6A85A05C064DF38E8AF7E215F
+    # gpg:                issuer "richard.henderson@linaro.org"
+    # gpg: Good signature from "Richard Henderson <richard.henderson@linaro.org>" [full]
+    # Primary key fingerprint: 7A48 1E78 868B 4DB6 A85A  05C0 64DF 38E8 AF7E 215F
+    
+    * remotes/rth-gitlab/tags/pull-tcg-20210619-2: (33 commits)
+      util/oslib-win32: Fix fatal assertion in qemu_try_memalign
+      tcg: expose TCGCond manipulation routines
+      tcg: Restart when exhausting the stack frame
+      tcg: Allocate sufficient storage in temp_allocate_frame
+      tcg/sparc: Fix temp_allocate_frame vs sparc stack bias
+      accel/tcg: Probe the proper permissions for atomic ops
+      tests/tcg: Increase timeout for TCI
+      tcg/tci: Use {set,clear}_helper_retaddr
+      tcg/tci: Remove the qemu_ld/st_type macros
+      Revert "tcg/tci: Use exec/cpu_ldst.h interfaces"
+      tcg/tci: Split out tci_qemu_ld, tci_qemu_st
+      tcg/tci: Implement add2, sub2
+      tcg/tci: Implement mulu2, muls2
+      tcg/tci: Implement clz, ctz, ctpop
+      tcg/tci: Implement extract, sextract
+      tcg/tci: Implement andc, orc, eqv, nand, nor
+      tcg/tci: Implement movcond
+      tcg/tci: Implement goto_ptr
+      tcg/tci: Change encoding to uint32_t units
+      tcg/tci: Remove tci_write_reg
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

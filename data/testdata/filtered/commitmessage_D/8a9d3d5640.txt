@@ -1,0 +1,16 @@
+commit 8a9d3d564093dbd5a7339085406e840893944d21
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 16:31:36 2021 -0700
+
+    configure: Use -std=gnu11
+    
+    Now that the minimum gcc version is 7.5, we can use C11.
+    This will allow lots of cleanups to the code, currently
+    hidden behind macros in include/qemu/compiler.h.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210614233143.1221879-2-richard.henderson@linaro.org>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

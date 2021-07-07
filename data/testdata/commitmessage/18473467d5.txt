@@ -1,0 +1,16 @@
+commit 18473467d55a20d643b6c9b3a52de42f705b4d35
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed Apr 14 19:52:26 2021 +0200
+
+    file-posix: try BLKSECTGET on block devices too, do not round to power of 2
+    
+    bs->sg is only true for character devices, but block devices can also
+    be used with scsi-block and scsi-generic.  Unfortunately BLKSECTGET
+    returns bytes in an int for /dev/sgN devices, and sectors in a short
+    for block devices, so account for that in the code.
+    
+    The maximum transfer also need not be a power of 2 (for example I have
+    seen disks with 1280 KiB maximum transfer) so there's no need to pass
+    the result through pow2floor.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

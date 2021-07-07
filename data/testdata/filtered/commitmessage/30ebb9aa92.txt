@@ -1,0 +1,23 @@
+commit 30ebb9aa9203b5051c5c4f4e2421803b94e5f2cc
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Tue Jun 1 10:52:18 2021 +0300
+
+    block: improve permission conflict error message
+    
+    Now permissions are updated as follows:
+     1. do graph modifications ignoring permissions
+     2. do permission update
+    
+     (of course, we rollback [1] if [2] fails)
+    
+    So, on stage [2] we can't say which users are "old" and which are
+    "new" and exist only since [1]. And current error message is a bit
+    outdated. Let's improve it, to make everything clean.
+    
+    While being here, add also a comment and some good assertions.
+    
+    iotests 283, 307, qsd-jobs outputs are updated.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210601075218.79249-7-vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

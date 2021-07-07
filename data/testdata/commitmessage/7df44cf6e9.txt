@@ -1,0 +1,11 @@
+commit 7df44cf6e9e5726c5f9c56a398fc606566673007
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Sep 5 11:58:47 2020 -0700
+
+    tcg/arm: Implement andc, orc, abs, neg, not vector operations
+    
+    These logical and arithmetic operations are optional, but are
+    trivial to accomplish with the existing infrastructure.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

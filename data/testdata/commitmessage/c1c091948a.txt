@@ -1,0 +1,15 @@
+commit c1c091948ae4a73c1a80b5005f6204d0e665ce52
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Fri Jun 18 21:53:27 2021 -0700
+
+    tcg: Allocate sufficient storage in temp_allocate_frame
+    
+    This function should have been updated for vector types
+    when they were introduced.
+    
+    Fixes: d2fd745fe8b
+    Resolves: https://gitlab.com/qemu-project/qemu/-/issues/367
+    Cc: qemu-stable@nongnu.org
+    Tested-by: Stefan Weil <sw@weilnetz.de>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

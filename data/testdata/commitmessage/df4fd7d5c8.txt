@@ -1,0 +1,16 @@
+commit df4fd7d5c8a334fc4305b35e92ce44479a7be656
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:22 2021 +0200
+
+    cpu: Split as cpu-common / cpu-sysemu
+    
+    The current cpu.c contains sysemu-specific methods.
+    To avoid building them in user-mode builds, split the
+    current cpu.c as cpu-common.c / cpu-sysemu.c.
+    
+    Start by moving cpu_get_crash_info().
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-6-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

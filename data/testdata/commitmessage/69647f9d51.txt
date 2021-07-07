@@ -1,0 +1,20 @@
+commit 69647f9d51795ebea09eef05b5b2d14ffb835baf
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 10 13:43:27 2021 +0200
+
+    qmp: Include "reserve" property of memory backends
+    
+    Let's include the new property. Instead of relying on CONFIG_LINUX,
+    let's try to unconditionally grab the property and treat errors as
+    "does not exist".
+    
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Reviewed-by: Markus Armbruster <armbru@redhat.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com> for memory backend and machine core
+    Cc: Eric Blake <eblake@redhat.com>
+    Cc: Markus Armbruster <armbru@redhat.com>
+    Cc: Igor Mammedov <imammedo@redhat.com>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210510114328.21835-15-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

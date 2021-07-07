@@ -1,0 +1,13 @@
+diff --git a/include/exec/memory.h b/include/exec/memory.h
+index 175d7151a5..c8b9088924 100644
+--- a/include/exec/memory.h
++++ b/include/exec/memory.h
+@@ -2305,7 +2305,7 @@ static inline uint8_t address_space_ldub_cached(MemoryRegionCache *cache,
+ }
+ 
+ static inline void address_space_stb_cached(MemoryRegionCache *cache,
+-    hwaddr addr, uint8_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     assert(addr < cache->len);
+     if (likely(cache->ptr)) {

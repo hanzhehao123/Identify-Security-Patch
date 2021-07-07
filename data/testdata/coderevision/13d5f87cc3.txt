@@ -1,0 +1,606 @@
+diff --git a/hw/alpha/Kconfig b/hw/alpha/Kconfig
+index 9af650c94e..15c59ff264 100644
+--- a/hw/alpha/Kconfig
++++ b/hw/alpha/Kconfig
+@@ -3,7 +3,9 @@ config DP264
+     imply PCI_DEVICES
+     imply TEST_DEVICES
+     imply E1000_PCI
+-    select I82378
++    select I82374
++    select I8254
++    select I8259
+     select IDE_CMD646
+     select MC146818RTC
+     select PCI
+diff --git a/hw/alpha/alpha_sys.h b/hw/alpha/alpha_sys.h
+index 2263e821da..e2c02e2bbe 100644
+--- a/hw/alpha/alpha_sys.h
++++ b/hw/alpha/alpha_sys.h
+@@ -10,8 +10,8 @@
+ #include "hw/intc/i8259.h"
+ 
+ 
+-PCIBus *typhoon_init(MemoryRegion *, qemu_irq *, qemu_irq *, AlphaCPU *[4],
+-                     pci_map_irq_fn, uint8_t devfn_min);
++PCIBus *typhoon_init(MemoryRegion *, ISABus **, qemu_irq *, AlphaCPU *[4],
++                     pci_map_irq_fn);
+ 
+ /* alpha_pci.c.  */
+ extern const MemoryRegionOps alpha_pci_ignore_ops;
+diff --git a/hw/alpha/dp264.c b/hw/alpha/dp264.c
+index c78ed96d0e..1017ecf330 100644
+--- a/hw/alpha/dp264.c
++++ b/hw/alpha/dp264.c
+@@ -15,7 +15,9 @@
+ #include "qemu/error-report.h"
+ #include "hw/rtc/mc146818rtc.h"
+ #include "hw/ide/pci.h"
++#include "hw/timer/i8254.h"
+ #include "hw/isa/superio.h"
++#include "hw/dma/i8257.h"
+ #include "net/net.h"
+ #include "qemu/cutils.h"
+ #include "qemu/datadir.h"
+@@ -56,10 +58,8 @@ static void clipper_init(MachineState *machine)
+     AlphaCPU *cpus[4];
+     PCIBus *pci_bus;
+     PCIDevice *pci_dev;
+-    DeviceState *i82378_dev;
+     ISABus *isa_bus;
+     qemu_irq rtc_irq;
+-    qemu_irq isa_irq;
+     long size, i;
+     char *palcode_filename;
+     uint64_t palcode_entry;
+@@ -72,57 +72,19 @@ static void clipper_init(MachineState *machine)
+         cpus[i] = ALPHA_CPU(cpu_create(machine->cpu_type));
+     }
+ 
+-    /*
+-     * arg0 -> memory size
+-     * arg1 -> kernel entry point
+-     * arg2 -> config word
+-     *
+-     * Config word: bits 0-5 -> ncpus
+-     *              bit  6   -> nographics option (for HWRPB CTB)
+-     *
+-     * See init_hwrpb() in the PALcode.
+-     */
+     cpus[0]->env.trap_arg0 = ram_size;
+     cpus[0]->env.trap_arg1 = 0;
+-    cpus[0]->env.trap_arg2 = smp_cpus | (!machine->enable_graphics << 6);
+-
+-    /*
+-     * Init the chipset.  Because we're using CLIPPER IRQ mappings,
+-     * the minimum PCI device IdSel is 1.
+-     */
+-    pci_bus = typhoon_init(machine->ram, &isa_irq, &rtc_irq, cpus,
+-                           clipper_pci_map_irq, PCI_DEVFN(1, 0));
+-
+-    /*
+-     * Init the PCI -> ISA bridge.
+-     *
+-     * Technically, PCI-based Alphas shipped with one of three different
+-     * PCI-ISA bridges:
+-     *
+-     * - Intel i82378 SIO
+-     * - Cypress CY82c693UB
+-     * - ALI M1533
+-     *
+-     * (An Intel i82375 PCI-EISA bridge was also used on some models.)
+-     *
+-     * For simplicity, we model an i82378 here, even though it wouldn't
+-     * have been on any Tsunami/Typhoon systems; it's close enough, and
+-     * we don't want to deal with modelling the CY82c693UB (which has
+-     * incompatible edge/level control registers, plus other peripherals
+-     * like IDE and USB) or the M1533 (which also has IDE and USB).
+-     *
+-     * Importantly, we need to provide a PCI device node for it, otherwise
+-     * some operating systems won't notice there's an ISA bus to configure.
+-     */
+-    i82378_dev = DEVICE(pci_create_simple(pci_bus, PCI_DEVFN(7, 0), "i82378"));
+-    isa_bus = ISA_BUS(qdev_get_child_bus(i82378_dev, "isa.0"));
+-
+-    /* Connect the ISA PIC to the Typhoon IRQ used for ISA interrupts. */
+-    qdev_connect_gpio_out(i82378_dev, 0, isa_irq);
++    cpus[0]->env.trap_arg2 = smp_cpus;
++
++    /* Init the chipset.  */
++    pci_bus = typhoon_init(machine->ram, &isa_bus, &rtc_irq, cpus,
++                           clipper_pci_map_irq);
+ 
+     /* Since we have an SRM-compatible PALcode, use the SRM epoch.  */
+     mc146818_rtc_init(isa_bus, 1900, rtc_irq);
+ 
++    i8254_pit_init(isa_bus, 0x40, 0, NULL);
++
+     /* VGA setup.  Don't bother loading the bios.  */
+     pci_vga_init(pci_bus);
+ 
+@@ -131,6 +93,9 @@ static void clipper_init(MachineState *machine)
+         pci_nic_init_nofail(&nd_table[i], pci_bus, "e1000", NULL);
+     }
+ 
++    /* 2 82C37 (dma) */
++    isa_create_simple(isa_bus, "i82374");
++
+     /* Super I/O */
+     isa_create_simple(isa_bus, TYPE_SMC37C669_SUPERIO);
+ 
+diff --git a/hw/alpha/typhoon.c b/hw/alpha/typhoon.c
+index bd39c8ca86..87020cbe0d 100644
+--- a/hw/alpha/typhoon.c
++++ b/hw/alpha/typhoon.c
+@@ -814,9 +814,8 @@ static void typhoon_alarm_timer(void *opaque)
+     cpu_interrupt(CPU(s->cchip.cpu[cpu]), CPU_INTERRUPT_TIMER);
+ }
+ 
+-PCIBus *typhoon_init(MemoryRegion *ram, qemu_irq *p_isa_irq,
+-                     qemu_irq *p_rtc_irq, AlphaCPU *cpus[4],
+-                     pci_map_irq_fn sys_map_irq, uint8_t devfn_min)
++PCIBus *typhoon_init(MemoryRegion *ram, ISABus **isa_bus, qemu_irq *p_rtc_irq,
++                     AlphaCPU *cpus[4], pci_map_irq_fn sys_map_irq)
+ {
+     MemoryRegion *addr_space = get_system_memory();
+     DeviceState *dev;
+@@ -844,7 +843,6 @@ PCIBus *typhoon_init(MemoryRegion *ram, qemu_irq *p_isa_irq,
+         }
+     }
+ 
+-    *p_isa_irq = qemu_allocate_irq(typhoon_set_isa_irq, s, 0);
+     *p_rtc_irq = qemu_allocate_irq(typhoon_set_timer_irq, s, 0);
+ 
+     /* Main memory region, 0x00.0000.0000.  Real hardware supports 32GB,
+@@ -887,7 +885,7 @@ PCIBus *typhoon_init(MemoryRegion *ram, qemu_irq *p_isa_irq,
+     b = pci_register_root_bus(dev, "pci",
+                               typhoon_set_irq, sys_map_irq, s,
+                               &s->pchip.reg_mem, &s->pchip.reg_io,
+-                              devfn_min, 64, TYPE_PCI_BUS);
++                              0, 64, TYPE_PCI_BUS);
+     phb->bus = b;
+     sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
+ 
+@@ -920,6 +918,18 @@ PCIBus *typhoon_init(MemoryRegion *ram, qemu_irq *p_isa_irq,
+     /* Pchip1 PCI I/O, 0x802.FC00.0000, 32MB.  */
+     /* Pchip1 PCI configuration, 0x802.FE00.0000, 16MB.  */
+ 
++    /* Init the ISA bus.  */
++    /* ??? Technically there should be a cy82c693ub pci-isa bridge.  */
++    {
++        qemu_irq *isa_irqs;
++
++        *isa_bus = isa_bus_new(NULL, get_system_memory(), &s->pchip.reg_io,
++                               &error_abort);
++        isa_irqs = i8259_init(*isa_bus,
++                              qemu_allocate_irq(typhoon_set_isa_irq, s, 0));
++        isa_bus_irqs(*isa_bus, isa_irqs);
++    }
++
+     return b;
+ }
+ 
+diff --git a/pc-bios/palcode-clipper b/pc-bios/palcode-clipper
+index aecb304036..b7dbc5d88c 100644
+Binary files a/pc-bios/palcode-clipper and b/pc-bios/palcode-clipper differ
+diff --git a/roms/qemu-palcode b/roms/qemu-palcode
+index 99d9b4dcf2..bf0e136988 160000
+--- a/roms/qemu-palcode
++++ b/roms/qemu-palcode
+@@ -1 +1 @@
+-Subproject commit 99d9b4dcf27d7fbcbadab71bdc88ef6531baf6bf
++Subproject commit bf0e13698872450164fa7040da36a95d2d4b326f
+diff --git a/target/alpha/translate.c b/target/alpha/translate.c
+index f2922f5f8c..f454adea5e 100644
+--- a/target/alpha/translate.c
++++ b/target/alpha/translate.c
+@@ -1471,13 +1471,6 @@ static DisasJumpType gen_mtpr(DisasContext *ctx, TCGv vb, int regno)
+         }                                       \
+     } while (0)
+ 
+-#define REQUIRE_FEN                             \
+-    do {                                        \
+-        if (!(ctx->tbflags & ENV_FLAG_FEN)) {   \
+-            goto raise_fen;                     \
+-        }                                       \
+-    } while (0)
+-
+ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+ {
+     int32_t disp21, disp16, disp12 __attribute__((unused));
+@@ -2073,7 +2066,6 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+         case 0x04:
+             /* ITOFS */
+             REQUIRE_REG_31(rb);
+-            REQUIRE_FEN;
+             t32 = tcg_temp_new_i32();
+             va = load_gpr(ctx, ra);
+             tcg_gen_extrl_i64_i32(t32, va);
+@@ -2083,20 +2075,17 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+         case 0x0A:
+             /* SQRTF */
+             REQUIRE_REG_31(ra);
+-            REQUIRE_FEN;
+             vb = load_fpr(ctx, rb);
+             gen_helper_sqrtf(vc, cpu_env, vb);
+             break;
+         case 0x0B:
+             /* SQRTS */
+             REQUIRE_REG_31(ra);
+-            REQUIRE_FEN;
+             gen_sqrts(ctx, rb, rc, fn11);
+             break;
+         case 0x14:
+             /* ITOFF */
+             REQUIRE_REG_31(rb);
+-            REQUIRE_FEN;
+             t32 = tcg_temp_new_i32();
+             va = load_gpr(ctx, ra);
+             tcg_gen_extrl_i64_i32(t32, va);
+@@ -2106,21 +2095,18 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+         case 0x24:
+             /* ITOFT */
+             REQUIRE_REG_31(rb);
+-            REQUIRE_FEN;
+             va = load_gpr(ctx, ra);
+             tcg_gen_mov_i64(vc, va);
+             break;
+         case 0x2A:
+             /* SQRTG */
+             REQUIRE_REG_31(ra);
+-            REQUIRE_FEN;
+             vb = load_fpr(ctx, rb);
+             gen_helper_sqrtg(vc, cpu_env, vb);
+             break;
+         case 0x02B:
+             /* SQRTT */
+             REQUIRE_REG_31(ra);
+-            REQUIRE_FEN;
+             gen_sqrtt(ctx, rb, rc, fn11);
+             break;
+         default:
+@@ -2137,22 +2123,18 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+         switch (fpfn) { /* fn11 & 0x3F */
+         case 0x00:
+             /* ADDF */
+-            REQUIRE_FEN;
+             gen_helper_addf(vc, cpu_env, va, vb);
+             break;
+         case 0x01:
+             /* SUBF */
+-            REQUIRE_FEN;
+             gen_helper_subf(vc, cpu_env, va, vb);
+             break;
+         case 0x02:
+             /* MULF */
+-            REQUIRE_FEN;
+             gen_helper_mulf(vc, cpu_env, va, vb);
+             break;
+         case 0x03:
+             /* DIVF */
+-            REQUIRE_FEN;
+             gen_helper_divf(vc, cpu_env, va, vb);
+             break;
+         case 0x1E:
+@@ -2161,43 +2143,35 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+             goto invalid_opc;
+         case 0x20:
+             /* ADDG */
+-            REQUIRE_FEN;
+             gen_helper_addg(vc, cpu_env, va, vb);
+             break;
+         case 0x21:
+             /* SUBG */
+-            REQUIRE_FEN;
+             gen_helper_subg(vc, cpu_env, va, vb);
+             break;
+         case 0x22:
+             /* MULG */
+-            REQUIRE_FEN;
+             gen_helper_mulg(vc, cpu_env, va, vb);
+             break;
+         case 0x23:
+             /* DIVG */
+-            REQUIRE_FEN;
+             gen_helper_divg(vc, cpu_env, va, vb);
+             break;
+         case 0x25:
+             /* CMPGEQ */
+-            REQUIRE_FEN;
+             gen_helper_cmpgeq(vc, cpu_env, va, vb);
+             break;
+         case 0x26:
+             /* CMPGLT */
+-            REQUIRE_FEN;
+             gen_helper_cmpglt(vc, cpu_env, va, vb);
+             break;
+         case 0x27:
+             /* CMPGLE */
+-            REQUIRE_FEN;
+             gen_helper_cmpgle(vc, cpu_env, va, vb);
+             break;
+         case 0x2C:
+             /* CVTGF */
+             REQUIRE_REG_31(ra);
+-            REQUIRE_FEN;
+             gen_helper_cvtgf(vc, cpu_env, vb);
+             break;
+         case 0x2D:
+@@ -2207,19 +2181,16 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+         case 0x2F:
+             /* CVTGQ */
+             REQUIRE_REG_31(ra);
+-            REQUIRE_FEN;
+             gen_helper_cvtgq(vc, cpu_env, vb);
+             break;
+         case 0x3C:
+             /* CVTQF */
+             REQUIRE_REG_31(ra);
+-            REQUIRE_FEN;
+             gen_helper_cvtqf(vc, cpu_env, vb);
+             break;
+         case 0x3E:
+             /* CVTQG */
+             REQUIRE_REG_31(ra);
+-            REQUIRE_FEN;
+             gen_helper_cvtqg(vc, cpu_env, vb);
+             break;
+         default:
+@@ -2232,67 +2203,54 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+         switch (fpfn) { /* fn11 & 0x3F */
+         case 0x00:
+             /* ADDS */
+-            REQUIRE_FEN;
+             gen_adds(ctx, ra, rb, rc, fn11);
+             break;
+         case 0x01:
+             /* SUBS */
+-            REQUIRE_FEN;
+             gen_subs(ctx, ra, rb, rc, fn11);
+             break;
+         case 0x02:
+             /* MULS */
+-            REQUIRE_FEN;
+             gen_muls(ctx, ra, rb, rc, fn11);
+             break;
+         case 0x03:
+             /* DIVS */
+-            REQUIRE_FEN;
+             gen_divs(ctx, ra, rb, rc, fn11);
+             break;
+         case 0x20:
+             /* ADDT */
+-            REQUIRE_FEN;
+             gen_addt(ctx, ra, rb, rc, fn11);
+             break;
+         case 0x21:
+             /* SUBT */
+-            REQUIRE_FEN;
+             gen_subt(ctx, ra, rb, rc, fn11);
+             break;
+         case 0x22:
+             /* MULT */
+-            REQUIRE_FEN;
+             gen_mult(ctx, ra, rb, rc, fn11);
+             break;
+         case 0x23:
+             /* DIVT */
+-            REQUIRE_FEN;
+             gen_divt(ctx, ra, rb, rc, fn11);
+             break;
+         case 0x24:
+             /* CMPTUN */
+-            REQUIRE_FEN;
+             gen_cmptun(ctx, ra, rb, rc, fn11);
+             break;
+         case 0x25:
+             /* CMPTEQ */
+-            REQUIRE_FEN;
+             gen_cmpteq(ctx, ra, rb, rc, fn11);
+             break;
+         case 0x26:
+             /* CMPTLT */
+-            REQUIRE_FEN;
+             gen_cmptlt(ctx, ra, rb, rc, fn11);
+             break;
+         case 0x27:
+             /* CMPTLE */
+-            REQUIRE_FEN;
+             gen_cmptle(ctx, ra, rb, rc, fn11);
+             break;
+         case 0x2C:
+             REQUIRE_REG_31(ra);
+-            REQUIRE_FEN;
+             if (fn11 == 0x2AC || fn11 == 0x6AC) {
+                 /* CVTST */
+                 gen_cvtst(ctx, rb, rc, fn11);
+@@ -2304,19 +2262,16 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+         case 0x2F:
+             /* CVTTQ */
+             REQUIRE_REG_31(ra);
+-            REQUIRE_FEN;
+             gen_cvttq(ctx, rb, rc, fn11);
+             break;
+         case 0x3C:
+             /* CVTQS */
+             REQUIRE_REG_31(ra);
+-            REQUIRE_FEN;
+             gen_cvtqs(ctx, rb, rc, fn11);
+             break;
+         case 0x3E:
+             /* CVTQT */
+             REQUIRE_REG_31(ra);
+-            REQUIRE_FEN;
+             gen_cvtqt(ctx, rb, rc, fn11);
+             break;
+         default:
+@@ -2329,14 +2284,12 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+         case 0x010:
+             /* CVTLQ */
+             REQUIRE_REG_31(ra);
+-            REQUIRE_FEN;
+             vc = dest_fpr(ctx, rc);
+             vb = load_fpr(ctx, rb);
+             gen_cvtlq(vc, vb);
+             break;
+         case 0x020:
+             /* CPYS */
+-            REQUIRE_FEN;
+             if (rc == 31) {
+                 /* Special case CPYS as FNOP.  */
+             } else {
+@@ -2353,7 +2306,6 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+             break;
+         case 0x021:
+             /* CPYSN */
+-            REQUIRE_FEN;
+             vc = dest_fpr(ctx, rc);
+             vb = load_fpr(ctx, rb);
+             va = load_fpr(ctx, ra);
+@@ -2361,7 +2313,6 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+             break;
+         case 0x022:
+             /* CPYSE */
+-            REQUIRE_FEN;
+             vc = dest_fpr(ctx, rc);
+             vb = load_fpr(ctx, rb);
+             va = load_fpr(ctx, ra);
+@@ -2369,7 +2320,6 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+             break;
+         case 0x024:
+             /* MT_FPCR */
+-            REQUIRE_FEN;
+             va = load_fpr(ctx, ra);
+             gen_helper_store_fpcr(cpu_env, va);
+             if (ctx->tb_rm == QUAL_RM_D) {
+@@ -2380,45 +2330,37 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+             break;
+         case 0x025:
+             /* MF_FPCR */
+-            REQUIRE_FEN;
+             va = dest_fpr(ctx, ra);
+             gen_helper_load_fpcr(va, cpu_env);
+             break;
+         case 0x02A:
+             /* FCMOVEQ */
+-            REQUIRE_FEN;
+             gen_fcmov(ctx, TCG_COND_EQ, ra, rb, rc);
+             break;
+         case 0x02B:
+             /* FCMOVNE */
+-            REQUIRE_FEN;
+             gen_fcmov(ctx, TCG_COND_NE, ra, rb, rc);
+             break;
+         case 0x02C:
+             /* FCMOVLT */
+-            REQUIRE_FEN;
+             gen_fcmov(ctx, TCG_COND_LT, ra, rb, rc);
+             break;
+         case 0x02D:
+             /* FCMOVGE */
+-            REQUIRE_FEN;
+             gen_fcmov(ctx, TCG_COND_GE, ra, rb, rc);
+             break;
+         case 0x02E:
+             /* FCMOVLE */
+-            REQUIRE_FEN;
+             gen_fcmov(ctx, TCG_COND_LE, ra, rb, rc);
+             break;
+         case 0x02F:
+             /* FCMOVGT */
+-            REQUIRE_FEN;
+             gen_fcmov(ctx, TCG_COND_GT, ra, rb, rc);
+             break;
+         case 0x030: /* CVTQL */
+         case 0x130: /* CVTQL/V */
+         case 0x530: /* CVTQL/SV */
+             REQUIRE_REG_31(ra);
+-            REQUIRE_FEN;
+             vc = dest_fpr(ctx, rc);
+             vb = load_fpr(ctx, rb);
+             gen_helper_cvtql(vc, cpu_env, vb);
+@@ -2851,42 +2793,34 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+ #endif
+     case 0x20:
+         /* LDF */
+-        REQUIRE_FEN;
+         gen_load_mem(ctx, &gen_qemu_ldf, ra, rb, disp16, 1, 0);
+         break;
+     case 0x21:
+         /* LDG */
+-        REQUIRE_FEN;
+         gen_load_mem(ctx, &gen_qemu_ldg, ra, rb, disp16, 1, 0);
+         break;
+     case 0x22:
+         /* LDS */
+-        REQUIRE_FEN;
+         gen_load_mem(ctx, &gen_qemu_lds, ra, rb, disp16, 1, 0);
+         break;
+     case 0x23:
+         /* LDT */
+-        REQUIRE_FEN;
+         gen_load_mem(ctx, &tcg_gen_qemu_ld64, ra, rb, disp16, 1, 0);
+         break;
+     case 0x24:
+         /* STF */
+-        REQUIRE_FEN;
+         gen_store_mem(ctx, &gen_qemu_stf, ra, rb, disp16, 1, 0);
+         break;
+     case 0x25:
+         /* STG */
+-        REQUIRE_FEN;
+         gen_store_mem(ctx, &gen_qemu_stg, ra, rb, disp16, 1, 0);
+         break;
+     case 0x26:
+         /* STS */
+-        REQUIRE_FEN;
+         gen_store_mem(ctx, &gen_qemu_sts, ra, rb, disp16, 1, 0);
+         break;
+     case 0x27:
+         /* STT */
+-        REQUIRE_FEN;
+         gen_store_mem(ctx, &tcg_gen_qemu_st64, ra, rb, disp16, 1, 0);
+         break;
+     case 0x28:
+@@ -2928,15 +2862,12 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+         ret = gen_bdirect(ctx, ra, disp21);
+         break;
+     case 0x31: /* FBEQ */
+-        REQUIRE_FEN;
+         ret = gen_fbcond(ctx, TCG_COND_EQ, ra, disp21);
+         break;
+     case 0x32: /* FBLT */
+-        REQUIRE_FEN;
+         ret = gen_fbcond(ctx, TCG_COND_LT, ra, disp21);
+         break;
+     case 0x33: /* FBLE */
+-        REQUIRE_FEN;
+         ret = gen_fbcond(ctx, TCG_COND_LE, ra, disp21);
+         break;
+     case 0x34:
+@@ -2944,15 +2875,12 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+         ret = gen_bdirect(ctx, ra, disp21);
+         break;
+     case 0x35: /* FBNE */
+-        REQUIRE_FEN;
+         ret = gen_fbcond(ctx, TCG_COND_NE, ra, disp21);
+         break;
+     case 0x36: /* FBGE */
+-        REQUIRE_FEN;
+         ret = gen_fbcond(ctx, TCG_COND_GE, ra, disp21);
+         break;
+     case 0x37: /* FBGT */
+-        REQUIRE_FEN;
+         ret = gen_fbcond(ctx, TCG_COND_GT, ra, disp21);
+         break;
+     case 0x38:
+@@ -2990,9 +2918,6 @@ static DisasJumpType translate_one(DisasContext *ctx, uint32_t insn)
+     invalid_opc:
+         ret = gen_invalid(ctx);
+         break;
+-    raise_fen:
+-        ret = gen_excp(ctx, EXCP_FEN, 0);
+-        break;
+     }
+ 
+     return ret;

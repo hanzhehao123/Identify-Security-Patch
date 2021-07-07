@@ -1,0 +1,31 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index bf7a49dfc1..80cd432607 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -204,7 +204,8 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+                 if type(parent[optpath[-1]]) is dict:
+                     msg = 'Cannot use "{:s}" as both leaf and non-leaf key'
+                     raise QMPShellError(msg.format('.'.join(curpath)))
+-                raise QMPShellError(f'Cannot set "{key}" multiple times')
++                else:
++                    raise QMPShellError(f'Cannot set "{key}" multiple times')
+             parent[optpath[-1]] = value
+ 
+     def __build_cmd(self, cmdline):
+@@ -308,14 +309,13 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         except EOFError:
+             print()
+             return False
+-
+         if cmdline == '':
+             for event in self.get_events():
+                 print(event)
+             self.clear_events()
+             return True
+-
+-        return self._execute_cmd(cmdline)
++        else:
++            return self._execute_cmd(cmdline)
+ 
+     def set_verbosity(self, verbose):
+         self._verbose = verbose

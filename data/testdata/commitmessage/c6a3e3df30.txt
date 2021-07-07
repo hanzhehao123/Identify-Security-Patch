@@ -1,0 +1,16 @@
+commit c6a3e3df3011288c2395cd5755547c91e943b10a
+Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date:   Thu Jun 24 09:20:39 2021 +0200
+
+    block-copy: small refactor in block_copy_task_entry and block_copy_common
+    
+    Use a local variable instead of referencing BlockCopyState through a
+    BlockCopyCallState or BlockCopyTask every time.
+    This is in preparation for next patches.
+    
+    No functional change intended.
+    
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Message-Id: <20210624072043.180494-2-eesposit@redhat.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>

@@ -1,0 +1,19 @@
+commit e62a959afd2b1a13b27dda9d03f10c7feb36aa9b
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Wed May 19 11:08:01 2021 +0100
+
+    esp: ensure PDMA write transfers are flushed from the FIFO to the target immediately
+    
+    After each PDMA write transfer the MacOS CDROM driver waits until the FIFO is empty
+    (i.e. its contents have been written out to the SCSI bus) by polling the FIFO count
+    register until it reads 0. This doesn't work with the current PDMA write
+    implementation which waits until either the FIFO is full or the transfer is complete
+    before invoking the PDMA callback to process the FIFO contents.
+    
+    Change the PDMA write transfer logic so that the PDMA callback is invoked after each
+    PDMA write to transfer the FIFO contents to the target buffer immediately, and hence
+    avoid getting stuck in the FIFO count register polling loop.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Message-Id: <20210519100803.10293-4-mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

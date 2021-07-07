@@ -1,0 +1,11 @@
+commit 380caf6c0762f43a9468aeebaf4ba7e1dd8edc9a
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:14 2021 +0100
+
+    target/arm: Implement MVE VQDMULH, VQRDMULH (vector)
+    
+    Implement the vector forms of the MVE VQDMULH and VQRDMULH insns.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-31-peter.maydell@linaro.org

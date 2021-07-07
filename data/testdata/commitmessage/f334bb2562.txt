@@ -1,0 +1,16 @@
+commit f334bb2562dafbdc4ce673e5811bc9880758b147
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Wed May 19 15:29:14 2021 +0100
+
+    target/m68k: introduce is_singlestepping() function
+    
+    The m68k translator currently checks the DisasContextBase singlestep_enabled
+    boolean directly to determine whether to single-step execution. Soon
+    single-stepping may also be triggered by setting the appropriate bits in the
+    SR register so centralise the check into a single is_singlestepping()
+    function.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210519142917.16693-2-mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

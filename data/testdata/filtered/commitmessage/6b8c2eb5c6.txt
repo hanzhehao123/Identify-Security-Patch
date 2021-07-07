@@ -1,0 +1,10 @@
+commit 6b8c2eb5c63db2b6b418256bcfecb51e17d72b0f
+Author: Li Zhijian <lizhijian@cn.fujitsu.com>
+Date:   Wed Jun 2 10:35:06 2021 +0800
+
+    migration/rdma: Fix cm event use after free
+    
+    Signed-off-by: Li Zhijian <lizhijian@cn.fujitsu.com>
+    Message-Id: <20210602023506.3821293-1-lizhijian@cn.fujitsu.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

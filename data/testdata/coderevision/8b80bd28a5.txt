@@ -1,0 +1,551 @@
+diff --git a/cpu.c b/cpu.c
+index e3f9804f13..c57f4c302b 100644
+--- a/cpu.c
++++ b/cpu.c
+@@ -29,7 +29,6 @@
+ #ifdef CONFIG_USER_ONLY
+ #include "qemu.h"
+ #else
+-#include "hw/core/sysemu-cpu-ops.h"
+ #include "exec/address-spaces.h"
+ #endif
+ #include "sysemu/tcg.h"
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index cd3fb70cb5..1dfb788415 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -80,9 +80,6 @@ struct TCGCPUOps;
+ /* see accel-cpu.h */
+ struct AccelCPUClass;
+ 
+-/* see sysemu-cpu-ops.h */
+-struct SysemuCPUOps;
+-
+ /**
+  * CPUClass:
+  * @class_by_name: Callback to map -cpu command line model name to an
+@@ -194,9 +191,6 @@ struct CPUClass {
+     bool gdb_stop_before_watchpoint;
+     struct AccelCPUClass *accel_cpu;
+ 
+-    /* when system emulation is not available, this pointer is NULL */
+-    const struct SysemuCPUOps *sysemu_ops;
+-
+     /* when TCG is not available, this pointer is NULL */
+     struct TCGCPUOps *tcg_ops;
+ 
+diff --git a/include/hw/core/sysemu-cpu-ops.h b/include/hw/core/sysemu-cpu-ops.h
+deleted file mode 100644
+index e54a08ea25..0000000000
+--- a/include/hw/core/sysemu-cpu-ops.h
++++ /dev/null
+@@ -1,21 +0,0 @@
+-/*
+- * CPU operations specific to system emulation
+- *
+- * Copyright (c) 2012 SUSE LINUX Products GmbH
+- *
+- * This work is licensed under the terms of the GNU GPL, version 2 or later.
+- * See the COPYING file in the top-level directory.
+- */
+-
+-#ifndef SYSEMU_CPU_OPS_H
+-#define SYSEMU_CPU_OPS_H
+-
+-#include "hw/core/cpu.h"
+-
+-/*
+- * struct SysemuCPUOps: System operations specific to a CPU class
+- */
+-typedef struct SysemuCPUOps {
+-} SysemuCPUOps;
+-
+-#endif /* SYSEMU_CPU_OPS_H */
+diff --git a/target/alpha/cpu.c b/target/alpha/cpu.c
+index 0b12b2be81..27192b62e2 100644
+--- a/target/alpha/cpu.c
++++ b/target/alpha/cpu.c
+@@ -206,13 +206,6 @@ static void alpha_cpu_initfn(Object *obj)
+ #endif
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps alpha_sysemu_ops = {
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+ static struct TCGCPUOps alpha_tcg_ops = {
+@@ -245,7 +238,6 @@ static void alpha_cpu_class_init(ObjectClass *oc, void *data)
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_debug = alpha_cpu_get_phys_page_debug;
+     dc->vmsd = &vmstate_alpha_cpu;
+-    cc->sysemu_ops = &alpha_sysemu_ops;
+ #endif
+     cc->disas_set_info = alpha_cpu_disas_set_info;
+ 
+diff --git a/target/arm/cpu.c b/target/arm/cpu.c
+index 0116e9d8e8..bf82276611 100644
+--- a/target/arm/cpu.c
++++ b/target/arm/cpu.c
+@@ -1944,13 +1944,6 @@ static gchar *arm_gdb_arch_name(CPUState *cs)
+     return g_strdup("arm");
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps arm_sysemu_ops = {
+-};
+-#endif
+-
+ #ifdef CONFIG_TCG
+ static struct TCGCPUOps arm_tcg_ops = {
+     .initialize = arm_translate_init,
+@@ -1994,7 +1987,6 @@ static void arm_cpu_class_init(ObjectClass *oc, void *data)
+     cc->virtio_is_big_endian = arm_cpu_virtio_is_big_endian;
+     cc->write_elf64_note = arm_cpu_write_elf64_note;
+     cc->write_elf32_note = arm_cpu_write_elf32_note;
+-    cc->sysemu_ops = &arm_sysemu_ops;
+ #endif
+     cc->gdb_num_core_regs = 26;
+     cc->gdb_core_xml_file = "arm-core.xml";
+diff --git a/target/avr/cpu.c b/target/avr/cpu.c
+index b95caf8c0f..3353bcb9fc 100644
+--- a/target/avr/cpu.c
++++ b/target/avr/cpu.c
+@@ -184,11 +184,6 @@ static void avr_cpu_dump_state(CPUState *cs, FILE *f, int flags)
+     qemu_fprintf(f, "\n");
+ }
+ 
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps avr_sysemu_ops = {
+-};
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+ static struct TCGCPUOps avr_tcg_ops = {
+@@ -219,7 +214,6 @@ static void avr_cpu_class_init(ObjectClass *oc, void *data)
+     cc->memory_rw_debug = avr_cpu_memory_rw_debug;
+     cc->get_phys_page_debug = avr_cpu_get_phys_page_debug;
+     dc->vmsd = &vms_avr_cpu;
+-    cc->sysemu_ops = &avr_sysemu_ops;
+     cc->disas_set_info = avr_cpu_disas_set_info;
+     cc->gdb_read_register = avr_cpu_gdb_read_register;
+     cc->gdb_write_register = avr_cpu_gdb_write_register;
+diff --git a/target/cris/cpu.c b/target/cris/cpu.c
+index f1095fcf5c..ed983380fc 100644
+--- a/target/cris/cpu.c
++++ b/target/cris/cpu.c
+@@ -193,13 +193,6 @@ static void cris_cpu_initfn(Object *obj)
+ #endif
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps cris_sysemu_ops = {
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+ static struct TCGCPUOps crisv10_tcg_ops = {
+@@ -301,7 +294,6 @@ static void cris_cpu_class_init(ObjectClass *oc, void *data)
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_debug = cris_cpu_get_phys_page_debug;
+     dc->vmsd = &vmstate_cris_cpu;
+-    cc->sysemu_ops = &cris_sysemu_ops;
+ #endif
+ 
+     cc->gdb_num_core_regs = 49;
+diff --git a/target/hppa/cpu.c b/target/hppa/cpu.c
+index 870130b159..d8fad52d1f 100644
+--- a/target/hppa/cpu.c
++++ b/target/hppa/cpu.c
+@@ -131,13 +131,6 @@ static ObjectClass *hppa_cpu_class_by_name(const char *cpu_model)
+     return object_class_by_name(TYPE_HPPA_CPU);
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps hppa_sysemu_ops = {
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+ static struct TCGCPUOps hppa_tcg_ops = {
+@@ -170,7 +163,6 @@ static void hppa_cpu_class_init(ObjectClass *oc, void *data)
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_debug = hppa_cpu_get_phys_page_debug;
+     dc->vmsd = &vmstate_hppa_cpu;
+-    cc->sysemu_ops = &hppa_sysemu_ops;
+ #endif
+     cc->disas_set_info = hppa_cpu_disas_set_info;
+     cc->gdb_num_core_regs = 128;
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index e422fab49a..5a1c8ead8e 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -6714,13 +6714,6 @@ static Property x86_cpu_properties[] = {
+     DEFINE_PROP_END_OF_LIST()
+ };
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps i386_sysemu_ops = {
+-};
+-#endif
+-
+ static void x86_cpu_common_class_init(ObjectClass *oc, void *data)
+ {
+     X86CPUClass *xcc = X86_CPU_CLASS(oc);
+@@ -6757,7 +6750,6 @@ static void x86_cpu_common_class_init(ObjectClass *oc, void *data)
+     cc->write_elf32_note = x86_cpu_write_elf32_note;
+     cc->write_elf32_qemunote = x86_cpu_write_elf32_qemunote;
+     cc->legacy_vmsd = &vmstate_x86_cpu;
+-    cc->sysemu_ops = &i386_sysemu_ops;
+ #endif /* !CONFIG_USER_ONLY */
+ 
+     cc->gdb_arch_name = x86_gdb_arch_name;
+diff --git a/target/m68k/cpu.c b/target/m68k/cpu.c
+index 97ef3ae31c..a14874b4da 100644
+--- a/target/m68k/cpu.c
++++ b/target/m68k/cpu.c
+@@ -503,13 +503,6 @@ static const VMStateDescription vmstate_m68k_cpu = {
+ };
+ #endif
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps m68k_sysemu_ops = {
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+ static struct TCGCPUOps m68k_tcg_ops = {
+@@ -542,7 +535,6 @@ static void m68k_cpu_class_init(ObjectClass *c, void *data)
+ #if defined(CONFIG_SOFTMMU)
+     cc->get_phys_page_debug = m68k_cpu_get_phys_page_debug;
+     dc->vmsd = &vmstate_m68k_cpu;
+-    cc->sysemu_ops = &m68k_sysemu_ops;
+ #endif
+     cc->disas_set_info = m68k_cpu_disas_set_info;
+ 
+diff --git a/target/microblaze/cpu.c b/target/microblaze/cpu.c
+index 96f221ff71..433ba20203 100644
+--- a/target/microblaze/cpu.c
++++ b/target/microblaze/cpu.c
+@@ -352,13 +352,6 @@ static ObjectClass *mb_cpu_class_by_name(const char *cpu_model)
+     return object_class_by_name(TYPE_MICROBLAZE_CPU);
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps mb_sysemu_ops = {
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+ static struct TCGCPUOps mb_tcg_ops = {
+@@ -395,7 +388,6 @@ static void mb_cpu_class_init(ObjectClass *oc, void *data)
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_attrs_debug = mb_cpu_get_phys_page_attrs_debug;
+     dc->vmsd = &vmstate_mb_cpu;
+-    cc->sysemu_ops = &mb_sysemu_ops;
+ #endif
+     device_class_set_props(dc, mb_properties);
+     cc->gdb_num_core_regs = 32 + 27;
+diff --git a/target/mips/cpu.c b/target/mips/cpu.c
+index 9a8c484cb4..eba56ac899 100644
+--- a/target/mips/cpu.c
++++ b/target/mips/cpu.c
+@@ -521,13 +521,6 @@ static Property mips_cpu_properties[] = {
+     DEFINE_PROP_END_OF_LIST()
+ };
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps mips_sysemu_ops = {
+-};
+-#endif
+-
+ #ifdef CONFIG_TCG
+ #include "hw/core/tcg-cpu-ops.h"
+ /*
+@@ -569,7 +562,6 @@ static void mips_cpu_class_init(ObjectClass *c, void *data)
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_debug = mips_cpu_get_phys_page_debug;
+     cc->legacy_vmsd = &vmstate_mips_cpu;
+-    cc->sysemu_ops = &mips_sysemu_ops;
+ #endif
+     cc->disas_set_info = mips_cpu_disas_set_info;
+     cc->gdb_num_core_regs = 73;
+diff --git a/target/nios2/cpu.c b/target/nios2/cpu.c
+index cb04b04d24..e9c9fc3a38 100644
+--- a/target/nios2/cpu.c
++++ b/target/nios2/cpu.c
+@@ -207,13 +207,6 @@ static Property nios2_properties[] = {
+     DEFINE_PROP_END_OF_LIST(),
+ };
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps nios2_sysemu_ops = {
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+ static struct TCGCPUOps nios2_tcg_ops = {
+@@ -245,7 +238,6 @@ static void nios2_cpu_class_init(ObjectClass *oc, void *data)
+     cc->disas_set_info = nios2_cpu_disas_set_info;
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_debug = nios2_cpu_get_phys_page_debug;
+-    cc->sysemu_ops = &nios2_sysemu_ops;
+ #endif
+     cc->gdb_read_register = nios2_cpu_gdb_read_register;
+     cc->gdb_write_register = nios2_cpu_gdb_write_register;
+diff --git a/target/openrisc/cpu.c b/target/openrisc/cpu.c
+index 12d9173043..2c64842f46 100644
+--- a/target/openrisc/cpu.c
++++ b/target/openrisc/cpu.c
+@@ -174,13 +174,6 @@ static void openrisc_any_initfn(Object *obj)
+                       | (IMMUCFGR_NTS & (ctz32(TLB_SIZE) << 2));
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps openrisc_sysemu_ops = {
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+ static struct TCGCPUOps openrisc_tcg_ops = {
+@@ -212,7 +205,6 @@ static void openrisc_cpu_class_init(ObjectClass *oc, void *data)
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_debug = openrisc_cpu_get_phys_page_debug;
+     dc->vmsd = &vmstate_openrisc_cpu;
+-    cc->sysemu_ops = &openrisc_sysemu_ops;
+ #endif
+     cc->gdb_num_core_regs = 32 + 3;
+     cc->disas_set_info = openrisc_disas_set_info;
+diff --git a/target/ppc/cpu_init.c b/target/ppc/cpu_init.c
+index 302b9b92a5..668fd141db 100644
+--- a/target/ppc/cpu_init.c
++++ b/target/ppc/cpu_init.c
+@@ -9263,13 +9263,6 @@ static Property ppc_cpu_properties[] = {
+     DEFINE_PROP_END_OF_LIST(),
+ };
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps ppc_sysemu_ops = {
+-};
+-#endif
+-
+ #ifdef CONFIG_TCG
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+@@ -9313,7 +9306,6 @@ static void ppc_cpu_class_init(ObjectClass *oc, void *data)
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_debug = ppc_cpu_get_phys_page_debug;
+     cc->legacy_vmsd = &vmstate_ppc_cpu;
+-    cc->sysemu_ops = &ppc_sysemu_ops;
+ #endif
+ #if defined(CONFIG_SOFTMMU)
+     cc->write_elf64_note = ppc64_cpu_write_elf64_note;
+diff --git a/target/riscv/cpu.c b/target/riscv/cpu.c
+index b2b4a0baf4..16510da259 100644
+--- a/target/riscv/cpu.c
++++ b/target/riscv/cpu.c
+@@ -596,13 +596,6 @@ static const char *riscv_gdb_get_dynamic_xml(CPUState *cs, const char *xmlname)
+     return NULL;
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps riscv_sysemu_ops = {
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+ static struct TCGCPUOps riscv_tcg_ops = {
+@@ -646,7 +639,6 @@ static void riscv_cpu_class_init(ObjectClass *c, void *data)
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_debug = riscv_cpu_get_phys_page_debug;
+     cc->legacy_vmsd = &vmstate_riscv_cpu;
+-    cc->sysemu_ops = &riscv_sysemu_ops;
+     cc->write_elf64_note = riscv_cpu_write_elf64_note;
+     cc->write_elf32_note = riscv_cpu_write_elf32_note;
+ #endif
+diff --git a/target/rx/cpu.c b/target/rx/cpu.c
+index 98e6596158..7ac6618b26 100644
+--- a/target/rx/cpu.c
++++ b/target/rx/cpu.c
+@@ -173,13 +173,6 @@ static void rx_cpu_init(Object *obj)
+     qdev_init_gpio_in(DEVICE(cpu), rx_cpu_set_irq, 2);
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps rx_sysemu_ops = {
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+ static struct TCGCPUOps rx_tcg_ops = {
+@@ -209,9 +202,6 @@ static void rx_cpu_class_init(ObjectClass *klass, void *data)
+     cc->dump_state = rx_cpu_dump_state;
+     cc->set_pc = rx_cpu_set_pc;
+ 
+-#ifndef CONFIG_USER_ONLY
+-    cc->sysemu_ops = &rx_sysemu_ops;
+-#endif
+     cc->gdb_read_register = rx_cpu_gdb_read_register;
+     cc->gdb_write_register = rx_cpu_gdb_write_register;
+     cc->get_phys_page_debug = rx_cpu_get_phys_page_debug;
+diff --git a/target/s390x/cpu.c b/target/s390x/cpu.c
+index 77800e99b9..7ce425f611 100644
+--- a/target/s390x/cpu.c
++++ b/target/s390x/cpu.c
+@@ -476,13 +476,6 @@ static void s390_cpu_reset_full(DeviceState *dev)
+     return s390_cpu_reset(s, S390_CPU_RESET_CLEAR);
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps s390_sysemu_ops = {
+-};
+-#endif
+-
+ #ifdef CONFIG_TCG
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+@@ -526,7 +519,6 @@ static void s390_cpu_class_init(ObjectClass *oc, void *data)
+     cc->legacy_vmsd = &vmstate_s390_cpu;
+     cc->get_crash_info = s390_cpu_get_crash_info;
+     cc->write_elf64_note = s390_cpu_write_elf64_note;
+-    cc->sysemu_ops = &s390_sysemu_ops;
+ #endif
+     cc->disas_set_info = s390_cpu_disas_set_info;
+     cc->gdb_num_core_regs = S390_NUM_CORE_REGS;
+diff --git a/target/sh4/cpu.c b/target/sh4/cpu.c
+index 79aec898fa..35d4251aaf 100644
+--- a/target/sh4/cpu.c
++++ b/target/sh4/cpu.c
+@@ -223,11 +223,6 @@ static const VMStateDescription vmstate_sh_cpu = {
+     .name = "cpu",
+     .unmigratable = 1,
+ };
+-
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps sh4_sysemu_ops = {
+-};
+ #endif
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+@@ -264,7 +259,6 @@ static void superh_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_write_register = superh_cpu_gdb_write_register;
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_debug = superh_cpu_get_phys_page_debug;
+-    cc->sysemu_ops = &sh4_sysemu_ops;
+     dc->vmsd = &vmstate_sh_cpu;
+ #endif
+     cc->disas_set_info = superh_cpu_disas_set_info;
+diff --git a/target/sparc/cpu.c b/target/sparc/cpu.c
+index 70be0ecf5e..ba497561bf 100644
+--- a/target/sparc/cpu.c
++++ b/target/sparc/cpu.c
+@@ -848,13 +848,6 @@ static Property sparc_cpu_properties[] = {
+     DEFINE_PROP_END_OF_LIST()
+ };
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps sparc_sysemu_ops = {
+-};
+-#endif
+-
+ #ifdef CONFIG_TCG
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+@@ -897,7 +890,6 @@ static void sparc_cpu_class_init(ObjectClass *oc, void *data)
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_debug = sparc_cpu_get_phys_page_debug;
+     cc->legacy_vmsd = &vmstate_sparc_cpu;
+-    cc->sysemu_ops = &sparc_sysemu_ops;
+ #endif
+     cc->disas_set_info = cpu_sparc_disas_set_info;
+ 
+diff --git a/target/tricore/cpu.c b/target/tricore/cpu.c
+index 7dc6aab66c..0b1e139bcb 100644
+--- a/target/tricore/cpu.c
++++ b/target/tricore/cpu.c
+@@ -142,11 +142,6 @@ static void tc27x_initfn(Object *obj)
+     set_feature(&cpu->env, TRICORE_FEATURE_161);
+ }
+ 
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps tricore_sysemu_ops = {
+-};
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+ static struct TCGCPUOps tricore_tcg_ops = {
+@@ -176,7 +171,6 @@ static void tricore_cpu_class_init(ObjectClass *c, void *data)
+     cc->dump_state = tricore_cpu_dump_state;
+     cc->set_pc = tricore_cpu_set_pc;
+     cc->get_phys_page_debug = tricore_cpu_get_phys_page_debug;
+-    cc->sysemu_ops = &tricore_sysemu_ops;
+     cc->tcg_ops = &tricore_tcg_ops;
+ }
+ 
+diff --git a/target/xtensa/cpu.c b/target/xtensa/cpu.c
+index a196530451..0267571fbd 100644
+--- a/target/xtensa/cpu.c
++++ b/target/xtensa/cpu.c
+@@ -180,11 +180,6 @@ static const VMStateDescription vmstate_xtensa_cpu = {
+     .name = "cpu",
+     .unmigratable = 1,
+ };
+-
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps xtensa_sysemu_ops = {
+-};
+ #endif
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+@@ -221,7 +216,6 @@ static void xtensa_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_write_register = xtensa_cpu_gdb_write_register;
+     cc->gdb_stop_before_watchpoint = true;
+ #ifndef CONFIG_USER_ONLY
+-    cc->sysemu_ops = &xtensa_sysemu_ops;
+     cc->get_phys_page_debug = xtensa_cpu_get_phys_page_debug;
+     dc->vmsd = &vmstate_xtensa_cpu;
+ #endif

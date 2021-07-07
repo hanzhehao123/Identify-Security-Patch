@@ -1,0 +1,43 @@
+commit 62c0ac5041e9130b041adfa13a41583d3c3ddd24
+Merge: 7258034ab4 119065574d
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri May 28 16:25:20 2021 +0100
+
+    Merge remote-tracking branch 'remotes/rth-gitlab/tags/pull-tcg-20210526' into staging
+    
+    Adjust types for some memory access functions.
+    Reduce inclusion of tcg headers.
+    Fix watchpoints vs replay.
+    Fix tcg/aarch64 roli expansion.
+    Introduce SysemuCPUOps structure.
+    
+    # gpg: Signature made Thu 27 May 2021 00:43:54 BST
+    # gpg:                using RSA key 7A481E78868B4DB6A85A05C064DF38E8AF7E215F
+    # gpg:                issuer "richard.henderson@linaro.org"
+    # gpg: Good signature from "Richard Henderson <richard.henderson@linaro.org>" [full]
+    # Primary key fingerprint: 7A48 1E78 868B 4DB6 A85A  05C0 64DF 38E8 AF7E 215F
+    
+    * remotes/rth-gitlab/tags/pull-tcg-20210526: (31 commits)
+      hw/core: Constify TCGCPUOps
+      target/mips: Fold jazz behaviour into mips_cpu_do_transaction_failed
+      cpu: Move CPUClass::get_paging_enabled to SysemuCPUOps
+      cpu: Move CPUClass::get_memory_mapping to SysemuCPUOps
+      cpu: Move CPUClass::get_phys_page_debug to SysemuCPUOps
+      cpu: Move CPUClass::asidx_from_attrs to SysemuCPUOps
+      cpu: Move CPUClass::write_elf* to SysemuCPUOps
+      cpu: Move CPUClass::get_crash_info to SysemuCPUOps
+      cpu: Move CPUClass::virtio_is_big_endian to SysemuCPUOps
+      cpu: Move CPUClass::vmsd to SysemuCPUOps
+      cpu: Introduce SysemuCPUOps structure
+      cpu: Move AVR target vmsd field from CPUClass to DeviceClass
+      cpu: Rename CPUClass vmsd -> legacy_vmsd
+      cpu: Assert DeviceClass::vmsd is NULL on user emulation
+      cpu: Directly use get_memory_mapping() fallback handlers in place
+      cpu: Directly use get_paging_enabled() fallback handlers in place
+      cpu: Directly use cpu_write_elf*() fallback handlers in place
+      cpu: Introduce cpu_virtio_is_big_endian()
+      cpu: Un-inline cpu_get_phys_page_debug and cpu_asidx_from_attrs
+      cpu: Split as cpu-common / cpu-sysemu
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

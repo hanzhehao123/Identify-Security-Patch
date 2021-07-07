@@ -1,0 +1,97 @@
+diff --git a/python/qemu/qmp/__init__.py b/python/qemu/qmp/__init__.py
+index 822c793c32..5fb970f8a8 100644
+--- a/python/qemu/qmp/__init__.py
++++ b/python/qemu/qmp/__init__.py
+@@ -92,12 +92,6 @@ def __init__(self, reply: QMPMessage):
+         self.reply = reply
+ 
+ 
+-class QMPBadPortError(QMPError):
+-    """
+-    Unable to parse socket address: Port was non-numerical.
+-    """
+-
+-
+ class QEMUMonitorProtocol:
+     """
+     Provide an API to connect to QEMU via QEMU Monitor Protocol (QMP) and then
+@@ -225,26 +219,6 @@ def __exit__(self,
+         # Implement context manager exit function.
+         self.close()
+ 
+-    @classmethod
+-    def parse_address(cls, address: str) -> SocketAddrT:
+-        """
+-        Parse a string into a QMP address.
+-
+-        Figure out if the argument is in the port:host form.
+-        If it's not, it's probably a file path.
+-        """
+-        components = address.split(':')
+-        if len(components) == 2:
+-            try:
+-                port = int(components[1])
+-            except ValueError:
+-                msg = f"Bad port: '{components[1]}' in '{address}'."
+-                raise QMPBadPortError(msg) from None
+-            return (components[0], port)
+-
+-        # Treat as filepath.
+-        return address
+-
+     def connect(self, negotiate: bool = True) -> Optional[QMPMessage]:
+         """
+         Connect to the QMP Monitor and perform capabilities negotiation.
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index d5ae8a9b21..b4d06096ab 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -89,6 +89,8 @@ class QMPCompleter(list):
+ class QMPShellError(Exception):
+     pass
+ 
++class QMPShellBadPort(QMPShellError):
++    pass
+ 
+ class FuzzyJSON(ast.NodeTransformer):
+     '''This extension of ast.NodeTransformer filters literal "true/false/null"
+@@ -107,7 +109,7 @@ class FuzzyJSON(ast.NodeTransformer):
+ #       _execute_cmd()). Let's design a better one.
+ class QMPShell(qmp.QEMUMonitorProtocol):
+     def __init__(self, address, pretty=False):
+-        super(QMPShell, self).__init__(self.parse_address(address))
++        super(QMPShell, self).__init__(self.__get_address(address))
+         self._greeting = None
+         self._completer = None
+         self._pretty = pretty
+@@ -116,6 +118,21 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         self._histfile = os.path.join(os.path.expanduser('~'),
+                                       '.qmp-shell_history')
+ 
++    def __get_address(self, arg):
++        """
++        Figure out if the argument is in the port:host form, if it's not it's
++        probably a file path.
++        """
++        addr = arg.split(':')
++        if len(addr) == 2:
++            try:
++                port = int(addr[1])
++            except ValueError:
++                raise QMPShellBadPort
++            return ( addr[0], port )
++        # socket path
++        return arg
++
+     def _fill_completion(self):
+         cmds = self.cmd('query-commands')
+         if 'error' in cmds:
+@@ -420,7 +437,7 @@ def main():
+ 
+         if qemu is None:
+             fail_cmdline()
+-    except qmp.QMPBadPortError:
++    except QMPShellBadPort:
+         die('bad port number in command-line')
+ 
+     try:

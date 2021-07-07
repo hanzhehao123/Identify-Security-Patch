@@ -1,0 +1,177 @@
+diff --git a/target/ppc/cpu.h b/target/ppc/cpu.h
+index b4de0db7ff..b7ae4902e4 100644
+--- a/target/ppc/cpu.h
++++ b/target/ppc/cpu.h
+@@ -144,7 +144,6 @@ enum {
+     POWERPC_EXCP_ALIGN_PROT    = 0x04,  /* Access cross protection boundary  */
+     POWERPC_EXCP_ALIGN_BAT     = 0x05,  /* Access cross a BAT/seg boundary   */
+     POWERPC_EXCP_ALIGN_CACHE   = 0x06,  /* Impossible dcbz access            */
+-    POWERPC_EXCP_ALIGN_INSN    = 0x07,  /* Pref. insn x-ing 64-byte boundary */
+     /* Exception subtypes for POWERPC_EXCP_PROGRAM                           */
+     /* FP exceptions                                                         */
+     POWERPC_EXCP_FP            = 0x10,
+diff --git a/target/ppc/insn32.decode b/target/ppc/insn32.decode
+deleted file mode 100644
+index a3a8ae06bf..0000000000
+--- a/target/ppc/insn32.decode
++++ /dev/null
+@@ -1,18 +0,0 @@
+-#
+-# Power ISA decode for 32-bit insns (opcode space 0)
+-#
+-# Copyright (c) 2021 Instituto de Pesquisas Eldorado (eldorado.org.br)
+-#
+-# This library is free software; you can redistribute it and/or
+-# modify it under the terms of the GNU Lesser General Public
+-# License as published by the Free Software Foundation; either
+-# version 2.1 of the License, or (at your option) any later version.
+-#
+-# This library is distributed in the hope that it will be useful,
+-# but WITHOUT ANY WARRANTY; without even the implied warranty of
+-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+-# Lesser General Public License for more details.
+-#
+-# You should have received a copy of the GNU Lesser General Public
+-# License along with this library; if not, see <http://www.gnu.org/licenses/>.
+-#
+diff --git a/target/ppc/insn64.decode b/target/ppc/insn64.decode
+deleted file mode 100644
+index a38b1f84dc..0000000000
+--- a/target/ppc/insn64.decode
++++ /dev/null
+@@ -1,18 +0,0 @@
+-#
+-# Power ISA decode for 64-bit prefixed insns (opcode space 0 and 1)
+-#
+-# Copyright (c) 2021 Instituto de Pesquisas Eldorado (eldorado.org.br)
+-#
+-# This library is free software; you can redistribute it and/or
+-# modify it under the terms of the GNU Lesser General Public
+-# License as published by the Free Software Foundation; either
+-# version 2.1 of the License, or (at your option) any later version.
+-#
+-# This library is distributed in the hope that it will be useful,
+-# but WITHOUT ANY WARRANTY; without even the implied warranty of
+-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+-# Lesser General Public License for more details.
+-#
+-# You should have received a copy of the GNU Lesser General Public
+-# License along with this library; if not, see <http://www.gnu.org/licenses/>.
+-#
+diff --git a/target/ppc/meson.build b/target/ppc/meson.build
+index a4f18ff414..a6a53a8d5c 100644
+--- a/target/ppc/meson.build
++++ b/target/ppc/meson.build
+@@ -20,15 +20,6 @@ ppc_ss.add(when: 'CONFIG_TCG', if_true: files(
+ 
+ ppc_ss.add(libdecnumber)
+ 
+-gen = [
+-  decodetree.process('insn32.decode',
+-                     extra_args: '--static-decode=decode_insn32'),
+-  decodetree.process('insn64.decode',
+-                     extra_args: ['--static-decode=decode_insn64',
+-                                  '--insnwidth=64']),
+-]
+-ppc_ss.add(gen)
+-
+ ppc_ss.add(when: 'CONFIG_KVM', if_true: files('kvm.c'), if_false: files('kvm-stub.c'))
+ ppc_ss.add(when: 'CONFIG_USER_ONLY', if_true: files('user_only_helper.c'))
+ 
+diff --git a/target/ppc/translate.c b/target/ppc/translate.c
+index f3f464c654..d2c9fd9dd7 100644
+--- a/target/ppc/translate.c
++++ b/target/ppc/translate.c
+@@ -7690,10 +7690,6 @@ static inline void set_avr64(int regno, TCGv_i64 src, bool high)
+ # define REQUIRE_64BIT(CTX)  REQUIRE_INSNS_FLAGS(CTX, 64B)
+ #endif
+ 
+-#include "decode-insn32.c.inc"
+-#include "decode-insn64.c.inc"
+-#include "translate/fixedpoint-impl.c.inc"
+-
+ #include "translate/fp-impl.c.inc"
+ 
+ #include "translate/vmx-impl.c.inc"
+@@ -8854,18 +8850,11 @@ static bool ppc_tr_breakpoint_check(DisasContextBase *dcbase, CPUState *cs,
+     return true;
+ }
+ 
+-static bool is_prefix_insn(DisasContext *ctx, uint32_t insn)
+-{
+-    REQUIRE_INSNS_FLAGS2(ctx, ISA310);
+-    return opc1(insn) == 1;
+-}
+-
+ static void ppc_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
+ {
+     DisasContext *ctx = container_of(dcbase, DisasContext, base);
+     PowerPCCPU *cpu = POWERPC_CPU(cs);
+     CPUPPCState *env = cs->env_ptr;
+-    target_ulong pc;
+     uint32_t insn;
+     bool ok;
+ 
+@@ -8873,32 +8862,18 @@ static void ppc_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
+     LOG_DISAS("nip=" TARGET_FMT_lx " super=%d ir=%d\n",
+               ctx->base.pc_next, ctx->mem_idx, (int)msr_ir);
+ 
+-    ctx->cia = pc = ctx->base.pc_next;
+-    insn = translator_ldl_swap(env, pc, need_byteswap(ctx));
+-    ctx->base.pc_next = pc += 4;
++    ctx->cia = ctx->base.pc_next;
++    insn = translator_ldl_swap(env, ctx->base.pc_next, need_byteswap(ctx));
++    ctx->base.pc_next += 4;
+ 
+-    if (!is_prefix_insn(ctx, insn)) {
+-        ok = (decode_insn32(ctx, insn) ||
+-              decode_legacy(cpu, ctx, insn));
+-    } else if ((pc & 63) == 0) {
+-        /*
+-         * Power v3.1, section 1.9 Exceptions:
+-         * attempt to execute a prefixed instruction that crosses a
+-         * 64-byte address boundary (system alignment error).
+-         */
+-        gen_exception_err(ctx, POWERPC_EXCP_ALIGN, POWERPC_EXCP_ALIGN_INSN);
+-        ok = true;
+-    } else {
+-        uint32_t insn2 = translator_ldl_swap(env, pc, need_byteswap(ctx));
+-        ctx->base.pc_next = pc += 4;
+-        ok = decode_insn64(ctx, deposit64(insn2, 32, 32, insn));
+-    }
++    ok = decode_legacy(cpu, ctx, insn);
+     if (!ok) {
+         gen_invalid(ctx);
+     }
+ 
+     /* End the TB when crossing a page boundary. */
+-    if (ctx->base.is_jmp == DISAS_NEXT && !(pc & ~TARGET_PAGE_MASK)) {
++    if (ctx->base.is_jmp == DISAS_NEXT &&
++        !(ctx->base.pc_next & ~TARGET_PAGE_MASK)) {
+         ctx->base.is_jmp = DISAS_TOO_MANY;
+     }
+ 
+diff --git a/target/ppc/translate/fixedpoint-impl.c.inc b/target/ppc/translate/fixedpoint-impl.c.inc
+deleted file mode 100644
+index be75085cee..0000000000
+--- a/target/ppc/translate/fixedpoint-impl.c.inc
++++ /dev/null
+@@ -1,18 +0,0 @@
+-/*
+- * Power ISA decode for Fixed-Point Facility instructions
+- *
+- * Copyright (c) 2021 Instituto de Pesquisas Eldorado (eldorado.org.br)
+- *
+- * This library is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU Lesser General Public
+- * License as published by the Free Software Foundation; either
+- * version 2.1 of the License, or (at your option) any later version.
+- *
+- * This library is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+- * Lesser General Public License for more details.
+- *
+- * You should have received a copy of the GNU Lesser General Public
+- * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+- */

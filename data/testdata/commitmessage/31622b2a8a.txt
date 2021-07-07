@@ -1,0 +1,39 @@
+commit 31622b2a8ac769b3cef730d3a24ed209e3861cbc
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:17:11 2021 -0400
+
+    python: add avocado-framework and tests
+    
+    Try using avocado to manage our various tests; even though right now
+    they're only invoking shell scripts and not really running any
+    python-native code.
+    
+    Create tests/, and add shell scripts which call out to mypy, flake8,
+    pylint and isort to enforce the standards in this directory.
+    
+    Add avocado-framework to the setup.cfg development dependencies, and add
+    avocado.cfg to store some preferences for how we'd like the test output
+    to look.
+    
+    Finally, add avocado-framework to the Pipfile environment and lock the
+    new dependencies. We are using avocado >= 87.0 here to take advantage of
+    some features that Cleber has helpfully added to make the test output
+    here *very* friendly and easy to read for developers that might chance
+    upon the output in Gitlab CI.
+    
+    [Note: ALL of the dependencies get updated to the most modern versions
+    that exist at the time of this writing. No way around it that I have
+    seen. Not ideal, but so it goes.]
+    
+    Provided you have the right development dependencies (mypy, flake8,
+    isort, pylint, and now avocado-framework) You should be able to run
+    "avocado --config avocado.cfg run tests/" from the python folder to run
+    all of these linters with the correct arguments.
+    
+    (A forthcoming commit adds the much easier 'make check'.)
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Tested-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-28-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

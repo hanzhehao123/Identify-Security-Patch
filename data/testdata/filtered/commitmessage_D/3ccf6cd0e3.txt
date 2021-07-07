@@ -1,0 +1,26 @@
+commit 3ccf6cd0e3e1dfd663814640b3b18b55715d7a75
+Merge: b6d73e9cb1 986bdbc6a2
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 18 09:54:42 2021 +0100
+
+    Merge remote-tracking branch 'remotes/kraxel/tags/audio-20210617-pull-request' into staging
+    
+    audio: bugfix collection.
+    
+    # gpg: Signature made Thu 17 Jun 2021 13:40:56 BST
+    # gpg:                using RSA key A0328CFFB93A17A79901FE7D4CB6D8EED3E87138
+    # gpg: Good signature from "Gerd Hoffmann (work) <kraxel@redhat.com>" [full]
+    # gpg:                 aka "Gerd Hoffmann <gerd@kraxel.org>" [full]
+    # gpg:                 aka "Gerd Hoffmann (private) <kraxel@gmail.com>" [full]
+    # Primary key fingerprint: A032 8CFF B93A 17A7 9901  FE7D 4CB6 D8EE D3E8 7138
+    
+    * remotes/kraxel/tags/audio-20210617-pull-request:
+      coreaudio: Fix output stream format settings
+      audio: Fix format specifications of debug logs
+      hw/audio/sb16: Avoid assertion by restricting I/O sampling rate range
+      jackaudio: avoid that the client name contains the word (NULL)
+      audio: move code to audio/audio.c
+      paaudio: remove unused stream flags
+      alsaaudio: remove #ifdef DEBUG to avoid bit rot
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

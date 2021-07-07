@@ -1,0 +1,58 @@
+diff --git a/.gitlab-ci.d/container-template.yml b/.gitlab-ci.d/container-template.yml
+deleted file mode 100644
+index 1baecd9460..0000000000
+--- a/.gitlab-ci.d/container-template.yml
++++ /dev/null
+@@ -1,21 +0,0 @@
+-.container_job_template:
+-  image: docker:stable
+-  stage: containers
+-  services:
+-    - docker:dind
+-  before_script:
+-    - export TAG="$CI_REGISTRY_IMAGE/qemu/$NAME:latest"
+-    - export COMMON_TAG="$CI_REGISTRY/qemu-project/qemu/$NAME:latest"
+-    - apk add python3
+-    - docker info
+-    - docker login $CI_REGISTRY -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+-  script:
+-    - echo "TAG:$TAG"
+-    - echo "COMMON_TAG:$COMMON_TAG"
+-    - ./tests/docker/docker.py --engine docker build
+-          -t "qemu/$NAME" -f "tests/docker/dockerfiles/$NAME.docker"
+-          -r $CI_REGISTRY/qemu-project/qemu
+-    - docker tag "qemu/$NAME" "$TAG"
+-    - docker push "$TAG"
+-  after_script:
+-    - docker logout
+diff --git a/.gitlab-ci.d/containers.yml b/.gitlab-ci.d/containers.yml
+index 2b06763d73..7b7ca3790d 100644
+--- a/.gitlab-ci.d/containers.yml
++++ b/.gitlab-ci.d/containers.yml
+@@ -1,5 +1,24 @@
+-include:
+-  - local: '/.gitlab-ci.d/container-template.yml'
++.container_job_template:
++  image: docker:stable
++  stage: containers
++  services:
++    - docker:dind
++  before_script:
++    - export TAG="$CI_REGISTRY_IMAGE/qemu/$NAME:latest"
++    - export COMMON_TAG="$CI_REGISTRY/qemu-project/qemu/$NAME:latest"
++    - apk add python3
++    - docker info
++    - docker login $CI_REGISTRY -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
++  script:
++    - echo "TAG:$TAG"
++    - echo "COMMON_TAG:$COMMON_TAG"
++    - ./tests/docker/docker.py --engine docker build
++          -t "qemu/$NAME" -f "tests/docker/dockerfiles/$NAME.docker"
++          -r $CI_REGISTRY/qemu-project/qemu
++    - docker tag "qemu/$NAME" "$TAG"
++    - docker push "$TAG"
++  after_script:
++    - docker logout
+ 
+ amd64-alpine-container:
+   extends: .container_job_template

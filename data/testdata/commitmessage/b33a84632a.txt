@@ -1,0 +1,31 @@
+commit b33a84632a3759c00320fd80923aa963c11207fc
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri May 14 13:04:08 2021 +0100
+
+    crypto: bump min gcrypt to 1.8.0, dropping RHEL-7 support
+    
+    It has been over two years since RHEL-8 was released, and thus per the
+    platform build policy, we no longer need to support RHEL-7 as a build
+    target. This lets us increment the minimum required gcrypt version and
+    assume that HMAC is always supported
+    
+    Per repology, current shipping versions are:
+    
+                 RHEL-8: 1.8.5
+          Debian Buster: 1.8.4
+     openSUSE Leap 15.2: 1.8.2
+       Ubuntu LTS 18.04: 1.8.1
+       Ubuntu LTS 20.04: 1.8.5
+                FreeBSD: 1.9.2
+              Fedora 33: 1.8.6
+              Fedora 34: 1.9.3
+                OpenBSD: 1.9.3
+         macOS HomeBrew: 1.9.3
+    
+    Ubuntu LTS 18.04 has the oldest version and so 1.8.0 is the new minimum.
+    
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+    Message-Id: <20210514120415.1368922-6-berrange@redhat.com>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    [thuth: rebased to use .gitlab-ci.d/buildtest.yml]
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

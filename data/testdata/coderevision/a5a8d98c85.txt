@@ -1,0 +1,61 @@
+diff --git a/target/hexagon/gen_tcg.h b/target/hexagon/gen_tcg.h
+index a375d6a7c5..18fcdbc7e4 100644
+--- a/target/hexagon/gen_tcg.h
++++ b/target/hexagon/gen_tcg.h
+@@ -734,15 +734,4 @@
+ #define fGEN_TCG_F2_dfmpyhh(SHORTCODE) \
+     gen_helper_dfmpyhh(RxxV, cpu_env, RxxV, RssV, RttV)
+ 
+-/* Nothing to do for these in qemu, need to suppress compiler warnings */
+-#define fGEN_TCG_Y4_l2fetch(SHORTCODE) \
+-    do { \
+-        RsV = RsV; \
+-        RtV = RtV; \
+-    } while (0)
+-#define fGEN_TCG_Y5_l2fetch(SHORTCODE) \
+-    do { \
+-        RsV = RsV; \
+-    } while (0)
+-
+ #endif
+diff --git a/target/hexagon/imported/encode_pp.def b/target/hexagon/imported/encode_pp.def
+index 939c6fc55f..35ae3d2369 100644
+--- a/target/hexagon/imported/encode_pp.def
++++ b/target/hexagon/imported/encode_pp.def
+@@ -493,9 +493,6 @@ DEF_ENC32(Y2_dccleana,     ICLASS_ST" 000 00 00sssss PP------ --------")
+ DEF_ENC32(Y2_dcinva,       ICLASS_ST" 000 00 01sssss PP------ --------")
+ DEF_ENC32(Y2_dccleaninva,  ICLASS_ST" 000 00 10sssss PP------ --------")
+ 
+-DEF_ENC32(Y4_l2fetch,      ICLASS_ST" 011 00 00sssss PP-ttttt 000-----")
+-DEF_ENC32(Y5_l2fetch,      ICLASS_ST" 011 01 00sssss PP-ttttt --------")
+-
+ /*******************************/
+ /*                             */
+ /*                             */
+diff --git a/tests/tcg/hexagon/misc.c b/tests/tcg/hexagon/misc.c
+index f0b1947fb3..9e139f3e85 100644
+--- a/tests/tcg/hexagon/misc.c
++++ b/tests/tcg/hexagon/misc.c
+@@ -326,13 +326,6 @@ void test_lsbnew(void)
+     check(result, 5);
+ }
+ 
+-void test_l2fetch(void)
+-{
+-    /* These don't do anything in qemu, just make sure they don't assert */
+-    asm volatile ("l2fetch(r0, r1)\n\t"
+-                  "l2fetch(r0, r3:2)\n\t");
+-}
+-
+ int main()
+ {
+     int res;
+@@ -466,8 +459,6 @@ int main()
+ 
+     test_lsbnew();
+ 
+-    test_l2fetch();
+-
+     puts(err ? "FAIL" : "PASS");
+     return err;
+ }

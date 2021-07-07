@@ -1,0 +1,56 @@
+diff --git a/target/ppc/insn32.decode b/target/ppc/insn32.decode
+index bc69c70493..00ec0f4328 100644
+--- a/target/ppc/insn32.decode
++++ b/target/ppc/insn32.decode
+@@ -26,9 +26,6 @@
+ &X              rt ra rb
+ @X              ...... rt:5 ra:5 rb:5 .......... .      &X
+ 
+-&X_bi           rt bi
+-@X_bi           ...... rt:5 bi:5 ----- .......... -     &X_bi
+-
+ ### Fixed-Point Load Instructions
+ 
+ LBZ             100010 ..... ..... ................     @D
+@@ -86,10 +83,3 @@ STDUX           011111 ..... ..... ..... 0010110101 -   @X
+ 
+ ADDI            001110 ..... ..... ................     @D
+ ADDIS           001111 ..... ..... ................     @D
+-
+-### Move To/From System Register Instructions
+-
+-SETBC           011111 ..... ..... ----- 0110000000 -   @X_bi
+-SETBCR          011111 ..... ..... ----- 0110100000 -   @X_bi
+-SETNBC          011111 ..... ..... ----- 0111000000 -   @X_bi
+-SETNBCR         011111 ..... ..... ----- 0111100000 -   @X_bi
+diff --git a/target/ppc/translate/fixedpoint-impl.c.inc b/target/ppc/translate/fixedpoint-impl.c.inc
+index 5f9845fa40..2d2d874146 100644
+--- a/target/ppc/translate/fixedpoint-impl.c.inc
++++ b/target/ppc/translate/fixedpoint-impl.c.inc
+@@ -204,26 +204,3 @@ static bool trans_PNOP(DisasContext *ctx, arg_PNOP *a)
+ {
+     return true;
+ }
+-
+-static bool do_set_bool_cond(DisasContext *ctx, arg_X_bi *a, bool neg, bool rev)
+-{
+-    REQUIRE_INSNS_FLAGS2(ctx, ISA310);
+-    uint32_t mask = 0x08 >> (a->bi & 0x03);
+-    TCGCond cond = rev ? TCG_COND_EQ : TCG_COND_NE;
+-    TCGv temp = tcg_temp_new();
+-
+-    tcg_gen_extu_i32_tl(temp, cpu_crf[a->bi >> 2]);
+-    tcg_gen_andi_tl(temp, temp, mask);
+-    tcg_gen_setcondi_tl(cond, cpu_gpr[a->rt], temp, 0);
+-    if (neg) {
+-        tcg_gen_neg_tl(cpu_gpr[a->rt], cpu_gpr[a->rt]);
+-    }
+-    tcg_temp_free(temp);
+-
+-    return true;
+-}
+-
+-TRANS(SETBC, do_set_bool_cond, false, false)
+-TRANS(SETBCR, do_set_bool_cond, false, true)
+-TRANS(SETNBC, do_set_bool_cond, true, false)
+-TRANS(SETNBCR, do_set_bool_cond, true, true)

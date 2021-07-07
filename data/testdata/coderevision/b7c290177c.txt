@@ -1,0 +1,34 @@
+diff --git a/hw/i386/pc.c b/hw/i386/pc.c
+index c6d8d0d84d..8cfaf216e7 100644
+--- a/hw/i386/pc.c
++++ b/hw/i386/pc.c
+@@ -94,11 +94,7 @@
+ #include "trace.h"
+ #include CONFIG_DEVICES
+ 
+-GlobalProperty pc_compat_6_0[] = {
+-    { "qemu64" "-" TYPE_X86_CPU, "family", "6" },
+-    { "qemu64" "-" TYPE_X86_CPU, "model", "6" },
+-    { "qemu64" "-" TYPE_X86_CPU, "stepping", "3" },
+-};
++GlobalProperty pc_compat_6_0[] = {};
+ const size_t pc_compat_6_0_len = G_N_ELEMENTS(pc_compat_6_0);
+ 
+ GlobalProperty pc_compat_5_2[] = {
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index 078ec90552..ff92d924ad 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -1803,9 +1803,9 @@ static const X86CPUDefinition builtin_x86_defs[] = {
+         .name = "qemu64",
+         .level = 0xd,
+         .vendor = CPUID_VENDOR_AMD,
+-        .family = 15,
+-        .model = 107,
+-        .stepping = 1,
++        .family = 6,
++        .model = 6,
++        .stepping = 3,
+         .features[FEAT_1_EDX] =
+             PPRO_FEATURES |
+             CPUID_MTRR | CPUID_CLFLUSH | CPUID_MCA |

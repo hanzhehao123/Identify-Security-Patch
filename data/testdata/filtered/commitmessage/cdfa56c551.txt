@@ -1,0 +1,29 @@
+commit cdfa56c551bb48f286cfe1f2daa1083d333ee45d
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Apr 6 10:01:25 2021 +0200
+
+    softmmu/physmem: Fix ram_block_discard_range() to handle shared anonymous memory
+    
+    We can create shared anonymous memory via
+        "-object memory-backend-ram,share=on,..."
+    which is, for example, required by PVRDMA for mremap() to work.
+    
+    Shared anonymous memory is weird, though. Instead of MADV_DONTNEED, we
+    have to use MADV_REMOVE: MADV_DONTNEED will only remove / zap all
+    relevant page table entries of the current process, the backend storage
+    will not get removed, resulting in no reduced memory consumption and
+    a repopulation of previous content on next access.
+    
+    Shared anonymous memory is internally really just shmem, but without a
+    fd exposed. As we cannot use fallocate() without the fd to discard the
+    backing storage, MADV_REMOVE gets the same job done without a fd as
+    documented in "man 2 madvise". Removing backing storage implicitly
+    invalidates all page table entries with relevant mappings - an additional
+    MADV_DONTNEED is not required.
+    
+    Fixes: 06329ccecfa0 ("mem: add share parameter to memory-backend-ram")
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210406080126.24010-3-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

@@ -1,0 +1,24 @@
+diff --git a/python/qemu/machine.py b/python/qemu/machine.py
+index c66bc6a9c6..04e005f381 100644
+--- a/python/qemu/machine.py
++++ b/python/qemu/machine.py
+@@ -306,6 +306,7 @@ def _base_args(self) -> List[str]:
+ 
+     def _pre_launch(self) -> None:
+         self._qemu_log_path = os.path.join(self.temp_dir, self._name + ".log")
++        self._qemu_log_file = open(self._qemu_log_path, 'wb')
+ 
+         if self._console_set:
+             self._remove_files.append(self._console_address)
+@@ -320,11 +321,6 @@ def _pre_launch(self) -> None:
+                 nickname=self._name
+             )
+ 
+-        # NOTE: Make sure any opened resources are *definitely* freed in
+-        # _post_shutdown()!
+-        # pylint: disable=consider-using-with
+-        self._qemu_log_file = open(self._qemu_log_path, 'wb')
+-
+     def _post_launch(self) -> None:
+         if self._qmp_connection:
+             self._qmp.accept()

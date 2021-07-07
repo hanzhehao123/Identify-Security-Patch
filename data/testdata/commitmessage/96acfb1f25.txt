@@ -1,0 +1,17 @@
+commit 96acfb1f2552c24af6b3ed886daabe2bd3ceff2d
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Tue Jun 1 09:54:10 2021 +0200
+
+    meson: allow optional dependencies for block modules
+    
+    Right now all dependencies for block modules are passed to
+    module_ss.add(when: ...), so they are mandatory.  In the next patch we
+    will need to add a libm dependency to a module, but libm does not exist
+    on all systems.  So, modify the creation of module_ss and modsrc so that
+    dependencies can also be passed to module_ss.add(if_true: ...).
+    
+    While touching the array, remove the useless dependency of the curl
+    module on glib.  glib is always linked in QEMU and in fact all other
+    block modules also need it, but they don't have to specify it.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

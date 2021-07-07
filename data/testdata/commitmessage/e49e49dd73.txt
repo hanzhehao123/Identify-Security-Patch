@@ -1,0 +1,16 @@
+commit e49e49dd73b8b17f5f341b3e11c8b6878c43d3e1
+Author: Li Zhijian <lizhijian@cn.fujitsu.com>
+Date:   Tue May 25 16:05:52 2021 +0800
+
+    migration/rdma: source: poll cm_event from return path
+    
+    source side always blocks if postcopy is only enabled at source side.
+    users are not able to cancel this migration in this case.
+    
+    Let source side have chance to cancel this migration
+    
+    Signed-off-by: Li Zhijian <lizhijian@cn.fujitsu.com>
+    Message-Id: <20210525080552.28259-4-lizhijian@cn.fujitsu.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+      Typo fix

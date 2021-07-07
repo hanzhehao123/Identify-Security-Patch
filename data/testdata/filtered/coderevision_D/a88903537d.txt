@@ -1,0 +1,186 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 41dd61264e..a0a01d0cc3 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -201,11 +201,6 @@ DEF_HELPER_FLAGS_4(mve_vbrsrb, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vbrsrh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vbrsrw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ 
+-DEF_HELPER_FLAGS_4(mve_vqdmullb_scalarh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_4(mve_vqdmullb_scalarw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_4(mve_vqdmullt_scalarh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_4(mve_vqdmullt_scalarw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-
+ DEF_HELPER_FLAGS_4(mve_vmlaldavsh, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+ DEF_HELPER_FLAGS_4(mve_vmlaldavsw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+ DEF_HELPER_FLAGS_4(mve_vmlaldavxsh, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index a71ad7252b..47ce6ebb83 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -23,9 +23,6 @@
+ %qm 5:1 1:3
+ %qn 7:1 17:3
+ 
+-# VQDMULL has size in bit 28: 0 for 16 bit, 1 for 32 bit
+-%size_28 28:1 !function=plus_1
+-
+ &vldr_vstr rn qd imm p a w size l u
+ &1op qd qm size
+ &2op qd qm qn size
+@@ -41,7 +38,6 @@
+ @2op_nosz .... .... .... .... .... .... .... .... &2op qd=%qd qm=%qm qn=%qn size=0
+ 
+ @2scalar .... .... .. size:2 .... .... .... .... rm:4 &2scalar qd=%qd qn=%qn
+-@2scalar_nosz .... .... .... .... .... .... .... rm:4 &2scalar qd=%qd qn=%qn
+ 
+ # Vector loads and stores
+ 
+@@ -172,26 +168,15 @@ VHADD_U_scalar   1111 1110 0 . .. ... 0 ... 0 1111 . 100 .... @2scalar
+ VHSUB_S_scalar   1110 1110 0 . .. ... 0 ... 1 1111 . 100 .... @2scalar
+ VHSUB_U_scalar   1111 1110 0 . .. ... 0 ... 1 1111 . 100 .... @2scalar
+ 
+-{
+-  VQADD_S_scalar  1110  1110 0 . .. ... 0 ... 0 1111 . 110 .... @2scalar
+-  VQADD_U_scalar  1111  1110 0 . .. ... 0 ... 0 1111 . 110 .... @2scalar
+-  VQDMULLB_scalar 111 . 1110 0 . 11 ... 0 ... 0 1111 . 110 .... @2scalar_nosz \
+-                  size=%size_28
+-}
+-
+-{
+-  VQSUB_S_scalar  1110  1110 0 . .. ... 0 ... 1 1111 . 110 .... @2scalar
+-  VQSUB_U_scalar  1111  1110 0 . .. ... 0 ... 1 1111 . 110 .... @2scalar
+-  VQDMULLT_scalar 111 . 1110 0 . 11 ... 0 ... 1 1111 . 110 .... @2scalar_nosz \
+-                  size=%size_28
+-}
+-
++VQADD_S_scalar   1110 1110 0 . .. ... 0 ... 0 1111 . 110 .... @2scalar
++VQADD_U_scalar   1111 1110 0 . .. ... 0 ... 0 1111 . 110 .... @2scalar
++VQSUB_S_scalar   1110 1110 0 . .. ... 0 ... 1 1111 . 110 .... @2scalar
++VQSUB_U_scalar   1111 1110 0 . .. ... 0 ... 1 1111 . 110 .... @2scalar
+ VBRSR            1111 1110 0 . .. ... 1 ... 1 1110 . 110 .... @2scalar
+ 
+ VQDMULH_scalar   1110 1110 0 . .. ... 1 ... 0 1110 . 110 .... @2scalar
+ VQRDMULH_scalar  1111 1110 0 . .. ... 1 ... 0 1110 . 110 .... @2scalar
+ 
+-
+ # Predicate operations
+ %mask_22_13      22:1 13:3
+ VPST             1111 1110 0 . 11 000 1 ... 0 1111 0100 1101 mask=%mask_22_13
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index d58cca5e72..20c7145a68 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -610,71 +610,6 @@ DO_2OP_SAT_SCALAR(vqrdmulh_scalarb, 1, int8_t, DO_QRDMULH_B)
+ DO_2OP_SAT_SCALAR(vqrdmulh_scalarh, 2, int16_t, DO_QRDMULH_H)
+ DO_2OP_SAT_SCALAR(vqrdmulh_scalarw, 4, int32_t, DO_QRDMULH_W)
+ 
+-/*
+- * Long saturating scalar ops. As with DO_2OP_L, TYPE and H are for the
+- * input (smaller) type and LESIZE, LTYPE, LH for the output (long) type.
+- * SATMASK specifies which bits of the predicate mask matter for determining
+- * whether to propagate a saturation indication into FPSCR.QC -- for
+- * the 16x16->32 case we must check only the bit corresponding to the T or B
+- * half that we used, but for the 32x32->64 case we propagate if the mask
+- * bit is set for either half.
+- */
+-#define DO_2OP_SAT_SCALAR_L(OP, TOP, ESIZE, TYPE, LESIZE, LTYPE, FN, SATMASK) \
+-    void HELPER(glue(mve_, OP))(CPUARMState *env, void *vd, void *vn,   \
+-                                uint32_t rm)                            \
+-    {                                                                   \
+-        LTYPE *d = vd;                                                  \
+-        TYPE *n = vn;                                                   \
+-        TYPE m = rm;                                                    \
+-        uint16_t mask = mve_element_mask(env);                          \
+-        unsigned le;                                                    \
+-        bool qc = false;                                                \
+-        for (le = 0; le < 16 / LESIZE; le++, mask >>= LESIZE) {         \
+-            bool sat = false;                                           \
+-            LTYPE r = FN((LTYPE)n[H##ESIZE(le * 2 + TOP)], m, &sat);    \
+-            mergemask(&d[H##LESIZE(le)], r, mask);                      \
+-            qc |= sat && (mask & SATMASK);                              \
+-        }                                                               \
+-        if (qc) {                                                       \
+-            env->vfp.qc[0] = qc;                                        \
+-        }                                                               \
+-        mve_advance_vpt(env);                                           \
+-    }
+-
+-static inline int32_t do_qdmullh(int16_t n, int16_t m, bool *sat)
+-{
+-    int64_t r = ((int64_t)n * m) * 2;
+-    return do_sat_bhw(r, INT32_MIN, INT32_MAX, sat);
+-}
+-
+-static inline int64_t do_qdmullw(int32_t n, int32_t m, bool *sat)
+-{
+-    /* The multiply can't overflow, but the doubling might */
+-    int64_t r = (int64_t)n * m;
+-    if (r > INT64_MAX / 2) {
+-        *sat = true;
+-        return INT64_MAX;
+-    } else if (r < INT64_MIN / 2) {
+-        *sat = true;
+-        return INT64_MIN;
+-    } else {
+-        return r * 2;
+-    }
+-}
+-
+-#define SATMASK16B 1
+-#define SATMASK16T (1 << 2)
+-#define SATMASK32 ((1 << 4) | 1)
+-
+-DO_2OP_SAT_SCALAR_L(vqdmullb_scalarh, 0, 2, int16_t, 4, int32_t, \
+-                    do_qdmullh, SATMASK16B)
+-DO_2OP_SAT_SCALAR_L(vqdmullb_scalarw, 0, 4, int32_t, 8, int64_t, \
+-                    do_qdmullw, SATMASK32)
+-DO_2OP_SAT_SCALAR_L(vqdmullt_scalarh, 1, 2, int16_t, 4, int32_t, \
+-                    do_qdmullh, SATMASK16T)
+-DO_2OP_SAT_SCALAR_L(vqdmullt_scalarw, 1, 4, int32_t, 8, int64_t, \
+-                    do_qdmullw, SATMASK32)
+-
+ static inline uint32_t do_vbrsrb(uint32_t n, uint32_t m)
+ {
+     m &= 0xff;
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index f73b36cae4..84a7320cf8 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -454,36 +454,6 @@ DO_2OP_SCALAR(VQDMULH_scalar, vqdmulh_scalar)
+ DO_2OP_SCALAR(VQRDMULH_scalar, vqrdmulh_scalar)
+ DO_2OP_SCALAR(VBRSR, vbrsr)
+ 
+-static bool trans_VQDMULLB_scalar(DisasContext *s, arg_2scalar *a)
+-{
+-    static MVEGenTwoOpScalarFn * const fns[] = {
+-        NULL,
+-        gen_helper_mve_vqdmullb_scalarh,
+-        gen_helper_mve_vqdmullb_scalarw,
+-        NULL,
+-    };
+-    if (a->qd == a->qn && a->size == MO_32) {
+-        /* UNPREDICTABLE; we choose to undef */
+-        return false;
+-    }
+-    return do_2op_scalar(s, a, fns[a->size]);
+-}
+-
+-static bool trans_VQDMULLT_scalar(DisasContext *s, arg_2scalar *a)
+-{
+-    static MVEGenTwoOpScalarFn * const fns[] = {
+-        NULL,
+-        gen_helper_mve_vqdmullt_scalarh,
+-        gen_helper_mve_vqdmullt_scalarw,
+-        NULL,
+-    };
+-    if (a->qd == a->qn && a->size == MO_32) {
+-        /* UNPREDICTABLE; we choose to undef */
+-        return false;
+-    }
+-    return do_2op_scalar(s, a, fns[a->size]);
+-}
+-
+ static bool do_long_dual_acc(DisasContext *s, arg_vmlaldav *a,
+                              MVEGenDualAccOpFn *fn)
+ {

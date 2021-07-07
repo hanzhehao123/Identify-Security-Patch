@@ -1,0 +1,15 @@
+commit 7cfbb17f023dc014d366b2f30af852aa62a5c3b1
+Author: Bin Meng <bin.meng@windriver.com>
+Date:   Fri Apr 30 15:12:57 2021 +0800
+
+    hw/riscv: Support the official CLINT DT bindings
+    
+    Linux kernel commit a2770b57d083 ("dt-bindings: timer: Add CLINT bindings")
+    adds the official DT bindings for CLINT, which uses "sifive,clint0"
+    as the compatible string. "riscv,clint0" is now legacy and has to
+    be kept for backward compatibility of legacy systems.
+    
+    Signed-off-by: Bin Meng <bin.meng@windriver.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210430071302.1489082-3-bmeng.cn@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

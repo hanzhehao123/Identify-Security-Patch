@@ -1,0 +1,21 @@
+commit e8b35bf5dc8d4e98d91855a9c7b2ed905c8e6888
+Author: Roman Kagan <rvkagan@yandex-team.ru>
+Date:   Thu Jun 10 13:07:37 2021 +0300
+
+    block/nbd: ensure ->connection_thread is always valid
+    
+    Simplify lifetime management of BDRVNBDState->connect_thread by
+    delaying the possible cleanup of it until the BDRVNBDState itself goes
+    away.
+    
+    This also reverts
+     0267101af6 "block/nbd: fix possible use after free of s->connect_thread"
+    as now s->connect_thread can't be cleared until the very end.
+    
+    Signed-off-by: Roman Kagan <rvkagan@yandex-team.ru>
+     [vsementsov: rebase, revert 0267101af6 changes]
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+     [eblake: tweak comment]
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-8-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

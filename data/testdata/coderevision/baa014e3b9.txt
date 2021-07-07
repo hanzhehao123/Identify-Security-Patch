@@ -1,0 +1,15 @@
+diff --git a/hw/core/machine-hmp-cmds.c b/hw/core/machine-hmp-cmds.c
+index 76b22b00d6..004a92b3d6 100644
+--- a/hw/core/machine-hmp-cmds.c
++++ b/hw/core/machine-hmp-cmds.c
+@@ -112,10 +112,6 @@ void hmp_info_memdev(Monitor *mon, const QDict *qdict)
+                        m->value->prealloc ? "true" : "false");
+         monitor_printf(mon, "  share: %s\n",
+                        m->value->share ? "true" : "false");
+-        if (m->value->has_reserve) {
+-            monitor_printf(mon, "  reserve: %s\n",
+-                           m->value->reserve ? "true" : "false");
+-        }
+         monitor_printf(mon, "  policy: %s\n",
+                        HostMemPolicy_str(m->value->policy));
+         visit_complete(v, &str);

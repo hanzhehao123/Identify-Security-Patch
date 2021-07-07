@@ -1,0 +1,43 @@
+diff --git a/python/qemu/qmp/qom_fuse.py b/scripts/qmp/qom-fuse
+old mode 100644
+new mode 100755
+similarity index 95%
+rename from python/qemu/qmp/qom_fuse.py
+rename to scripts/qmp/qom-fuse
+index 43f4671fdb..a5a7a304a3
+--- a/python/qemu/qmp/qom_fuse.py
++++ b/scripts/qmp/qom-fuse
+@@ -1,3 +1,4 @@
++#!/usr/bin/env python3
+ """
+ QEMU Object Model FUSE filesystem tool
+ 
+@@ -34,6 +35,7 @@
+ 
+ import argparse
+ from errno import ENOENT, EPERM
++import os
+ import stat
+ import sys
+ from typing import (
+@@ -48,8 +50,10 @@
+ import fuse
+ from fuse import FUSE, FuseOSError, Operations
+ 
+-from . import QMPResponseError
+-from .qom_common import QOMCommand
++
++sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
++from qemu.qmp import QMPResponseError
++from qemu.qmp.qom_common import QOMCommand
+ 
+ 
+ fuse.fuse_python_api = (0, 2)
+@@ -204,3 +208,7 @@ def readdir(self, path: str, fh: IO[bytes]) -> Iterator[str]:
+         yield '..'
+         for item in self.qom_list(path):
+             yield item.name
++
++
++if __name__ == '__main__':
++    sys.exit(QOMFuse.entry_point())

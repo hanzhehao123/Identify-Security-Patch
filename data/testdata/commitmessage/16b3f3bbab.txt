@@ -1,0 +1,12 @@
+commit 16b3f3bbab7db8f87bdb5ddb226bf19c4c55abdd
+Author: Ali Shirvani <alishir@routerhosting.com>
+Date:   Wed May 19 11:41:45 2021 +0430
+
+    doc: Add notes about -mon option mode=control argument.
+    
+    The mode=control argument configures a QMP monitor.
+    
+    Signed-off-by: Ali Shirvani <alishir@routerhosting.com>
+    Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+    Message-Id: <0799f0de89ad2482672b5d61d0de61e6eba782da.1621407918.git.alishir@routerhosting.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

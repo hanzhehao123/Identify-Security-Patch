@@ -1,0 +1,12 @@
+commit ba7ed407e67589167ef582ac1f17a38f09fbd327
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 3 11:15:26 2021 +0200
+
+    configure, meson: convert libtasn1 detection to meson
+    
+    Make it depend on gnutls too, since it is only used as part of gnutls
+    tests.
+    
+    Reviewed-by: Richard Henderson <richard.henderson@liaro.org>
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

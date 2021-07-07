@@ -1,0 +1,15 @@
+commit f4d4be8212b946abfd438c046378240499bb8358
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri May 14 13:04:05 2021 +0100
+
+    patchew: move quick build job from CentOS 7 to CentOS 8 container
+    
+    It has been over two years since RHEL-8 was released, and thus per the
+    platform build policy, we no longer need to support RHEL-7 as a build
+    target.
+    
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+    Message-Id: <20210514120415.1368922-3-berrange@redhat.com>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

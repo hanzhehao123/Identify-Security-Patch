@@ -1,0 +1,128 @@
+diff --git a/target/ppc/translate.c b/target/ppc/translate.c
+index 4b66563998..5c56e33c3c 100644
+--- a/target/ppc/translate.c
++++ b/target/ppc/translate.c
+@@ -1341,6 +1341,7 @@ typedef struct opcode_t {
+ /*****************************************************************************/
+ /* PowerPC instructions table                                                */
+ 
++#if defined(DO_PPC_STATISTICS)
+ #define GEN_OPCODE(name, op1, op2, op3, invl, _typ, _typ2)                    \
+ {                                                                             \
+     .opc1 = op1,                                                              \
+@@ -1352,6 +1353,7 @@ typedef struct opcode_t {
+         .type = _typ,                                                         \
+         .type2 = _typ2,                                                       \
+         .handler = &gen_##name,                                               \
++        .oname = stringify(name),                                             \
+     },                                                                        \
+     .oname = stringify(name),                                                 \
+ }
+@@ -1367,6 +1369,7 @@ typedef struct opcode_t {
+         .type = _typ,                                                         \
+         .type2 = _typ2,                                                       \
+         .handler = &gen_##name,                                               \
++        .oname = stringify(name),                                             \
+     },                                                                        \
+     .oname = stringify(name),                                                 \
+ }
+@@ -1381,6 +1384,7 @@ typedef struct opcode_t {
+         .type = _typ,                                                         \
+         .type2 = _typ2,                                                       \
+         .handler = &gen_##name,                                               \
++        .oname = onam,                                                        \
+     },                                                                        \
+     .oname = onam,                                                            \
+ }
+@@ -1395,6 +1399,7 @@ typedef struct opcode_t {
+         .type = _typ,                                                         \
+         .type2 = _typ2,                                                       \
+         .handler = &gen_##name,                                               \
++        .oname = stringify(name),                                             \
+     },                                                                        \
+     .oname = stringify(name),                                                 \
+ }
+@@ -1409,9 +1414,83 @@ typedef struct opcode_t {
+         .type = _typ,                                                         \
+         .type2 = _typ2,                                                       \
+         .handler = &gen_##name,                                               \
++        .oname = onam,                                                        \
+     },                                                                        \
+     .oname = onam,                                                            \
+ }
++#else
++#define GEN_OPCODE(name, op1, op2, op3, invl, _typ, _typ2)                    \
++{                                                                             \
++    .opc1 = op1,                                                              \
++    .opc2 = op2,                                                              \
++    .opc3 = op3,                                                              \
++    .opc4 = 0xff,                                                             \
++    .handler = {                                                              \
++        .inval1  = invl,                                                      \
++        .type = _typ,                                                         \
++        .type2 = _typ2,                                                       \
++        .handler = &gen_##name,                                               \
++    },                                                                        \
++    .oname = stringify(name),                                                 \
++}
++#define GEN_OPCODE_DUAL(name, op1, op2, op3, invl1, invl2, _typ, _typ2)       \
++{                                                                             \
++    .opc1 = op1,                                                              \
++    .opc2 = op2,                                                              \
++    .opc3 = op3,                                                              \
++    .opc4 = 0xff,                                                             \
++    .handler = {                                                              \
++        .inval1  = invl1,                                                     \
++        .inval2  = invl2,                                                     \
++        .type = _typ,                                                         \
++        .type2 = _typ2,                                                       \
++        .handler = &gen_##name,                                               \
++    },                                                                        \
++    .oname = stringify(name),                                                 \
++}
++#define GEN_OPCODE2(name, onam, op1, op2, op3, invl, _typ, _typ2)             \
++{                                                                             \
++    .opc1 = op1,                                                              \
++    .opc2 = op2,                                                              \
++    .opc3 = op3,                                                              \
++    .opc4 = 0xff,                                                             \
++    .handler = {                                                              \
++        .inval1  = invl,                                                      \
++        .type = _typ,                                                         \
++        .type2 = _typ2,                                                       \
++        .handler = &gen_##name,                                               \
++    },                                                                        \
++    .oname = onam,                                                            \
++}
++#define GEN_OPCODE3(name, op1, op2, op3, op4, invl, _typ, _typ2)              \
++{                                                                             \
++    .opc1 = op1,                                                              \
++    .opc2 = op2,                                                              \
++    .opc3 = op3,                                                              \
++    .opc4 = op4,                                                              \
++    .handler = {                                                              \
++        .inval1  = invl,                                                      \
++        .type = _typ,                                                         \
++        .type2 = _typ2,                                                       \
++        .handler = &gen_##name,                                               \
++    },                                                                        \
++    .oname = stringify(name),                                                 \
++}
++#define GEN_OPCODE4(name, onam, op1, op2, op3, op4, invl, _typ, _typ2)        \
++{                                                                             \
++    .opc1 = op1,                                                              \
++    .opc2 = op2,                                                              \
++    .opc3 = op3,                                                              \
++    .opc4 = op4,                                                              \
++    .handler = {                                                              \
++        .inval1  = invl,                                                      \
++        .type = _typ,                                                         \
++        .type2 = _typ2,                                                       \
++        .handler = &gen_##name,                                               \
++    },                                                                        \
++    .oname = onam,                                                            \
++}
++#endif
+ 
+ /* Invalid instruction */
+ static void gen_invalid(DisasContext *ctx)

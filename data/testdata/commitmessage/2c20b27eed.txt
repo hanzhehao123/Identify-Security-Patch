@@ -1,0 +1,20 @@
+commit 2c20b27eed517f9624b008222bb486f1df0ae079
+Author: Peter Xu <peterx@redhat.com>
+Date:   Thu May 6 12:05:44 2021 -0400
+
+    KVM: Provide helper to sync dirty bitmap from slot to ramblock
+    
+    kvm_physical_sync_dirty_bitmap() calculates the ramblock offset in an
+    awkward way from the MemoryRegionSection that passed in from the
+    caller.  The truth is for each KVMSlot the ramblock offset never
+    change for the lifecycle.  Cache the ramblock offset for each KVMSlot
+    into the structure when the KVMSlot is created.
+    
+    With that, we can further simplify kvm_physical_sync_dirty_bitmap()
+    with a helper to sync KVMSlot dirty bitmap to the ramblock dirty
+    bitmap of a specific KVMSlot.
+    
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Message-Id: <20210506160549.130416-6-peterx@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

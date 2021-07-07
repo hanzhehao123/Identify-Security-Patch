@@ -1,0 +1,13 @@
+commit 81266a1f58bf557280c6f7ce3cad1ba8ed8a56f1
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue May 25 15:58:13 2021 -0700
+
+    target/arm: Implement bfloat16 matrix multiply accumulate
+    
+    This is BFMMLA for both AArch64 AdvSIMD and SVE,
+    and VMMLA.BF16 for AArch32 NEON.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210525225817.400336-9-richard.henderson@linaro.org
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

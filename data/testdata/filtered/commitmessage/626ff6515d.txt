@@ -1,0 +1,14 @@
+commit 626ff6515d41854dc8a880849ae2744c20a70ba7
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Thu Apr 15 14:33:51 2021 +0100
+
+    migration: add trace point when vm_stop_force_state fails
+    
+    This is a critical failure scenario for migration that is hard to
+    diagnose from existing probes. Most likely it is caused by an error
+    from bdrv_flush(), but we're not logging the errno anywhere, hence
+    this new probe.
+    
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>

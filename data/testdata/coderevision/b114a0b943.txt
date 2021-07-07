@@ -1,0 +1,17 @@
+diff --git a/.gitlab-ci.d/static_checks.yml b/.gitlab-ci.d/static_checks.yml
+index 7e685c6a65..8e30872164 100644
+--- a/.gitlab-ci.d/static_checks.yml
++++ b/.gitlab-ci.d/static_checks.yml
+@@ -3,11 +3,7 @@ check-patch:
+   image: $CI_REGISTRY_IMAGE/qemu/centos8:latest
+   needs:
+     job: amd64-centos8-container
+-  script:
+-    - git config --local diff.renamelimit 0
+-    - git config --local diff.renames True
+-    - git config --local diff.algorithm histogram
+-    - .gitlab-ci.d/check-patch.py
++  script: .gitlab-ci.d/check-patch.py
+   variables:
+     GIT_DEPTH: 1000
+   rules:

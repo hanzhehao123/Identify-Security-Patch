@@ -1,0 +1,86 @@
+diff --git a/io/dns-resolver.c b/io/dns-resolver.c
+index a5946a93bf..743a0efc87 100644
+--- a/io/dns-resolver.c
++++ b/io/dns-resolver.c
+@@ -122,10 +122,6 @@ static int qio_dns_resolver_lookup_sync_inet(QIODNSResolver *resolver,
+             .ipv4 = iaddr->ipv4,
+             .has_ipv6 = iaddr->has_ipv6,
+             .ipv6 = iaddr->ipv6,
+-#ifdef IPPROTO_MPTCP
+-            .has_mptcp = iaddr->has_mptcp,
+-            .mptcp = iaddr->mptcp,
+-#endif
+         };
+ 
+         (*addrs)[i] = newaddr;
+diff --git a/qapi/sockets.json b/qapi/sockets.json
+index 735eb4abb5..2e83452797 100644
+--- a/qapi/sockets.json
++++ b/qapi/sockets.json
+@@ -57,8 +57,6 @@
+ # @keep-alive: enable keep-alive when connecting to this socket. Not supported
+ #              for passive sockets. (Since 4.2)
+ #
+-# @mptcp: enable multi-path TCP. (Since 6.1)
+-#
+ # Since: 1.3
+ ##
+ { 'struct': 'InetSocketAddress',
+@@ -68,8 +66,7 @@
+     '*to': 'uint16',
+     '*ipv4': 'bool',
+     '*ipv6': 'bool',
+-    '*keep-alive': 'bool',
+-    '*mptcp': { 'type': 'bool', 'if': 'defined(IPPROTO_MPTCP)' } } }
++    '*keep-alive': 'bool' } }
+ 
+ ##
+ # @UnixSocketAddress:
+diff --git a/util/qemu-sockets.c b/util/qemu-sockets.c
+index c415c342c1..2463c49773 100644
+--- a/util/qemu-sockets.c
++++ b/util/qemu-sockets.c
+@@ -278,11 +278,6 @@ static int inet_listen_saddr(InetSocketAddress *saddr,
+ 
+     /* create socket + bind/listen */
+     for (e = res; e != NULL; e = e->ai_next) {
+-#ifdef IPPROTO_MPTCP
+-        if (saddr->has_mptcp && saddr->mptcp) {
+-            e->ai_protocol = IPPROTO_MPTCP;
+-        }
+-#endif
+         getnameinfo((struct sockaddr*)e->ai_addr,e->ai_addrlen,
+                         uaddr,INET6_ADDRSTRLEN,uport,32,
+                         NI_NUMERICHOST | NI_NUMERICSERV);
+@@ -461,13 +456,6 @@ int inet_connect_saddr(InetSocketAddress *saddr, Error **errp)
+     for (e = res; e != NULL; e = e->ai_next) {
+         error_free(local_err);
+         local_err = NULL;
+-
+-#ifdef IPPROTO_MPTCP
+-        if (saddr->has_mptcp && saddr->mptcp) {
+-            e->ai_protocol = IPPROTO_MPTCP;
+-        }
+-#endif
+-
+         sock = inet_connect_addr(saddr, e, &local_err);
+         if (sock >= 0) {
+             break;
+@@ -699,17 +687,6 @@ int inet_parse(InetSocketAddress *addr, const char *str, Error **errp)
+         }
+         addr->has_keep_alive = true;
+     }
+-#ifdef IPPROTO_MPTCP
+-    begin = strstr(optstr, ",mptcp");
+-    if (begin) {
+-        if (inet_parse_flag("mptcp", begin + strlen(",mptcp"),
+-                            &addr->mptcp, errp) < 0)
+-        {
+-            return -1;
+-        }
+-        addr->has_mptcp = true;
+-    }
+-#endif
+     return 0;
+ }
+ 

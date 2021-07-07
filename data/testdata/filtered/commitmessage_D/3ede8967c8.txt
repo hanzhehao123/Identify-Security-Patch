@@ -1,0 +1,13 @@
+commit 3ede8967c8a586c226da21d04283c72e24a2385e
+Author: Bin Meng <bin.meng@windriver.com>
+Date:   Fri Apr 30 15:12:59 2021 +0800
+
+    docs/system/riscv: Correct the indentation level of supported devices
+    
+    The supported device bullet list has an additional space before each
+    entry, which makes a wrong indentation level. Correct it.
+    
+    Signed-off-by: Bin Meng <bin.meng@windriver.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210430071302.1489082-5-bmeng.cn@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

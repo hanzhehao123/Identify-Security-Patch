@@ -1,0 +1,14 @@
+commit 9ce8af4d92d4772cb33d4ea9cbd5ebdb970c5172
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Mon Jun 21 18:31:52 2021 +0200
+
+    target/i386: kvm: add support for TSC scaling
+    
+    Linux 5.14 will add support for nested TSC scaling.  Add the
+    corresponding feature in QEMU; to keep support for existing kernels,
+    do not add it to any processor yet.
+    
+    The handling of the VMCS enumeration MSR is ugly; once we have more than
+    one case, we may want to add a table to check VMX features against.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

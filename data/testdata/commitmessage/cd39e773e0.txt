@@ -1,0 +1,16 @@
+commit cd39e773e00bf98ab41e2ffaaeab7a00a3f68bd1
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 16:34:06 2021 +0100
+
+    target/arm: Diagnose UNALLOCATED in disas_simd_two_reg_misc_fp16
+    
+    This fprintf+assert has been in place since the beginning.
+    It is prior to the fp_access_check, so we're still good to
+    raise sigill here.
+    
+    Resolves: https://gitlab.com/qemu-project/qemu/-/issues/381
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Message-id: 20210604183506.916654-2-richard.henderson@linaro.org
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

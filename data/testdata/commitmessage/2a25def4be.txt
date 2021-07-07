@@ -1,0 +1,10 @@
+commit 2a25def4be09714c543713f111813b521b2356ee
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:38 2021 +0300
+
+    block/nbd: nbd_client_handshake(): fix leak of s->ioc
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Roman Kagan <rvkagan@yandex-team.ru>
+    Message-Id: <20210610100802.5888-9-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

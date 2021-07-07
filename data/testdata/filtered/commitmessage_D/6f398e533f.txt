@@ -1,0 +1,33 @@
+commit 6f398e533f5e259b4f937f4aa9de970f7201d166
+Merge: 908a87706e 0006039e29
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Sat Jun 5 11:25:52 2021 +0100
+
+    Merge remote-tracking branch 'remotes/rth-gitlab/tags/pull-tcg-20210604' into staging
+    
+    Host vector support for arm neon.
+    
+    # gpg: Signature made Fri 04 Jun 2021 19:56:59 BST
+    # gpg:                using RSA key 7A481E78868B4DB6A85A05C064DF38E8AF7E215F
+    # gpg:                issuer "richard.henderson@linaro.org"
+    # gpg: Good signature from "Richard Henderson <richard.henderson@linaro.org>" [full]
+    # Primary key fingerprint: 7A48 1E78 868B 4DB6 A85A  05C0 64DF 38E8 AF7E 215F
+    
+    * remotes/rth-gitlab/tags/pull-tcg-20210604:
+      tcg/arm: Implement TCG_TARGET_HAS_rotv_vec
+      tcg/arm: Implement TCG_TARGET_HAS_roti_vec
+      tcg/arm: Implement TCG_TARGET_HAS_shv_vec
+      tcg/arm: Implement TCG_TARGET_HAS_bitsel_vec
+      tcg/arm: Implement TCG_TARGET_HAS_minmax_vec
+      tcg/arm: Implement TCG_TARGET_HAS_sat_vec
+      tcg/arm: Implement TCG_TARGET_HAS_mul_vec
+      tcg/arm: Implement TCG_TARGET_HAS_shi_vec
+      tcg/arm: Implement andc, orc, abs, neg, not vector operations
+      tcg/arm: Implement minimal vector operations
+      tcg/arm: Implement tcg_out_dup*_vec
+      tcg/arm: Implement tcg_out_mov for vector types
+      tcg/arm: Implement tcg_out_ld/st for vector types
+      tcg/arm: Add host vector framework
+      tcg: Change parameters for tcg_target_const_match
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

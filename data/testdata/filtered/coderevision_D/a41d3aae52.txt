@@ -1,0 +1,101 @@
+diff --git a/hw/core/cpu-sysemu.c b/hw/core/cpu-sysemu.c
+index fe90dde868..f517ef5d46 100644
+--- a/hw/core/cpu-sysemu.c
++++ b/hw/core/cpu-sysemu.c
+@@ -22,38 +22,6 @@
+ #include "qapi/error.h"
+ #include "hw/core/cpu.h"
+ 
+-hwaddr cpu_get_phys_page_attrs_debug(CPUState *cpu, vaddr addr,
+-                                     MemTxAttrs *attrs)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-
+-    if (cc->get_phys_page_attrs_debug) {
+-        return cc->get_phys_page_attrs_debug(cpu, addr, attrs);
+-    }
+-    /* Fallback for CPUs which don't implement the _attrs_ hook */
+-    *attrs = MEMTXATTRS_UNSPECIFIED;
+-    return cc->get_phys_page_debug(cpu, addr);
+-}
+-
+-hwaddr cpu_get_phys_page_debug(CPUState *cpu, vaddr addr)
+-{
+-    MemTxAttrs attrs = {};
+-
+-    return cpu_get_phys_page_attrs_debug(cpu, addr, &attrs);
+-}
+-
+-int cpu_asidx_from_attrs(CPUState *cpu, MemTxAttrs attrs)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-    int ret = 0;
+-
+-    if (cc->asidx_from_attrs) {
+-        ret = cc->asidx_from_attrs(cpu, attrs);
+-        assert(ret < cpu->num_ases && ret >= 0);
+-    }
+-    return ret;
+-}
+-
+ GuestPanicInformation *cpu_get_crash_info(CPUState *cpu)
+ {
+     CPUClass *cc = CPU_GET_CLASS(cpu);
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index df49528785..d45f78290e 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -586,8 +586,18 @@ void cpu_dump_statistics(CPUState *cpu, int flags);
+  *
+  * Returns: Corresponding physical page address or -1 if no page found.
+  */
+-hwaddr cpu_get_phys_page_attrs_debug(CPUState *cpu, vaddr addr,
+-                                     MemTxAttrs *attrs);
++static inline hwaddr cpu_get_phys_page_attrs_debug(CPUState *cpu, vaddr addr,
++                                                   MemTxAttrs *attrs)
++{
++    CPUClass *cc = CPU_GET_CLASS(cpu);
++
++    if (cc->get_phys_page_attrs_debug) {
++        return cc->get_phys_page_attrs_debug(cpu, addr, attrs);
++    }
++    /* Fallback for CPUs which don't implement the _attrs_ hook */
++    *attrs = MEMTXATTRS_UNSPECIFIED;
++    return cc->get_phys_page_debug(cpu, addr);
++}
+ 
+ /**
+  * cpu_get_phys_page_debug:
+@@ -599,7 +609,12 @@ hwaddr cpu_get_phys_page_attrs_debug(CPUState *cpu, vaddr addr,
+  *
+  * Returns: Corresponding physical page address or -1 if no page found.
+  */
+-hwaddr cpu_get_phys_page_debug(CPUState *cpu, vaddr addr);
++static inline hwaddr cpu_get_phys_page_debug(CPUState *cpu, vaddr addr)
++{
++    MemTxAttrs attrs = {};
++
++    return cpu_get_phys_page_attrs_debug(cpu, addr, &attrs);
++}
+ 
+ /** cpu_asidx_from_attrs:
+  * @cpu: CPU
+@@ -608,7 +623,17 @@ hwaddr cpu_get_phys_page_debug(CPUState *cpu, vaddr addr);
+  * Returns the address space index specifying the CPU AddressSpace
+  * to use for a memory access with the given transaction attributes.
+  */
+-int cpu_asidx_from_attrs(CPUState *cpu, MemTxAttrs attrs);
++static inline int cpu_asidx_from_attrs(CPUState *cpu, MemTxAttrs attrs)
++{
++    CPUClass *cc = CPU_GET_CLASS(cpu);
++    int ret = 0;
++
++    if (cc->asidx_from_attrs) {
++        ret = cc->asidx_from_attrs(cpu, attrs);
++        assert(ret < cpu->num_ases && ret >= 0);
++    }
++    return ret;
++}
+ 
+ #endif /* CONFIG_USER_ONLY */
+ 

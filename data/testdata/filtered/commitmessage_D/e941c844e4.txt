@@ -1,0 +1,13 @@
+commit e941c844e4446b6200ac102ef285544c406a2fcd
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:17:05 2021 -0400
+
+    python: move mypy.ini into setup.cfg
+    
+    mypy supports reading its configuration values from a central project
+    configuration file; do so.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-22-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

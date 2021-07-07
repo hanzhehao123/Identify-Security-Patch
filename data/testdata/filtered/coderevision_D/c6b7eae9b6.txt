@@ -1,0 +1,28 @@
+diff --git a/scripts/qmp/qom-fuse b/scripts/qmp/qom-fuse
+index 62deb9adb1..7c7cff8edf 100755
+--- a/scripts/qmp/qom-fuse
++++ b/scripts/qmp/qom-fuse
+@@ -13,20 +13,14 @@
+ # the COPYING file in the top-level directory.
+ ##
+ 
+-from errno import *
+-import os
+-import posix
+-import stat
+-import sys
+-
+-import fuse
++import fuse, stat
+ from fuse import FUSE, FuseOSError, Operations
+-
++import os, posix, sys
++from errno import *
+ 
+ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
+ from qemu.qmp import QEMUMonitorProtocol
+ 
+-
+ fuse.fuse_python_api = (0, 2)
+ 
+ class QOMFS(Operations):

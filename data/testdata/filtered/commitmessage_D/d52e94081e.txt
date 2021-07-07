@@ -1,0 +1,15 @@
+commit d52e94081e626b6b4b181dc7a6fc8f0b98e7d403
+Author: Kito Cheng <kito.cheng@sifive.com>
+Date:   Thu May 6 00:06:17 2021 +0800
+
+    target/riscv: rvb: support and turn on B-extension from command line
+    
+    B-extension is default off, use cpu rv32 or rv64 with x-b=true to
+    enable B-extension.
+    
+    Signed-off-by: Kito Cheng <kito.cheng@sifive.com>
+    Signed-off-by: Frank Chang <frank.chang@sifive.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210505160620.15723-17-frank.chang@sifive.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

@@ -1,0 +1,12 @@
+commit 1b627f389f9da48aa8f28808770a731c1e09c338
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Tue Jun 1 15:36:00 2021 +0200
+
+    target/i386: tcg: fix switching from 16-bit to 32-bit tasks or vice versa
+    
+    The format of the task state segment is governed by bit 3 in the
+    descriptor type field.  On a task switch, the format for saving
+    is given by the current value of TR's type field, while the
+    format for loading is given by the new descriptor.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

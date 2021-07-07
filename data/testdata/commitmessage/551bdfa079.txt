@@ -1,0 +1,18 @@
+commit 551bdfa079b8b08ee212a36675774a1d22bc9fcf
+Author: Stefano Garzarella <sgarzare@redhat.com>
+Date:   Mon May 17 17:17:00 2021 +0200
+
+    docs: fix references to docs/devel/build-system.rst
+    
+    Commit a14f0bf165 ("docs: convert build system documentation to rST")
+    converted docs/devel/build-system.txt to docs/devel/build-system.rst.
+    
+    We still have several references to the old file, so let's fix them
+    with the following command:
+    
+      sed -i s/build-system.txt/build-system.rst/ \
+          $(git grep -l docs/devel/build-system.txt)
+    
+    Signed-off-by: Stefano Garzarella <sgarzare@redhat.com>
+    Message-Id: <20210517151702.109066-4-sgarzare@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

@@ -1,0 +1,12 @@
+diff --git a/meson.build b/meson.build
+index 20d7035e44..632b380738 100644
+--- a/meson.build
++++ b/meson.build
+@@ -2145,7 +2145,6 @@ common_all = common_ss.apply(config_all, strict: false)
+ common_all = static_library('common',
+                             build_by_default: false,
+                             sources: common_all.sources() + genh,
+-                            implicit_include_directories: false,
+                             dependencies: common_all.dependencies(),
+                             name_suffix: 'fa')
+ 

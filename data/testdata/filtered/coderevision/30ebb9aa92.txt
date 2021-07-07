@@ -1,0 +1,86 @@
+diff --git a/block.c b/block.c
+index 3f456892d0..3c0c3964ec 100644
+--- a/block.c
++++ b/block.c
+@@ -2029,35 +2029,20 @@ static char *bdrv_child_user_desc(BdrvChild *c)
+     return c->klass->get_parent_desc(c);
+ }
+ 
+-/*
+- * Check that @a allows everything that @b needs. @a and @b must reference same
+- * child node.
+- */
+ static bool bdrv_a_allow_b(BdrvChild *a, BdrvChild *b, Error **errp)
+ {
+-    const char *child_bs_name;
+-    g_autofree char *a_user = NULL;
+-    g_autofree char *b_user = NULL;
+-    g_autofree char *perms = NULL;
+-
+-    assert(a->bs);
+-    assert(a->bs == b->bs);
++    g_autofree char *user = NULL;
++    g_autofree char *perm_names = NULL;
+ 
+     if ((b->perm & a->shared_perm) == b->perm) {
+         return true;
+     }
+ 
+-    child_bs_name = bdrv_get_node_name(b->bs);
+-    a_user = bdrv_child_user_desc(a);
+-    b_user = bdrv_child_user_desc(b);
+-    perms = bdrv_perm_names(b->perm & ~a->shared_perm);
+-
+-    error_setg(errp, "Permission conflict on node '%s': permissions '%s' are "
+-               "both required by %s (uses node '%s' as '%s' child) and "
+-               "unshared by %s (uses node '%s' as '%s' child).",
+-               child_bs_name, perms,
+-               b_user, child_bs_name, b->name,
+-               a_user, child_bs_name, a->name);
++    perm_names = bdrv_perm_names(b->perm & ~a->shared_perm);
++    user = bdrv_child_user_desc(a);
++    error_setg(errp, "Conflicts with use by %s as '%s', which does not "
++               "allow '%s' on %s",
++               user, a->name, perm_names, bdrv_get_node_name(b->bs));
+ 
+     return false;
+ }
+diff --git a/tests/qemu-iotests/283.out b/tests/qemu-iotests/283.out
+index c6e12b15c5..c9397bfc44 100644
+--- a/tests/qemu-iotests/283.out
++++ b/tests/qemu-iotests/283.out
+@@ -5,7 +5,7 @@
+ {"execute": "blockdev-add", "arguments": {"driver": "blkdebug", "image": "base", "node-name": "other", "take-child-perms": ["write"]}}
+ {"return": {}}
+ {"execute": "blockdev-backup", "arguments": {"device": "source", "sync": "full", "target": "target"}}
+-{"error": {"class": "GenericError", "desc": "Cannot append backup-top filter: Permission conflict on node 'base': permissions 'write' are both required by node 'other' (uses node 'base' as 'image' child) and unshared by node 'source' (uses node 'base' as 'image' child)."}}
++{"error": {"class": "GenericError", "desc": "Cannot append backup-top filter: Conflicts with use by node 'source' as 'image', which does not allow 'write' on base"}}
+ 
+ === backup-top should be gone after job-finalize ===
+ 
+diff --git a/tests/qemu-iotests/307.out b/tests/qemu-iotests/307.out
+index 4b0c7e155a..66bf2ddb74 100644
+--- a/tests/qemu-iotests/307.out
++++ b/tests/qemu-iotests/307.out
+@@ -53,7 +53,7 @@ exports available: 1
+ 
+ === Add a writable export ===
+ {"execute": "block-export-add", "arguments": {"description": "This is the writable second export", "id": "export1", "name": "export1", "node-name": "fmt", "type": "nbd", "writable": true, "writethrough": true}}
+-{"error": {"class": "GenericError", "desc": "Permission conflict on node 'fmt': permissions 'write' are both required by an unnamed block device (uses node 'fmt' as 'root' child) and unshared by block device 'sda' (uses node 'fmt' as 'root' child)."}}
++{"error": {"class": "GenericError", "desc": "Conflicts with use by block device 'sda' as 'root', which does not allow 'write' on fmt"}}
+ {"execute": "device_del", "arguments": {"id": "sda"}}
+ {"return": {}}
+ {"data": {"device": "sda", "path": "/machine/peripheral/sda"}, "event": "DEVICE_DELETED", "timestamp": {"microseconds": "USECS", "seconds": "SECS"}}
+diff --git a/tests/qemu-iotests/tests/qsd-jobs.out b/tests/qemu-iotests/tests/qsd-jobs.out
+index 189423354b..9f52255da8 100644
+--- a/tests/qemu-iotests/tests/qsd-jobs.out
++++ b/tests/qemu-iotests/tests/qsd-jobs.out
+@@ -16,7 +16,7 @@ QMP_VERSION
+ {"return": {}}
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "JOB_STATUS_CHANGE", "data": {"status": "created", "id": "job0"}}
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "JOB_STATUS_CHANGE", "data": {"status": "null", "id": "job0"}}
+-{"error": {"class": "GenericError", "desc": "Permission conflict on node 'fmt_base': permissions 'write' are both required by an unnamed block device (uses node 'fmt_base' as 'root' child) and unshared by stream job 'job0' (uses node 'fmt_base' as 'intermediate node' child)."}}
++{"error": {"class": "GenericError", "desc": "Conflicts with use by stream job 'job0' as 'intermediate node', which does not allow 'write' on fmt_base"}}
+ {"return": {}}
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "BLOCK_EXPORT_DELETED", "data": {"id": "export1"}}
+ *** done

@@ -1,0 +1,12 @@
+diff --git a/target/hppa/cpu.h b/target/hppa/cpu.h
+index 748270bfa3..61178fa6a2 100644
+--- a/target/hppa/cpu.h
++++ b/target/hppa/cpu.h
+@@ -22,6 +22,7 @@
+ 
+ #include "cpu-qom.h"
+ #include "exec/cpu-defs.h"
++#include "exec/memory.h"
+ 
+ /* PA-RISC 1.x processors have a strong memory model.  */
+ /* ??? While we do not yet implement PA-RISC 2.0, those processors have

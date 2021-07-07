@@ -1,0 +1,15 @@
+commit ecac85fe49793fc4102b68f03ef18d74c4c77dee
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Wed May 19 20:54:58 2021 +0200
+
+    gitlab: Extract crossbuild job templates to crossbuild-template.yml
+    
+    Extract the crossbuild job templates to a new file
+    (crossbuild-template.yml) to be able to reuse them
+    without having to run all the jobs included, which
+    are mainly useful for mainstream CI.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210519185504.2198573-5-f4bug@amsat.org>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

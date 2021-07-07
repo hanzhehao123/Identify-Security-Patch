@@ -1,0 +1,17 @@
+commit e5e6f00c3154055dba99eb3b789c38dc70578111
+Author: Aleksandar Rikalo <Aleksandar.Rikalo@syrmia.com>
+Date:   Tue Jun 15 17:22:35 2021 +0000
+
+    target/mips: fix emulation of nanoMIPS BPOSGE32 instruction
+    
+    Per the "MIPS® Architecture Extension: nanoMIPS32 DSP Technical
+    Reference Manual — Revision 0.04" p. 88 "BPOSGE32C", offset argument (imm)
+    should be left-shifted first.
+    This change was tested against test_dsp_r1_bposge32.c DSP test.
+    
+    Reported-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Aleksandar Rikalo <aleksandar.rikalo@syrmia.com>
+    Signed-off-by: Filip Vidojevic <filip.vidojevic@syrmia.com>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Message-Id: <VI1PR0302MB34869449EE56F226FC3C21129C309@VI1PR0302MB3486.eurprd03.prod.outlook.com>
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>

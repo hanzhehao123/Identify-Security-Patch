@@ -1,0 +1,15 @@
+commit 81c4edc39e550efd639f7730dd94029e04cf7b96
+Author: Alex Bennée <alex.bennee@linaro.org>
+Date:   Thu May 27 17:03:14 2021 +0100
+
+    tests/tcg: add a multiarch signals test to stress test signal delivery
+    
+    This adds a simple signal test that combines the POSIX timer_create
+    with signal delivery across multiple threads. The aim is to provide a
+    bit more of a stress test to flush out signal handling issues for
+    easily than the occasional random crash we sometimes see in linux-test
+    or threadcount.
+    
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210527160319.19834-2-alex.bennee@linaro.org>

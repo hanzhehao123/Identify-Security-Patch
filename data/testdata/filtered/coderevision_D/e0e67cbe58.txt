@@ -1,0 +1,99 @@
+diff --git a/include/block/nbd.h b/include/block/nbd.h
+index 5bb54d831c..5d86e6a393 100644
+--- a/include/block/nbd.h
++++ b/include/block/nbd.h
+@@ -409,8 +409,6 @@ const char *nbd_err_lookup(int err);
+ /* nbd/client-connection.c */
+ typedef struct NBDClientConnection NBDClientConnection;
+ 
+-void nbd_client_connection_enable_retry(NBDClientConnection *conn);
+-
+ NBDClientConnection *nbd_client_connection_new(const SocketAddress *saddr,
+                                                bool do_negotiation,
+                                                const char *export_name,
+diff --git a/nbd/client-connection.c b/nbd/client-connection.c
+index 032b38ed3e..4ed37cd73f 100644
+--- a/nbd/client-connection.c
++++ b/nbd/client-connection.c
+@@ -35,7 +35,6 @@ struct NBDClientConnection {
+     QCryptoTLSCreds *tlscreds;
+     NBDExportInfo initial_info;
+     bool do_negotiation;
+-    bool do_retry;
+ 
+     QemuMutex mutex;
+ 
+@@ -62,15 +61,6 @@ struct NBDClientConnection {
+     Coroutine *wait_co;
+ };
+ 
+-/*
+- * The function isn't protected by any mutex, only call it when the client
+- * connection attempt has not yet started.
+- */
+-void nbd_client_connection_enable_retry(NBDClientConnection *conn)
+-{
+-    conn->do_retry = true;
+-}
+-
+ NBDClientConnection *nbd_client_connection_new(const SocketAddress *saddr,
+                                                bool do_negotiation,
+                                                const char *export_name,
+@@ -165,44 +155,24 @@ static void *connect_thread_func(void *opaque)
+     NBDClientConnection *conn = opaque;
+     int ret;
+     bool do_free;
+-    uint64_t timeout = 1;
+-    uint64_t max_timeout = 16;
+-
+-    while (true) {
+-        conn->sioc = qio_channel_socket_new();
+ 
+-        error_free(conn->err);
+-        conn->err = NULL;
+-        conn->updated_info = conn->initial_info;
++    conn->sioc = qio_channel_socket_new();
+ 
+-        ret = nbd_connect(conn->sioc, conn->saddr,
+-                          conn->do_negotiation ? &conn->updated_info : NULL,
+-                          conn->tlscreds, &conn->ioc, &conn->err);
+-
+-        /*
+-         * conn->updated_info will finally be returned to the user. Clear the
+-         * pointers to our internally allocated strings, which are IN parameters
+-         * of nbd_receive_negotiate() and therefore nbd_connect(). Caller
+-         * shoudn't be interested in these fields.
+-         */
+-        conn->updated_info.x_dirty_bitmap = NULL;
+-        conn->updated_info.name = NULL;
+-
+-        if (ret < 0) {
+-            object_unref(OBJECT(conn->sioc));
+-            conn->sioc = NULL;
+-            if (conn->do_retry) {
+-                sleep(timeout);
+-                if (timeout < max_timeout) {
+-                    timeout *= 2;
+-                }
+-                continue;
+-            }
+-        }
++    error_free(conn->err);
++    conn->err = NULL;
++    conn->updated_info = conn->initial_info;
+ 
+-        break;
++    ret = nbd_connect(conn->sioc, conn->saddr,
++                      conn->do_negotiation ? &conn->updated_info : NULL,
++                      conn->tlscreds, &conn->ioc, &conn->err);
++    if (ret < 0) {
++        object_unref(OBJECT(conn->sioc));
++        conn->sioc = NULL;
+     }
+ 
++    conn->updated_info.x_dirty_bitmap = NULL;
++    conn->updated_info.name = NULL;
++
+     qemu_mutex_lock(&conn->mutex);
+ 
+     assert(conn->running);

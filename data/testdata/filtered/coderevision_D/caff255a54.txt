@@ -1,0 +1,169 @@
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 636bf2f536..7d9cd29042 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -2707,6 +2707,7 @@ TPM
+ M: Stefan Berger <stefanb@linux.ibm.com>
+ S: Maintained
+ F: tpm.c
++F: stubs/tpm.c
+ F: hw/tpm/*
+ F: include/hw/acpi/tpm.h
+ F: include/sysemu/tpm*
+diff --git a/monitor/hmp-cmds.c b/monitor/hmp-cmds.c
+index 0942027208..d10ee14110 100644
+--- a/monitor/hmp-cmds.c
++++ b/monitor/hmp-cmds.c
+@@ -901,7 +901,6 @@ void hmp_info_pci(Monitor *mon, const QDict *qdict)
+ 
+ void hmp_info_tpm(Monitor *mon, const QDict *qdict)
+ {
+-#ifdef CONFIG_TPM
+     TPMInfoList *info_list, *info;
+     Error *err = NULL;
+     unsigned int c = 0;
+@@ -947,9 +946,6 @@ void hmp_info_tpm(Monitor *mon, const QDict *qdict)
+         c++;
+     }
+     qapi_free_TPMInfoList(info_list);
+-#else
+-    monitor_printf(mon, "TPM device not supported\n");
+-#endif /* CONFIG_TPM */
+ }
+ 
+ void hmp_quit(Monitor *mon, const QDict *qdict)
+diff --git a/qapi/tpm.json b/qapi/tpm.json
+index 75590979fd..6a10c9ed8d 100644
+--- a/qapi/tpm.json
++++ b/qapi/tpm.json
+@@ -17,9 +17,7 @@
+ #
+ # Since: 1.5
+ ##
+-{ 'enum': 'TpmModel', 'data': [ 'tpm-tis', 'tpm-crb', 'tpm-spapr' ],
+-  'if': 'defined(CONFIG_TPM)' }
+-
++{ 'enum': 'TpmModel', 'data': [ 'tpm-tis', 'tpm-crb', 'tpm-spapr' ] }
+ ##
+ # @query-tpm-models:
+ #
+@@ -35,8 +33,7 @@
+ # <- { "return": [ "tpm-tis", "tpm-crb", "tpm-spapr" ] }
+ #
+ ##
+-{ 'command': 'query-tpm-models', 'returns': ['TpmModel'],
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'command': 'query-tpm-models', 'returns': ['TpmModel'] }
+ 
+ ##
+ # @TpmType:
+@@ -49,8 +46,7 @@
+ #
+ # Since: 1.5
+ ##
+-{ 'enum': 'TpmType', 'data': [ 'passthrough', 'emulator' ],
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'enum': 'TpmType', 'data': [ 'passthrough', 'emulator' ] }
+ 
+ ##
+ # @query-tpm-types:
+@@ -67,8 +63,7 @@
+ # <- { "return": [ "passthrough", "emulator" ] }
+ #
+ ##
+-{ 'command': 'query-tpm-types', 'returns': ['TpmType'],
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'command': 'query-tpm-types', 'returns': ['TpmType'] }
+ 
+ ##
+ # @TPMPassthroughOptions:
+@@ -84,8 +79,7 @@
+ ##
+ { 'struct': 'TPMPassthroughOptions',
+   'data': { '*path': 'str',
+-            '*cancel-path': 'str' },
+-  'if': 'defined(CONFIG_TPM)' }
++            '*cancel-path': 'str' } }
+ 
+ ##
+ # @TPMEmulatorOptions:
+@@ -96,8 +90,7 @@
+ #
+ # Since: 2.11
+ ##
+-{ 'struct': 'TPMEmulatorOptions', 'data': { 'chardev' : 'str' },
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'struct': 'TPMEmulatorOptions', 'data': { 'chardev' : 'str' } }
+ 
+ ##
+ # @TpmTypeOptions:
+@@ -111,8 +104,7 @@
+ ##
+ { 'union': 'TpmTypeOptions',
+    'data': { 'passthrough' : 'TPMPassthroughOptions',
+-             'emulator': 'TPMEmulatorOptions' },
+-  'if': 'defined(CONFIG_TPM)' }
++             'emulator': 'TPMEmulatorOptions' } }
+ 
+ ##
+ # @TPMInfo:
+@@ -130,8 +122,7 @@
+ { 'struct': 'TPMInfo',
+   'data': {'id': 'str',
+            'model': 'TpmModel',
+-           'options': 'TpmTypeOptions' },
+-  'if': 'defined(CONFIG_TPM)' }
++           'options': 'TpmTypeOptions' } }
+ 
+ ##
+ # @query-tpm:
+@@ -161,5 +152,4 @@
+ #    }
+ #
+ ##
+-{ 'command': 'query-tpm', 'returns': ['TPMInfo'],
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'command': 'query-tpm', 'returns': ['TPMInfo'] }
+diff --git a/stubs/meson.build b/stubs/meson.build
+index d4e9549dc9..65c22c0568 100644
+--- a/stubs/meson.build
++++ b/stubs/meson.build
+@@ -38,6 +38,7 @@ stub_ss.add(files('runstate-check.c'))
+ stub_ss.add(files('sysbus.c'))
+ stub_ss.add(files('target-get-monitor-def.c'))
+ stub_ss.add(files('target-monitor-defs.c'))
++stub_ss.add(files('tpm.c'))
+ stub_ss.add(files('trace-control.c'))
+ stub_ss.add(files('uuid.c'))
+ stub_ss.add(files('vmgenid.c'))
+diff --git a/stubs/tpm.c b/stubs/tpm.c
+new file mode 100644
+index 0000000000..e79bd2a6c2
+--- /dev/null
++++ b/stubs/tpm.c
+@@ -0,0 +1,25 @@
++/*
++ * TPM stubs
++ *
++ * This work is licensed under the terms of the GNU GPL, version 2 or later.
++ * See the COPYING file in the top-level directory.
++ */
++
++#include "qemu/osdep.h"
++#include "qapi/qapi-commands-tpm.h"
++#include "hw/acpi/tpm.h"
++
++TPMInfoList *qmp_query_tpm(Error **errp)
++{
++    return NULL;
++}
++
++TpmTypeList *qmp_query_tpm_types(Error **errp)
++{
++    return NULL;
++}
++
++TpmModelList *qmp_query_tpm_models(Error **errp)
++{
++    return NULL;
++}

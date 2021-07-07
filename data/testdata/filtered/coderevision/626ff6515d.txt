@@ -1,0 +1,24 @@
+diff --git a/migration/migration.c b/migration/migration.c
+index 4228635d18..4828997f63 100644
+--- a/migration/migration.c
++++ b/migration/migration.c
+@@ -3115,7 +3115,6 @@ static void migration_completion(MigrationState *s)
+         if (!ret) {
+             bool inactivate = !migrate_colo_enabled();
+             ret = vm_stop_force_state(RUN_STATE_FINISH_MIGRATE);
+-            trace_migration_completion_vm_stop(ret);
+             if (ret >= 0) {
+                 ret = migration_maybe_pause(s, &current_active_state,
+                                             MIGRATION_STATUS_DEVICE);
+diff --git a/migration/trace-events b/migration/trace-events
+index a1c0f034ab..860c4f4025 100644
+--- a/migration/trace-events
++++ b/migration/trace-events
+@@ -149,7 +149,6 @@ migrate_pending(uint64_t size, uint64_t max, uint64_t pre, uint64_t compat, uint
+ migrate_send_rp_message(int msg_type, uint16_t len) "%d: len %d"
+ migrate_send_rp_recv_bitmap(char *name, int64_t size) "block '%s' size 0x%"PRIi64
+ migration_completion_file_err(void) ""
+-migration_completion_vm_stop(int ret) "ret %d"
+ migration_completion_postcopy_end(void) ""
+ migration_completion_postcopy_end_after_complete(void) ""
+ migration_rate_limit_pre(int ms) "%d ms"

@@ -1,0 +1,12 @@
+commit 6eb169b89a509321c985346cea278d758108ada5
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 14 19:20:36 2020 -0800
+
+    softfloat: Move compare_floats to softfloat-parts.c.inc
+    
+    Rename to parts$N_compare.  Rename all of the intermediate
+    functions to ftype_do_compare.  Rename the hard-float functions
+    to ftype_hs_compare.  Convert float128 to FloatParts128.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

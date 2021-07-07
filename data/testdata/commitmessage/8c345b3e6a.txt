@@ -1,0 +1,39 @@
+commit 8c345b3e6a736d4985b2bca6f7f24b985900de63
+Merge: 49ba51adec 2a85a08c99
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Wed Jun 2 17:08:11 2021 +0100
+
+    Merge remote-tracking branch 'remotes/thuth-gitlab/tags/pull-request-2021-06-02' into staging
+    
+    * Update the references to some doc files (use *.rst instead of *.txt)
+    * Bump minimum versions of some requirements after removing CentOS 7 support
+    
+    # gpg: Signature made Wed 02 Jun 2021 08:12:18 BST
+    # gpg:                using RSA key 27B88847EEE0250118F3EAB92ED9D774FE702DB5
+    # gpg:                issuer "thuth@redhat.com"
+    # gpg: Good signature from "Thomas Huth <th.huth@gmx.de>" [full]
+    # gpg:                 aka "Thomas Huth <thuth@redhat.com>" [full]
+    # gpg:                 aka "Thomas Huth <huth@tuxfamily.org>" [full]
+    # gpg:                 aka "Thomas Huth <th.huth@posteo.de>" [unknown]
+    # Primary key fingerprint: 27B8 8847 EEE0 2501 18F3  EAB9 2ED9 D774 FE70 2DB5
+    
+    * remotes/thuth-gitlab/tags/pull-request-2021-06-02:
+      configure: bump min required CLang to 6.0 / XCode 10.0
+      configure: bump min required GCC to 7.5.0
+      configure: bump min required glib version to 2.56
+      tests/docker: drop CentOS 7 container
+      tests/vm: convert centos VM recipe to CentOS 8
+      crypto: drop used conditional check
+      crypto: bump min gnutls to 3.5.18, dropping RHEL-7 support
+      crypto: bump min gcrypt to 1.8.0, dropping RHEL-7 support
+      crypto: drop back compatibility typedefs for nettle
+      crypto: bump min nettle to 3.4, dropping RHEL-7 support
+      patchew: move quick build job from CentOS 7 to CentOS 8 container
+      block/ssh: Bump minimum libssh version to 0.8.7
+      docs: fix references to docs/devel/s390-dasd-ipl.rst
+      docs: fix references to docs/specs/tpm.rst
+      docs: fix references to docs/devel/build-system.rst
+      docs: fix references to docs/devel/atomics.rst
+      docs: fix references to docs/devel/tracing.rst
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

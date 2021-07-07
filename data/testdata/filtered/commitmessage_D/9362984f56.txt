@@ -1,0 +1,21 @@
+commit 9362984f569a5b979714dfba556e370847d5fb87
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Mon Jun 14 21:32:20 2021 +0200
+
+    hw/block/fdc: Add description to floppy controllers
+    
+    Change the '-device help' output from:
+    
+      Storage devices:
+      name "floppy", bus floppy-bus, desc "virtual floppy drive"
+      name "isa-fdc", bus ISA
+    
+    to:
+    
+      Storage devices:
+      name "floppy", bus floppy-bus, desc "virtual floppy drive"
+      name "isa-fdc", bus ISA, desc "virtual floppy controller"
+    
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210614193220.2007159-7-philmd@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

@@ -1,0 +1,57 @@
+diff --git a/hw/core/cpu-common.c b/hw/core/cpu-common.c
+index e2f5a64604..9530e266ec 100644
+--- a/hw/core/cpu-common.c
++++ b/hw/core/cpu-common.c
+@@ -109,6 +109,15 @@ void cpu_dump_state(CPUState *cpu, FILE *f, int flags)
+     }
+ }
+ 
++void cpu_dump_statistics(CPUState *cpu, int flags)
++{
++    CPUClass *cc = CPU_GET_CLASS(cpu);
++
++    if (cc->dump_statistics) {
++        cc->dump_statistics(cpu, flags);
++    }
++}
++
+ void cpu_reset(CPUState *cpu)
+ {
+     device_cold_reset(DEVICE(cpu));
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index 6b3bd3a1d4..044f668a6e 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -92,6 +92,7 @@ struct SysemuCPUOps;
+  * @has_work: Callback for checking if there is work to do.
+  * @memory_rw_debug: Callback for GDB memory access.
+  * @dump_state: Callback for dumping state.
++ * @dump_statistics: Callback for dumping statistics.
+  * @get_arch_id: Callback for getting architecture-dependent CPU ID.
+  * @set_pc: Callback for setting the Program Counter register. This
+  *       should have the semantics used by the target architecture when
+@@ -133,6 +134,7 @@ struct CPUClass {
+     int (*memory_rw_debug)(CPUState *cpu, vaddr addr,
+                            uint8_t *buf, int len, bool is_write);
+     void (*dump_state)(CPUState *cpu, FILE *, int flags);
++    void (*dump_statistics)(CPUState *cpu, int flags);
+     int64_t (*get_arch_id)(CPUState *cpu);
+     void (*set_pc)(CPUState *cpu, vaddr value);
+     int (*gdb_read_register)(CPUState *cpu, GByteArray *buf, int reg);
+@@ -532,6 +534,16 @@ enum CPUDumpFlags {
+  */
+ void cpu_dump_state(CPUState *cpu, FILE *f, int flags);
+ 
++/**
++ * cpu_dump_statistics:
++ * @cpu: The CPU whose state is to be dumped.
++ * @flags: Flags what to dump.
++ *
++ * Dump CPU statistics to the current monitor if we have one, else to
++ * stdout.
++ */
++void cpu_dump_statistics(CPUState *cpu, int flags);
++
+ #ifndef CONFIG_USER_ONLY
+ /**
+  * cpu_get_phys_page_attrs_debug:

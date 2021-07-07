@@ -1,0 +1,1692 @@
+diff --git a/accel/kvm/kvm-all.c b/accel/kvm/kvm-all.c
+index c7ec538850..e5b10dd129 100644
+--- a/accel/kvm/kvm-all.c
++++ b/accel/kvm/kvm-all.c
+@@ -411,7 +411,7 @@ static int do_kvm_destroy_vcpu(CPUState *cpu)
+     }
+ 
+     if (cpu->kvm_dirty_gfns) {
+-        ret = munmap(cpu->kvm_dirty_gfns, s->kvm_dirty_ring_size);
++        ret = munmap(cpu->kvm_dirty_gfns, s->kvm_dirty_ring_bytes);
+         if (ret < 0) {
+             goto err;
+         }
+@@ -495,7 +495,7 @@ int kvm_init_vcpu(CPUState *cpu, Error **errp)
+ 
+     if (s->kvm_dirty_ring_size) {
+         /* Use MAP_SHARED to share pages with the kernel */
+-        cpu->kvm_dirty_gfns = mmap(NULL, s->kvm_dirty_ring_size,
++        cpu->kvm_dirty_gfns = mmap(NULL, s->kvm_dirty_ring_bytes,
+                                    PROT_READ | PROT_WRITE, MAP_SHARED,
+                                    cpu->kvm_fd,
+                                    PAGE_SIZE * KVM_DIRTY_LOG_PAGE_OFFSET);
+diff --git a/authz/meson.build b/authz/meson.build
+index 88fa7769cb..42a1ec0ff6 100644
+--- a/authz/meson.build
++++ b/authz/meson.build
+@@ -6,4 +6,4 @@ authz_ss.add(files(
+   'simple.c',
+ ))
+ 
+-authz_ss.add(when: ['CONFIG_AUTH_PAM', pam], if_true: files('pamacct.c'))
++authz_ss.add(when: pam, if_true: files('pamacct.c'))
+diff --git a/block.c b/block.c
+index 3f456892d0..1d37f133a8 100644
+--- a/block.c
++++ b/block.c
+@@ -54,7 +54,7 @@
+ #ifdef CONFIG_BSD
+ #include <sys/ioctl.h>
+ #include <sys/queue.h>
+-#ifndef __DragonFly__
++#if defined(HAVE_SYS_DISK_H)
+ #include <sys/disk.h>
+ #endif
+ #endif
+diff --git a/block/block-backend.c b/block/block-backend.c
+index 15f1ea4288..deb55c272e 100644
+--- a/block/block-backend.c
++++ b/block/block-backend.c
+@@ -1953,16 +1953,29 @@ uint32_t blk_get_request_alignment(BlockBackend *blk)
+     return bs ? bs->bl.request_alignment : BDRV_SECTOR_SIZE;
+ }
+ 
++/* Returns the maximum hardware transfer length, in bytes; guaranteed nonzero */
++uint64_t blk_get_max_hw_transfer(BlockBackend *blk)
++{
++    BlockDriverState *bs = blk_bs(blk);
++    uint64_t max = INT_MAX;
++
++    if (bs) {
++        max = MIN_NON_ZERO(max, bs->bl.max_hw_transfer);
++        max = MIN_NON_ZERO(max, bs->bl.max_transfer);
++    }
++    return ROUND_DOWN(max, blk_get_request_alignment(blk));
++}
++
+ /* Returns the maximum transfer length, in bytes; guaranteed nonzero */
+ uint32_t blk_get_max_transfer(BlockBackend *blk)
+ {
+     BlockDriverState *bs = blk_bs(blk);
+-    uint32_t max = 0;
++    uint32_t max = INT_MAX;
+ 
+     if (bs) {
+-        max = bs->bl.max_transfer;
++        max = MIN_NON_ZERO(max, bs->bl.max_transfer);
+     }
+-    return MIN_NON_ZERO(max, INT_MAX);
++    return ROUND_DOWN(max, blk_get_request_alignment(blk));
+ }
+ 
+ int blk_get_max_iov(BlockBackend *blk)
+diff --git a/block/file-posix.c b/block/file-posix.c
+index b3fbb9bd63..a26eab0ac3 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -42,6 +42,8 @@
+ #include "scsi/constants.h"
+ 
+ #if defined(__APPLE__) && (__MACH__)
++#include <sys/ioctl.h>
++#if defined(HAVE_HOST_BLOCK_DEVICE)
+ #include <paths.h>
+ #include <sys/param.h>
+ #include <IOKit/IOKitLib.h>
+@@ -52,6 +54,7 @@
+ //#include <IOKit/storage/IOCDTypes.h>
+ #include <IOKit/storage/IODVDMedia.h>
+ #include <CoreFoundation/CoreFoundation.h>
++#endif /* defined(HAVE_HOST_BLOCK_DEVICE) */
+ #endif
+ 
+ #ifdef __sun__
+@@ -178,7 +181,17 @@ typedef struct BDRVRawReopenState {
+     bool check_cache_dropped;
+ } BDRVRawReopenState;
+ 
+-static int fd_open(BlockDriverState *bs);
++static int fd_open(BlockDriverState *bs)
++{
++    BDRVRawState *s = bs->opaque;
++
++    /* this is just to ensure s->fd is sane (its called by io ops) */
++    if (s->fd >= 0) {
++        return 0;
++    }
++    return -EIO;
++}
++
+ static int64_t raw_getlength(BlockDriverState *bs);
+ 
+ typedef struct RawPosixAIOData {
+@@ -1147,22 +1160,27 @@ static void raw_reopen_abort(BDRVReopenState *state)
+     s->reopen_state = NULL;
+ }
+ 
+-static int sg_get_max_transfer_length(int fd)
++static int hdev_get_max_hw_transfer(int fd, struct stat *st)
+ {
+ #ifdef BLKSECTGET
+-    int max_bytes = 0;
+-
+-    if (ioctl(fd, BLKSECTGET, &max_bytes) == 0) {
+-        return max_bytes;
++    if (S_ISBLK(st->st_mode)) {
++        unsigned short max_sectors = 0;
++        if (ioctl(fd, BLKSECTGET, &max_sectors) == 0) {
++            return max_sectors * 512;
++        }
+     } else {
+-        return -errno;
++        int max_bytes = 0;
++        if (ioctl(fd, BLKSECTGET, &max_bytes) == 0) {
++            return max_bytes;
++        }
+     }
++    return -errno;
+ #else
+     return -ENOSYS;
+ #endif
+ }
+ 
+-static int sg_get_max_segments(int fd)
++static int hdev_get_max_segments(int fd, struct stat *st)
+ {
+ #ifdef CONFIG_LINUX
+     char buf[32];
+@@ -1171,15 +1189,20 @@ static int sg_get_max_segments(int fd)
+     int ret;
+     int sysfd = -1;
+     long max_segments;
+-    struct stat st;
+ 
+-    if (fstat(fd, &st)) {
+-        ret = -errno;
+-        goto out;
++    if (S_ISCHR(st->st_mode)) {
++        if (ioctl(fd, SG_GET_SG_TABLESIZE, &ret) == 0) {
++            return ret;
++        }
++        return -ENOTSUP;
++    }
++
++    if (!S_ISBLK(st->st_mode)) {
++        return -ENOTSUP;
+     }
+ 
+     sysfspath = g_strdup_printf("/sys/dev/block/%u:%u/queue/max_segments",
+-                                major(st.st_rdev), minor(st.st_rdev));
++                                major(st->st_rdev), minor(st->st_rdev));
+     sysfd = open(sysfspath, O_RDONLY);
+     if (sysfd == -1) {
+         ret = -errno;
+@@ -1216,24 +1239,33 @@ out:
+ static void raw_refresh_limits(BlockDriverState *bs, Error **errp)
+ {
+     BDRVRawState *s = bs->opaque;
++    struct stat st;
++
++    raw_probe_alignment(bs, s->fd, errp);
++    bs->bl.min_mem_alignment = s->buf_align;
++    bs->bl.opt_mem_alignment = MAX(s->buf_align, qemu_real_host_page_size);
++
++    /*
++     * Maximum transfers are best effort, so it is okay to ignore any
++     * errors.  That said, based on the man page errors in fstat would be
++     * very much unexpected; the only possible case seems to be ENOMEM.
++     */
++    if (fstat(s->fd, &st)) {
++        return;
++    }
+ 
+-    if (bs->sg) {
+-        int ret = sg_get_max_transfer_length(s->fd);
++    if (bs->sg || S_ISBLK(st.st_mode)) {
++        int ret = hdev_get_max_hw_transfer(s->fd, &st);
+ 
+         if (ret > 0 && ret <= BDRV_REQUEST_MAX_BYTES) {
+-            bs->bl.max_transfer = pow2floor(ret);
++            bs->bl.max_hw_transfer = ret;
+         }
+ 
+-        ret = sg_get_max_segments(s->fd);
++        ret = hdev_get_max_segments(s->fd, &st);
+         if (ret > 0) {
+-            bs->bl.max_transfer = MIN(bs->bl.max_transfer,
+-                                      ret * qemu_real_host_page_size);
++            bs->bl.max_iov = ret;
+         }
+     }
+-
+-    raw_probe_alignment(bs, s->fd, errp);
+-    bs->bl.min_mem_alignment = s->buf_align;
+-    bs->bl.opt_mem_alignment = MAX(s->buf_align, qemu_real_host_page_size);
+ }
+ 
+ static int check_for_dasd(int fd)
+@@ -1315,7 +1347,9 @@ static int handle_aiocb_ioctl(void *opaque)
+     RawPosixAIOData *aiocb = opaque;
+     int ret;
+ 
+-    ret = ioctl(aiocb->aio_fildes, aiocb->ioctl.cmd, aiocb->ioctl.buf);
++    do {
++        ret = ioctl(aiocb->aio_fildes, aiocb->ioctl.cmd, aiocb->ioctl.buf);
++    } while (ret == -1 && errno == EINTR);
+     if (ret == -1) {
+         return -errno;
+     }
+@@ -2295,39 +2329,37 @@ static int64_t raw_getlength(BlockDriverState *bs)
+ again:
+ #endif
+     if (!fstat(fd, &sb) && (S_IFCHR & sb.st_mode)) {
++        size = 0;
+ #ifdef DIOCGMEDIASIZE
+-        if (ioctl(fd, DIOCGMEDIASIZE, (off_t *)&size))
+-#elif defined(DIOCGPART)
+-        {
+-                struct partinfo pi;
+-                if (ioctl(fd, DIOCGPART, &pi) == 0)
+-                        size = pi.media_size;
+-                else
+-                        size = 0;
++        if (ioctl(fd, DIOCGMEDIASIZE, (off_t *)&size)) {
++            size = 0;
+         }
+-        if (size == 0)
+ #endif
+-#if defined(__APPLE__) && defined(__MACH__)
+-        {
++#ifdef DIOCGPART
++        if (size == 0) {
++            struct partinfo pi;
++            if (ioctl(fd, DIOCGPART, &pi) == 0) {
++                size = pi.media_size;
++            }
++        }
++#endif
++#if defined(DKIOCGETBLOCKCOUNT) && defined(DKIOCGETBLOCKSIZE)
++        if (size == 0) {
+             uint64_t sectors = 0;
+             uint32_t sector_size = 0;
+ 
+             if (ioctl(fd, DKIOCGETBLOCKCOUNT, &sectors) == 0
+                && ioctl(fd, DKIOCGETBLOCKSIZE, &sector_size) == 0) {
+                 size = sectors * sector_size;
+-            } else {
+-                size = lseek(fd, 0LL, SEEK_END);
+-                if (size < 0) {
+-                    return -errno;
+-                }
+             }
+         }
+-#else
+-        size = lseek(fd, 0LL, SEEK_END);
++#endif
++        if (size == 0) {
++            size = lseek(fd, 0LL, SEEK_END);
++        }
+         if (size < 0) {
+             return -errno;
+         }
+-#endif
+ #if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
+         switch(s->type) {
+         case FTYPE_CD:
+@@ -3014,6 +3046,7 @@ static BlockStatsSpecific *raw_get_specific_stats(BlockDriverState *bs)
+     return stats;
+ }
+ 
++#if defined(HAVE_HOST_BLOCK_DEVICE)
+ static BlockStatsSpecific *hdev_get_specific_stats(BlockDriverState *bs)
+ {
+     BlockStatsSpecific *stats = g_new(BlockStatsSpecific, 1);
+@@ -3023,6 +3056,7 @@ static BlockStatsSpecific *hdev_get_specific_stats(BlockDriverState *bs)
+ 
+     return stats;
+ }
++#endif /* HAVE_HOST_BLOCK_DEVICE */
+ 
+ static QemuOptsList raw_create_opts = {
+     .name = "raw-create-opts",
+@@ -3238,6 +3272,8 @@ BlockDriver bdrv_file = {
+ /***********************************************/
+ /* host device */
+ 
++#if defined(HAVE_HOST_BLOCK_DEVICE)
++
+ #if defined(__APPLE__) && defined(__MACH__)
+ static kern_return_t GetBSDPath(io_iterator_t mediaIterator, char *bsdPath,
+                                 CFIndex maxPathSize, int flags);
+@@ -3530,16 +3566,6 @@ hdev_co_ioctl(BlockDriverState *bs, unsigned long int req, void *buf)
+ }
+ #endif /* linux */
+ 
+-static int fd_open(BlockDriverState *bs)
+-{
+-    BDRVRawState *s = bs->opaque;
+-
+-    /* this is just to ensure s->fd is sane (its called by io ops) */
+-    if (s->fd >= 0)
+-        return 0;
+-    return -EIO;
+-}
+-
+ static coroutine_fn int
+ hdev_co_pdiscard(BlockDriverState *bs, int64_t offset, int bytes)
+ {
+@@ -3863,6 +3889,8 @@ static BlockDriver bdrv_host_cdrom = {
+ };
+ #endif /* __FreeBSD__ */
+ 
++#endif /* HAVE_HOST_BLOCK_DEVICE */
++
+ static void bdrv_file_init(void)
+ {
+     /*
+@@ -3870,6 +3898,7 @@ static void bdrv_file_init(void)
+      * registered last will get probed first.
+      */
+     bdrv_register(&bdrv_file);
++#if defined(HAVE_HOST_BLOCK_DEVICE)
+     bdrv_register(&bdrv_host_device);
+ #ifdef __linux__
+     bdrv_register(&bdrv_host_cdrom);
+@@ -3877,6 +3906,7 @@ static void bdrv_file_init(void)
+ #if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
+     bdrv_register(&bdrv_host_cdrom);
+ #endif
++#endif /* HAVE_HOST_BLOCK_DEVICE */
+ }
+ 
+ block_init(bdrv_file_init);
+diff --git a/block/io.c b/block/io.c
+index 323854d063..dd93364258 100644
+--- a/block/io.c
++++ b/block/io.c
+@@ -127,6 +127,8 @@ static void bdrv_merge_limits(BlockLimits *dst, const BlockLimits *src)
+ {
+     dst->opt_transfer = MAX(dst->opt_transfer, src->opt_transfer);
+     dst->max_transfer = MIN_NON_ZERO(dst->max_transfer, src->max_transfer);
++    dst->max_hw_transfer = MIN_NON_ZERO(dst->max_hw_transfer,
++                                        src->max_hw_transfer);
+     dst->opt_mem_alignment = MAX(dst->opt_mem_alignment,
+                                  src->opt_mem_alignment);
+     dst->min_mem_alignment = MAX(dst->min_mem_alignment,
+diff --git a/configure b/configure
+index 38704b4e11..e799d908a3 100755
+--- a/configure
++++ b/configure
+@@ -372,10 +372,10 @@ trace_file="trace"
+ spice="$default_feature"
+ spice_protocol="auto"
+ rbd="auto"
+-smartcard="$default_feature"
++smartcard="auto"
+ u2f="auto"
+-libusb="$default_feature"
+-usb_redir="$default_feature"
++libusb="auto"
++usb_redir="auto"
+ opengl="$default_feature"
+ cpuid_h="no"
+ avx2_opt="$default_feature"
+@@ -404,13 +404,10 @@ seccomp="auto"
+ glusterfs="auto"
+ gtk="auto"
+ tls_priority="NORMAL"
+-gnutls="$default_feature"
+-nettle="$default_feature"
+-nettle_xts="no"
+-gcrypt="$default_feature"
+-gcrypt_xts="no"
+-qemu_private_xts="yes"
+-auth_pam="$default_feature"
++gnutls="auto"
++nettle="auto"
++gcrypt="auto"
++auth_pam="auto"
+ vte="$default_feature"
+ virglrenderer="$default_feature"
+ tpm="$default_feature"
+@@ -1280,21 +1277,21 @@ for opt do
+   ;;
+   --enable-xfsctl) xfs="yes"
+   ;;
+-  --disable-smartcard) smartcard="no"
++  --disable-smartcard) smartcard="disabled"
+   ;;
+-  --enable-smartcard) smartcard="yes"
++  --enable-smartcard) smartcard="enabled"
+   ;;
+   --disable-u2f) u2f="disabled"
+   ;;
+   --enable-u2f) u2f="enabled"
+   ;;
+-  --disable-libusb) libusb="no"
++  --disable-libusb) libusb="disabled"
+   ;;
+-  --enable-libusb) libusb="yes"
++  --enable-libusb) libusb="enabled"
+   ;;
+-  --disable-usb-redir) usb_redir="no"
++  --disable-usb-redir) usb_redir="disabled"
+   ;;
+-  --enable-usb-redir) usb_redir="yes"
++  --enable-usb-redir) usb_redir="enabled"
+   ;;
+   --disable-zlib-test)
+   ;;
+@@ -1374,21 +1371,21 @@ for opt do
+   ;;
+   --tls-priority=*) tls_priority="$optarg"
+   ;;
+-  --disable-gnutls) gnutls="no"
++  --disable-gnutls) gnutls="disabled"
+   ;;
+-  --enable-gnutls) gnutls="yes"
++  --enable-gnutls) gnutls="enabled"
+   ;;
+-  --disable-nettle) nettle="no"
++  --disable-nettle) nettle="disabled"
+   ;;
+-  --enable-nettle) nettle="yes"
++  --enable-nettle) nettle="enabled"
+   ;;
+-  --disable-gcrypt) gcrypt="no"
++  --disable-gcrypt) gcrypt="disabled"
+   ;;
+-  --enable-gcrypt) gcrypt="yes"
++  --enable-gcrypt) gcrypt="enabled"
+   ;;
+-  --disable-auth-pam) auth_pam="no"
++  --disable-auth-pam) auth_pam="disabled"
+   ;;
+-  --enable-auth-pam) auth_pam="yes"
++  --enable-auth-pam) auth_pam="enabled"
+   ;;
+   --enable-rdma) rdma="yes"
+   ;;
+@@ -2802,199 +2799,6 @@ EOF
+   fi
+ fi
+ 
+-##########################################
+-# GNUTLS probe
+-
+-if test "$gnutls" != "no"; then
+-    pass="no"
+-    if $pkg_config --exists "gnutls >= 3.5.18"; then
+-        gnutls_cflags=$($pkg_config --cflags gnutls)
+-        gnutls_libs=$($pkg_config --libs gnutls)
+-        # Packaging for the static libraries is not always correct.
+-        # At least ubuntu 18.04 ships only shared libraries.
+-        write_c_skeleton
+-        if compile_prog "" "$gnutls_libs" ; then
+-            pass="yes"
+-        fi
+-    fi
+-    if test "$pass" = "no" && test "$gnutls" = "yes"; then
+-	feature_not_found "gnutls" "Install gnutls devel >= 3.1.18"
+-    else
+-        gnutls="$pass"
+-    fi
+-fi
+-
+-
+-# If user didn't give a --disable/enable-gcrypt flag,
+-# then mark as disabled if user requested nettle
+-# explicitly
+-if test -z "$gcrypt"
+-then
+-    if test "$nettle" = "yes"
+-    then
+-        gcrypt="no"
+-    fi
+-fi
+-
+-# If user didn't give a --disable/enable-nettle flag,
+-# then mark as disabled if user requested gcrypt
+-# explicitly
+-if test -z "$nettle"
+-then
+-    if test "$gcrypt" = "yes"
+-    then
+-        nettle="no"
+-    fi
+-fi
+-
+-has_libgcrypt() {
+-    if ! has "libgcrypt-config"
+-    then
+-	return 1
+-    fi
+-
+-    if test -n "$cross_prefix"
+-    then
+-	host=$(libgcrypt-config --host)
+-	if test "$host-" != $cross_prefix
+-	then
+-	    return 1
+-	fi
+-    fi
+-
+-    maj=`libgcrypt-config --version | awk -F . '{print $1}'`
+-    min=`libgcrypt-config --version | awk -F . '{print $2}'`
+-
+-    if test $maj != 1 || test $min -lt 8
+-    then
+-       return 1
+-    fi
+-
+-    return 0
+-}
+-
+-
+-if test "$nettle" != "no"; then
+-    pass="no"
+-    if $pkg_config --exists "nettle >= 3.4"; then
+-        nettle_cflags=$($pkg_config --cflags nettle)
+-        nettle_libs=$($pkg_config --libs nettle)
+-        # Link test to make sure the given libraries work (e.g for static).
+-        write_c_skeleton
+-        if compile_prog "" "$nettle_libs" ; then
+-            if test -z "$gcrypt"; then
+-               gcrypt="no"
+-            fi
+-            pass="yes"
+-        fi
+-    fi
+-    if test "$pass" = "yes"
+-    then
+-        cat > $TMPC << EOF
+-#include <nettle/xts.h>
+-int main(void) {
+-  return 0;
+-}
+-EOF
+-        if compile_prog "$nettle_cflags" "$nettle_libs" ; then
+-            nettle_xts=yes
+-            qemu_private_xts=no
+-        fi
+-    fi
+-    if test "$pass" = "no" && test "$nettle" = "yes"; then
+-        feature_not_found "nettle" "Install nettle devel >= 2.7.1"
+-    else
+-        nettle="$pass"
+-    fi
+-fi
+-
+-if test "$gcrypt" != "no"; then
+-    pass="no"
+-    if has_libgcrypt; then
+-        gcrypt_cflags=$(libgcrypt-config --cflags)
+-        gcrypt_libs=$(libgcrypt-config --libs)
+-        # Debian has removed -lgpg-error from libgcrypt-config
+-        # as it "spreads unnecessary dependencies" which in
+-        # turn breaks static builds...
+-        if test "$static" = "yes"
+-        then
+-            gcrypt_libs="$gcrypt_libs -lgpg-error"
+-        fi
+-
+-        # Link test to make sure the given libraries work (e.g for static).
+-        write_c_skeleton
+-        if compile_prog "" "$gcrypt_libs" ; then
+-            pass="yes"
+-        fi
+-    fi
+-    if test "$pass" = "yes"; then
+-        gcrypt="yes"
+-        cat > $TMPC << EOF
+-#include <gcrypt.h>
+-int main(void) {
+-  gcry_cipher_hd_t handle;
+-  gcry_cipher_open(&handle, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_XTS, 0);
+-  return 0;
+-}
+-EOF
+-        if compile_prog "$gcrypt_cflags" "$gcrypt_libs" ; then
+-            gcrypt_xts=yes
+-            qemu_private_xts=no
+-        fi
+-    elif test "$gcrypt" = "yes"; then
+-        feature_not_found "gcrypt" "Install gcrypt devel >= 1.5.0"
+-    else
+-        gcrypt="no"
+-    fi
+-fi
+-
+-
+-if test "$gcrypt" = "yes" && test "$nettle" = "yes"
+-then
+-    error_exit "Only one of gcrypt & nettle can be enabled"
+-fi
+-
+-##########################################
+-# libtasn1 - only for the TLS creds/session test suite
+-
+-tasn1=yes
+-tasn1_cflags=""
+-tasn1_libs=""
+-if $pkg_config --exists "libtasn1"; then
+-    tasn1_cflags=$($pkg_config --cflags libtasn1)
+-    tasn1_libs=$($pkg_config --libs libtasn1)
+-else
+-    tasn1=no
+-fi
+-
+-
+-##########################################
+-# PAM probe
+-
+-if test "$auth_pam" != "no"; then
+-    cat > $TMPC <<EOF
+-#include <security/pam_appl.h>
+-#include <stdio.h>
+-int main(void) {
+-   const char *service_name = "qemu";
+-   const char *user = "frank";
+-   const struct pam_conv pam_conv = { 0 };
+-   pam_handle_t *pamh = NULL;
+-   pam_start(service_name, user, &pam_conv, &pamh);
+-   return 0;
+-}
+-EOF
+-    if compile_prog "" "-lpam" ; then
+-        auth_pam=yes
+-    else
+-        if test "$auth_pam" = "yes"; then
+-            feature_not_found "PAM" "Install PAM development package"
+-        else
+-            auth_pam=no
+-        fi
+-    fi
+-fi
+-
+ ##########################################
+ # VTE probe
+ 
+@@ -4176,48 +3980,6 @@ EOF
+   fi
+ fi
+ 
+-# check for smartcard support
+-if test "$smartcard" != "no"; then
+-    if $pkg_config --atleast-version=2.5.1 libcacard; then
+-        libcacard_cflags=$($pkg_config --cflags libcacard)
+-        libcacard_libs=$($pkg_config --libs libcacard)
+-        smartcard="yes"
+-    else
+-        if test "$smartcard" = "yes"; then
+-            feature_not_found "smartcard" "Install libcacard devel"
+-        fi
+-        smartcard="no"
+-    fi
+-fi
+-
+-# check for libusb
+-if test "$libusb" != "no" ; then
+-    if $pkg_config --atleast-version=1.0.13 libusb-1.0; then
+-        libusb="yes"
+-        libusb_cflags=$($pkg_config --cflags libusb-1.0)
+-        libusb_libs=$($pkg_config --libs libusb-1.0)
+-    else
+-        if test "$libusb" = "yes"; then
+-            feature_not_found "libusb" "Install libusb devel >= 1.0.13"
+-        fi
+-        libusb="no"
+-    fi
+-fi
+-
+-# check for usbredirparser for usb network redirection support
+-if test "$usb_redir" != "no" ; then
+-    if $pkg_config --atleast-version=0.6 libusbredirparser-0.5; then
+-        usb_redir="yes"
+-        usb_redir_cflags=$($pkg_config --cflags libusbredirparser-0.5)
+-        usb_redir_libs=$($pkg_config --libs libusbredirparser-0.5)
+-    else
+-        if test "$usb_redir" = "yes"; then
+-            feature_not_found "usb-redir" "Install usbredir devel"
+-        fi
+-        usb_redir="no"
+-    fi
+-fi
+-
+ ##########################################
+ # check if we have VSS SDK headers for win
+ 
+@@ -5709,30 +5471,6 @@ if test "$gdbus_codegen" != "" ; then
+     echo "GDBUS_CODEGEN=$gdbus_codegen" >> $config_host_mak
+ fi
+ echo "CONFIG_TLS_PRIORITY=\"$tls_priority\"" >> $config_host_mak
+-if test "$gnutls" = "yes" ; then
+-  echo "CONFIG_GNUTLS=y" >> $config_host_mak
+-  echo "GNUTLS_CFLAGS=$gnutls_cflags" >> $config_host_mak
+-  echo "GNUTLS_LIBS=$gnutls_libs" >> $config_host_mak
+-fi
+-if test "$gcrypt" = "yes" ; then
+-  echo "CONFIG_GCRYPT=y" >> $config_host_mak
+-  echo "GCRYPT_CFLAGS=$gcrypt_cflags" >> $config_host_mak
+-  echo "GCRYPT_LIBS=$gcrypt_libs" >> $config_host_mak
+-fi
+-if test "$nettle" = "yes" ; then
+-  echo "CONFIG_NETTLE=y" >> $config_host_mak
+-  echo "NETTLE_CFLAGS=$nettle_cflags" >> $config_host_mak
+-  echo "NETTLE_LIBS=$nettle_libs" >> $config_host_mak
+-fi
+-if test "$qemu_private_xts" = "yes" ; then
+-  echo "CONFIG_QEMU_PRIVATE_XTS=y" >> $config_host_mak
+-fi
+-if test "$tasn1" = "yes" ; then
+-  echo "CONFIG_TASN1=y" >> $config_host_mak
+-fi
+-if test "$auth_pam" = "yes" ; then
+-    echo "CONFIG_AUTH_PAM=y" >> $config_host_mak
+-fi
+ if test "$have_broken_size_max" = "yes" ; then
+     echo "HAVE_BROKEN_SIZE_MAX=y" >> $config_host_mak
+ fi
+@@ -5845,24 +5583,6 @@ if test "$spice" = "yes" ; then
+   echo "SPICE_LIBS=$spice_libs" >> $config_host_mak
+ fi
+ 
+-if test "$smartcard" = "yes" ; then
+-  echo "CONFIG_SMARTCARD=y" >> $config_host_mak
+-  echo "SMARTCARD_CFLAGS=$libcacard_cflags" >> $config_host_mak
+-  echo "SMARTCARD_LIBS=$libcacard_libs" >> $config_host_mak
+-fi
+-
+-if test "$libusb" = "yes" ; then
+-  echo "CONFIG_USB_LIBUSB=y" >> $config_host_mak
+-  echo "LIBUSB_CFLAGS=$libusb_cflags" >> $config_host_mak
+-  echo "LIBUSB_LIBS=$libusb_libs" >> $config_host_mak
+-fi
+-
+-if test "$usb_redir" = "yes" ; then
+-  echo "CONFIG_USB_REDIR=y" >> $config_host_mak
+-  echo "USB_REDIR_CFLAGS=$usb_redir_cflags" >> $config_host_mak
+-  echo "USB_REDIR_LIBS=$usb_redir_libs" >> $config_host_mak
+-fi
+-
+ if test "$opengl" = "yes" ; then
+   echo "CONFIG_OPENGL=y" >> $config_host_mak
+   echo "OPENGL_CFLAGS=$opengl_cflags" >> $config_host_mak
+@@ -6190,8 +5910,6 @@ echo "LD_I386_EMULATION=$ld_i386_emulation" >> $config_host_mak
+ echo "EXESUF=$EXESUF" >> $config_host_mak
+ echo "HOST_DSOSUF=$HOST_DSOSUF" >> $config_host_mak
+ echo "LIBS_QGA=$libs_qga" >> $config_host_mak
+-echo "TASN1_LIBS=$tasn1_libs" >> $config_host_mak
+-echo "TASN1_CFLAGS=$tasn1_cflags" >> $config_host_mak
+ if test "$gcov" = "yes" ; then
+   echo "CONFIG_GCOV=y" >> $config_host_mak
+ fi
+@@ -6437,12 +6155,14 @@ if test "$skip_meson" = no; then
+         -Dkvm=$kvm -Dhax=$hax -Dwhpx=$whpx -Dhvf=$hvf -Dnvmm=$nvmm \
+         -Dxen=$xen -Dxen_pci_passthrough=$xen_pci_passthrough -Dtcg=$tcg \
+         -Dcocoa=$cocoa -Dgtk=$gtk -Dmpath=$mpath -Dsdl=$sdl -Dsdl_image=$sdl_image \
++        -Dlibusb=$libusb -Dsmartcard=$smartcard -Dusb_redir=$usb_redir \
+         -Dvnc=$vnc -Dvnc_sasl=$vnc_sasl -Dvnc_jpeg=$vnc_jpeg -Dvnc_png=$vnc_png \
+         -Dgettext=$gettext -Dxkbcommon=$xkbcommon -Du2f=$u2f -Dvirtiofsd=$virtiofsd \
+         -Dcapstone=$capstone -Dslirp=$slirp -Dfdt=$fdt -Dbrlapi=$brlapi \
+         -Dcurl=$curl -Dglusterfs=$glusterfs -Dbzip2=$bzip2 -Dlibiscsi=$libiscsi \
+         -Dlibnfs=$libnfs -Diconv=$iconv -Dcurses=$curses -Dlibudev=$libudev\
+         -Drbd=$rbd -Dlzo=$lzo -Dsnappy=$snappy -Dlzfse=$lzfse \
++        -Dgnutls=$gnutls -Dnettle=$nettle -Dgcrypt=$gcrypt -Dauth_pam=$auth_pam \
+         -Dzstd=$zstd -Dseccomp=$seccomp -Dvirtfs=$virtfs -Dcap_ng=$cap_ng \
+         -Dattr=$attr -Ddefault_devices=$default_devices \
+         -Ddocs=$docs -Dsphinx_build=$sphinx_build -Dinstall_blobs=$blobs \
+diff --git a/crypto/meson.build b/crypto/meson.build
+index af7e80c6f6..7cbf1a6ba7 100644
+--- a/crypto/meson.build
++++ b/crypto/meson.build
+@@ -22,48 +22,31 @@ crypto_ss.add(files(
+   'tlssession.c',
+ ))
+ 
+-if 'CONFIG_NETTLE' in config_host
+-  crypto_ss.add(files('hash-nettle.c', 'hmac-nettle.c', 'pbkdf-nettle.c'))
+-elif 'CONFIG_GCRYPT' in config_host
+-  crypto_ss.add(files('hash-gcrypt.c', 'pbkdf-gcrypt.c'))
+-  crypto_ss.add(files('hmac-gcrypt.c'))
++if nettle.found()
++  crypto_ss.add(nettle, files('hash-nettle.c', 'hmac-nettle.c', 'pbkdf-nettle.c'))
++elif gcrypt.found()
++  crypto_ss.add(gcrypt, files('hash-gcrypt.c', 'hmac-gcrypt.c', 'pbkdf-gcrypt.c'))
+ else
+   crypto_ss.add(files('hash-glib.c', 'hmac-glib.c', 'pbkdf-stub.c'))
+ endif
++if xts == 'private'
++  crypto_ss.add(files('xts.c'))
++endif
+ 
+ crypto_ss.add(when: 'CONFIG_SECRET_KEYRING', if_true: files('secret_keyring.c'))
+-crypto_ss.add(when: 'CONFIG_QEMU_PRIVATE_XTS', if_true: files('xts.c'))
+ crypto_ss.add(when: 'CONFIG_AF_ALG', if_true: files('afalg.c', 'cipher-afalg.c', 'hash-afalg.c'))
+-crypto_ss.add(when: 'CONFIG_GNUTLS', if_true: files('tls-cipher-suites.c'))
+-
+-if 'CONFIG_NETTLE' in config_host
+-  crypto_ss.add(nettle)
+-elif 'CONFIG_GCRYPT' in config_host
+-  crypto_ss.add(gcrypt)
+-endif
+-
+-if 'CONFIG_GNUTLS' in config_host
+-  crypto_ss.add(gnutls)
+-endif
+-
++crypto_ss.add(when: gnutls, if_true: files('tls-cipher-suites.c'))
+ 
+ util_ss.add(files('aes.c'))
+ util_ss.add(files('init.c'))
+ 
+-if 'CONFIG_GCRYPT' in config_host
+-  util_ss.add(files('random-gcrypt.c'))
+-elif 'CONFIG_GNUTLS' in config_host
+-  util_ss.add(files('random-gnutls.c'))
++if gcrypt.found()
++  util_ss.add(gcrypt, files('random-gcrypt.c'))
++elif gnutls.found()
++  util_ss.add(gnutls, files('random-gnutls.c'))
+ elif 'CONFIG_RNG_NONE' in config_host
+   util_ss.add(files('random-none.c'))
+ else
+   util_ss.add(files('random-platform.c'))
+ endif
+ 
+-if 'CONFIG_GCRYPT' in config_host
+-  util_ss.add(gcrypt)
+-endif
+-
+-if 'CONFIG_GNUTLS' in config_host
+-  util_ss.add(gnutls)
+-endif
+diff --git a/hw/scsi/scsi-generic.c b/hw/scsi/scsi-generic.c
+index 40e039864f..665baf900e 100644
+--- a/hw/scsi/scsi-generic.c
++++ b/hw/scsi/scsi-generic.c
+@@ -179,10 +179,12 @@ static int scsi_handle_inquiry_reply(SCSIGenericReq *r, SCSIDevice *s, int len)
+         (r->req.cmd.buf[1] & 0x01)) {
+         page = r->req.cmd.buf[2];
+         if (page == 0xb0) {
+-            uint32_t max_transfer =
+-                blk_get_max_transfer(s->conf.blk) / s->blocksize;
++            uint64_t max_transfer = blk_get_max_hw_transfer(s->conf.blk);
++            uint32_t max_iov = blk_get_max_iov(s->conf.blk);
+ 
+             assert(max_transfer);
++            max_transfer = MIN_NON_ZERO(max_transfer, max_iov * qemu_real_host_page_size)
++                / s->blocksize;
+             stl_be_p(&r->buf[8], max_transfer);
+             /* Also take care of the opt xfer len. */
+             stl_be_p(&r->buf[12],
+diff --git a/hw/usb/meson.build b/hw/usb/meson.build
+index f357270d0b..4f24b5274d 100644
+--- a/hw/usb/meson.build
++++ b/hw/usb/meson.build
+@@ -49,7 +49,7 @@ softmmu_ss.add(when: ['CONFIG_POSIX', 'CONFIG_USB_STORAGE_MTP'], if_true: files(
+ # smartcard
+ softmmu_ss.add(when: 'CONFIG_USB_SMARTCARD', if_true: files('dev-smartcard-reader.c'))
+ 
+-if config_host.has_key('CONFIG_SMARTCARD')
++if cacard.found()
+   usbsmartcard_ss = ss.source_set()
+   usbsmartcard_ss.add(when: 'CONFIG_USB_SMARTCARD',
+                       if_true: [cacard, files('ccid-card-emulated.c', 'ccid-card-passthru.c')])
+@@ -64,7 +64,7 @@ if u2f.found()
+ endif
+ 
+ # usb redirect
+-if config_host.has_key('CONFIG_USB_REDIR')
++if usbredir.found()
+   usbredir_ss = ss.source_set()
+   usbredir_ss.add(when: 'CONFIG_USB',
+                   if_true: [usbredir, files('redirect.c', 'quirks.c')])
+@@ -72,7 +72,7 @@ if config_host.has_key('CONFIG_USB_REDIR')
+ endif
+ 
+ # usb pass-through
+-softmmu_ss.add(when: ['CONFIG_USB', 'CONFIG_USB_LIBUSB', libusb],
++softmmu_ss.add(when: ['CONFIG_USB', libusb],
+                if_true: files('host-libusb.c'),
+                if_false: files('host-stub.c'))
+ softmmu_ss.add(when: 'CONFIG_ALL', if_true: files('host-stub.c'))
+diff --git a/include/block/block_int.h b/include/block/block_int.h
+index 057d88b1fc..f1a54db0f8 100644
+--- a/include/block/block_int.h
++++ b/include/block/block_int.h
+@@ -695,6 +695,13 @@ typedef struct BlockLimits {
+      * clamped down. */
+     uint32_t max_transfer;
+ 
++    /* Maximal hardware transfer length in bytes.  Applies whenever
++     * transfers to the device bypass the kernel I/O scheduler, for
++     * example with SG_IO.  If larger than max_transfer or if zero,
++     * blk_get_max_hw_transfer will fall back to max_transfer.
++     */
++    uint64_t max_hw_transfer;
++
+     /* memory alignment, in bytes so that no bounce buffer is needed */
+     size_t min_mem_alignment;
+ 
+diff --git a/include/qemu/osdep.h b/include/qemu/osdep.h
+index 0a54bf7be8..c3656b755a 100644
+--- a/include/qemu/osdep.h
++++ b/include/qemu/osdep.h
+@@ -319,11 +319,16 @@ extern "C" {
+     })
+ #endif
+ 
+-/* Round number down to multiple */
++/*
++ * Round number down to multiple. Safe when m is not a power of 2 (see
++ * ROUND_DOWN for a faster version when a power of 2 is guaranteed).
++ */
+ #define QEMU_ALIGN_DOWN(n, m) ((n) / (m) * (m))
+ 
+-/* Round number up to multiple. Safe when m is not a power of 2 (see
+- * ROUND_UP for a faster version when a power of 2 is guaranteed) */
++/*
++ * Round number up to multiple. Safe when m is not a power of 2 (see
++ * ROUND_UP for a faster version when a power of 2 is guaranteed).
++ */
+ #define QEMU_ALIGN_UP(n, m) QEMU_ALIGN_DOWN((n) + (m) - 1, (m))
+ 
+ /* Check if n is a multiple of m */
+@@ -340,11 +345,22 @@ extern "C" {
+ /* Check if pointer p is n-bytes aligned */
+ #define QEMU_PTR_IS_ALIGNED(p, n) QEMU_IS_ALIGNED((uintptr_t)(p), (n))
+ 
+-/* Round number up to multiple. Requires that d be a power of 2 (see
++/*
++ * Round number down to multiple. Requires that d be a power of 2 (see
+  * QEMU_ALIGN_UP for a safer but slower version on arbitrary
+- * numbers); works even if d is a smaller type than n.  */
++ * numbers); works even if d is a smaller type than n.
++ */
++#ifndef ROUND_DOWN
++#define ROUND_DOWN(n, d) ((n) & -(0 ? (n) : (d)))
++#endif
++
++/*
++ * Round number up to multiple. Requires that d be a power of 2 (see
++ * QEMU_ALIGN_UP for a safer but slower version on arbitrary
++ * numbers); works even if d is a smaller type than n.
++ */
+ #ifndef ROUND_UP
+-#define ROUND_UP(n, d) (((n) + (d) - 1) & -(0 ? (n) : (d)))
++#define ROUND_UP(n, d) ROUND_DOWN((n) + (d) - 1, (d))
+ #endif
+ 
+ #ifndef DIV_ROUND_UP
+diff --git a/include/sysemu/block-backend.h b/include/sysemu/block-backend.h
+index 5423e3d9c6..9ac5f7bbd3 100644
+--- a/include/sysemu/block-backend.h
++++ b/include/sysemu/block-backend.h
+@@ -208,6 +208,7 @@ void blk_eject(BlockBackend *blk, bool eject_flag);
+ int blk_get_flags(BlockBackend *blk);
+ uint32_t blk_get_request_alignment(BlockBackend *blk);
+ uint32_t blk_get_max_transfer(BlockBackend *blk);
++uint64_t blk_get_max_hw_transfer(BlockBackend *blk);
+ int blk_get_max_iov(BlockBackend *blk);
+ void blk_set_guest_block_size(BlockBackend *blk, int align);
+ void *blk_try_blockalign(BlockBackend *blk, size_t size);
+diff --git a/meson.build b/meson.build
+index d8a92666fb..144456426c 100644
+--- a/meson.build
++++ b/meson.build
+@@ -183,7 +183,7 @@ if targetos == 'windows'
+                                       include_directories: include_directories('.'))
+ elif targetos == 'darwin'
+   coref = dependency('appleframeworks', modules: 'CoreFoundation')
+-  iokit = dependency('appleframeworks', modules: 'IOKit')
++  iokit = dependency('appleframeworks', modules: 'IOKit', required: false)
+ elif targetos == 'sunos'
+   socket = [cc.find_library('socket'),
+             cc.find_library('nsl'),
+@@ -320,30 +320,11 @@ urcubp = not_found
+ if 'CONFIG_TRACE_UST' in config_host
+   urcubp = declare_dependency(link_args: config_host['URCU_BP_LIBS'].split())
+ endif
+-gcrypt = not_found
+-if 'CONFIG_GCRYPT' in config_host
+-  gcrypt = declare_dependency(compile_args: config_host['GCRYPT_CFLAGS'].split(),
+-                              link_args: config_host['GCRYPT_LIBS'].split())
+-endif
+-nettle = not_found
+-if 'CONFIG_NETTLE' in config_host
+-  nettle = declare_dependency(compile_args: config_host['NETTLE_CFLAGS'].split(),
+-                              link_args: config_host['NETTLE_LIBS'].split())
+-endif
+-gnutls = not_found
+-if 'CONFIG_GNUTLS' in config_host
+-  gnutls = declare_dependency(compile_args: config_host['GNUTLS_CFLAGS'].split(),
+-                              link_args: config_host['GNUTLS_LIBS'].split())
+-endif
+ pixman = not_found
+ if have_system or have_tools
+   pixman = dependency('pixman-1', required: have_system, version:'>=0.21.8',
+                       method: 'pkg-config', kwargs: static_kwargs)
+ endif
+-pam = not_found
+-if 'CONFIG_AUTH_PAM' in config_host
+-  pam = cc.find_library('pam')
+-endif
+ libaio = cc.find_library('aio', required: false)
+ zlib = dependency('zlib', required: true, kwargs: static_kwargs)
+ linux_io_uring = not_found
+@@ -829,6 +810,54 @@ if 'CONFIG_OPENGL' in config_host
+                               link_args: config_host['OPENGL_LIBS'].split())
+ endif
+ 
++gnutls = not_found
++if not get_option('gnutls').auto() or have_system
++  gnutls = dependency('gnutls', version: '>=3.5.18',
++                      method: 'pkg-config',
++                      required: get_option('gnutls'),
++                      kwargs: static_kwargs)
++endif
++
++# Nettle has priority over gcrypt
++gcrypt = not_found
++nettle = not_found
++xts = 'private'
++if get_option('nettle').enabled() and get_option('gcrypt').enabled()
++  error('Only one of gcrypt & nettle can be enabled')
++elif (not get_option('nettle').auto() or have_system) and not get_option('gcrypt').enabled()
++  nettle = dependency('nettle', version: '>=3.4',
++                      method: 'pkg-config',
++                      required: get_option('nettle'),
++                      kwargs: static_kwargs)
++  if nettle.found() and cc.has_header('nettle/xts.h', dependencies: nettle)
++    xts = 'nettle'
++  endif
++endif
++if (not get_option('gcrypt').auto() or have_system) and not nettle.found()
++  gcrypt = dependency('libgcrypt', version: '>=1.5',
++                         method: 'config-tool',
++                         required: get_option('gcrypt'),
++                         kwargs: static_kwargs)
++  if gcrypt.found() and cc.compiles('''
++    #include <gcrypt.h>
++    int main(void) {
++      gcry_cipher_hd_t handle;
++      gcry_cipher_open(&handle, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_XTS, 0);
++      return 0;
++    }
++    ''', dependencies: gcrypt)
++    xts = 'gcrypt'
++  endif
++  # Debian has removed -lgpg-error from libgcrypt-config
++  # as it "spreads unnecessary dependencies" which in
++  # turn breaks static builds...
++  if gcrypt.found() and enable_static
++    gcrypt = declare_dependency(dependencies: [
++      gcrypt,
++      cc.find_library('gpg-error', required: true, kwargs: static_kwargs)])
++  endif
++endif
++
+ gtk = not_found
+ gtkx11 = not_found
+ if not get_option('gtk').auto() or (have_system and not cocoa.found())
+@@ -874,6 +903,31 @@ if get_option('vnc').enabled()
+   endif
+ endif
+ 
++pam = not_found
++if not get_option('auth_pam').auto() or have_system
++  pam = cc.find_library('pam', has_headers: ['security/pam_appl.h'],
++                        required: get_option('auth_pam'),
++                        kwargs: static_kwargs)
++endif
++if pam.found() and not cc.links('''
++   #include <stddef.h>
++   #include <security/pam_appl.h>
++   int main(void) {
++     const char *service_name = "qemu";
++     const char *user = "frank";
++     const struct pam_conv pam_conv = { 0 };
++     pam_handle_t *pamh = NULL;
++     pam_start(service_name, user, &pam_conv, &pamh);
++     return 0;
++   }''', dependencies: pam)
++  pam = not_found
++  if get_option('auth_pam').enabled()
++    error('could not link libpam')
++  else
++    warning('could not link libpam, disabling')
++  endif
++endif
++
+ snappy = not_found
+ if not get_option('snappy').auto() or have_system
+   snappy = cc.find_library('snappy', has_headers: ['snappy-c.h'],
+@@ -922,9 +976,10 @@ if 'CONFIG_XEN_BACKEND' in config_host
+                            link_args: config_host['XEN_LIBS'].split())
+ endif
+ cacard = not_found
+-if 'CONFIG_SMARTCARD' in config_host
+-  cacard = declare_dependency(compile_args: config_host['SMARTCARD_CFLAGS'].split(),
+-                              link_args: config_host['SMARTCARD_LIBS'].split())
++if not get_option('smartcard').auto() or have_system
++  cacard = dependency('libcacard', required: get_option('smartcard'),
++                      version: '>=2.5.1', method: 'pkg-config',
++                      kwargs: static_kwargs)
+ endif
+ u2f = not_found
+ if have_system
+@@ -933,15 +988,18 @@ if have_system
+                    kwargs: static_kwargs)
+ endif
+ usbredir = not_found
+-if 'CONFIG_USB_REDIR' in config_host
+-  usbredir = declare_dependency(compile_args: config_host['USB_REDIR_CFLAGS'].split(),
+-                                link_args: config_host['USB_REDIR_LIBS'].split())
++if not get_option('usb_redir').auto() or have_system
++  usbredir = dependency('libusbredirparser-0.5', required: get_option('usb_redir'),
++                        version: '>=0.6', method: 'pkg-config',
++                        kwargs: static_kwargs)
+ endif
+ libusb = not_found
+-if 'CONFIG_USB_LIBUSB' in config_host
+-  libusb = declare_dependency(compile_args: config_host['LIBUSB_CFLAGS'].split(),
+-                              link_args: config_host['LIBUSB_LIBS'].split())
++if not get_option('libusb').auto() or have_system
++  libusb = dependency('libusb-1.0', required: get_option('libusb'),
++                      version: '>=1.0.13', method: 'pkg-config',
++                      kwargs: static_kwargs)
+ endif
++
+ libpmem = not_found
+ if 'CONFIG_LIBPMEM' in config_host
+   libpmem = declare_dependency(compile_args: config_host['LIBPMEM_CFLAGS'].split(),
+@@ -952,9 +1010,10 @@ if 'CONFIG_LIBDAXCTL' in config_host
+   libdaxctl = declare_dependency(link_args: config_host['LIBDAXCTL_LIBS'].split())
+ endif
+ tasn1 = not_found
+-if 'CONFIG_TASN1' in config_host
+-  tasn1 = declare_dependency(compile_args: config_host['TASN1_CFLAGS'].split(),
+-                             link_args: config_host['TASN1_LIBS'].split())
++if gnutls.found()
++  tasn1 = dependency('libtasn1',
++                     method: 'pkg-config',
++                     kwargs: static_kwargs)
+ endif
+ keyutils = dependency('libkeyutils', required: false,
+                       method: 'pkg-config', kwargs: static_kwargs)
+@@ -1089,6 +1148,9 @@ if get_option('cfi')
+   add_global_link_arguments(cfi_flags, native: false, language: ['c', 'cpp', 'objc'])
+ endif
+ 
++have_host_block_device = (targetos != 'darwin' or
++    cc.has_header('IOKit/storage/IOMedia.h'))
++
+ #################
+ # config-host.h #
+ #################
+@@ -1156,6 +1218,7 @@ config_host_data.set('CONFIG_SDL', sdl.found())
+ config_host_data.set('CONFIG_SDL_IMAGE', sdl_image.found())
+ config_host_data.set('CONFIG_SECCOMP', seccomp.found())
+ config_host_data.set('CONFIG_SNAPPY', snappy.found())
++config_host_data.set('CONFIG_USB_LIBUSB', libusb.found())
+ config_host_data.set('CONFIG_VHOST_USER_BLK_SERVER', have_vhost_user_blk_server)
+ config_host_data.set('CONFIG_VNC', vnc.found())
+ config_host_data.set('CONFIG_VNC_JPEG', jpeg.found())
+@@ -1165,6 +1228,10 @@ config_host_data.set('CONFIG_VIRTFS', have_virtfs)
+ config_host_data.set('CONFIG_XKBCOMMON', xkbcommon.found())
+ config_host_data.set('CONFIG_KEYUTILS', keyutils.found())
+ config_host_data.set('CONFIG_GETTID', has_gettid)
++config_host_data.set('CONFIG_GNUTLS', gnutls.found())
++config_host_data.set('CONFIG_GCRYPT', gcrypt.found())
++config_host_data.set('CONFIG_NETTLE', nettle.found())
++config_host_data.set('CONFIG_QEMU_PRIVATE_XTS', xts == 'private')
+ config_host_data.set('CONFIG_MALLOC_TRIM', has_malloc_trim)
+ config_host_data.set('CONFIG_STATX', has_statx)
+ config_host_data.set('CONFIG_ZSTD', zstd.found())
+@@ -1183,6 +1250,8 @@ config_host_data.set('HAVE_PTY_H', cc.has_header('pty.h'))
+ config_host_data.set('HAVE_SYS_IOCCOM_H', cc.has_header('sys/ioccom.h'))
+ config_host_data.set('HAVE_SYS_KCOV_H', cc.has_header('sys/kcov.h'))
+ config_host_data.set('HAVE_SYSTEM_FUNCTION', cc.has_function('system', prefix: '#include <stdlib.h>'))
++config_host_data.set('HAVE_HOST_BLOCK_DEVICE', have_host_block_device)
++config_host_data.set('HAVE_SYS_DISK_H', cc.has_header('sys/disk.h'))
+ 
+ config_host_data.set('CONFIG_PREADV', cc.has_function('preadv', prefix: '#include <sys/uio.h>'))
+ 
+@@ -2565,7 +2634,6 @@ summary_info += {'PIE':               get_option('b_pie')}
+ summary_info += {'static build':      config_host.has_key('CONFIG_STATIC')}
+ summary_info += {'malloc trim support': has_malloc_trim}
+ summary_info += {'membarrier':        config_host.has_key('CONFIG_MEMBARRIER')}
+-summary_info += {'preadv support':    config_host_data.get('CONFIG_PREADV')}
+ summary_info += {'fdatasync':         config_host.has_key('CONFIG_FDATASYNC')}
+ summary_info += {'madvise':           config_host.has_key('CONFIG_MADVISE')}
+ summary_info += {'posix_madvise':     config_host.has_key('CONFIG_POSIX_MADVISE')}
+@@ -2660,17 +2728,16 @@ summary(summary_info, bool_yn: true, section: 'Block layer support')
+ # Crypto
+ summary_info = {}
+ summary_info += {'TLS priority':      config_host['CONFIG_TLS_PRIORITY']}
+-summary_info += {'GNUTLS support':    config_host.has_key('CONFIG_GNUTLS')}
++summary_info += {'GNUTLS support':    gnutls.found()}
+ # TODO: add back version
+-summary_info += {'libgcrypt':         config_host.has_key('CONFIG_GCRYPT')}
+-if config_host.has_key('CONFIG_GCRYPT')
+-   summary_info += {'  hmac':            config_host.has_key('CONFIG_GCRYPT_HMAC')}
+-   summary_info += {'  XTS':             not config_host.has_key('CONFIG_QEMU_PRIVATE_XTS')}
++summary_info += {'libgcrypt':         gcrypt.found()}
++if gcrypt.found()
++   summary_info += {'  XTS':             xts != 'private'}
+ endif
+ # TODO: add back version
+-summary_info += {'nettle':            config_host.has_key('CONFIG_NETTLE')}
+-if config_host.has_key('CONFIG_NETTLE')
+-   summary_info += {'  XTS':             not config_host.has_key('CONFIG_QEMU_PRIVATE_XTS')}
++summary_info += {'nettle':            nettle.found()}
++if nettle.found()
++   summary_info += {'  XTS':             xts != 'private'}
+ endif
+ summary_info += {'crypto afalg':      config_host.has_key('CONFIG_AF_ALG')}
+ summary_info += {'rng-none':          config_host.has_key('CONFIG_RNG_NONE')}
+@@ -2692,8 +2759,8 @@ summary_info += {'pixman':            pixman.found()}
+ summary_info += {'VTE support':       config_host.has_key('CONFIG_VTE')}
+ # TODO: add back version
+ summary_info += {'slirp support':     slirp_opt == 'disabled' ? false : slirp_opt}
+-summary_info += {'libtasn1':          config_host.has_key('CONFIG_TASN1')}
+-summary_info += {'PAM':               config_host.has_key('CONFIG_AUTH_PAM')}
++summary_info += {'libtasn1':          tasn1.found()}
++summary_info += {'PAM':               pam.found()}
+ summary_info += {'iconv support':     iconv.found()}
+ summary_info += {'curses support':    curses.found()}
+ # TODO: add back version
+@@ -2721,10 +2788,10 @@ summary_info += {'bpf support': libbpf.found()}
+ summary_info += {'spice support':     config_host.has_key('CONFIG_SPICE')}
+ summary_info += {'rbd support':       rbd.found()}
+ summary_info += {'xfsctl support':    config_host.has_key('CONFIG_XFS')}
+-summary_info += {'smartcard support': config_host.has_key('CONFIG_SMARTCARD')}
++summary_info += {'smartcard support': cacard.found()}
+ summary_info += {'U2F support':       u2f.found()}
+-summary_info += {'libusb':            config_host.has_key('CONFIG_USB_LIBUSB')}
+-summary_info += {'usb net redir':     config_host.has_key('CONFIG_USB_REDIR')}
++summary_info += {'libusb':            libusb.found()}
++summary_info += {'usb net redir':     usbredir.found()}
+ summary_info += {'OpenGL support':    config_host.has_key('CONFIG_OPENGL')}
+ summary_info += {'GBM':               config_host.has_key('CONFIG_GBM')}
+ summary_info += {'libiscsi support':  libiscsi.found()}
+diff --git a/meson_options.txt b/meson_options.txt
+index 3d304cac96..f7ec9bee27 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -52,6 +52,8 @@ option('multiprocess', type: 'feature', value: 'auto',
+ 
+ option('attr', type : 'feature', value : 'auto',
+        description: 'attr/xattr support')
++option('auth_pam', type : 'feature', value : 'auto',
++       description: 'PAM access control')
+ option('brlapi', type : 'feature', value : 'auto',
+        description: 'brlapi character device driver')
+ option('bzip2', type : 'feature', value : 'auto',
+@@ -76,8 +78,16 @@ option('iconv', type : 'feature', value : 'auto',
+        description: 'Font glyph conversion support')
+ option('curses', type : 'feature', value : 'auto',
+        description: 'curses UI')
++option('gnutls', type : 'feature', value : 'auto',
++       description: 'GNUTLS cryptography support')
++option('nettle', type : 'feature', value : 'auto',
++       description: 'nettle cryptography support')
++option('gcrypt', type : 'feature', value : 'auto',
++       description: 'libgcrypt cryptography support')
+ option('libudev', type : 'feature', value : 'auto',
+        description: 'Use libudev to enumerate host devices')
++option('libusb', type : 'feature', value : 'auto',
++       description: 'libusb support for USB passthrough')
+ option('lzfse', type : 'feature', value : 'auto',
+        description: 'lzfse support for DMG images')
+ option('lzo', type : 'feature', value : 'auto',
+@@ -92,10 +102,14 @@ option('sdl_image', type : 'feature', value : 'auto',
+        description: 'SDL Image support for icons')
+ option('seccomp', type : 'feature', value : 'auto',
+        description: 'seccomp support')
++option('smartcard', type : 'feature', value : 'auto',
++       description: 'CA smartcard emulation support')
+ option('snappy', type : 'feature', value : 'auto',
+        description: 'snappy compression support')
+ option('u2f', type : 'feature', value : 'auto',
+        description: 'U2F emulation support')
++option('usb_redir', type : 'feature', value : 'auto',
++       description: 'libusbredir support')
+ option('vnc', type : 'feature', value : 'enabled',
+        description: 'VNC server')
+ option('vnc_jpeg', type : 'feature', value : 'auto',
+diff --git a/qapi/block-core.json b/qapi/block-core.json
+index 2ea294129e..a54f37dbef 100644
+--- a/qapi/block-core.json
++++ b/qapi/block-core.json
+@@ -897,7 +897,8 @@
+   'discriminator': 'driver',
+   'data': {
+       'file': 'BlockStatsSpecificFile',
+-      'host_device': 'BlockStatsSpecificFile',
++      'host_device': { 'type': 'BlockStatsSpecificFile',
++                       'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
+       'nvme': 'BlockStatsSpecificNvme' } }
+ 
+ ##
+@@ -2814,7 +2815,10 @@
+ { 'enum': 'BlockdevDriver',
+   'data': [ 'blkdebug', 'blklogwrites', 'blkreplay', 'blkverify', 'bochs',
+             'cloop', 'compress', 'copy-on-read', 'dmg', 'file', 'ftp', 'ftps',
+-            'gluster', 'host_cdrom', 'host_device', 'http', 'https', 'iscsi',
++            'gluster',
++            {'name': 'host_cdrom', 'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
++            {'name': 'host_device', 'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
++            'http', 'https', 'iscsi',
+             'luks', 'nbd', 'nfs', 'null-aio', 'null-co', 'nvme', 'parallels',
+             'preallocate', 'qcow', 'qcow2', 'qed', 'quorum', 'raw', 'rbd',
+             { 'name': 'replication', 'if': 'defined(CONFIG_REPLICATION)' },
+@@ -3995,8 +3999,10 @@
+       'ftp':        'BlockdevOptionsCurlFtp',
+       'ftps':       'BlockdevOptionsCurlFtps',
+       'gluster':    'BlockdevOptionsGluster',
+-      'host_cdrom': 'BlockdevOptionsFile',
+-      'host_device':'BlockdevOptionsFile',
++      'host_cdrom':  { 'type': 'BlockdevOptionsFile',
++                       'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
++      'host_device': { 'type': 'BlockdevOptionsFile',
++                       'if': 'defined(HAVE_HOST_BLOCK_DEVICE)' },
+       'http':       'BlockdevOptionsCurlHttp',
+       'https':      'BlockdevOptionsCurlHttps',
+       'iscsi':      'BlockdevOptionsIscsi',
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index a9fe1662d3..d8f3ab3192 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -1031,7 +1031,7 @@ FeatureWordInfo feature_word_info[FEATURE_WORDS] = {
+             "vmx-invpcid-exit", "vmx-vmfunc", "vmx-shadow-vmcs", "vmx-encls-exit",
+             "vmx-rdseed-exit", "vmx-pml", NULL, NULL,
+             "vmx-xsaves", NULL, NULL, NULL,
+-            NULL, NULL, NULL, NULL,
++            NULL, "vmx-tsc-scaling", NULL, NULL,
+             NULL, NULL, NULL, NULL,
+         },
+         .msr = {
+diff --git a/target/i386/cpu.h b/target/i386/cpu.h
+index 1e11071d81..f7fa5870b1 100644
+--- a/target/i386/cpu.h
++++ b/target/i386/cpu.h
+@@ -972,6 +972,7 @@ typedef uint64_t FeatureWordArray[FEATURE_WORDS];
+ #define VMX_SECONDARY_EXEC_RDSEED_EXITING           0x00010000
+ #define VMX_SECONDARY_EXEC_ENABLE_PML               0x00020000
+ #define VMX_SECONDARY_EXEC_XSAVES                   0x00100000
++#define VMX_SECONDARY_EXEC_TSC_SCALING              0x02000000
+ 
+ #define VMX_PIN_BASED_EXT_INTR_MASK                 0x00000001
+ #define VMX_PIN_BASED_NMI_EXITING                   0x00000008
+diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
+index ad950c3c27..04e4ec063f 100644
+--- a/target/i386/kvm/kvm.c
++++ b/target/i386/kvm/kvm.c
+@@ -2700,8 +2700,6 @@ static uint64_t make_vmx_msr_value(uint32_t index, uint32_t features)
+     return must_be_one | (((uint64_t)can_be_one) << 32);
+ }
+ 
+-#define VMCS12_MAX_FIELD_INDEX (0x17)
+-
+ static void kvm_msr_entry_add_vmx(X86CPU *cpu, FeatureWordArray f)
+ {
+     uint64_t kvm_vmx_basic =
+@@ -2791,8 +2789,14 @@ static void kvm_msr_entry_add_vmx(X86CPU *cpu, FeatureWordArray f)
+                       CR0_PE_MASK | CR0_PG_MASK | CR0_NE_MASK);
+     kvm_msr_entry_add(cpu, MSR_IA32_VMX_CR4_FIXED0,
+                       CR4_VMXE_MASK);
+-    kvm_msr_entry_add(cpu, MSR_IA32_VMX_VMCS_ENUM,
+-                      VMCS12_MAX_FIELD_INDEX << 1);
++
++    if (f[FEAT_VMX_SECONDARY_CTLS] & VMX_SECONDARY_EXEC_TSC_SCALING) {
++        /* TSC multiplier (0x2032).  */
++        kvm_msr_entry_add(cpu, MSR_IA32_VMX_VMCS_ENUM, 0x32);
++    } else {
++        /* Preemption timer (0x482E).  */
++        kvm_msr_entry_add(cpu, MSR_IA32_VMX_VMCS_ENUM, 0x2E);
++    }
+ }
+ 
+ static void kvm_msr_entry_add_perf(X86CPU *cpu, FeatureWordArray f)
+diff --git a/tests/acceptance/boot_linux.py b/tests/acceptance/boot_linux.py
+index 4c8a5994b2..314370fd1f 100644
+--- a/tests/acceptance/boot_linux.py
++++ b/tests/acceptance/boot_linux.py
+@@ -75,11 +75,10 @@ def add_common_args(self):
+         self.vm.add_args('-device', 'virtio-rng-pci,rng=rng0')
+         self.vm.add_args('-object', 'rng-random,id=rng0,filename=/dev/urandom')
+ 
+-    def test_virt_tcg_gicv2(self):
++    def test_virt_tcg(self):
+         """
+         :avocado: tags=accel:tcg
+         :avocado: tags=cpu:max
+-        :avocado: tags=device:gicv2
+         """
+         self.require_accelerator("tcg")
+         self.vm.add_args("-accel", "tcg")
+@@ -88,28 +87,29 @@ def test_virt_tcg_gicv2(self):
+         self.add_common_args()
+         self.launch_and_wait(set_up_ssh_connection=False)
+ 
+-    def test_virt_tcg_gicv3(self):
++    def test_virt_kvm_gicv2(self):
+         """
+-        :avocado: tags=accel:tcg
+-        :avocado: tags=cpu:max
+-        :avocado: tags=device:gicv3
++        :avocado: tags=accel:kvm
++        :avocado: tags=cpu:host
++        :avocado: tags=device:gicv2
+         """
+-        self.require_accelerator("tcg")
+-        self.vm.add_args("-accel", "tcg")
+-        self.vm.add_args("-cpu", "max")
+-        self.vm.add_args("-machine", "virt,gic-version=3")
++        self.require_accelerator("kvm")
++        self.vm.add_args("-accel", "kvm")
++        self.vm.add_args("-cpu", "host")
++        self.vm.add_args("-machine", "virt,gic-version=2")
+         self.add_common_args()
+         self.launch_and_wait(set_up_ssh_connection=False)
+ 
+-    def test_virt_kvm(self):
++    def test_virt_kvm_gicv3(self):
+         """
+         :avocado: tags=accel:kvm
+         :avocado: tags=cpu:host
++        :avocado: tags=device:gicv3
+         """
+         self.require_accelerator("kvm")
+         self.vm.add_args("-accel", "kvm")
+         self.vm.add_args("-cpu", "host")
+-        self.vm.add_args("-machine", "virt,gic-version=host")
++        self.vm.add_args("-machine", "virt,gic-version=3")
+         self.add_common_args()
+         self.launch_and_wait(set_up_ssh_connection=False)
+ 
+diff --git a/tests/unit/crypto-tls-psk-helpers.c b/tests/unit/crypto-tls-psk-helpers.c
+index a8395477c3..7f8a488961 100644
+--- a/tests/unit/crypto-tls-psk-helpers.c
++++ b/tests/unit/crypto-tls-psk-helpers.c
+@@ -20,14 +20,10 @@
+ 
+ #include "qemu/osdep.h"
+ 
+-/* Include this first because it defines QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+ #include "crypto-tls-x509-helpers.h"
+-
+ #include "crypto-tls-psk-helpers.h"
+ #include "qemu/sockets.h"
+ 
+-#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
+-
+ void test_tls_psk_init(const char *pskfile)
+ {
+     FILE *fp;
+@@ -46,5 +42,3 @@ void test_tls_psk_cleanup(const char *pskfile)
+ {
+     unlink(pskfile);
+ }
+-
+-#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/crypto-tls-psk-helpers.h b/tests/unit/crypto-tls-psk-helpers.h
+index 5aa9951cb6..faa645c629 100644
+--- a/tests/unit/crypto-tls-psk-helpers.h
++++ b/tests/unit/crypto-tls-psk-helpers.h
+@@ -23,11 +23,7 @@
+ 
+ #include <gnutls/gnutls.h>
+ 
+-#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
+-
+ void test_tls_psk_init(const char *keyfile);
+ void test_tls_psk_cleanup(const char *keyfile);
+ 
+-#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+-
+ #endif
+diff --git a/tests/unit/crypto-tls-x509-helpers.c b/tests/unit/crypto-tls-x509-helpers.c
+index 97658592a2..fc609b3fd4 100644
+--- a/tests/unit/crypto-tls-x509-helpers.c
++++ b/tests/unit/crypto-tls-x509-helpers.c
+@@ -24,8 +24,6 @@
+ #include "crypto/init.h"
+ #include "qemu/sockets.h"
+ 
+-#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
+-
+ /*
+  * This stores some static data that is needed when
+  * encoding extensions in the x509 certs
+@@ -504,5 +502,3 @@ void test_tls_discard_cert(QCryptoTLSTestCertReq *req)
+         unlink(req->filename);
+     }
+ }
+-
+-#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/crypto-tls-x509-helpers.h b/tests/unit/crypto-tls-x509-helpers.h
+index 8fcd7785ab..cf6329e653 100644
+--- a/tests/unit/crypto-tls-x509-helpers.h
++++ b/tests/unit/crypto-tls-x509-helpers.h
+@@ -23,14 +23,7 @@
+ 
+ #include <gnutls/gnutls.h>
+ #include <gnutls/x509.h>
+-
+-#if !(defined WIN32) && \
+-    defined(CONFIG_TASN1)
+-# define QCRYPTO_HAVE_TLS_TEST_SUPPORT
+-#endif
+-
+-#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
+-# include <libtasn1.h>
++#include <libtasn1.h>
+ 
+ 
+ /*
+@@ -127,6 +120,4 @@ void test_tls_cleanup(const char *keyfile);
+ 
+ extern const asn1_static_node pkix_asn1_tab[];
+ 
+-#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+-
+ #endif
+diff --git a/tests/unit/meson.build b/tests/unit/meson.build
+index b3bc2109da..3e0504dd21 100644
+--- a/tests/unit/meson.build
++++ b/tests/unit/meson.build
+@@ -83,8 +83,8 @@ if have_block
+     'test-crypto-afsplit': [io],
+     'test-crypto-block': [io],
+   }
+-  if 'CONFIG_GNUTLS' in config_host and \
+-     'CONFIG_TASN1' in config_host and \
++  if gnutls.found() and \
++     tasn1.found() and \
+      'CONFIG_POSIX' in config_host
+     tests += {
+       'test-crypto-tlscredsx509': ['crypto-tls-x509-helpers.c', 'pkix_asn1_tab.c',
+@@ -94,10 +94,10 @@ if have_block
+       'test-io-channel-tls': ['io-channel-helpers.c', 'crypto-tls-x509-helpers.c', 'pkix_asn1_tab.c',
+                               tasn1, io, crypto, gnutls]}
+   endif
+-  if 'CONFIG_AUTH_PAM' in config_host
++  if pam.found()
+     tests += {'test-authz-pam': [authz]}
+   endif
+-  if 'CONFIG_QEMU_PRIVATE_XTS' in config_host
++  if xts == 'private'
+     tests += {'test-crypto-xts': [crypto, io]}
+   endif
+   if 'CONFIG_POSIX' in config_host
+@@ -106,7 +106,7 @@ if have_block
+   if 'CONFIG_REPLICATION' in config_host
+     tests += {'test-replication': [testblock]}
+   endif
+-  if 'CONFIG_NETTLE' in config_host or 'CONFIG_GCRYPT' in config_host
++  if nettle.found() or gcrypt.found()
+     tests += {'test-crypto-pbkdf': [io]}
+   endif
+   if 'CONFIG_EPOLL_CREATE1' in config_host
+diff --git a/tests/unit/pkix_asn1_tab.c b/tests/unit/pkix_asn1_tab.c
+index 15397cf77a..89521408a1 100644
+--- a/tests/unit/pkix_asn1_tab.c
++++ b/tests/unit/pkix_asn1_tab.c
+@@ -6,8 +6,6 @@
+ #include "qemu/osdep.h"
+ #include "crypto-tls-x509-helpers.h"
+ 
+-#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
+-
+ const asn1_static_node pkix_asn1_tab[] = {
+   {"PKIX1", 536875024, 0},
+   {0, 1073741836, 0},
+@@ -1105,4 +1103,3 @@ const asn1_static_node pkix_asn1_tab[] = {
+   {0, 1048586, "2"},
+   {0, 0, 0}
+ };
+-#endif /* QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/test-crypto-tlscredsx509.c b/tests/unit/test-crypto-tlscredsx509.c
+index f487349c32..aab4149b56 100644
+--- a/tests/unit/test-crypto-tlscredsx509.c
++++ b/tests/unit/test-crypto-tlscredsx509.c
+@@ -25,8 +25,6 @@
+ #include "qapi/error.h"
+ #include "qemu/module.h"
+ 
+-#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
+-
+ #define WORKDIR "tests/test-crypto-tlscredsx509-work/"
+ #define KEYFILE WORKDIR "key-ctx.pem"
+ 
+@@ -706,13 +704,3 @@ int main(int argc, char **argv)
+ 
+     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+ }
+-
+-#else /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+-
+-int
+-main(void)
+-{
+-    return EXIT_SUCCESS;
+-}
+-
+-#endif /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/test-crypto-tlssession.c b/tests/unit/test-crypto-tlssession.c
+index 8b2453fa79..5f0da9192c 100644
+--- a/tests/unit/test-crypto-tlssession.c
++++ b/tests/unit/test-crypto-tlssession.c
+@@ -31,8 +31,6 @@
+ #include "qemu/sockets.h"
+ #include "authz/list.h"
+ 
+-#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
+-
+ #define WORKDIR "tests/test-crypto-tlssession-work/"
+ #define PSKFILE WORKDIR "keys.psk"
+ #define KEYFILE WORKDIR "key-ctx.pem"
+@@ -648,13 +646,3 @@ int main(int argc, char **argv)
+ 
+     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+ }
+-
+-#else /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+-
+-int
+-main(void)
+-{
+-    return EXIT_SUCCESS;
+-}
+-
+-#endif /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+diff --git a/tests/unit/test-io-channel-tls.c b/tests/unit/test-io-channel-tls.c
+index ad7554c534..f6fb988c01 100644
+--- a/tests/unit/test-io-channel-tls.c
++++ b/tests/unit/test-io-channel-tls.c
+@@ -34,8 +34,6 @@
+ #include "authz/list.h"
+ #include "qom/object_interfaces.h"
+ 
+-#ifdef QCRYPTO_HAVE_TLS_TEST_SUPPORT
+-
+ #define WORKDIR "tests/test-io-channel-tls-work/"
+ #define KEYFILE WORKDIR "key-ctx.pem"
+ 
+@@ -334,13 +332,3 @@ int main(int argc, char **argv)
+ 
+     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+ }
+-
+-#else /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */
+-
+-int
+-main(void)
+-{
+-    return EXIT_SUCCESS;
+-}
+-
+-#endif /* ! QCRYPTO_HAVE_TLS_TEST_SUPPORT */

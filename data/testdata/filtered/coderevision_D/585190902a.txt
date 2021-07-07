@@ -1,0 +1,56 @@
+diff --git a/hw/gpio/aspeed_gpio.c b/hw/gpio/aspeed_gpio.c
+index 6ae0116be7..34d8acb0e3 100644
+--- a/hw/gpio/aspeed_gpio.c
++++ b/hw/gpio/aspeed_gpio.c
+@@ -10,7 +10,7 @@
+ #include "qemu/host-utils.h"
+ #include "qemu/log.h"
+ #include "hw/gpio/aspeed_gpio.h"
+-#include "hw/misc/aspeed_scu.h"
++#include "include/hw/misc/aspeed_scu.h"
+ #include "qapi/error.h"
+ #include "qapi/visitor.h"
+ #include "hw/irq.h"
+diff --git a/hw/i386/acpi-common.h b/hw/i386/acpi-common.h
+index a68825acf5..b12cd73ea5 100644
+--- a/hw/i386/acpi-common.h
++++ b/hw/i386/acpi-common.h
+@@ -1,9 +1,9 @@
+ #ifndef HW_I386_ACPI_COMMON_H
+ #define HW_I386_ACPI_COMMON_H
++#include "include/hw/acpi/acpi_dev_interface.h"
+ 
+-#include "hw/acpi/acpi_dev_interface.h"
+-#include "hw/acpi/bios-linker-loader.h"
+-#include "hw/i386/x86.h"
++#include "include/hw/acpi/bios-linker-loader.h"
++#include "include/hw/i386/x86.h"
+ 
+ /* Default IOAPIC ID */
+ #define ACPI_BUILD_IOAPIC_ID 0x0
+diff --git a/hw/intc/ppc-uic.c b/hw/intc/ppc-uic.c
+index 60013f2dde..7171de7b35 100644
+--- a/hw/intc/ppc-uic.c
++++ b/hw/intc/ppc-uic.c
+@@ -23,7 +23,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
+-#include "hw/intc/ppc-uic.h"
++#include "include/hw/intc/ppc-uic.h"
+ #include "hw/irq.h"
+ #include "cpu.h"
+ #include "hw/ppc/ppc.h"
+diff --git a/include/monitor/monitor.h b/include/monitor/monitor.h
+index 1211d6e6d6..af3887bb71 100644
+--- a/include/monitor/monitor.h
++++ b/include/monitor/monitor.h
+@@ -4,7 +4,7 @@
+ #include "block/block.h"
+ #include "qapi/qapi-types-misc.h"
+ #include "qemu/readline.h"
+-#include "exec/hwaddr.h"
++#include "include/exec/hwaddr.h"
+ 
+ typedef struct MonitorHMP MonitorHMP;
+ typedef struct MonitorOptions MonitorOptions;

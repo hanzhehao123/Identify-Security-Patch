@@ -1,0 +1,368 @@
+diff --git a/include/exec/memory.h b/include/exec/memory.h
+index c8b9088924..175d7151a5 100644
+--- a/include/exec/memory.h
++++ b/include/exec/memory.h
+@@ -2305,7 +2305,7 @@ static inline uint8_t address_space_ldub_cached(MemoryRegionCache *cache,
+ }
+ 
+ static inline void address_space_stb_cached(MemoryRegionCache *cache,
+-    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint8_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     assert(addr < cache->len);
+     if (likely(cache->ptr)) {
+diff --git a/include/exec/memory_ldst.h.inc b/include/exec/memory_ldst.h.inc
+index 46e6c220d3..7c3a641f7e 100644
+--- a/include/exec/memory_ldst.h.inc
++++ b/include/exec/memory_ldst.h.inc
+@@ -20,7 +20,7 @@
+  */
+ 
+ #ifdef TARGET_ENDIANNESS
+-extern uint32_t glue(address_space_lduw, SUFFIX)(ARG1_DECL,
++extern uint16_t glue(address_space_lduw, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+ extern uint32_t glue(address_space_ldl, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+@@ -29,17 +29,17 @@ extern uint64_t glue(address_space_ldq, SUFFIX)(ARG1_DECL,
+ extern void glue(address_space_stl_notdirty, SUFFIX)(ARG1_DECL,
+     hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stw, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
++    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stl, SUFFIX)(ARG1_DECL,
+     hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stq, SUFFIX)(ARG1_DECL,
+     hwaddr addr, uint64_t val, MemTxAttrs attrs, MemTxResult *result);
+ #else
+-extern uint32_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
++extern uint8_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+-extern uint32_t glue(address_space_lduw_le, SUFFIX)(ARG1_DECL,
++extern uint16_t glue(address_space_lduw_le, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+-extern uint32_t glue(address_space_lduw_be, SUFFIX)(ARG1_DECL,
++extern uint16_t glue(address_space_lduw_be, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+ extern uint32_t glue(address_space_ldl_le, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+@@ -50,11 +50,11 @@ extern uint64_t glue(address_space_ldq_le, SUFFIX)(ARG1_DECL,
+ extern uint64_t glue(address_space_ldq_be, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stb, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
++    hwaddr addr, uint8_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stw_le, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
++    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stw_be, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
++    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stl_le, SUFFIX)(ARG1_DECL,
+     hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stl_be, SUFFIX)(ARG1_DECL,
+diff --git a/include/exec/memory_ldst_cached.h.inc b/include/exec/memory_ldst_cached.h.inc
+index 7bc8790d34..d7834f852c 100644
+--- a/include/exec/memory_ldst_cached.h.inc
++++ b/include/exec/memory_ldst_cached.h.inc
+@@ -24,6 +24,18 @@
+ #define LD_P(size) \
+     glue(glue(ld, size), glue(ENDIANNESS, _p))
+ 
++static inline uint16_t ADDRESS_SPACE_LD_CACHED(uw)(MemoryRegionCache *cache,
++    hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
++{
++    assert(addr < cache->len && 2 <= cache->len - addr);
++    fuzz_dma_read_cb(cache->xlat + addr, 2, cache->mrs.mr);
++    if (likely(cache->ptr)) {
++        return LD_P(uw)(cache->ptr + addr);
++    } else {
++        return ADDRESS_SPACE_LD_CACHED_SLOW(uw)(cache, addr, attrs, result);
++    }
++}
++
+ static inline uint32_t ADDRESS_SPACE_LD_CACHED(l)(MemoryRegionCache *cache,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+@@ -48,18 +60,6 @@ static inline uint64_t ADDRESS_SPACE_LD_CACHED(q)(MemoryRegionCache *cache,
+     }
+ }
+ 
+-static inline uint32_t ADDRESS_SPACE_LD_CACHED(uw)(MemoryRegionCache *cache,
+-    hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+-{
+-    assert(addr < cache->len && 2 <= cache->len - addr);
+-    fuzz_dma_read_cb(cache->xlat + addr, 2, cache->mrs.mr);
+-    if (likely(cache->ptr)) {
+-        return LD_P(uw)(cache->ptr + addr);
+-    } else {
+-        return ADDRESS_SPACE_LD_CACHED_SLOW(uw)(cache, addr, attrs, result);
+-    }
+-}
+-
+ #undef ADDRESS_SPACE_LD_CACHED
+ #undef ADDRESS_SPACE_LD_CACHED_SLOW
+ #undef LD_P
+@@ -71,25 +71,25 @@ static inline uint32_t ADDRESS_SPACE_LD_CACHED(uw)(MemoryRegionCache *cache,
+ #define ST_P(size) \
+     glue(glue(st, size), glue(ENDIANNESS, _p))
+ 
+-static inline void ADDRESS_SPACE_ST_CACHED(l)(MemoryRegionCache *cache,
+-    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
++static inline void ADDRESS_SPACE_ST_CACHED(w)(MemoryRegionCache *cache,
++    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+-    assert(addr < cache->len && 4 <= cache->len - addr);
++    assert(addr < cache->len && 2 <= cache->len - addr);
+     if (likely(cache->ptr)) {
+-        ST_P(l)(cache->ptr + addr, val);
++        ST_P(w)(cache->ptr + addr, val);
+     } else {
+-        ADDRESS_SPACE_ST_CACHED_SLOW(l)(cache, addr, val, attrs, result);
++        ADDRESS_SPACE_ST_CACHED_SLOW(w)(cache, addr, val, attrs, result);
+     }
+ }
+ 
+-static inline void ADDRESS_SPACE_ST_CACHED(w)(MemoryRegionCache *cache,
++static inline void ADDRESS_SPACE_ST_CACHED(l)(MemoryRegionCache *cache,
+     hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+-    assert(addr < cache->len && 2 <= cache->len - addr);
++    assert(addr < cache->len && 4 <= cache->len - addr);
+     if (likely(cache->ptr)) {
+-        ST_P(w)(cache->ptr + addr, val);
++        ST_P(l)(cache->ptr + addr, val);
+     } else {
+-        ADDRESS_SPACE_ST_CACHED_SLOW(w)(cache, addr, val, attrs, result);
++        ADDRESS_SPACE_ST_CACHED_SLOW(l)(cache, addr, val, attrs, result);
+     }
+ }
+ 
+diff --git a/include/exec/memory_ldst_phys.h.inc b/include/exec/memory_ldst_phys.h.inc
+index b9dd53c389..ecd678610d 100644
+--- a/include/exec/memory_ldst_phys.h.inc
++++ b/include/exec/memory_ldst_phys.h.inc
+@@ -20,6 +20,12 @@
+  */
+ 
+ #ifdef TARGET_ENDIANNESS
++static inline uint16_t glue(lduw_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
++{
++    return glue(address_space_lduw, SUFFIX)(ARG1, addr,
++                                            MEMTXATTRS_UNSPECIFIED, NULL);
++}
++
+ static inline uint32_t glue(ldl_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+ {
+     return glue(address_space_ldl, SUFFIX)(ARG1, addr,
+@@ -32,10 +38,10 @@ static inline uint64_t glue(ldq_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+                                            MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline uint32_t glue(lduw_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
++static inline void glue(stw_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint16_t val)
+ {
+-    return glue(address_space_lduw, SUFFIX)(ARG1, addr,
+-                                            MEMTXATTRS_UNSPECIFIED, NULL);
++    glue(address_space_stw, SUFFIX)(ARG1, addr, val,
++                                    MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+ static inline void glue(stl_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+@@ -44,18 +50,30 @@ static inline void glue(stl_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+                                     MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline void glue(stw_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+-{
+-    glue(address_space_stw, SUFFIX)(ARG1, addr, val,
+-                                    MEMTXATTRS_UNSPECIFIED, NULL);
+-}
+-
+ static inline void glue(stq_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint64_t val)
+ {
+     glue(address_space_stq, SUFFIX)(ARG1, addr, val,
+                                     MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ #else
++static inline uint8_t glue(ldub_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
++{
++    return glue(address_space_ldub, SUFFIX)(ARG1, addr,
++                                            MEMTXATTRS_UNSPECIFIED, NULL);
++}
++
++static inline uint16_t glue(lduw_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
++{
++    return glue(address_space_lduw_le, SUFFIX)(ARG1, addr,
++                                               MEMTXATTRS_UNSPECIFIED, NULL);
++}
++
++static inline uint16_t glue(lduw_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
++{
++    return glue(address_space_lduw_be, SUFFIX)(ARG1, addr,
++                                               MEMTXATTRS_UNSPECIFIED, NULL);
++}
++
+ static inline uint32_t glue(ldl_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+ {
+     return glue(address_space_ldl_le, SUFFIX)(ARG1, addr,
+@@ -80,22 +98,22 @@ static inline uint64_t glue(ldq_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+                                               MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline uint32_t glue(ldub_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
++static inline void glue(stb_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint8_t val)
+ {
+-    return glue(address_space_ldub, SUFFIX)(ARG1, addr,
+-                                            MEMTXATTRS_UNSPECIFIED, NULL);
++    glue(address_space_stb, SUFFIX)(ARG1, addr, val,
++                                    MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline uint32_t glue(lduw_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
++static inline void glue(stw_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint16_t val)
+ {
+-    return glue(address_space_lduw_le, SUFFIX)(ARG1, addr,
+-                                               MEMTXATTRS_UNSPECIFIED, NULL);
++    glue(address_space_stw_le, SUFFIX)(ARG1, addr, val,
++                                       MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline uint32_t glue(lduw_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
++static inline void glue(stw_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint16_t val)
+ {
+-    return glue(address_space_lduw_be, SUFFIX)(ARG1, addr,
+-                                               MEMTXATTRS_UNSPECIFIED, NULL);
++    glue(address_space_stw_be, SUFFIX)(ARG1, addr, val,
++                                       MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+ static inline void glue(stl_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+@@ -110,24 +128,6 @@ static inline void glue(stl_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t va
+                                        MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline void glue(stb_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+-{
+-    glue(address_space_stb, SUFFIX)(ARG1, addr, val,
+-                                    MEMTXATTRS_UNSPECIFIED, NULL);
+-}
+-
+-static inline void glue(stw_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+-{
+-    glue(address_space_stw_le, SUFFIX)(ARG1, addr, val,
+-                                       MEMTXATTRS_UNSPECIFIED, NULL);
+-}
+-
+-static inline void glue(stw_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+-{
+-    glue(address_space_stw_be, SUFFIX)(ARG1, addr, val,
+-                                       MEMTXATTRS_UNSPECIFIED, NULL);
+-}
+-
+ static inline void glue(stq_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint64_t val)
+ {
+     glue(address_space_stq_le, SUFFIX)(ARG1, addr, val,
+diff --git a/memory_ldst.c.inc b/memory_ldst.c.inc
+index b56e961967..84b868f294 100644
+--- a/memory_ldst.c.inc
++++ b/memory_ldst.c.inc
+@@ -157,7 +157,7 @@ uint64_t glue(address_space_ldq_be, SUFFIX)(ARG1_DECL,
+                                                     DEVICE_BIG_ENDIAN);
+ }
+ 
+-uint32_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
++uint8_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+     uint8_t *ptr;
+@@ -193,7 +193,7 @@ uint32_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
+ }
+ 
+ /* warning: addr must be aligned */
+-static inline uint32_t glue(address_space_lduw_internal, SUFFIX)(ARG1_DECL,
++static inline uint16_t glue(address_space_lduw_internal, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result,
+     enum device_endian endian)
+ {
+@@ -240,21 +240,21 @@ static inline uint32_t glue(address_space_lduw_internal, SUFFIX)(ARG1_DECL,
+     return val;
+ }
+ 
+-uint32_t glue(address_space_lduw, SUFFIX)(ARG1_DECL,
++uint16_t glue(address_space_lduw, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+     return glue(address_space_lduw_internal, SUFFIX)(ARG1, addr, attrs, result,
+                                                      DEVICE_NATIVE_ENDIAN);
+ }
+ 
+-uint32_t glue(address_space_lduw_le, SUFFIX)(ARG1_DECL,
++uint16_t glue(address_space_lduw_le, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+     return glue(address_space_lduw_internal, SUFFIX)(ARG1, addr, attrs, result,
+                                                      DEVICE_LITTLE_ENDIAN);
+ }
+ 
+-uint32_t glue(address_space_lduw_be, SUFFIX)(ARG1_DECL,
++uint16_t glue(address_space_lduw_be, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+     return glue(address_space_lduw_internal, SUFFIX)(ARG1, addr, attrs, result,
+@@ -366,7 +366,7 @@ void glue(address_space_stl_be, SUFFIX)(ARG1_DECL,
+ }
+ 
+ void glue(address_space_stb, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint8_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     uint8_t *ptr;
+     MemoryRegion *mr;
+@@ -398,7 +398,7 @@ void glue(address_space_stb, SUFFIX)(ARG1_DECL,
+ 
+ /* warning: addr must be aligned */
+ static inline void glue(address_space_stw_internal, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint32_t val, MemTxAttrs attrs,
++    hwaddr addr, uint16_t val, MemTxAttrs attrs,
+     MemTxResult *result, enum device_endian endian)
+ {
+     uint8_t *ptr;
+@@ -441,21 +441,21 @@ static inline void glue(address_space_stw_internal, SUFFIX)(ARG1_DECL,
+ }
+ 
+ void glue(address_space_stw, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     glue(address_space_stw_internal, SUFFIX)(ARG1, addr, val, attrs, result,
+                                              DEVICE_NATIVE_ENDIAN);
+ }
+ 
+ void glue(address_space_stw_le, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     glue(address_space_stw_internal, SUFFIX)(ARG1, addr, val, attrs, result,
+                                              DEVICE_LITTLE_ENDIAN);
+ }
+ 
+ void glue(address_space_stw_be, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     glue(address_space_stw_internal, SUFFIX)(ARG1, addr, val, attrs, result,
+                                DEVICE_BIG_ENDIAN);
+diff --git a/monitor/hmp-cmds.c b/monitor/hmp-cmds.c
+index d10ee14110..d9bef63373 100644
+--- a/monitor/hmp-cmds.c
++++ b/monitor/hmp-cmds.c
+@@ -1133,7 +1133,7 @@ void hmp_loadvm(Monitor *mon, const QDict *qdict)
+ 
+     vm_stop(RUN_STATE_RESTORE_VM);
+ 
+-    if (load_snapshot(name, NULL, false, NULL, &err) && saved_vm_running) {
++    if (!load_snapshot(name, NULL, false, NULL, &err) && saved_vm_running) {
+         vm_start();
+     }
+     hmp_handle_error(mon, err);

@@ -1,0 +1,48 @@
+commit b6d73e9cb1c620960ca7d864ee0725f8a55fe778
+Merge: 18e53dff93 f51f8e3591
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 15:43:26 2021 +0100
+
+    Merge remote-tracking branch 'remotes/bonzini-gitlab/tags/for-upstream' into staging
+    
+    * avoid deprecation warnings for SASL on macOS 10.11 or newer
+    * fix -readconfig when config blocks have an id (like [chardev "qmp"])
+    * Error* initialization fixes
+    * Improvements to ESP emulation (Mark)
+    * Allow creating noreserve memory backends (David)
+    * Improvements to query-memdev (David)
+    * Bump compiler to C11 (Richard)
+    * First round of SVM fixes from GSoC project (Lara)
+    
+    # gpg: Signature made Wed 16 Jun 2021 16:37:49 BST
+    # gpg:                using RSA key F13338574B662389866C7682BFFBD25F78C7AE83
+    # gpg:                issuer "pbonzini@redhat.com"
+    # gpg: Good signature from "Paolo Bonzini <bonzini@gnu.org>" [full]
+    # gpg:                 aka "Paolo Bonzini <pbonzini@redhat.com>" [full]
+    # Primary key fingerprint: 46F5 9FBD 57D6 12E7 BFD4  E2F7 7E15 100C CD36 69B1
+    #      Subkey fingerprint: F133 3857 4B66 2389 866C  7682 BFFB D25F 78C7 AE83
+    
+    * remotes/bonzini-gitlab/tags/for-upstream: (45 commits)
+      configure: Remove probe for _Static_assert
+      qemu/compiler: Remove QEMU_GENERIC
+      include/qemu/lockable: Use _Generic instead of QEMU_GENERIC
+      util: Use unique type for QemuRecMutex in thread-posix.h
+      util: Pass file+line to qemu_rec_mutex_unlock_impl
+      util: Use real functions for thread-posix QemuRecMutex
+      softfloat: Use _Generic instead of QEMU_GENERIC
+      configure: Use -std=gnu11
+      target/i386: Added Intercept CR0 writes check
+      target/i386: Added consistency checks for CR0
+      target/i386: Added consistency checks for VMRUN intercept and ASID
+      target/i386: Refactored intercept checks into cpu_svm_has_intercept
+      configure: map x32 to cpu_family x86_64 for meson
+      hmp: Print "reserve" property of memory backends with "info memdev"
+      qmp: Include "reserve" property of memory backends
+      hmp: Print "share" property of memory backends with "info memdev"
+      qmp: Include "share" property of memory backends
+      qmp: Clarify memory backend properties returned via query-memdev
+      hostmem: Wire up RAM_NORESERVE via "reserve" property
+      util/mmap-alloc: Support RAM_NORESERVE via MAP_NORESERVE under Linux
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

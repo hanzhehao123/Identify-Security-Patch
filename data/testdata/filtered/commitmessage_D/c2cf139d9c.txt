@@ -1,0 +1,14 @@
+commit c2cf139d9c2f8f8b86686fe0e94a9daba27195a6
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:30 2021 +0200
+
+    cpu: Move AVR target vmsd field from CPUClass to DeviceClass
+    
+    See rationale in previous commit. Targets should use the vmsd field
+    of DeviceClass, not CPUClass. As migration is not important on the
+    AVR target, break the migration compatibility and set the DeviceClass
+    vmsd field. To feel safer, increment the vmstate version.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Message-Id: <20210517105140.1062037-14-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

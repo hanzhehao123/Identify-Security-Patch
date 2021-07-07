@@ -1,0 +1,18 @@
+commit d57bc3c1098f1614db1c5763f3672fe01d768972
+Author: Alexander Graf <agraf@csgraf.de>
+Date:   Thu Jun 3 14:09:30 2021 +0100
+
+    hvf: Move assert_hvf_ok() into common directory
+    
+    Until now, Hypervisor.framework has only been available on x86_64 systems.
+    With Apple Silicon shipping now, it extends its reach to aarch64. To
+    prepare for support for multiple architectures, let's start moving common
+    code out into its own accel directory.
+    
+    This patch moves assert_hvf_ok() and introduces generic build infrastructure.
+    
+    Signed-off-by: Alexander Graf <agraf@csgraf.de>
+    Reviewed-by: Sergio Lopez <slp@redhat.com>
+    Message-id: 20210519202253.76782-2-agraf@csgraf.de
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

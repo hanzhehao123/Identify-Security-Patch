@@ -1,0 +1,15 @@
+commit 63de93530fe7d56dc0ba8b95f1dc8ba43ec237f3
+Author: Alex Bennée <alex.bennee@linaro.org>
+Date:   Thu May 27 17:03:15 2021 +0100
+
+    meson.build: fix cosmetics of compiler display
+    
+    If you specify something like --cc="ccache gcc" on your configure line
+    the summary output misses the rest of the cmd_array. Do some string
+    joining to make it complete.
+    
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Tested-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210527160319.19834-3-alex.bennee@linaro.org>

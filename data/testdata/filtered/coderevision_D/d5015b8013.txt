@@ -1,0 +1,117 @@
+diff --git a/backends/hostmem-memfd.c b/backends/hostmem-memfd.c
+index 3076da146d..da75e27057 100644
+--- a/backends/hostmem-memfd.c
++++ b/backends/hostmem-memfd.c
+@@ -35,7 +35,6 @@ static void
+ memfd_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+ {
+     HostMemoryBackendMemfd *m = MEMORY_BACKEND_MEMFD(backend);
+-    uint32_t ram_flags;
+     char *name;
+     int fd;
+ 
+@@ -53,9 +52,9 @@ memfd_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+     }
+ 
+     name = host_memory_backend_get_name(backend);
+-    ram_flags = backend->share ? RAM_SHARED : 0;
+-    memory_region_init_ram_from_fd(&backend->mr, OBJECT(backend), name,
+-                                   backend->size, ram_flags, fd, 0, errp);
++    memory_region_init_ram_from_fd(&backend->mr, OBJECT(backend),
++                                   name, backend->size,
++                                   backend->share, fd, 0, errp);
+     g_free(name);
+ }
+ 
+diff --git a/hw/misc/ivshmem.c b/hw/misc/ivshmem.c
+index 1ba4a98377..a1fa4878be 100644
+--- a/hw/misc/ivshmem.c
++++ b/hw/misc/ivshmem.c
+@@ -493,8 +493,9 @@ static void process_msg_shmem(IVShmemState *s, int fd, Error **errp)
+     size = buf.st_size;
+ 
+     /* mmap the region and map into the BAR2 */
+-    memory_region_init_ram_from_fd(&s->server_bar2, OBJECT(s), "ivshmem.bar2",
+-                                   size, RAM_SHARED, fd, 0, &local_err);
++    memory_region_init_ram_from_fd(&s->server_bar2, OBJECT(s),
++                                   "ivshmem.bar2", size, true, fd, 0,
++                                   &local_err);
+     if (local_err) {
+         error_propagate(errp, local_err);
+         return;
+diff --git a/include/exec/memory.h b/include/exec/memory.h
+index 8aa69a10d7..b114f5454b 100644
+--- a/include/exec/memory.h
++++ b/include/exec/memory.h
+@@ -1005,7 +1005,10 @@ void memory_region_init_resizeable_ram(MemoryRegion *mr,
+  * @size: size of the region.
+  * @align: alignment of the region base address; if 0, the default alignment
+  *         (getpagesize()) will be used.
+- * @ram_flags: RamBlock flags. Supported flags: RAM_SHARED, RAM_PMEM.
++ * @ram_flags: Memory region features:
++ *             - RAM_SHARED: memory must be mmaped with the MAP_SHARED flag
++ *             - RAM_PMEM: the memory is persistent memory
++ *             Other bits are ignored now.
+  * @path: the path in which to allocate the RAM.
+  * @readonly: true to open @path for reading, false for read/write.
+  * @errp: pointer to Error*, to store an error if it happens.
+@@ -1031,7 +1034,7 @@ void memory_region_init_ram_from_file(MemoryRegion *mr,
+  * @owner: the object that tracks the region's reference count
+  * @name: the name of the region.
+  * @size: size of the region.
+- * @ram_flags: RamBlock flags. Supported flags: RAM_SHARED, RAM_PMEM.
++ * @share: %true if memory must be mmaped with the MAP_SHARED flag
+  * @fd: the fd to mmap.
+  * @offset: offset within the file referenced by fd
+  * @errp: pointer to Error*, to store an error if it happens.
+@@ -1043,7 +1046,7 @@ void memory_region_init_ram_from_fd(MemoryRegion *mr,
+                                     Object *owner,
+                                     const char *name,
+                                     uint64_t size,
+-                                    uint32_t ram_flags,
++                                    bool share,
+                                     int fd,
+                                     ram_addr_t offset,
+                                     Error **errp);
+diff --git a/include/exec/ram_addr.h b/include/exec/ram_addr.h
+index a7e3378340..3cb9791df3 100644
+--- a/include/exec/ram_addr.h
++++ b/include/exec/ram_addr.h
+@@ -104,7 +104,11 @@ long qemu_maxrampagesize(void);
+  * Parameters:
+  *  @size: the size in bytes of the ram block
+  *  @mr: the memory region where the ram block is
+- *  @ram_flags: RamBlock flags. Supported flags: RAM_SHARED, RAM_PMEM.
++ *  @ram_flags: specify the properties of the ram block, which can be one
++ *              or bit-or of following values
++ *              - RAM_SHARED: mmap the backing file or device with MAP_SHARED
++ *              - RAM_PMEM: the backend @mem_path or @fd is persistent memory
++ *              Other bits are ignored.
+  *  @mem_path or @fd: specify the backing file or device
+  *  @readonly: true to open @path for reading, false for read/write.
+  *  @errp: pointer to Error*, to store an error if it happens
+diff --git a/softmmu/memory.c b/softmmu/memory.c
+index f777504ac5..c19b0be6b1 100644
+--- a/softmmu/memory.c
++++ b/softmmu/memory.c
+@@ -1609,7 +1609,7 @@ void memory_region_init_ram_from_fd(MemoryRegion *mr,
+                                     Object *owner,
+                                     const char *name,
+                                     uint64_t size,
+-                                    uint32_t ram_flags,
++                                    bool share,
+                                     int fd,
+                                     ram_addr_t offset,
+                                     Error **errp)
+@@ -1619,8 +1619,9 @@ void memory_region_init_ram_from_fd(MemoryRegion *mr,
+     mr->ram = true;
+     mr->terminates = true;
+     mr->destructor = memory_region_destructor_ram;
+-    mr->ram_block = qemu_ram_alloc_from_fd(size, mr, ram_flags, fd, offset,
+-                                           false, &err);
++    mr->ram_block = qemu_ram_alloc_from_fd(size, mr,
++                                           share ? RAM_SHARED : 0,
++                                           fd, offset, false, &err);
+     if (err) {
+         mr->size = int128_zero();
+         object_unparent(OBJECT(mr));

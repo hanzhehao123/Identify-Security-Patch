@@ -1,0 +1,71 @@
+diff --git a/target/s390x/helper.h b/target/s390x/helper.h
+index b5ba159402..dca436f710 100644
+--- a/target/s390x/helper.h
++++ b/target/s390x/helper.h
+@@ -285,7 +285,6 @@ DEF_HELPER_FLAGS_4(gvec_vfi32, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vfi64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vfi128, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vfll32, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_4(gvec_vfll64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vflr64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfm32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfm64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+diff --git a/target/s390x/translate_vx.c.inc b/target/s390x/translate_vx.c.inc
+index 472afca45e..822a9d0513 100644
+--- a/target/s390x/translate_vx.c.inc
++++ b/target/s390x/translate_vx.c.inc
+@@ -2781,27 +2781,14 @@ static DisasJumpType op_vfll(DisasContext *s, DisasOps *o)
+ {
+     const uint8_t fpf = get_field(s, m3);
+     const uint8_t m4 = get_field(s, m4);
+-    gen_helper_gvec_2_ptr *fn = NULL;
+ 
+-    switch (fpf) {
+-    case FPF_SHORT:
+-        fn = gen_helper_gvec_vfll32;
+-        break;
+-    case FPF_LONG:
+-        if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-            fn = gen_helper_gvec_vfll64;
+-        }
+-        break;
+-    default:
+-        break;
+-    }
+-
+-    if (!fn || extract32(m4, 0, 3)) {
++    if (fpf != FPF_SHORT || extract32(m4, 0, 3)) {
+         gen_program_exception(s, PGM_SPECIFICATION);
+         return DISAS_NORETURN;
+     }
+ 
+-    gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2), cpu_env, m4, fn);
++    gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2), cpu_env,
++                   m4, gen_helper_gvec_vfll32);
+     return DISAS_NEXT;
+ }
+ 
+diff --git a/target/s390x/vec_fpu_helper.c b/target/s390x/vec_fpu_helper.c
+index 75e3212582..fba5261ac4 100644
+--- a/target/s390x/vec_fpu_helper.c
++++ b/target/s390x/vec_fpu_helper.c
+@@ -522,19 +522,6 @@ void HELPER(gvec_vfll32)(void *v1, const void *v2, CPUS390XState *env,
+     *(S390Vector *)v1 = tmp;
+ }
+ 
+-void HELPER(gvec_vfll64)(void *v1, const void *v2, CPUS390XState *env,
+-                         uint32_t desc)
+-{
+-    /* load from even element */
+-    const float128 ret = float64_to_float128(s390_vec_read_float64(v2, 0),
+-                                             &env->fpu_status);
+-    uint8_t vxc, vec_exc = 0;
+-
+-    vxc = check_ieee_exc(env, 0, false, &vec_exc);
+-    handle_ieee_exc(env, vxc, vec_exc, GETPC());
+-    s390_vec_write_float128(v1, ret);
+-}
+-
+ void HELPER(gvec_vflr64)(void *v1, const void *v2, CPUS390XState *env,
+                          uint32_t desc)
+ {

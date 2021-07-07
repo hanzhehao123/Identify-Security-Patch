@@ -1,0 +1,12 @@
+commit 7e435b9ea645b370aa32364fa22f8e4cd9e7d9ec
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu May 20 16:28:35 2021 +0100
+
+    target/arm: Add MVE check to VMOV_reg_sp and VMOV_reg_dp
+    
+    Split out the handling of VMOV_reg_sp and VMOV_reg_dp so that we can
+    permit the insns if either FP or MVE are present.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210520152840.24453-5-peter.maydell@linaro.org

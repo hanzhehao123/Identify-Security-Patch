@@ -1,0 +1,119 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index f9d4b242be..7356385d60 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -157,11 +157,3 @@ DEF_HELPER_FLAGS_4(mve_vmlsldavsh, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+ DEF_HELPER_FLAGS_4(mve_vmlsldavsw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+ DEF_HELPER_FLAGS_4(mve_vmlsldavxsh, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+ DEF_HELPER_FLAGS_4(mve_vmlsldavxsw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+-
+-DEF_HELPER_FLAGS_4(mve_vrmlaldavhsw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+-DEF_HELPER_FLAGS_4(mve_vrmlaldavhxsw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+-
+-DEF_HELPER_FLAGS_4(mve_vrmlaldavhuw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+-
+-DEF_HELPER_FLAGS_4(mve_vrmlsldavhsw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+-DEF_HELPER_FLAGS_4(mve_vrmlsldavhxsw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index ac68f072bb..1be2d6b270 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -143,14 +143,7 @@ VDUP             1110 1110 1 0 10 ... 0 .... 1011 . 0 0 1 0000 @vdup size=2
+ 
+ @vmlaldav        .... .... . ... ... . ... . .... .... qm:3 . \
+                  qn=%qn rdahi=%rdahi rdalo=%rdalo size=%size_16 &vmlaldav
+-@vmlaldav_nosz   .... .... . ... ... . ... . .... .... qm:3 . \
+-                 qn=%qn rdahi=%rdahi rdalo=%rdalo size=0 &vmlaldav
+ VMLALDAV_S       1110 1110 1 ... ... . ... x:1 1110 . 0 a:1 0 ... 0 @vmlaldav
+ VMLALDAV_U       1111 1110 1 ... ... . ... x:1 1110 . 0 a:1 0 ... 0 @vmlaldav
+ 
+ VMLSLDAV         1110 1110 1 ... ... . ... x:1 1110 . 0 a:1 0 ... 1 @vmlaldav
+-
+-VRMLALDAVH_S     1110 1110 1 ... ... 0 ... x:1 1111 . 0 a:1 0 ... 0 @vmlaldav_nosz
+-VRMLALDAVH_U     1111 1110 1 ... ... 0 ... x:1 1111 . 0 a:1 0 ... 0 @vmlaldav_nosz
+-
+-VRMLSLDAVH       1111 1110 1 ... ... 0 ... x:1 1110 . 0 a:1 0 ... 1 @vmlaldav_nosz
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index c1427b0f02..b496e1f4d3 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -18,7 +18,6 @@
+  */
+ 
+ #include "qemu/osdep.h"
+-#include "qemu/int128.h"
+ #include "cpu.h"
+ #include "internals.h"
+ #include "vec_internal.h"
+@@ -528,39 +527,3 @@ DO_LDAV(vmlsldavsh, 2, int16_t, false, +=, -=)
+ DO_LDAV(vmlsldavxsh, 2, int16_t, true, +=, -=)
+ DO_LDAV(vmlsldavsw, 4, int32_t, false, +=, -=)
+ DO_LDAV(vmlsldavxsw, 4, int32_t, true, +=, -=)
+-
+-/*
+- * Rounding multiply add long dual accumulate high: we must keep
+- * a 72-bit internal accumulator value and return the top 64 bits.
+- */
+-#define DO_LDAVH(OP, ESIZE, TYPE, XCHG, EVENACC, ODDACC, TO128)         \
+-    uint64_t HELPER(glue(mve_, OP))(CPUARMState *env, void *vn,         \
+-                                    void *vm, uint64_t a)               \
+-    {                                                                   \
+-        uint16_t mask = mve_element_mask(env);                          \
+-        unsigned e;                                                     \
+-        TYPE *n = vn, *m = vm;                                          \
+-        Int128 acc = int128_lshift(TO128(a), 8);                        \
+-        for (e = 0; e < 16 / ESIZE; e++, mask >>= ESIZE) {              \
+-            if (mask & 1) {                                             \
+-                if (e & 1) {                                            \
+-                    acc = ODDACC(acc, TO128(n[H##ESIZE(e - 1 * XCHG)] * \
+-                                            m[H##ESIZE(e)]));           \
+-                } else {                                                \
+-                    acc = EVENACC(acc, TO128(n[H##ESIZE(e + 1 * XCHG)] * \
+-                                             m[H##ESIZE(e)]));          \
+-                }                                                       \
+-                acc = int128_add(acc, int128_make64(1 << 7));           \
+-            }                                                           \
+-        }                                                               \
+-        mve_advance_vpt(env);                                           \
+-        return int128_getlo(int128_rshift(acc, 8));                     \
+-    }
+-
+-DO_LDAVH(vrmlaldavhsw, 4, int32_t, false, int128_add, int128_add, int128_makes64)
+-DO_LDAVH(vrmlaldavhxsw, 4, int32_t, true, int128_add, int128_add, int128_makes64)
+-
+-DO_LDAVH(vrmlaldavhuw, 4, uint32_t, false, int128_add, int128_add, int128_make64)
+-
+-DO_LDAVH(vrmlsldavhsw, 4, int32_t, false, int128_add, int128_sub, int128_makes64)
+-DO_LDAVH(vrmlsldavhxsw, 4, int32_t, true, int128_add, int128_sub, int128_makes64)
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index a0c4f10a93..77b461c218 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -472,27 +472,3 @@ static bool trans_VMLSLDAV(DisasContext *s, arg_vmlaldav *a)
+     };
+     return do_long_dual_acc(s, a, fns[a->size][a->x]);
+ }
+-
+-static bool trans_VRMLALDAVH_S(DisasContext *s, arg_vmlaldav *a)
+-{
+-    static MVEGenDualAccOpFn * const fns[] = {
+-        gen_helper_mve_vrmlaldavhsw, gen_helper_mve_vrmlaldavhxsw,
+-    };
+-    return do_long_dual_acc(s, a, fns[a->x]);
+-}
+-
+-static bool trans_VRMLALDAVH_U(DisasContext *s, arg_vmlaldav *a)
+-{
+-    static MVEGenDualAccOpFn * const fns[] = {
+-        gen_helper_mve_vrmlaldavhuw, NULL,
+-    };
+-    return do_long_dual_acc(s, a, fns[a->x]);
+-}
+-
+-static bool trans_VRMLSLDAVH(DisasContext *s, arg_vmlaldav *a)
+-{
+-    static MVEGenDualAccOpFn * const fns[] = {
+-        gen_helper_mve_vrmlsldavhsw, gen_helper_mve_vrmlsldavhxsw,
+-    };
+-    return do_long_dual_acc(s, a, fns[a->x]);
+-}

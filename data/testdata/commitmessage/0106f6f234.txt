@@ -1,0 +1,30 @@
+commit 0106f6f234d6361bb99cabfa48a953c929a3ca90
+Author: Vivek Goyal <vgoyal@redhat.com>
+Date:   Tue May 18 17:35:35 2021 -0400
+
+    virtiofsd: get rid of in_sg_left variable
+    
+    in_sg_left seems to be being used primarly for debugging purpose. It is
+    keeping track of how many bytes are left in the scatter list we are
+    reading into.
+    
+    We already have another variable "len" which keeps track how many bytes
+    are left to be read. And in_sg_left is greater than or equal to len. We
+    have already ensured that in the beginning of function.
+    
+        if (in_len < tosend_len) {
+            fuse_log(FUSE_LOG_ERR, "%s: elem %d too small for data len %zd\n",
+                     __func__, elem->index, tosend_len);
+            ret = E2BIG;
+            goto err;
+        }
+    
+    So in_sg_left seems like a redundant variable. It probably was useful for
+    debugging when code was being developed. Get rid of it. It helps simplify
+    this function.
+    
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Signed-off-by: Vivek Goyal <vgoyal@redhat.com>
+    Message-Id: <20210518213538.693422-5-vgoyal@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

@@ -1,0 +1,40 @@
+diff --git a/hw/acpi/aml-build.c b/hw/acpi/aml-build.c
+index d5103e6d7b..f0035d2b4a 100644
+--- a/hw/acpi/aml-build.c
++++ b/hw/acpi/aml-build.c
+@@ -2044,7 +2044,6 @@ build_hdr:
+                  "FACP", tbl->len - fadt_start, f->rev, oem_id, oem_table_id);
+ }
+ 
+-#ifdef CONFIG_TPM
+ /*
+  * build_tpm2 - Build the TPM2 table as specified in
+  * table 7: TCG Hardware Interface Description Table Format for TPM 2.0
+@@ -2102,7 +2101,6 @@ void build_tpm2(GArray *table_data, BIOSLinker *linker, GArray *tcpalog,
+                  (void *)(table_data->data + tpm2_start),
+                  "TPM2", table_data->len - tpm2_start, 4, oem_id, oem_table_id);
+ }
+-#endif
+ 
+ Aml *build_crs(PCIHostState *host, CrsRangeSet *range_set, uint32_t io_offset,
+                uint32_t mmio32_offset, uint64_t mmio64_offset,
+diff --git a/include/hw/acpi/tpm.h b/include/hw/acpi/tpm.h
+index 559ba6906c..1a2a57a21f 100644
+--- a/include/hw/acpi/tpm.h
++++ b/include/hw/acpi/tpm.h
+@@ -21,8 +21,6 @@
+ #include "hw/acpi/aml-build.h"
+ #include "sysemu/tpm.h"
+ 
+-#ifdef CONFIG_TPM
+-
+ #define TPM_TIS_ADDR_BASE           0xFED40000
+ #define TPM_TIS_ADDR_SIZE           0x5000
+ 
+@@ -211,6 +209,4 @@ REG32(CRB_DATA_BUFFER, 0x80)
+ 
+ void tpm_build_ppi_acpi(TPMIf *tpm, Aml *dev);
+ 
+-#endif /* CONFIG_TPM */
+-
+ #endif /* HW_ACPI_TPM_H */

@@ -1,0 +1,27 @@
+commit b444f5c079fdb8019d2c59ffa6b67069e857f4e1
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 10 13:43:20 2021 +0200
+
+    util/mmap-alloc: Pass flags instead of separate bools to qemu_ram_mmap()
+    
+    Let's pass flags instead of bools to prepare for passing other flags and
+    update the documentation of qemu_ram_mmap(). Introduce new QEMU_MAP_
+    flags that abstract the mmap() PROT_ and MAP_ flag handling and simplify
+    it.
+    
+    We expose only flags that are currently supported by qemu_ram_mmap().
+    Maybe, we'll see qemu_mmap() in the future as well that can implement these
+    flags.
+    
+    Note: We don't use MAP_ flags as some flags (e.g., MAP_SYNC) are only
+    defined for some systems and we want to always be able to identify
+    these flags reliably inside qemu_ram_mmap() -- for example, to properly
+    warn when some future flags are not available or effective on a system.
+    Also, this way we can simplify PROT_ handling as well.
+    
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com> for memory backend and machine core
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210510114328.21835-8-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

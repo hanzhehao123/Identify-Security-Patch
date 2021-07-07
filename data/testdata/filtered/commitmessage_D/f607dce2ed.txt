@@ -1,0 +1,21 @@
+commit f607dce2ed0a78bee3da6482c7abe58a80df2974
+Author: Guenter Roeck <linux@roeck-us.net>
+Date:   Mon May 3 06:53:00 2021 -0700
+
+    hw/net/imx_fec: return 0xffff when accessing non-existing PHY
+    
+    If a PHY does not exist, attempts to read from it should return 0xffff.
+    Otherwise the Linux kernel will believe that a PHY is there and select
+    the non-existing PHY. This in turn will result in network errors later
+    on since the real PHY is not selected or configured.
+    
+    Since reading from or writing to a non-existing PHY is not an emulation
+    error, replace guest error messages with traces.
+    
+    Fixes: 461c51ad4275 ("Add a phy-num property to the i.MX FEC emulator")
+    Cc: Jean-Christophe Dubois <jcd@tribudubois.net>
+    Reviewed-by: Bin Meng <bmeng.cn@gmail.com>
+    Tested-by: Bin Meng <bmeng.cn@gmail.com>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Guenter Roeck <linux@roeck-us.net>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

@@ -1,0 +1,52 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 5cd4e7d736..5181d3b941 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -109,10 +109,3 @@ DEF_HELPER_FLAGS_4(mve_vminsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vminub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vminuh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vminuw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vabdsb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vabdsh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vabdsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vabdub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vabduh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vabduw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index 087d3db2a3..42d5504500 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -93,9 +93,6 @@ VMAX_U           111 1 1111 0 . .. ... 0 ... 0 0110 . 1 . 0 ... 0 @2op
+ VMIN_S           111 0 1111 0 . .. ... 0 ... 0 0110 . 1 . 1 ... 0 @2op
+ VMIN_U           111 1 1111 0 . .. ... 0 ... 0 0110 . 1 . 1 ... 0 @2op
+ 
+-VABD_S           111 0 1111 0 . .. ... 0 ... 0 0111 . 1 . 0 ... 0 @2op
+-VABD_U           111 1 1111 0 . .. ... 0 ... 0 0111 . 1 . 0 ... 0 @2op
+-
+ # Vector miscellaneous
+ 
+ VCLS             1111 1111 1 . 11 .. 00 ... 0 0100 01 . 0 ... 0 @1op
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index 63eacd7349..c040e42bda 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -424,8 +424,3 @@ DO_2OP_S(vmaxs, DO_MAX)
+ DO_2OP_U(vmaxu, DO_MAX)
+ DO_2OP_S(vmins, DO_MIN)
+ DO_2OP_U(vminu, DO_MIN)
+-
+-#define DO_ABD(N, M)  ((N) >= (M) ? (N) - (M) : (M) - (N))
+-
+-DO_2OP_S(vabds, DO_ABD)
+-DO_2OP_U(vabdu, DO_ABD)
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index 041fd1ef14..107c393a99 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -355,5 +355,3 @@ DO_2OP(VMAX_S, vmaxs)
+ DO_2OP(VMAX_U, vmaxu)
+ DO_2OP(VMIN_S, vmins)
+ DO_2OP(VMIN_U, vminu)
+-DO_2OP(VABD_S, vabds)
+-DO_2OP(VABD_U, vabdu)

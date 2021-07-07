@@ -1,0 +1,20 @@
+diff --git a/hw/usb/dev-mtp.c b/hw/usb/dev-mtp.c
+index c1d1694fd0..2a895a73b0 100644
+--- a/hw/usb/dev-mtp.c
++++ b/hw/usb/dev-mtp.c
+@@ -772,9 +772,12 @@ static void usb_mtp_add_str(MTPData *data, const char *str)
+ 
+ static void usb_mtp_add_time(MTPData *data, time_t time)
+ {
+-    g_autoptr(GDateTime) then = g_date_time_new_from_unix_utc(time);
+-    g_autofree char *thenstr = g_date_time_format(then, "%Y%m%dT%H%M%S");
+-    usb_mtp_add_str(data, thenstr);
++    char buf[16];
++    struct tm tm;
++
++    gmtime_r(&time, &tm);
++    strftime(buf, sizeof(buf), "%Y%m%dT%H%M%S", &tm);
++    usb_mtp_add_str(data, buf);
+ }
+ 
+ /* ----------------------------------------------------------------------- */

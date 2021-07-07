@@ -1,0 +1,14 @@
+commit a4a571d97866d056787d7a654be5792765be8a60
+Author: Peter Xu <peterx@redhat.com>
+Date:   Mon Jun 7 09:11:57 2021 +0800
+
+    hmp: Add "calc_dirty_rate" and "info dirty_rate" cmds
+    
+    These two commands are missing when adding the QMP sister commands.
+    Add them, so developers can play with them easier.
+    
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Signed-off-by: Hyman Huang(黄勇) <huangy81@chinatelecom.cn>
+    Message-Id: <4cc0039fc3ad6145136770cf3b0f056c09a2910b.1623027729.git.huangy81@chinatelecom.cn>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

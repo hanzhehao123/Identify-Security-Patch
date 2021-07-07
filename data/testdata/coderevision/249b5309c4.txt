@@ -1,0 +1,83 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 4c89387587..bdd6675ea1 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -40,10 +40,3 @@ DEF_HELPER_FLAGS_3(mve_vclsw, TCG_CALL_NO_WG, void, env, ptr, ptr)
+ DEF_HELPER_FLAGS_3(mve_vclzb, TCG_CALL_NO_WG, void, env, ptr, ptr)
+ DEF_HELPER_FLAGS_3(mve_vclzh, TCG_CALL_NO_WG, void, env, ptr, ptr)
+ DEF_HELPER_FLAGS_3(mve_vclzw, TCG_CALL_NO_WG, void, env, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_3(mve_vrev16b, TCG_CALL_NO_WG, void, env, ptr, ptr)
+-DEF_HELPER_FLAGS_3(mve_vrev32b, TCG_CALL_NO_WG, void, env, ptr, ptr)
+-DEF_HELPER_FLAGS_3(mve_vrev32h, TCG_CALL_NO_WG, void, env, ptr, ptr)
+-DEF_HELPER_FLAGS_3(mve_vrev64b, TCG_CALL_NO_WG, void, env, ptr, ptr)
+-DEF_HELPER_FLAGS_3(mve_vrev64h, TCG_CALL_NO_WG, void, env, ptr, ptr)
+-DEF_HELPER_FLAGS_3(mve_vrev64w, TCG_CALL_NO_WG, void, env, ptr, ptr)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index 16ee511a5c..adceef9159 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -70,7 +70,3 @@ VLDR_VSTR        1110110 1 a:1 . w:1 . .... ... 111110 .......   @vldr_vstr \
+ 
+ VCLS             1111 1111 1 . 11 .. 00 ... 0 0100 01 . 0 ... 0 @1op
+ VCLZ             1111 1111 1 . 11 .. 00 ... 0 0100 11 . 0 ... 0 @1op
+-
+-VREV16           1111 1111 1 . 11 .. 00 ... 0 0001 01 . 0 ... 0 @1op
+-VREV32           1111 1111 1 . 11 .. 00 ... 0 0000 11 . 0 ... 0 @1op
+-VREV64           1111 1111 1 . 11 .. 00 ... 0 0000 01 . 0 ... 0 @1op
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index 8b565b50a9..ba01ea3bcd 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -270,10 +270,3 @@ DO_1OP(vclsw, 4, int32_t, clrsb32)
+ DO_1OP(vclzb, 1, uint8_t, DO_CLZ_B)
+ DO_1OP(vclzh, 2, uint16_t, DO_CLZ_H)
+ DO_1OP(vclzw, 4, uint32_t, clz32)
+-
+-DO_1OP(vrev16b, 2, uint16_t, bswap16)
+-DO_1OP(vrev32b, 4, uint32_t, bswap32)
+-DO_1OP(vrev32h, 4, uint32_t, hswap32)
+-DO_1OP(vrev64b, 8, uint64_t, bswap64)
+-DO_1OP(vrev64h, 8, uint64_t, hswap64)
+-DO_1OP(vrev64w, 8, uint64_t, wswap64)
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index 32a8324c5e..4e5d032242 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -199,36 +199,3 @@ static bool do_1op(DisasContext *s, arg_1op *a, MVEGenOneOpFn fn)
+ 
+ DO_1OP(VCLZ, vclz)
+ DO_1OP(VCLS, vcls)
+-
+-static bool trans_VREV16(DisasContext *s, arg_1op *a)
+-{
+-    static MVEGenOneOpFn * const fns[] = {
+-        gen_helper_mve_vrev16b,
+-        NULL,
+-        NULL,
+-        NULL,
+-    };
+-    return do_1op(s, a, fns[a->size]);
+-}
+-
+-static bool trans_VREV32(DisasContext *s, arg_1op *a)
+-{
+-    static MVEGenOneOpFn * const fns[] = {
+-        gen_helper_mve_vrev32b,
+-        gen_helper_mve_vrev32h,
+-        NULL,
+-        NULL,
+-    };
+-    return do_1op(s, a, fns[a->size]);
+-}
+-
+-static bool trans_VREV64(DisasContext *s, arg_1op *a)
+-{
+-    static MVEGenOneOpFn * const fns[] = {
+-        gen_helper_mve_vrev64b,
+-        gen_helper_mve_vrev64h,
+-        gen_helper_mve_vrev64w,
+-        NULL,
+-    };
+-    return do_1op(s, a, fns[a->size]);
+-}

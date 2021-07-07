@@ -1,0 +1,16 @@
+commit feece4d07021576a6037adfd597598851cf32bf0
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:32 2021 +0200
+
+    cpu: Move CPUClass::vmsd to SysemuCPUOps
+    
+    Migration is specific to system emulation.
+    
+    - Move the CPUClass::vmsd field to SysemuCPUOps,
+    - restrict VMSTATE_CPU() macro to sysemu,
+    - vmstate_dummy is now unused, remove it.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-16-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

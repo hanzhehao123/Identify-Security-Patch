@@ -1,0 +1,11 @@
+commit 91a358fdfb3b116a6ea72a38d5c217caad1d45b5
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:07 2021 +0100
+
+    target/arm: Implement MVE VSUB, VMUL (scalar)
+    
+    Implement the scalar forms of the MVE VSUB and VMUL insns.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-24-peter.maydell@linaro.org

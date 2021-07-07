@@ -1,0 +1,23 @@
+commit b87eaa9b8237f4d97950ca0f78309407212cfdc5
+Author: Peter Xu <peterx@redhat.com>
+Date:   Thu May 6 12:05:40 2021 -0400
+
+    memory: Introduce log_sync_global() to memory listener
+    
+    Some of the memory listener may want to do log synchronization without
+    being able to specify a range of memory to sync but always globally.
+    Such a memory listener should provide this new method instead of the
+    log_sync() method.
+    
+    Obviously we can also achieve similar thing when we put the global
+    sync logic into a log_sync() handler. However that's not efficient
+    enough because otherwise memory_global_dirty_log_sync() may do the
+    global sync N times, where N is the number of flat ranges in the
+    address space.
+    
+    Make this new method be exclusive to log_sync().
+    
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Message-Id: <20210506160549.130416-2-peterx@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

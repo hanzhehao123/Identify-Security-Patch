@@ -1,0 +1,9 @@
+commit 5761251138cb69c310e9df7dfc82c4c6fd2444e4
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 3 11:15:26 2021 +0200
+
+    configure, meson: convert crypto detection to meson
+    
+    Reviewed-by: Richard Henderson <richard.henderson@liaro.org>
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

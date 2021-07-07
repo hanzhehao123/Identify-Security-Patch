@@ -1,0 +1,72 @@
+diff --git a/hw/s390x/s390-virtio-ccw.c b/hw/s390x/s390-virtio-ccw.c
+index e4b18aef49..7af27ca305 100644
+--- a/hw/s390x/s390-virtio-ccw.c
++++ b/hw/s390x/s390-virtio-ccw.c
+@@ -802,10 +802,7 @@ DEFINE_CCW_MACHINE(6_1, "6.1", true);
+ 
+ static void ccw_machine_6_0_instance_options(MachineState *machine)
+ {
+-    static const S390FeatInit qemu_cpu_feat = { S390_FEAT_LIST_QEMU_V6_0 };
+-
+     ccw_machine_6_1_instance_options(machine);
+-    s390_set_qemu_cpu_model(0x2964, 13, 2, qemu_cpu_feat);
+ }
+ 
+ static void ccw_machine_6_0_class_options(MachineClass *mc)
+diff --git a/target/s390x/cpu_models.c b/target/s390x/cpu_models.c
+index 94090a6e22..050dcf2d42 100644
+--- a/target/s390x/cpu_models.c
++++ b/target/s390x/cpu_models.c
+@@ -90,8 +90,8 @@ static S390CPUDef s390_cpu_defs[] = {
+     CPUDEF_INIT(0x8562, 15, 1, 47, 0x08000000U, "gen15b", "IBM z15 T02 GA1"),
+ };
+ 
+-#define QEMU_MAX_CPU_TYPE 0x3906
+-#define QEMU_MAX_CPU_GEN 14
++#define QEMU_MAX_CPU_TYPE 0x2964
++#define QEMU_MAX_CPU_GEN 13
+ #define QEMU_MAX_CPU_EC_GA 2
+ static const S390FeatInit qemu_max_cpu_feat_init = { S390_FEAT_LIST_QEMU_MAX };
+ static S390FeatBitmap qemu_max_cpu_feat;
+diff --git a/target/s390x/gen-features.c b/target/s390x/gen-features.c
+index 242c95ede4..219b1f9420 100644
+--- a/target/s390x/gen-features.c
++++ b/target/s390x/gen-features.c
+@@ -706,23 +706,21 @@ static uint16_t qemu_V4_1[] = {
+     S390_FEAT_VECTOR,
+ };
+ 
+-static uint16_t qemu_V6_0[] = {
++static uint16_t qemu_LATEST[] = {
+     S390_FEAT_ACCESS_EXCEPTION_FS_INDICATION,
+     S390_FEAT_SIDE_EFFECT_ACCESS_ESOP2,
+     S390_FEAT_ESOP,
+ };
+ 
+-static uint16_t qemu_LATEST[] = {
+-    S390_FEAT_INSTRUCTION_EXEC_PROT,
+-    S390_FEAT_MISC_INSTRUCTION_EXT2,
+-    S390_FEAT_MSA_EXT_8,
+-    S390_FEAT_VECTOR_ENH,
+-};
+-
+ /* add all new definitions before this point */
+ static uint16_t qemu_MAX[] = {
+     /* generates a dependency warning, leave it out for now */
+     S390_FEAT_MSA_EXT_5,
++    /* features introduced after the z13 */
++    S390_FEAT_INSTRUCTION_EXEC_PROT,
++    S390_FEAT_MISC_INSTRUCTION_EXT2,
++    S390_FEAT_MSA_EXT_8,
++    S390_FEAT_VECTOR_ENH,
+ };
+ 
+ /****** END FEATURE DEFS ******/
+@@ -841,7 +839,6 @@ static FeatGroupDefSpec QemuFeatDef[] = {
+     QEMU_FEAT_INITIALIZER(V3_1),
+     QEMU_FEAT_INITIALIZER(V4_0),
+     QEMU_FEAT_INITIALIZER(V4_1),
+-    QEMU_FEAT_INITIALIZER(V6_0),
+     QEMU_FEAT_INITIALIZER(LATEST),
+     QEMU_FEAT_INITIALIZER(MAX),
+ };

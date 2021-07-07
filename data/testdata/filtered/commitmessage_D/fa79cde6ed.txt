@@ -1,0 +1,12 @@
+commit fa79cde6ed245629141b5a084f3110b8a3131d60
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Mar 9 17:42:16 2021 -0600
+
+    accel/tcg: Merge tcg_exec_init into tcg_init_machine
+    
+    There is only one caller, and shortly we will need access
+    to the MachineState, which tcg_init_machine already has.
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

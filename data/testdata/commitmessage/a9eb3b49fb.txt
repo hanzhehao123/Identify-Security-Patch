@@ -1,0 +1,14 @@
+commit a9eb3b49fb2224ca2eda514b55c5d288379460ee
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 24 09:32:16 2021 +0200
+
+    target/mips: Move translate.h to tcg/ sub directory
+    
+    We moved various TCG source files in commit a2b0a27d33e
+    ("target/mips: Move TCG source files under tcg/ sub directory")
+    but forgot to move the header declaring their prototypes.
+    Do it now, since all it declares is TCG specific.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210617174323.2900831-5-f4bug@amsat.org>

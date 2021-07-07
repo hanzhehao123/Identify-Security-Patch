@@ -1,0 +1,35 @@
+commit 7fe7fae8b48e3f9c647fd685e5155ebc8e6fb84d
+Merge: a4716fd8d7 a4a571d978
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Wed Jun 9 16:40:21 2021 +0100
+
+    Merge remote-tracking branch 'remotes/dgilbert-gitlab/tags/pull-migration-20210609a' into staging
+    
+    Migration pull for 2021-06-09
+    
+    Yank crash fix from Leo
+    RDMA fix from Li
+    mptcp support from me
+    dirty-rate changes from Hyman and Peter
+    
+    (Note I've switched to the gitlab I've been using for virtiofs pulls)
+    
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    
+    # gpg: Signature made Wed 09 Jun 2021 15:40:01 BST
+    # gpg:                using RSA key 45F5C71B4A0CB7FB977A9FA90516331EBC5BFDE7
+    # gpg: Good signature from "Dr. David Alan Gilbert (RH2) <dgilbert@redhat.com>" [full]
+    # Primary key fingerprint: 45F5 C71B 4A0C B7FB 977A  9FA9 0516 331E BC5B FDE7
+    
+    * remotes/dgilbert-gitlab/tags/pull-migration-20210609a:
+      hmp: Add "calc_dirty_rate" and "info dirty_rate" cmds
+      migration/dirtyrate: make sample page count configurable
+      sockets: Support multipath TCP
+      migration/socket: Close the listener at the end
+      migration: Add cleanup hook for inwards migration
+      io/net-listener: Call the notifier during finalize
+      channel-socket: Only set CLOEXEC if we have space for fds
+      migration/rdma: Fix cm event use after free
+      yank: Unregister function when using TLS migration
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

@@ -1,0 +1,16 @@
+commit 22f15579fa1ca654d331cac8e68a4e70981a8801
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Thu Mar 18 12:46:44 2021 -0600
+
+    tcg: Build ffi data structures for helpers
+    
+    Add libffi as a build requirement for TCI.
+    Add libffi to the dockerfiles to satisfy that requirement.
+    
+    Construct an ffi_cif structure for each unique typemask.
+    Record the result in a separate hash table for later lookup;
+    this allows helper_table to stay const.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

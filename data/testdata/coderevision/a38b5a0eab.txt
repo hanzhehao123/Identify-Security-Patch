@@ -1,0 +1,116 @@
+diff --git a/target/s390x/helper.h b/target/s390x/helper.h
+index bae73b9a56..02e6967ae6 100644
+--- a/target/s390x/helper.h
++++ b/target/s390x/helper.h
+@@ -299,9 +299,7 @@ DEF_HELPER_FLAGS_4(gvec_vfsq128, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfs32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfs64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfs128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_4(gvec_vftci32, void, ptr, cptr, env, i32)
+ DEF_HELPER_4(gvec_vftci64, void, ptr, cptr, env, i32)
+-DEF_HELPER_4(gvec_vftci128, void, ptr, cptr, env, i32)
+ 
+ #ifndef CONFIG_USER_ONLY
+ DEF_HELPER_3(servc, i32, env, i64, i64)
+diff --git a/target/s390x/translate_vx.c.inc b/target/s390x/translate_vx.c.inc
+index 765f75df9c..4d1ccb4159 100644
+--- a/target/s390x/translate_vx.c.inc
++++ b/target/s390x/translate_vx.c.inc
+@@ -2965,33 +2965,14 @@ static DisasJumpType op_vftci(DisasContext *s, DisasOps *o)
+     const uint16_t i3 = get_field(s, i3);
+     const uint8_t fpf = get_field(s, m4);
+     const uint8_t m5 = get_field(s, m5);
+-    gen_helper_gvec_2_ptr *fn = NULL;
+-
+-    switch (fpf) {
+-    case FPF_SHORT:
+-        if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-            fn = gen_helper_gvec_vftci32;
+-        }
+-        break;
+-    case FPF_LONG:
+-        fn = gen_helper_gvec_vftci64;
+-        break;
+-    case FPF_EXT:
+-        if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-            fn = gen_helper_gvec_vftci128;
+-        }
+-        break;
+-    default:
+-        break;
+-    }
+ 
+-    if (!fn || extract32(m5, 0, 3)) {
++    if (fpf != FPF_LONG || extract32(m5, 0, 3)) {
+         gen_program_exception(s, PGM_SPECIFICATION);
+         return DISAS_NORETURN;
+     }
+ 
+     gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2), cpu_env,
+-                   deposit32(m5, 4, 12, i3), fn);
++                   deposit32(m5, 4, 12, i3), gen_helper_gvec_vftci64);
+     set_cc_static(s);
+     return DISAS_NEXT;
+ }
+diff --git a/target/s390x/vec_fpu_helper.c b/target/s390x/vec_fpu_helper.c
+index 6984f770ff..0fb82bd18f 100644
+--- a/target/s390x/vec_fpu_helper.c
++++ b/target/s390x/vec_fpu_helper.c
+@@ -622,36 +622,6 @@ void HELPER(gvec_##NAME##BITS)(void *v1, const void *v2, const void *v3,       \
+ DEF_GVEC_VFMA(vfma, 0)
+ DEF_GVEC_VFMA(vfms, float_muladd_negate_c)
+ 
+-void HELPER(gvec_vftci32)(void *v1, const void *v2, CPUS390XState *env,
+-                          uint32_t desc)
+-{
+-    uint16_t i3 = extract32(simd_data(desc), 4, 12);
+-    bool s = extract32(simd_data(desc), 3, 1);
+-    int i, match = 0;
+-
+-    for (i = 0; i < 4; i++) {
+-        float32 a = s390_vec_read_float32(v2, i);
+-
+-        if (float32_dcmask(env, a) & i3) {
+-            match++;
+-            s390_vec_write_element32(v1, i, -1u);
+-        } else {
+-            s390_vec_write_element32(v1, i, 0);
+-        }
+-        if (s) {
+-            break;
+-        }
+-    }
+-
+-    if (match == 4 || (s && match)) {
+-        env->cc_op = 0;
+-    } else if (match) {
+-        env->cc_op = 1;
+-    } else {
+-        env->cc_op = 3;
+-    }
+-}
+-
+ void HELPER(gvec_vftci64)(void *v1, const void *v2, CPUS390XState *env,
+                           uint32_t desc)
+ {
+@@ -681,20 +651,3 @@ void HELPER(gvec_vftci64)(void *v1, const void *v2, CPUS390XState *env,
+         env->cc_op = 3;
+     }
+ }
+-
+-void HELPER(gvec_vftci128)(void *v1, const void *v2, CPUS390XState *env,
+-                           uint32_t desc)
+-{
+-    const float128 a = s390_vec_read_float128(v2);
+-    uint16_t i3 = extract32(simd_data(desc), 4, 12);
+-
+-    if (float128_dcmask(env, a) & i3) {
+-        env->cc_op = 0;
+-        s390_vec_write_element64(v1, 0, -1ull);
+-        s390_vec_write_element64(v1, 1, -1ull);
+-    } else {
+-        env->cc_op = 3;
+-        s390_vec_write_element64(v1, 0, 0);
+-        s390_vec_write_element64(v1, 1, 0);
+-    }
+-}

@@ -1,0 +1,13 @@
+commit a0acd0a175891afe554c907c4ecc941abbd98602
+Author: Bin Meng <bin.meng@windriver.com>
+Date:   Fri Apr 30 15:13:01 2021 +0800
+
+    hw/riscv: Use macros for BIOS image names
+    
+    The OpenSBI BIOS image names are used by many RISC-V machines.
+    Let's define macros for them.
+    
+    Signed-off-by: Bin Meng <bin.meng@windriver.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210430071302.1489082-7-bmeng.cn@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

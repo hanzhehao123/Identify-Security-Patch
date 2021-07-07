@@ -1,0 +1,130 @@
+diff --git a/tcg/tcg-internal.h b/tcg/tcg-internal.h
+index 6ab8910210..0796407c13 100644
+--- a/tcg/tcg-internal.h
++++ b/tcg/tcg-internal.h
+@@ -27,13 +27,6 @@
+ 
+ #define TCG_HIGHWATER 1024
+ 
+-typedef struct TCGHelperInfo {
+-    void *func;
+-    const char *name;
+-    unsigned flags;
+-    unsigned typemask;
+-} TCGHelperInfo;
+-
+ extern TCGContext tcg_init_ctx;
+ extern TCGContext **tcg_ctxs;
+ extern unsigned int tcg_cur_ctxs;
+@@ -44,14 +37,9 @@ bool tcg_region_alloc(TCGContext *s);
+ void tcg_region_initial_alloc(TCGContext *s);
+ void tcg_region_prologue_set(TCGContext *s);
+ 
+-static inline const TCGHelperInfo *tcg_call_info(TCGOp *op)
+-{
+-    return (void *)(uintptr_t)op->args[TCGOP_CALLO(op) + TCGOP_CALLI(op) + 1];
+-}
+-
+ static inline unsigned tcg_call_flags(TCGOp *op)
+ {
+-    return tcg_call_info(op)->flags;
++    return op->args[TCGOP_CALLO(op) + TCGOP_CALLI(op) + 1];
+ }
+ 
+ #endif /* TCG_INTERNAL_H */
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index 0dc99cc65b..51c1f61828 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -532,6 +532,13 @@ void tcg_pool_reset(TCGContext *s)
+     s->pool_current = NULL;
+ }
+ 
++typedef struct TCGHelperInfo {
++    void *func;
++    const char *name;
++    unsigned flags;
++    unsigned typemask;
++} TCGHelperInfo;
++
+ #include "exec/helper-proto.h"
+ 
+ static const TCGHelperInfo all_helpers[] = {
+@@ -1388,11 +1395,12 @@ bool tcg_op_supported(TCGOpcode op)
+ void tcg_gen_callN(void *func, TCGTemp *ret, int nargs, TCGTemp **args)
+ {
+     int i, real_args, nb_rets, pi;
+-    unsigned typemask;
+-    const TCGHelperInfo *info;
++    unsigned typemask, flags;
++    TCGHelperInfo *info;
+     TCGOp *op;
+ 
+     info = g_hash_table_lookup(helper_table, (gpointer)func);
++    flags = info->flags;
+     typemask = info->typemask;
+ 
+ #ifdef CONFIG_PLUGIN
+@@ -1530,7 +1538,7 @@ void tcg_gen_callN(void *func, TCGTemp *ret, int nargs, TCGTemp **args)
+         real_args++;
+     }
+     op->args[pi++] = (uintptr_t)func;
+-    op->args[pi++] = (uintptr_t)info;
++    op->args[pi++] = flags;
+     TCGOP_CALLI(op) = real_args;
+ 
+     /* Make sure the fields didn't overflow.  */
+@@ -1649,6 +1657,19 @@ static char *tcg_get_arg_str(TCGContext *s, char *buf,
+     return tcg_get_arg_str_ptr(s, buf, buf_size, arg_temp(arg));
+ }
+ 
++/* Find helper name.  */
++static inline const char *tcg_find_helper(TCGContext *s, uintptr_t val)
++{
++    const char *ret = NULL;
++    if (helper_table) {
++        TCGHelperInfo *info = g_hash_table_lookup(helper_table, (gpointer)val);
++        if (info) {
++            ret = info->name;
++        }
++    }
++    return ret;
++}
++
+ static const char * const cond_name[] =
+ {
+     [TCG_COND_NEVER] = "never",
+@@ -1739,29 +1760,15 @@ static void tcg_dump_ops(TCGContext *s, bool have_prefs)
+                 col += qemu_log(" " TARGET_FMT_lx, a);
+             }
+         } else if (c == INDEX_op_call) {
+-            const TCGHelperInfo *info = tcg_call_info(op);
+-            void *func;
+-
+             /* variable number of arguments */
+             nb_oargs = TCGOP_CALLO(op);
+             nb_iargs = TCGOP_CALLI(op);
+             nb_cargs = def->nb_cargs;
+ 
+-            col += qemu_log(" %s ", def->name);
+-
+-            /*
+-             * Print the function name from TCGHelperInfo, if available.
+-             * Note that plugins have a template function for the info,
+-             * but the actual function pointer comes from the plugin.
+-             */
+-            func = (void *)(uintptr_t)op->args[nb_oargs + nb_iargs];
+-            if (func == info->func) {
+-                col += qemu_log("%s", info->name);
+-            } else {
+-                col += qemu_log("plugin(%p)", func);
+-            }
+-
+-            col += qemu_log("$0x%x,$%d", info->flags, nb_oargs);
++            /* function name, flags, out args */
++            col += qemu_log(" %s %s,$0x%x,$%d", def->name,
++                            tcg_find_helper(s, op->args[nb_oargs + nb_iargs]),
++                            tcg_call_flags(op), nb_oargs);
+             for (i = 0; i < nb_oargs; i++) {
+                 col += qemu_log(",%s", tcg_get_arg_str(s, buf, sizeof(buf),
+                                                        op->args[i]));

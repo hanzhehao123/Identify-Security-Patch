@@ -1,0 +1,72 @@
+diff --git a/hw/core/cpu-sysemu.c b/hw/core/cpu-sysemu.c
+index 3850fcb27f..b31c33ad2b 100644
+--- a/hw/core/cpu-sysemu.c
++++ b/hw/core/cpu-sysemu.c
+@@ -39,8 +39,8 @@ void cpu_get_memory_mapping(CPUState *cpu, MemoryMappingList *list,
+ {
+     CPUClass *cc = CPU_GET_CLASS(cpu);
+ 
+-    if (cc->sysemu_ops->get_memory_mapping) {
+-        cc->sysemu_ops->get_memory_mapping(cpu, list, errp);
++    if (cc->get_memory_mapping) {
++        cc->get_memory_mapping(cpu, list, errp);
+         return;
+     }
+ 
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index 4f6dd24112..405d1f367f 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -95,6 +95,7 @@ struct SysemuCPUOps;
+  * @dump_statistics: Callback for dumping statistics.
+  * @get_arch_id: Callback for getting architecture-dependent CPU ID.
+  * @get_paging_enabled: Callback for inquiring whether paging is enabled.
++ * @get_memory_mapping: Callback for obtaining the memory mappings.
+  * @set_pc: Callback for setting the Program Counter register. This
+  *       should have the semantics used by the target architecture when
+  *       setting the PC from a source such as an ELF file entry point;
+@@ -138,6 +139,8 @@ struct CPUClass {
+     void (*dump_statistics)(CPUState *cpu, int flags);
+     int64_t (*get_arch_id)(CPUState *cpu);
+     bool (*get_paging_enabled)(const CPUState *cpu);
++    void (*get_memory_mapping)(CPUState *cpu, MemoryMappingList *list,
++                               Error **errp);
+     void (*set_pc)(CPUState *cpu, vaddr value);
+     int (*gdb_read_register)(CPUState *cpu, GByteArray *buf, int reg);
+     int (*gdb_write_register)(CPUState *cpu, uint8_t *buf, int reg);
+diff --git a/include/hw/core/sysemu-cpu-ops.h b/include/hw/core/sysemu-cpu-ops.h
+index 213e5287ab..1f249e0f06 100644
+--- a/include/hw/core/sysemu-cpu-ops.h
++++ b/include/hw/core/sysemu-cpu-ops.h
+@@ -16,11 +16,6 @@
+  * struct SysemuCPUOps: System operations specific to a CPU class
+  */
+ typedef struct SysemuCPUOps {
+-    /**
+-     * @get_memory_mapping: Callback for obtaining the memory mappings.
+-     */
+-    void (*get_memory_mapping)(CPUState *cpu, MemoryMappingList *list,
+-                               Error **errp);
+     /**
+      * @get_phys_page_debug: Callback for obtaining a physical address.
+      */
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index d400feec8f..de212a939d 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -6718,7 +6718,6 @@ static Property x86_cpu_properties[] = {
+ #include "hw/core/sysemu-cpu-ops.h"
+ 
+ static const struct SysemuCPUOps i386_sysemu_ops = {
+-    .get_memory_mapping = x86_cpu_get_memory_mapping,
+     .get_phys_page_attrs_debug = x86_cpu_get_phys_page_attrs_debug,
+     .asidx_from_attrs = x86_asidx_from_attrs,
+     .get_crash_info = x86_cpu_get_crash_info,
+@@ -6757,6 +6756,7 @@ static void x86_cpu_common_class_init(ObjectClass *oc, void *data)
+     cc->get_paging_enabled = x86_cpu_get_paging_enabled;
+ 
+ #ifndef CONFIG_USER_ONLY
++    cc->get_memory_mapping = x86_cpu_get_memory_mapping;
+     cc->sysemu_ops = &i386_sysemu_ops;
+ #endif /* !CONFIG_USER_ONLY */
+ 

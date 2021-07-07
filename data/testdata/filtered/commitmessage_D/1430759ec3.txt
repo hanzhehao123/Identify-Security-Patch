@@ -1,0 +1,18 @@
+commit 1430759ec3e4cb92da224d739c914a0e8d78d786
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Mon Jun 14 21:32:19 2021 +0200
+
+    hw/block/fdc: Extract SysBus floppy controllers to fdc-sysbus.c
+    
+    Some machines use floppy controllers via the SysBus interface,
+    and don't need to pull in all the SysBus code.
+    Extract the SysBus specific code to a new unit: fdc-sysbus.c,
+    and add a new Kconfig symbol: "FDC_SYSBUS".
+    
+    Reviewed-by: John Snow <jsnow@redhat.com>
+    Acked-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Reviewed-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Acked-by: Paolo Bonzini <pbonzini@redhat.com>
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210614193220.2007159-6-philmd@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

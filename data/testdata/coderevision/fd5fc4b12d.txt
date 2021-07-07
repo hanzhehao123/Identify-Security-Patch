@@ -1,0 +1,155 @@
+diff --git a/os-posix.c b/os-posix.c
+index ae6c9f2a5e..a6846f51c1 100644
+--- a/os-posix.c
++++ b/os-posix.c
+@@ -32,7 +32,7 @@
+ #include "qemu-common.h"
+ /* Needed early for CONFIG_BSD etc. */
+ #include "net/slirp.h"
+-#include "qemu/qemu-options.h"
++#include "qemu-options.h"
+ #include "qemu/error-report.h"
+ #include "qemu/log.h"
+ #include "sysemu/runstate.h"
+diff --git a/os-win32.c b/os-win32.c
+index e31c921983..fd1137bab1 100644
+--- a/os-win32.c
++++ b/os-win32.c
+@@ -27,6 +27,7 @@
+ #include <windows.h>
+ #include <mmsystem.h>
+ #include "qemu-common.h"
++#include "qemu-options.h"
+ #include "sysemu/runstate.h"
+ 
+ static BOOL WINAPI qemu_ctrl_handler(DWORD type)
+diff --git a/qemu-options-wrapper.h b/qemu-options-wrapper.h
+new file mode 100644
+index 0000000000..6f548e3922
+--- /dev/null
++++ b/qemu-options-wrapper.h
+@@ -0,0 +1,40 @@
++
++#if defined(QEMU_OPTIONS_GENERATE_ENUM)
++
++#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)     \
++    opt_enum,
++#define DEFHEADING(text)
++#define ARCHHEADING(text, arch_mask)
++
++#elif defined(QEMU_OPTIONS_GENERATE_HELP)
++
++#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)    \
++    if ((arch_mask) & arch_type)                               \
++        fputs(opt_help, stdout);
++
++#define ARCHHEADING(text, arch_mask) \
++    if ((arch_mask) & arch_type)    \
++        puts(stringify(text));
++
++#define DEFHEADING(text) ARCHHEADING(text, QEMU_ARCH_ALL)
++
++#elif defined(QEMU_OPTIONS_GENERATE_OPTIONS)
++
++#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)     \
++    { option, opt_arg, opt_enum, arch_mask },
++#define DEFHEADING(text)
++#define ARCHHEADING(text, arch_mask)
++
++#else
++#error "qemu-options-wrapper.h included with no option defined"
++#endif
++
++#include "qemu-options.def"
++
++#undef DEF
++#undef DEFHEADING
++#undef ARCHHEADING
++
++#undef QEMU_OPTIONS_GENERATE_ENUM
++#undef QEMU_OPTIONS_GENERATE_HELP
++#undef QEMU_OPTIONS_GENERATE_OPTIONS
+diff --git a/include/qemu/qemu-options.h b/qemu-options.h
+similarity index 88%
+rename from include/qemu/qemu-options.h
+rename to qemu-options.h
+index 4a62c83c45..b4ee63cd60 100644
+--- a/include/qemu/qemu-options.h
++++ b/qemu-options.h
+@@ -29,13 +29,8 @@
+ #define QEMU_OPTIONS_H
+ 
+ enum {
+-
+-#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)     \
+-    opt_enum,
+-#define DEFHEADING(text)
+-#define ARCHHEADING(text, arch_mask)
+-
+-#include "qemu-options.def"
++#define QEMU_OPTIONS_GENERATE_ENUM
++#include "qemu-options-wrapper.h"
+ };
+ 
+ #endif
+diff --git a/qemu-options.hx b/qemu-options.hx
+index 8116f79818..ecdb064409 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -5276,7 +5276,3 @@ ERST
+ 
+ 
+ HXCOMM This is the last statement. Insert new options before this line!
+-
+-#undef DEF
+-#undef DEFHEADING
+-#undef ARCHHEADING
+diff --git a/softmmu/vl.c b/softmmu/vl.c
+index ac0ff6e160..11ac3750d8 100644
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
+@@ -88,7 +88,7 @@
+ #include "qapi/qobject-input-visitor.h"
+ #include "qemu/option.h"
+ #include "qemu/config-file.h"
+-#include "qemu/qemu-options.h"
++#include "qemu-options.h"
+ #include "qemu/main-loop.h"
+ #ifdef CONFIG_VIRTFS
+ #include "fsdev/qemu-fsdev.h"
+@@ -854,17 +854,8 @@ static void help(int exitcode)
+            "'disk_image' is a raw hard disk image for IDE hard disk 0\n\n",
+             error_get_progname());
+ 
+-#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)    \
+-    if ((arch_mask) & arch_type)                               \
+-        fputs(opt_help, stdout);
+-
+-#define ARCHHEADING(text, arch_mask) \
+-    if ((arch_mask) & arch_type)    \
+-        puts(stringify(text));
+-
+-#define DEFHEADING(text) ARCHHEADING(text, QEMU_ARCH_ALL)
+-
+-#include "qemu-options.def"
++#define QEMU_OPTIONS_GENERATE_HELP
++#include "qemu-options-wrapper.h"
+ 
+     printf("\nDuring emulation, the following keys are useful:\n"
+            "ctrl-alt-f      toggle full screen\n"
+@@ -889,13 +880,8 @@ typedef struct QEMUOption {
+ 
+ static const QEMUOption qemu_options[] = {
+     { "h", 0, QEMU_OPTION_h, QEMU_ARCH_ALL },
+-
+-#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)     \
+-    { option, opt_arg, opt_enum, arch_mask },
+-#define DEFHEADING(text)
+-#define ARCHHEADING(text, arch_mask)
+-
+-#include "qemu-options.def"
++#define QEMU_OPTIONS_GENERATE_OPTIONS
++#include "qemu-options-wrapper.h"
+     { NULL },
+ };
+ 

@@ -1,0 +1,14 @@
+commit 9defd1bdfb0f2ddb3ca9863e39577f3a9929d58c
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Fri Jun 18 16:49:26 2021 -0700
+
+    tcg/sparc: Fix temp_allocate_frame vs sparc stack bias
+    
+    We should not be aligning the offset in temp_allocate_frame,
+    because the odd offset produces an aligned address in the end.
+    Instead, pass the logical offset into tcg_set_frame and add
+    the stack bias last.
+    
+    Cc: qemu-stable@nongnu.org
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

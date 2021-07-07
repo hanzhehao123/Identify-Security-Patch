@@ -1,0 +1,11 @@
+commit 1215a1fbef205ba9930a976619163271d8195cdb
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:28 2021 -0400
+
+    scripts/qmp-shell: remove prompt argument from read_exec_command
+    
+    It's only ever used by one caller, we can just absorb that logic.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-22-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

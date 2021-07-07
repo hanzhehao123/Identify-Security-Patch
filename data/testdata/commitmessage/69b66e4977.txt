@@ -1,0 +1,15 @@
+commit 69b66e49779bb87edb6c6bb5bac2b3527f7dbb71
+Author: Thomas Huth <thuth@redhat.com>
+Date:   Mon May 31 09:32:55 2021 +0200
+
+    hw/display/macfb: Classify the "nubus-macfb" as display device
+    
+    The "nubus-macfb" currently shows up as uncategorized device in
+    the output of "-device help". Put it into the display category
+    to fix this ugliness.
+    
+    Signed-off-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Laurent Vivier <laurent@vivier.eu>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Message-Id: <20210531073255.46286-1-thuth@redhat.com>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

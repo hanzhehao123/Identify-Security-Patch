@@ -1,0 +1,32 @@
+diff --git a/hw/block/fdc-isa.c b/hw/block/fdc-isa.c
+index 3bf64e0665..0e22a10732 100644
+--- a/hw/block/fdc-isa.c
++++ b/hw/block/fdc-isa.c
+@@ -282,7 +282,6 @@ static void isabus_fdc_class_init(ObjectClass *klass, void *data)
+     DeviceClass *dc = DEVICE_CLASS(klass);
+     ISADeviceClass *isa = ISA_DEVICE_CLASS(klass);
+ 
+-    dc->desc = "virtual floppy controller";
+     dc->realize = isabus_fdc_realize;
+     dc->fw_name = "fdc";
+     dc->reset = fdctrl_external_reset_isa;
+diff --git a/hw/block/fdc-sysbus.c b/hw/block/fdc-sysbus.c
+index 57fc8773f1..c6308f5300 100644
+--- a/hw/block/fdc-sysbus.c
++++ b/hw/block/fdc-sysbus.c
+@@ -205,7 +205,6 @@ static void sysbus_fdc_class_init(ObjectClass *klass, void *data)
+ {
+     DeviceClass *dc = DEVICE_CLASS(klass);
+ 
+-    dc->desc = "virtual floppy controller";
+     device_class_set_props(dc, sysbus_fdc_properties);
+ }
+ 
+@@ -231,7 +230,6 @@ static void sun4m_fdc_class_init(ObjectClass *klass, void *data)
+     DeviceClass *dc = DEVICE_CLASS(klass);
+ 
+     sbdc->use_strict_io = true;
+-    dc->desc = "virtual floppy controller";
+     device_class_set_props(dc, sun4m_fdc_properties);
+ }
+ 

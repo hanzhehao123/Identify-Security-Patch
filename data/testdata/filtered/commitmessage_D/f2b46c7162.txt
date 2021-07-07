@@ -1,0 +1,12 @@
+commit f2b46c7162f86b05bbc05f1728b1d2a0e6a9e457
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Sep 5 12:54:37 2020 -0700
+
+    tcg/arm: Implement TCG_TARGET_HAS_bitsel_vec
+    
+    NEON has 3 instructions implementing this 4 argument operation,
+    with each insn overlapping a different logical input onto the
+    destination register.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

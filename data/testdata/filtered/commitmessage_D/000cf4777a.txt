@@ -1,0 +1,14 @@
+commit 000cf4777aadda69d14a6994ca0d195a36733cbd
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon May 3 16:47:52 2021 -0700
+
+    tcg/arm: Add host vector framework
+    
+    Add registers and function stubs.  The functionality
+    is disabled via use_neon_instructions defined to 0.
+    
+    We must still include results for the mandatory opcodes in
+    tcg_target_op_def, as all opcodes are checked during tcg init.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

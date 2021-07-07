@@ -1,0 +1,38 @@
+commit c5847f5e4e5e0aa6a3dd40c5d2ec9a70bdc990a5
+Merge: 8385235ba9 e49e49dd73
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu May 27 14:57:00 2021 +0100
+
+    Merge remote-tracking branch 'remotes/dgilbert/tags/pull-migration-20210526a' into staging
+    
+    Virtiofs, migration and hmp pull 2021-05-26
+    
+    Fixes for a loadvm regression from Kevin,
+    some virtiofsd cleanups from Vivek and Mahmoud, and
+    some RDMA migration fixups from Li.
+    
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    
+    # gpg: Signature made Wed 26 May 2021 18:43:30 BST
+    # gpg:                using RSA key 45F5C71B4A0CB7FB977A9FA90516331EBC5BFDE7
+    # gpg: Good signature from "Dr. David Alan Gilbert (RH2) <dgilbert@redhat.com>" [full]
+    # Primary key fingerprint: 45F5 C71B 4A0C B7FB 977A  9FA9 0516 331E BC5B FDE7
+    
+    * remotes/dgilbert/tags/pull-migration-20210526a:
+      migration/rdma: source: poll cm_event from return path
+      migration/rdma: destination: create the return patch after the first accept
+      migration/rdma: Fix rdma_addrinfo res leaks
+      migration/rdma: cleanup rdma in rdma_start_incoming_migration error path
+      migration/rdma: Fix cm_event used before being initialized
+      tools/virtiofsd/fuse_opt.c: Replaced a malloc with GLib's g_try_malloc
+      tools/virtiofsd/buffer.c: replaced a calloc call with GLib's g_try_new0
+      virtiofsd: Set req->reply_sent right after sending reply
+      virtiofsd: Check EOF before short read
+      virtiofsd: Simplify skip byte logic
+      virtiofsd: get rid of in_sg_left variable
+      virtiofsd: Use iov_discard_front() to skip bytes
+      virtiofsd: Get rid of unreachable code in read
+      virtiofsd: Check for EINTR in preadv() and retry
+      hmp: Fix loadvm to resume the VM on success instead of failure
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

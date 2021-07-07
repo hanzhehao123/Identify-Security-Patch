@@ -1,0 +1,83 @@
+diff --git a/block/nbd.c b/block/nbd.c
+index fa6e5e85bd..e7261aeaef 100644
+--- a/block/nbd.c
++++ b/block/nbd.c
+@@ -127,7 +127,7 @@ typedef struct BDRVNBDState {
+     NBDClientConnection *conn;
+ } BDRVNBDState;
+ 
+-static void nbd_client_connection_release(NBDClientConnection *conn);
++static void nbd_free_connect_thread(NBDClientConnection *conn);
+ static int nbd_establish_connection(BlockDriverState *bs, SocketAddress *saddr,
+                                     Error **errp);
+ static coroutine_fn QIOChannelSocket *
+@@ -139,9 +139,22 @@ static void nbd_yank(void *opaque);
+ static void nbd_clear_bdrvstate(BlockDriverState *bs)
+ {
+     BDRVNBDState *s = (BDRVNBDState *)bs->opaque;
++    NBDClientConnection *conn = s->conn;
++    bool do_free = false;
++
++    qemu_mutex_lock(&conn->mutex);
++    assert(!conn->detached);
++    if (conn->running) {
++        conn->detached = true;
++    } else {
++        do_free = true;
++    }
++    qemu_mutex_unlock(&conn->mutex);
+ 
+-    nbd_client_connection_release(s->conn);
+-    s->conn = NULL;
++    /* the runaway thread will clean up itself */
++    if (do_free) {
++        nbd_free_connect_thread(conn);
++    }
+ 
+     yank_unregister_instance(BLOCKDEV_YANK_INSTANCE(bs->node_name));
+ 
+@@ -359,7 +372,7 @@ nbd_client_connection_new(const SocketAddress *saddr)
+     return conn;
+ }
+ 
+-static void nbd_client_connection_do_free(NBDClientConnection *conn)
++static void nbd_free_connect_thread(NBDClientConnection *conn)
+ {
+     if (conn->sioc) {
+         qio_channel_close(QIO_CHANNEL(conn->sioc), NULL);
+@@ -401,34 +414,12 @@ static void *connect_thread_func(void *opaque)
+     qemu_mutex_unlock(&conn->mutex);
+ 
+     if (do_free) {
+-        nbd_client_connection_do_free(conn);
++        nbd_free_connect_thread(conn);
+     }
+ 
+     return NULL;
+ }
+ 
+-static void nbd_client_connection_release(NBDClientConnection *conn)
+-{
+-    bool do_free = false;
+-
+-    if (!conn) {
+-        return;
+-    }
+-
+-    qemu_mutex_lock(&conn->mutex);
+-    assert(!conn->detached);
+-    if (conn->running) {
+-        conn->detached = true;
+-    } else {
+-        do_free = true;
+-    }
+-    qemu_mutex_unlock(&conn->mutex);
+-
+-    if (do_free) {
+-        nbd_client_connection_do_free(conn);
+-    }
+-}
+-
+ /*
+  * Get a new connection in context of @conn:
+  *   if the thread is running, wait for completion

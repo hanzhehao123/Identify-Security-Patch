@@ -1,0 +1,13 @@
+commit 9ca0362298d5093352095838fee8ddee83c90bd5
+Author: Alessandro Di Federico <ale@rev.ng>
+Date:   Sat Jun 19 11:37:00 2021 +0200
+
+    tcg: expose TCGCond manipulation routines
+    
+    This commit moves into a separate file routines used to manipulate
+    TCGCond. These will be employed by the idef-parser.
+    
+    Signed-off-by: Alessandro Di Federico <ale@rev.ng>
+    Signed-off-by: Paolo Montesel <babush@rev.ng>
+    Message-Id: <20210619093713.1845446-2-ale.qemu@rev.ng>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

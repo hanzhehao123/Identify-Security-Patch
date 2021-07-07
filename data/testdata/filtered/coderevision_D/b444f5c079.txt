@@ -1,0 +1,160 @@
+diff --git a/include/qemu/mmap-alloc.h b/include/qemu/mmap-alloc.h
+index 90d0eee705..456ff87df1 100644
+--- a/include/qemu/mmap-alloc.h
++++ b/include/qemu/mmap-alloc.h
+@@ -7,22 +7,18 @@ size_t qemu_fd_getpagesize(int fd);
+ size_t qemu_mempath_getpagesize(const char *mem_path);
+ 
+ /**
+- * qemu_ram_mmap: mmap anonymous memory, the specified file or device.
+- *
+- * mmap() abstraction to map guest RAM, simplifying flag handling, taking
+- * care of alignment requirements and installing guard pages.
++ * qemu_ram_mmap: mmap the specified file or device.
+  *
+  * Parameters:
+  *  @fd: the file or the device to mmap
+  *  @size: the number of bytes to be mmaped
+  *  @align: if not zero, specify the alignment of the starting mapping address;
+  *          otherwise, the alignment in use will be determined by QEMU.
+- *  @qemu_map_flags: QEMU_MAP_* flags
++ *  @readonly: true for a read-only mapping, false for read/write.
++ *  @shared: map has RAM_SHARED flag.
++ *  @is_pmem: map has RAM_PMEM flag.
+  *  @map_offset: map starts at offset of map_offset from the start of fd
+  *
+- * Internally, MAP_PRIVATE, MAP_ANONYMOUS and MAP_SHARED_VALIDATE are set
+- * implicitly based on other parameters.
+- *
+  * Return:
+  *  On success, return a pointer to the mapped area.
+  *  On failure, return MAP_FAILED.
+@@ -30,7 +26,9 @@ size_t qemu_mempath_getpagesize(const char *mem_path);
+ void *qemu_ram_mmap(int fd,
+                     size_t size,
+                     size_t align,
+-                    uint32_t qemu_map_flags,
++                    bool readonly,
++                    bool shared,
++                    bool is_pmem,
+                     off_t map_offset);
+ 
+ void qemu_ram_munmap(int fd, void *ptr, size_t size);
+diff --git a/include/qemu/osdep.h b/include/qemu/osdep.h
+index 37a38c4af3..18a9e3fb4c 100644
+--- a/include/qemu/osdep.h
++++ b/include/qemu/osdep.h
+@@ -366,24 +366,6 @@ void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared);
+ void qemu_vfree(void *ptr);
+ void qemu_anon_ram_free(void *ptr, size_t size);
+ 
+-/*
+- * Abstraction of PROT_ and MAP_ flags as passed to mmap(), for example,
+- * consumed by qemu_ram_mmap().
+- */
+-
+-/* Map PROT_READ instead of PROT_READ | PROT_WRITE. */
+-#define QEMU_MAP_READONLY   (1 << 0)
+-
+-/* Use MAP_SHARED instead of MAP_PRIVATE. */
+-#define QEMU_MAP_SHARED     (1 << 1)
+-
+-/*
+- * Use MAP_SYNC | MAP_SHARED_VALIDATE if supported. Ignored without
+- * QEMU_MAP_SHARED. If mapping fails, warn and fallback to !QEMU_MAP_SYNC.
+- */
+-#define QEMU_MAP_SYNC       (1 << 2)
+-
+-
+ #define QEMU_MADV_INVALID -1
+ 
+ #if defined(CONFIG_MADVISE)
+diff --git a/softmmu/physmem.c b/softmmu/physmem.c
+index a110aa67fd..f00304e254 100644
+--- a/softmmu/physmem.c
++++ b/softmmu/physmem.c
+@@ -1540,7 +1540,6 @@ static void *file_ram_alloc(RAMBlock *block,
+                             off_t offset,
+                             Error **errp)
+ {
+-    uint32_t qemu_map_flags;
+     void *area;
+ 
+     block->page_size = qemu_fd_getpagesize(fd);
+@@ -1588,10 +1587,9 @@ static void *file_ram_alloc(RAMBlock *block,
+         perror("ftruncate");
+     }
+ 
+-    qemu_map_flags = readonly ? QEMU_MAP_READONLY : 0;
+-    qemu_map_flags |= (block->flags & RAM_SHARED) ? QEMU_MAP_SHARED : 0;
+-    qemu_map_flags |= (block->flags & RAM_PMEM) ? QEMU_MAP_SYNC : 0;
+-    area = qemu_ram_mmap(fd, memory, block->mr->align, qemu_map_flags, offset);
++    area = qemu_ram_mmap(fd, memory, block->mr->align, readonly,
++                         block->flags & RAM_SHARED, block->flags & RAM_PMEM,
++                         offset);
+     if (area == MAP_FAILED) {
+         error_setg_errno(errp, errno,
+                          "unable to map backing store for guest RAM");
+diff --git a/util/mmap-alloc.c b/util/mmap-alloc.c
+index 1ddc0e2a1e..0e2bd7bc0e 100644
+--- a/util/mmap-alloc.c
++++ b/util/mmap-alloc.c
+@@ -118,12 +118,9 @@ static void *mmap_reserve(size_t size, int fd)
+  * Activate memory in a reserved region from the given fd (if any), to make
+  * it accessible.
+  */
+-static void *mmap_activate(void *ptr, size_t size, int fd,
+-                           uint32_t qemu_map_flags, off_t map_offset)
++static void *mmap_activate(void *ptr, size_t size, int fd, bool readonly,
++                           bool shared, bool is_pmem, off_t map_offset)
+ {
+-    const bool readonly = qemu_map_flags & QEMU_MAP_READONLY;
+-    const bool shared = qemu_map_flags & QEMU_MAP_SHARED;
+-    const bool sync = qemu_map_flags & QEMU_MAP_SYNC;
+     const int prot = PROT_READ | (readonly ? 0 : PROT_WRITE);
+     int map_sync_flags = 0;
+     int flags = MAP_FIXED;
+@@ -131,7 +128,7 @@ static void *mmap_activate(void *ptr, size_t size, int fd,
+ 
+     flags |= fd == -1 ? MAP_ANONYMOUS : 0;
+     flags |= shared ? MAP_SHARED : MAP_PRIVATE;
+-    if (shared && sync) {
++    if (shared && is_pmem) {
+         map_sync_flags = MAP_SYNC | MAP_SHARED_VALIDATE;
+     }
+ 
+@@ -176,7 +173,9 @@ static inline size_t mmap_guard_pagesize(int fd)
+ void *qemu_ram_mmap(int fd,
+                     size_t size,
+                     size_t align,
+-                    uint32_t qemu_map_flags,
++                    bool readonly,
++                    bool shared,
++                    bool is_pmem,
+                     off_t map_offset)
+ {
+     const size_t guard_pagesize = mmap_guard_pagesize(fd);
+@@ -200,7 +199,7 @@ void *qemu_ram_mmap(int fd,
+ 
+     offset = QEMU_ALIGN_UP((uintptr_t)guardptr, align) - (uintptr_t)guardptr;
+ 
+-    ptr = mmap_activate(guardptr + offset, size, fd, qemu_map_flags,
++    ptr = mmap_activate(guardptr + offset, size, fd, readonly, shared, is_pmem,
+                         map_offset);
+     if (ptr == MAP_FAILED) {
+         munmap(guardptr, total);
+diff --git a/util/oslib-posix.c b/util/oslib-posix.c
+index 0dd7784a88..7b4bec1402 100644
+--- a/util/oslib-posix.c
++++ b/util/oslib-posix.c
+@@ -229,9 +229,8 @@ void *qemu_memalign(size_t alignment, size_t size)
+ /* alloc shared memory pages */
+ void *qemu_anon_ram_alloc(size_t size, uint64_t *alignment, bool shared)
+ {
+-    const uint32_t qemu_map_flags = shared ? QEMU_MAP_SHARED : 0;
+     size_t align = QEMU_VMALLOC_ALIGN;
+-    void *ptr = qemu_ram_mmap(-1, size, align, qemu_map_flags, 0);
++    void *ptr = qemu_ram_mmap(-1, size, align, false, shared, false, 0);
+ 
+     if (ptr == MAP_FAILED) {
+         return NULL;

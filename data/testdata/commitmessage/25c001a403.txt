@@ -1,0 +1,14 @@
+commit 25c001a40346342550ba152817ab306b6df0bd77
+Author: Vivek Kasireddy <vivek.kasireddy@intel.com>
+Date:   Wed May 26 16:14:20 2021 -0700
+
+    virtio-gpu: Add virtio_gpu_find_check_resource
+    
+    Move finding the resource and validating its backing storage into one
+    function.
+    
+    Based-on-patch-by: Gerd Hoffmann <kraxel@redhat.com>
+    Cc: Gerd Hoffmann <kraxel@redhat.com>
+    Signed-off-by: Vivek Kasireddy <vivek.kasireddy@intel.com>
+    Message-Id: <20210526231429.1045476-6-vivek.kasireddy@intel.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

@@ -1,0 +1,10 @@
+diff --git a/pc-bios/palcode-clipper b/pc-bios/palcode-clipper
+index aecb304036..b7dbc5d88c 100644
+Binary files a/pc-bios/palcode-clipper and b/pc-bios/palcode-clipper differ
+diff --git a/roms/qemu-palcode b/roms/qemu-palcode
+index 99d9b4dcf2..bf0e136988 160000
+--- a/roms/qemu-palcode
++++ b/roms/qemu-palcode
+@@ -1 +1 @@
+-Subproject commit 99d9b4dcf27d7fbcbadab71bdc88ef6531baf6bf
++Subproject commit bf0e13698872450164fa7040da36a95d2d4b326f

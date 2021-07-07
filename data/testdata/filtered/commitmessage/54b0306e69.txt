@@ -1,0 +1,24 @@
+commit 54b0306e6967ae38e248b905ddaa4a3cdbc15322
+Author: Thomas Huth <thuth@redhat.com>
+Date:   Wed May 19 13:38:40 2021 +0200
+
+    configure: Avoid error messages about missing *-config-*.h files
+    
+    When compiling with --disable-system there is a harmless yet still
+    annoying error message at the end of the "configure" step:
+    
+     sed: can't read *-config-devices.h: No such file or directory
+    
+    When only building the tools or docs, without any emulator at all,
+    there is even an additional message about missing *-config-target.h
+    files.
+    
+    Fix it by checking whether any of these files are available before
+    using them.
+    
+    Fixes: e0447a834d ("configure: Poison all current target-specific #defines")
+    Reported-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210519113840.298174-1-thuth@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

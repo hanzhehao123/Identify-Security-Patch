@@ -1,0 +1,13 @@
+diff --git a/python/qemu/qmp/__init__.py b/python/qemu/qmp/__init__.py
+index 5fb970f8a8..9606248a3d 100644
+--- a/python/qemu/qmp/__init__.py
++++ b/python/qemu/qmp/__init__.py
+@@ -44,7 +44,7 @@
+ QMPMessage = Dict[str, Any]
+ QMPReturnValue = Dict[str, Any]
+ 
+-InternetAddrT = Tuple[str, int]
++InternetAddrT = Tuple[str, str]
+ UnixAddrT = str
+ SocketAddrT = Union[InternetAddrT, UnixAddrT]
+ 

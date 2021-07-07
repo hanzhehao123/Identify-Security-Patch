@@ -1,0 +1,14 @@
+commit e8d61f7d21666a5172b8c040b897d60fb57c2ded
+Author: Alex Bennée <alex.bennee@linaro.org>
+Date:   Wed Jun 23 11:27:42 2021 +0100
+
+    tests/acceptance: tweak the tcg/kvm tests for virt
+    
+    Really it's only TCG that can select which GIC model you want, KVM
+    guests should always be using the "host" version of the GIC for which
+    QEMU already provides a handy shortcut. Make the KVM test use this and
+    split the TCG test into it's two versions.
+    
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210623102749.25686-2-alex.bennee@linaro.org>

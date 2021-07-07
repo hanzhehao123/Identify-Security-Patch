@@ -1,0 +1,22 @@
+commit fe43ba9721f36e47e09779682c3525659c6818f0
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Thu May 27 13:35:22 2021 -0300
+
+    target/ppc: overhauled and moved logic of storing fpscr
+    
+    Followed the suggested overhaul to store_fpscr logic, and moved it to
+    cpu.c where it can be accessed in !TCG builds.
+    
+    The overhaul was suggested because storing a value to fpscr should
+    never raise an exception, so we could remove all the mess that happened
+    with POWERPC_EXCP_FP.
+    
+    We also moved fpscr_set_rounding_mode into cpu.c as it could now be moved
+    there, and it is needed when a value for the fpscr is being stored
+    directly.
+    
+    Suggested-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210527163522.23019-1-bruno.larsen@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

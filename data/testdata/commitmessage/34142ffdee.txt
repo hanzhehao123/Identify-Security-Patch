@@ -1,0 +1,10 @@
+commit 34142ffdee57f3fbd5eba1788ebc8e5d50a60022
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:18 2021 +0200
+
+    s390x/tcg: Simplify vfma64() handling
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-8-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

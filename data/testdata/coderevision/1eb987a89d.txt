@@ -1,0 +1,63 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 2f0cf99359..34a46ed38e 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -238,14 +238,6 @@ DEF_HELPER_FLAGS_4(mve_vqdmullbw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vqdmullth, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vqdmulltw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ 
+-DEF_HELPER_FLAGS_4(mve_vrhaddsb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vrhaddsh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vrhaddsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vrhaddub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vrhadduh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vrhadduw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarb, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index 6b969902df..3a2a7e75a3 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -157,9 +157,6 @@ VQRDMLSDHX       1111 1110 0 . .. ... 0 ... 1 1110 . 0 . 0 ... 1 @2op
+ VQDMULLB         111 . 1110 0 . 11 ... 0 ... 0 1111 . 0 . 0 ... 1 @2op_sz28
+ VQDMULLT         111 . 1110 0 . 11 ... 0 ... 1 1111 . 0 . 0 ... 1 @2op_sz28
+ 
+-VRHADD_S         111 0 1111 0 . .. ... 0 ... 0 0001 . 1 . 0 ... 0 @2op
+-VRHADD_U         111 1 1111 0 . .. ... 0 ... 0 0001 . 1 . 0 ... 0 @2op
+-
+ # Vector miscellaneous
+ 
+ VCLS             1111 1111 1 . 11 .. 00 ... 0 0100 01 . 0 ... 0 @1op
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index 8e18a967b7..fb8933a9da 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -531,12 +531,6 @@ DO_2OP_U(vshlu, DO_VSHLU)
+ DO_2OP_S(vrshls, DO_VRSHLS)
+ DO_2OP_U(vrshlu, DO_VRSHLU)
+ 
+-#define DO_RHADD_S(N, M) (((int64_t)(N) + (M) + 1) >> 1)
+-#define DO_RHADD_U(N, M) (((uint64_t)(N) + (M) + 1) >> 1)
+-
+-DO_2OP_S(vrhadds, DO_RHADD_S)
+-DO_2OP_U(vrhaddu, DO_RHADD_U)
+-
+ static inline int32_t do_sat_bhw(int64_t val, int64_t min, int64_t max, bool *s)
+ {
+     if (val > max) {
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index febf644079..05789a1981 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -418,8 +418,6 @@ DO_2OP(VQDMLSDH, vqdmlsdh)
+ DO_2OP(VQDMLSDHX, vqdmlsdhx)
+ DO_2OP(VQRDMLSDH, vqrdmlsdh)
+ DO_2OP(VQRDMLSDHX, vqrdmlsdhx)
+-DO_2OP(VRHADD_S, vrhadds)
+-DO_2OP(VRHADD_U, vrhaddu)
+ 
+ static bool trans_VQDMULLB(DisasContext *s, arg_2op *a)
+ {

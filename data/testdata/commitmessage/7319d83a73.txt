@@ -1,0 +1,17 @@
+commit 7319d83a735004ba24b439491a9d7727dac2ddbe
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Thu Mar 18 10:01:01 2021 -0600
+
+    tcg: Combine dh_is_64bit and dh_is_signed to dh_typecode
+    
+    We will shortly be interested in distinguishing pointers
+    from integers in the helper's declaration, as well as a
+    true void return.  We currently have two parallel 1 bit
+    fields; merge them and expand to a 3 bit field.
+    
+    Our current maximum is 7 helper arguments, plus the return
+    makes 8 * 3 = 24 bits used within the uint32_t typemask.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

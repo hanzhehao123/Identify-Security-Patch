@@ -1,0 +1,22 @@
+commit 5276c87c12f4c2a2db0bf343f6d3092816f0afc6
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Tue Jun 15 14:07:05 2021 -0500
+
+    nbd: move connection code from block/nbd to nbd/client-connection
+    
+    We now have bs-independent connection API, which consists of four
+    functions:
+    
+      nbd_client_connection_new()
+      nbd_client_connection_release()
+      nbd_co_establish_connection()
+      nbd_co_establish_connection_cancel()
+    
+    Move them to a separate file together with NBDClientConnection
+    structure which becomes private to the new API.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-18-vsementsov@virtuozzo.com>
+    [eblake: comment tweaks]
+    Signed-off-by: Eric Blake <eblake@redhat.com>

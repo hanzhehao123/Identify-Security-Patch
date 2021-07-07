@@ -1,0 +1,45 @@
+commit 0add99ea3ea91af8230e3933ad7826b2da25a44d
+Merge: 53f306f316 d08caefe66
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 21 16:11:33 2021 +0100
+
+    Merge remote-tracking branch 'remotes/jsnow-gitlab/tags/python-pull-request' into staging
+    
+    Python Pull request
+    
+    Moves QMP-related tools not used for build or automatic testing from
+    scripts/ to python/qemu/qmp/ where they will be protected from bitrot by
+    the check-python-* CI jobs.
+    
+    stub forwarders are left in the old locations for now.
+    
+    # gpg: Signature made Sat 19 Jun 2021 00:02:40 BST
+    # gpg:                using RSA key F9B7ABDBBCACDF95BE76CBD07DEF8106AAFC390E
+    # gpg: Good signature from "John Snow (John Huston) <jsnow@redhat.com>" [full]
+    # Primary key fingerprint: FAEB 9711 A12C F475 812F  18F2 88A9 064D 1835 61EB
+    #      Subkey fingerprint: F9B7 ABDB BCAC DF95 BE76  CBD0 7DEF 8106 AAFC 390E
+    
+    * remotes/jsnow-gitlab/tags/python-pull-request: (72 commits)
+      scripts/qmp-shell: add redirection shim
+      python: add qmp-shell entry point
+      scripts/qmp-shell: move to python/qemu/qmp/qmp_shell.py
+      scripts/qmp-shell: add docstrings
+      scripts/qmp-shell: make QMPShellError inherit QMPError
+      scripts/qmp-shell: remove double-underscores
+      scripts/qmp-shell: convert usage comment to docstring
+      scripts/qmp-shell: Remove too-broad-exception
+      scripts/qmp-shell: Fix empty-transaction invocation
+      scripts/qmp-shell: remove TODO
+      scripts/qmp-shell: use logging to show warnings
+      scripts/qmp-shell: Use context manager instead of atexit
+      python/qmp: return generic type from context manager
+      scripts/qmp-shell: unprivatize 'pretty' property
+      scripts/qmp-shell: Accept SocketAddrT instead of string
+      scripts/qmp-shell: add mypy types
+      python/qmp: add QMPObject type alias
+      scripts/qmp-shell: initialize completer early
+      scripts/qmp-shell: refactor QMPCompleter
+      scripts/qmp-shell: Fix "FuzzyJSON" parser
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

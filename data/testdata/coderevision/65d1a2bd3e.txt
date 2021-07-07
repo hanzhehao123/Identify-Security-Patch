@@ -1,0 +1,689 @@
+diff --git a/.github/lockdown.yml b/.github/lockdown.yml
+index d3546bd2bc..07fc2f31ee 100644
+--- a/.github/lockdown.yml
++++ b/.github/lockdown.yml
+@@ -14,11 +14,11 @@ issues:
+     at https://gitlab.com/qemu-project/qemu.git.
+     The project does not process issues filed on GitHub.
+ 
+-    The project issues are tracked on GitLab:
+-    https://gitlab.com/qemu-project/qemu/-/issues
++    The project issues are tracked on Launchpad:
++    https://bugs.launchpad.net/qemu
+ 
+     QEMU welcomes bug report contributions. You can file new ones on:
+-    https://gitlab.com/qemu-project/qemu/-/issues/new
++    https://bugs.launchpad.net/qemu/+filebug
+ 
+ pulls:
+   comment: |
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 1a041eaf86..0ca6b7de94 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -155,7 +155,6 @@ S: Maintained
+ F: target/arm/
+ F: tests/tcg/arm/
+ F: tests/tcg/aarch64/
+-F: tests/qtest/arm-cpu-features.c
+ F: hw/arm/
+ F: hw/cpu/a*mpcore.c
+ F: include/hw/cpu/a*mpcore.h
+diff --git a/README.rst b/README.rst
+index 79b19f1481..a92c7394b7 100644
+--- a/README.rst
++++ b/README.rst
+@@ -131,16 +131,16 @@ will be tagged as my-feature-v2.
+ Bug reporting
+ =============
+ 
+-The QEMU project uses GitLab issues to track bugs. Bugs
++The QEMU project uses Launchpad as its primary upstream bug tracker. Bugs
+ found when running code built from QEMU git or upstream released sources
+ should be reported via:
+ 
+-* `<https://gitlab.com/qemu-project/qemu/-/issues>`_
++* `<https://bugs.launchpad.net/qemu/>`_
+ 
+ If using QEMU via an operating system vendor pre-built binary package, it
+ is preferable to report bugs to the vendor's own bug tracker first. If
+ the bug is also known to affect latest upstream code, it can also be
+-reported via GitLab.
++reported via launchpad.
+ 
+ For additional information on bug reporting consult:
+ 
+diff --git a/audio/coreaudio.c b/audio/coreaudio.c
+index f570e1ee60..d8a21d3e50 100644
+--- a/audio/coreaudio.c
++++ b/audio/coreaudio.c
+@@ -26,6 +26,7 @@
+ #include <CoreAudio/CoreAudio.h>
+ #include <pthread.h>            /* pthread_X */
+ 
++#include "qemu/main-loop.h"
+ #include "qemu/module.h"
+ #include "audio.h"
+ 
+@@ -34,7 +35,7 @@
+ 
+ typedef struct coreaudioVoiceOut {
+     HWVoiceOut hw;
+-    pthread_mutex_t mutex;
++    pthread_mutex_t buf_mutex;
+     AudioDeviceID outputDeviceID;
+     int frameSizeSetting;
+     uint32_t bufferCount;
+@@ -241,11 +242,11 @@ static void GCC_FMT_ATTR (3, 4) coreaudio_logerr2 (
+ #define coreaudio_playback_logerr(status, ...) \
+     coreaudio_logerr2(status, "playback", __VA_ARGS__)
+ 
+-static int coreaudio_lock (coreaudioVoiceOut *core, const char *fn_name)
++static int coreaudio_buf_lock (coreaudioVoiceOut *core, const char *fn_name)
+ {
+     int err;
+ 
+-    err = pthread_mutex_lock (&core->mutex);
++    err = pthread_mutex_lock (&core->buf_mutex);
+     if (err) {
+         dolog ("Could not lock voice for %s\nReason: %s\n",
+                fn_name, strerror (err));
+@@ -254,11 +255,11 @@ static int coreaudio_lock (coreaudioVoiceOut *core, const char *fn_name)
+     return 0;
+ }
+ 
+-static int coreaudio_unlock (coreaudioVoiceOut *core, const char *fn_name)
++static int coreaudio_buf_unlock (coreaudioVoiceOut *core, const char *fn_name)
+ {
+     int err;
+ 
+-    err = pthread_mutex_unlock (&core->mutex);
++    err = pthread_mutex_unlock (&core->buf_mutex);
+     if (err) {
+         dolog ("Could not unlock voice for %s\nReason: %s\n",
+                fn_name, strerror (err));
+@@ -273,13 +274,13 @@ static int coreaudio_unlock (coreaudioVoiceOut *core, const char *fn_name)
+         coreaudioVoiceOut *core = (coreaudioVoiceOut *) hw;     \
+         ret_type ret;                                           \
+                                                                 \
+-        if (coreaudio_lock(core, "coreaudio_" #name)) {         \
++        if (coreaudio_buf_lock(core, "coreaudio_" #name)) {         \
+             return 0;                                           \
+         }                                                       \
+                                                                 \
+         ret = glue(audio_generic_, name)args;                   \
+                                                                 \
+-        coreaudio_unlock(core, "coreaudio_" #name);             \
++        coreaudio_buf_unlock(core, "coreaudio_" #name);             \
+         return ret;                                             \
+     }
+ COREAUDIO_WRAPPER_FUNC(get_buffer_out, void *, (HWVoiceOut *hw, size_t *size),
+@@ -291,7 +292,10 @@ COREAUDIO_WRAPPER_FUNC(write, size_t, (HWVoiceOut *hw, void *buf, size_t size),
+                        (hw, buf, size))
+ #undef COREAUDIO_WRAPPER_FUNC
+ 
+-/* callback to feed audiooutput buffer */
++/*
++ * callback to feed audiooutput buffer. called without iothread lock.
++ * allowed to lock "buf_mutex", but disallowed to have any other locks.
++ */
+ static OSStatus audioDeviceIOProc(
+     AudioDeviceID inDevice,
+     const AudioTimeStamp *inNow,
+@@ -307,13 +311,13 @@ static OSStatus audioDeviceIOProc(
+     coreaudioVoiceOut *core = (coreaudioVoiceOut *) hwptr;
+     size_t len;
+ 
+-    if (coreaudio_lock (core, "audioDeviceIOProc")) {
++    if (coreaudio_buf_lock (core, "audioDeviceIOProc")) {
+         inInputTime = 0;
+         return 0;
+     }
+ 
+     if (inDevice != core->outputDeviceID) {
+-        coreaudio_unlock (core, "audioDeviceIOProc(old device)");
++        coreaudio_buf_unlock (core, "audioDeviceIOProc(old device)");
+         return 0;
+     }
+ 
+@@ -323,7 +327,7 @@ static OSStatus audioDeviceIOProc(
+     /* if there are not enough samples, set signal and return */
+     if (pending_frames < frameCount) {
+         inInputTime = 0;
+-        coreaudio_unlock (core, "audioDeviceIOProc(empty)");
++        coreaudio_buf_unlock (core, "audioDeviceIOProc(empty)");
+         return 0;
+     }
+ 
+@@ -345,7 +349,7 @@ static OSStatus audioDeviceIOProc(
+         out += write_len;
+     }
+ 
+-    coreaudio_unlock (core, "audioDeviceIOProc");
++    coreaudio_buf_unlock (core, "audioDeviceIOProc");
+     return 0;
+ }
+ 
+@@ -438,7 +442,16 @@ static OSStatus init_out_device(coreaudioVoiceOut *core)
+         return status;
+     }
+ 
+-    /* set Callback */
++    /*
++     * set Callback.
++     *
++     * On macOS 11.3.1, Core Audio calls AudioDeviceIOProc after calling an
++     * internal function named HALB_Mutex::Lock(), which locks a mutex in
++     * HALB_IOThread::Entry(void*). HALB_Mutex::Lock() is also called in
++     * AudioObjectGetPropertyData, which is called by coreaudio driver.
++     * Therefore, the specified callback must be designed to avoid a deadlock
++     * with the callers of AudioObjectGetPropertyData.
++     */
+     core->ioprocid = NULL;
+     status = AudioDeviceCreateIOProcID(core->outputDeviceID,
+                                        audioDeviceIOProc,
+@@ -521,6 +534,7 @@ static void update_device_playback_state(coreaudioVoiceOut *core)
+     }
+ }
+ 
++/* called without iothread lock. */
+ static OSStatus handle_voice_change(
+     AudioObjectID in_object_id,
+     UInt32 in_number_addresses,
+@@ -530,9 +544,7 @@ static OSStatus handle_voice_change(
+     OSStatus status;
+     coreaudioVoiceOut *core = in_client_data;
+ 
+-    if (coreaudio_lock(core, __func__)) {
+-        abort();
+-    }
++    qemu_mutex_lock_iothread();
+ 
+     if (core->outputDeviceID) {
+         fini_out_device(core);
+@@ -543,7 +555,7 @@ static OSStatus handle_voice_change(
+         update_device_playback_state(core);
+     }
+ 
+-    coreaudio_unlock (core, __func__);
++    qemu_mutex_unlock_iothread();
+     return status;
+ }
+ 
+@@ -558,14 +570,10 @@ static int coreaudio_init_out(HWVoiceOut *hw, struct audsettings *as,
+     struct audsettings obt_as;
+ 
+     /* create mutex */
+-    err = pthread_mutex_init(&core->mutex, NULL);
++    err = pthread_mutex_init(&core->buf_mutex, NULL);
+     if (err) {
+         dolog("Could not create mutex\nReason: %s\n", strerror (err));
+-        goto mutex_error;
+-    }
+-
+-    if (coreaudio_lock(core, __func__)) {
+-        goto lock_error;
++        return -1;
+     }
+ 
+     obt_as = *as;
+@@ -584,37 +592,21 @@ static int coreaudio_init_out(HWVoiceOut *hw, struct audsettings *as,
+     if (status != kAudioHardwareNoError) {
+         coreaudio_playback_logerr (status,
+                                    "Could not listen to voice property change\n");
+-        goto listener_error;
++        return -1;
+     }
+ 
+     if (init_out_device(core)) {
+-        goto device_error;
++        status = AudioObjectRemovePropertyListener(kAudioObjectSystemObject,
++                                                   &voice_addr,
++                                                   handle_voice_change,
++                                                   core);
++        if (status != kAudioHardwareNoError) {
++            coreaudio_playback_logerr(status,
++                                      "Could not remove voice property change listener\n");
++        }
+     }
+ 
+-    coreaudio_unlock(core, __func__);
+     return 0;
+-
+-device_error:
+-    status = AudioObjectRemovePropertyListener(kAudioObjectSystemObject,
+-                                               &voice_addr,
+-                                               handle_voice_change,
+-                                               core);
+-    if (status != kAudioHardwareNoError) {
+-        coreaudio_playback_logerr(status,
+-                                  "Could not remove voice property change listener\n");
+-    }
+-
+-listener_error:
+-    coreaudio_unlock(core, __func__);
+-
+-lock_error:
+-    err = pthread_mutex_destroy(&core->mutex);
+-    if (err) {
+-        dolog("Could not destroy mutex\nReason: %s\n", strerror (err));
+-    }
+-
+-mutex_error:
+-    return -1;
+ }
+ 
+ static void coreaudio_fini_out (HWVoiceOut *hw)
+@@ -623,10 +615,6 @@ static void coreaudio_fini_out (HWVoiceOut *hw)
+     int err;
+     coreaudioVoiceOut *core = (coreaudioVoiceOut *) hw;
+ 
+-    if (coreaudio_lock(core, __func__)) {
+-        abort();
+-    }
+-
+     status = AudioObjectRemovePropertyListener(kAudioObjectSystemObject,
+                                                &voice_addr,
+                                                handle_voice_change,
+@@ -637,10 +625,8 @@ static void coreaudio_fini_out (HWVoiceOut *hw)
+ 
+     fini_out_device(core);
+ 
+-    coreaudio_unlock(core, __func__);
+-
+     /* destroy mutex */
+-    err = pthread_mutex_destroy(&core->mutex);
++    err = pthread_mutex_destroy(&core->buf_mutex);
+     if (err) {
+         dolog("Could not destroy mutex\nReason: %s\n", strerror (err));
+     }
+@@ -650,14 +636,8 @@ static void coreaudio_enable_out(HWVoiceOut *hw, bool enable)
+ {
+     coreaudioVoiceOut *core = (coreaudioVoiceOut *) hw;
+ 
+-    if (coreaudio_lock(core, __func__)) {
+-        abort();
+-    }
+-
+     core->enabled = enable;
+     update_device_playback_state(core);
+-
+-    coreaudio_unlock(core, __func__);
+ }
+ 
+ static void *coreaudio_audio_init(Audiodev *dev)
+diff --git a/docs/interop/live-block-operations.rst b/docs/interop/live-block-operations.rst
+index 477d085f54..1073b930dc 100644
+--- a/docs/interop/live-block-operations.rst
++++ b/docs/interop/live-block-operations.rst
+@@ -127,15 +127,13 @@ Interacting with a QEMU instance
+ 
+ To show some example invocations of command-line, we will use the
+ following invocation of QEMU, with a QMP server running over UNIX
+-socket:
++socket::
+ 
+-.. parsed-literal::
+-
+-  $ |qemu_system| -display none -no-user-config -nodefaults \\
+-    -m 512 -blockdev \\
+-    node-name=node-A,driver=qcow2,file.driver=file,file.node-name=file,file.filename=./a.qcow2 \\
+-    -device virtio-blk,drive=node-A,id=virtio0 \\
+-    -monitor stdio -qmp unix:/tmp/qmp-sock,server=on,wait=off
++    $ ./qemu-system-x86_64 -display none -no-user-config \
++        -M q35 -nodefaults -m 512 \
++        -blockdev node-name=node-A,driver=qcow2,file.driver=file,file.node-name=file,file.filename=./a.qcow2 \
++        -device virtio-blk,drive=node-A,id=virtio0 \
++        -monitor stdio -qmp unix:/tmp/qmp-sock,server=on,wait=off
+ 
+ The ``-blockdev`` command-line option, used above, is available from
+ QEMU 2.9 onwards.  In the above invocation, notice the ``node-name``
+@@ -694,16 +692,14 @@ And start the destination QEMU (we already have the source QEMU running
+ -- discussed in the section: `Interacting with a QEMU instance`_)
+ instance, with the following invocation.  (As noted earlier, for
+ simplicity's sake, the destination QEMU is started on the same host, but
+-it could be located elsewhere):
+-
+-.. parsed-literal::
+-
+-  $ |qemu_system| -display none -no-user-config -nodefaults \\
+-    -m 512 -blockdev \\
+-    node-name=node-TargetDisk,driver=qcow2,file.driver=file,file.node-name=file,file.filename=./target-disk.qcow2 \\
+-    -device virtio-blk,drive=node-TargetDisk,id=virtio0 \\
+-    -S -monitor stdio -qmp unix:./qmp-sock2,server=on,wait=off \\
+-    -incoming tcp:localhost:6666
++it could be located elsewhere)::
++
++    $ ./qemu-system-x86_64 -display none -no-user-config \
++        -M q35 -nodefaults -m 512 \
++        -blockdev node-name=node-TargetDisk,driver=qcow2,file.driver=file,file.node-name=file,file.filename=./target-disk.qcow2 \
++        -device virtio-blk,drive=node-TargetDisk,id=virtio0 \
++        -S -monitor stdio -qmp unix:./qmp-sock2,server=on,wait=off \
++        -incoming tcp:localhost:6666
+ 
+ Given the disk image chain on source QEMU::
+ 
+diff --git a/docs/tools/virtiofsd.rst b/docs/tools/virtiofsd.rst
+index 4911e797cb..00554c75bd 100644
+--- a/docs/tools/virtiofsd.rst
++++ b/docs/tools/virtiofsd.rst
+@@ -239,7 +239,7 @@ xattr-mapping Examples
+ 
+ ::
+ 
+- -o xattrmap=":prefix:all::user.virtiofs.::bad:all:::"
++-o xattrmap=":prefix:all::user.virtiofs.::bad:all:::"
+ 
+ 
+ This uses two rules, using : as the field separator;
+@@ -250,8 +250,7 @@ the host set.
+ This is equivalent to the 'map' rule:
+ 
+ ::
+-
+- -o xattrmap=":map::user.virtiofs.:"
++-o xattrmap=":map::user.virtiofs.:"
+ 
+ 2) Prefix 'trusted.' attributes, allow others through
+ 
+@@ -278,8 +277,7 @@ through.
+ This is equivalent to the 'map' rule:
+ 
+ ::
+-
+- -o xattrmap="/map/trusted./user.virtiofs./"
++-o xattrmap="/map/trusted./user.virtiofs./"
+ 
+ 3) Hide 'security.' attributes, and allow everything else
+ 
+@@ -300,13 +298,13 @@ Examples
+ Export ``/var/lib/fs/vm001/`` on vhost-user UNIX domain socket
+ ``/var/run/vm001-vhost-fs.sock``:
+ 
+-.. parsed-literal::
++::
+ 
+   host# virtiofsd --socket-path=/var/run/vm001-vhost-fs.sock -o source=/var/lib/fs/vm001
+-  host# |qemu_system| \\
+-        -chardev socket,id=char0,path=/var/run/vm001-vhost-fs.sock \\
+-        -device vhost-user-fs-pci,chardev=char0,tag=myfs \\
+-        -object memory-backend-memfd,id=mem,size=4G,share=on \\
+-        -numa node,memdev=mem \\
+-        ...
++  host# qemu-system-x86_64 \
++      -chardev socket,id=char0,path=/var/run/vm001-vhost-fs.sock \
++      -device vhost-user-fs-pci,chardev=char0,tag=myfs \
++      -object memory-backend-memfd,id=mem,size=4G,share=on \
++      -numa node,memdev=mem \
++      ...
+   guest# mount -t virtiofs myfs /mnt
+diff --git a/hw/audio/sb16.c b/hw/audio/sb16.c
+index 5cf121fe36..60f1f75e3a 100644
+--- a/hw/audio/sb16.c
++++ b/hw/audio/sb16.c
+@@ -229,6 +229,23 @@ static void continue_dma8 (SB16State *s)
+     control (s, 1);
+ }
+ 
++static inline int restrict_sampling_rate(int freq)
++{
++    if (freq < SAMPLE_RATE_MIN) {
++        qemu_log_mask(LOG_GUEST_ERROR,
++                      "sampling range too low: %d, increasing to %u\n",
++                      freq, SAMPLE_RATE_MIN);
++        return SAMPLE_RATE_MIN;
++    } else if (freq > SAMPLE_RATE_MAX) {
++        qemu_log_mask(LOG_GUEST_ERROR,
++                      "sampling range too high: %d, decreasing to %u\n",
++                      freq, SAMPLE_RATE_MAX);
++        return SAMPLE_RATE_MAX;
++    } else {
++        return freq;
++    }
++}
++
+ static void dma_cmd8 (SB16State *s, int mask, int dma_len)
+ {
+     s->fmt = AUDIO_FORMAT_U8;
+@@ -244,17 +261,7 @@ static void dma_cmd8 (SB16State *s, int mask, int dma_len)
+         int tmp = (256 - s->time_const);
+         s->freq = (1000000 + (tmp / 2)) / tmp;
+     }
+-    if (s->freq < SAMPLE_RATE_MIN) {
+-        qemu_log_mask(LOG_GUEST_ERROR,
+-                      "sampling range too low: %d, increasing to %u\n",
+-                      s->freq, SAMPLE_RATE_MIN);
+-        s->freq = SAMPLE_RATE_MIN;
+-    } else if (s->freq > SAMPLE_RATE_MAX) {
+-        qemu_log_mask(LOG_GUEST_ERROR,
+-                      "sampling range too high: %d, decreasing to %u\n",
+-                      s->freq, SAMPLE_RATE_MAX);
+-        s->freq = SAMPLE_RATE_MAX;
+-    }
++    s->freq = restrict_sampling_rate(s->freq);
+ 
+     if (dma_len != -1) {
+         s->block_size = dma_len << s->fmt_stereo;
+@@ -768,7 +775,7 @@ static void complete (SB16State *s)
+              * and FT2 sets output freq with this (go figure).  Compare:
+              * http://homepages.cae.wisc.edu/~brodskye/sb16doc/sb16doc.html#SamplingRate
+              */
+-            s->freq = dsp_get_hilo (s);
++            s->freq = restrict_sampling_rate(dsp_get_hilo(s));
+             ldebug ("set freq %d\n", s->freq);
+             break;
+ 
+diff --git a/include/fpu/softfloat-helpers.h b/include/fpu/softfloat-helpers.h
+index a98d759cd3..34f4cf92ae 100644
+--- a/include/fpu/softfloat-helpers.h
++++ b/include/fpu/softfloat-helpers.h
+@@ -48,8 +48,8 @@ this code that are retained.
+ ===============================================================================
+ */
+ 
+-#ifndef SOFTFLOAT_HELPERS_H
+-#define SOFTFLOAT_HELPERS_H
++#ifndef _SOFTFLOAT_HELPERS_H_
++#define _SOFTFLOAT_HELPERS_H_
+ 
+ #include "fpu/softfloat-types.h"
+ 
+diff --git a/include/hw/usb/dwc2-regs.h b/include/hw/usb/dwc2-regs.h
+index a7eb531485..40af23a0ba 100644
+--- a/include/hw/usb/dwc2-regs.h
++++ b/include/hw/usb/dwc2-regs.h
+@@ -39,8 +39,8 @@
+  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
+-#ifndef DWC2_HW_H
+-#define DWC2_HW_H
++#ifndef __DWC2_HW_H__
++#define __DWC2_HW_H__
+ 
+ #define HSOTG_REG(x)	(x)
+ 
+diff --git a/include/hw/usb/xlnx-usb-subsystem.h b/include/hw/usb/xlnx-usb-subsystem.h
+index 999e423951..739bef7f45 100644
+--- a/include/hw/usb/xlnx-usb-subsystem.h
++++ b/include/hw/usb/xlnx-usb-subsystem.h
+@@ -22,8 +22,8 @@
+  * THE SOFTWARE.
+  */
+ 
+-#ifndef XLNX_VERSAL_USB_SUBSYSTEM_H
+-#define XLNX_VERSAL_USB_SUBSYSTEM_H
++#ifndef _XLNX_VERSAL_USB_SUBSYSTEM_H_
++#define _XLNX_VERSAL_USB_SUBSYSTEM_H_
+ 
+ #include "hw/usb/xlnx-versal-usb2-ctrl-regs.h"
+ #include "hw/usb/hcd-dwc3.h"
+diff --git a/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h b/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h
+index b76dce0419..975a717627 100644
+--- a/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h
++++ b/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h
+@@ -23,8 +23,8 @@
+  * THE SOFTWARE.
+  */
+ 
+-#ifndef XLNX_USB2_REGS_H
+-#define XLNX_USB2_REGS_H
++#ifndef _XLNX_USB2_REGS_H_
++#define _XLNX_USB2_REGS_H_
+ 
+ #define TYPE_XILINX_VERSAL_USB2_CTRL_REGS "xlnx.versal-usb2-ctrl-regs"
+ 
+diff --git a/include/qemu/plugin-memory.h b/include/qemu/plugin-memory.h
+index b36def27d7..fbbe99474b 100644
+--- a/include/qemu/plugin-memory.h
++++ b/include/qemu/plugin-memory.h
+@@ -6,8 +6,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef PLUGIN_MEMORY_H
+-#define PLUGIN_MEMORY_H
++#ifndef _PLUGIN_MEMORY_H_
++#define _PLUGIN_MEMORY_H_
+ 
+ struct qemu_plugin_hwaddr {
+     bool is_io;
+diff --git a/include/qemu/selfmap.h b/include/qemu/selfmap.h
+index 80cf920fba..8382c4c779 100644
+--- a/include/qemu/selfmap.h
++++ b/include/qemu/selfmap.h
+@@ -6,8 +6,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef SELFMAP_H
+-#define SELFMAP_H
++#ifndef _SELFMAP_H_
++#define _SELFMAP_H_
+ 
+ typedef struct {
+     unsigned long start;
+diff --git a/include/user/syscall-trace.h b/include/user/syscall-trace.h
+index 614cfacfa5..42e3b48b03 100644
+--- a/include/user/syscall-trace.h
++++ b/include/user/syscall-trace.h
+@@ -7,8 +7,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef SYSCALL_TRACE_H
+-#define SYSCALL_TRACE_H
++#ifndef _SYSCALL_TRACE_H_
++#define _SYSCALL_TRACE_H_
+ 
+ #include "trace/trace-root.h"
+ 
+diff --git a/plugins/plugin.h b/plugins/plugin.h
+index b13677d0dc..55017e3581 100644
+--- a/plugins/plugin.h
++++ b/plugins/plugin.h
+@@ -9,8 +9,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef PLUGIN_INTERNAL_H
+-#define PLUGIN_INTERNAL_H
++#ifndef _PLUGIN_INTERNAL_H_
++#define _PLUGIN_INTERNAL_H_
+ 
+ #include <gmodule.h>
+ #include "qemu/qht.h"
+diff --git a/target/riscv/translate.c b/target/riscv/translate.c
+index 62a7d7e4c7..c6e8739614 100644
+--- a/target/riscv/translate.c
++++ b/target/riscv/translate.c
+@@ -47,7 +47,7 @@ typedef struct DisasContext {
+     bool virt_enabled;
+     uint32_t opcode;
+     uint32_t mstatus_fs;
+-    target_ulong misa;
++    uint32_t misa;
+     uint32_t mem_idx;
+     /* Remember the rounding mode encoded in the previous fp instruction,
+        which we have already installed into env->fp_status.  Or -1 for
+diff --git a/tests/qtest/fuzz-sb16-test.c b/tests/qtest/fuzz-sb16-test.c
+index 51030cd7dc..f47a8bcdbd 100644
+--- a/tests/qtest/fuzz-sb16-test.c
++++ b/tests/qtest/fuzz-sb16-test.c
+@@ -37,6 +37,22 @@ static void test_fuzz_sb16_0x91(void)
+     qtest_quit(s);
+ }
+ 
++/*
++ * This used to trigger the assert in audio_calloc
++ * through command 0xd4
++ */
++static void test_fuzz_sb16_0xd4(void)
++{
++    QTestState *s = qtest_init("-M pc -display none "
++                               "-device sb16,audiodev=none "
++                               "-audiodev id=none,driver=none");
++    qtest_outb(s, 0x22c, 0x41);
++    qtest_outb(s, 0x22c, 0x00);
++    qtest_outb(s, 0x22c, 0x14);
++    qtest_outb(s, 0x22c, 0xd4);
++    qtest_quit(s);
++}
++
+ int main(int argc, char **argv)
+ {
+     const char *arch = qtest_get_arch();
+@@ -46,6 +62,7 @@ int main(int argc, char **argv)
+    if (strcmp(arch, "i386") == 0) {
+         qtest_add_func("fuzz/test_fuzz_sb16/1c", test_fuzz_sb16_0x1c);
+         qtest_add_func("fuzz/test_fuzz_sb16/91", test_fuzz_sb16_0x91);
++        qtest_add_func("fuzz/test_fuzz_sb16/d4", test_fuzz_sb16_0xd4);
+    }
+ 
+    return g_test_run();
+diff --git a/tests/qtest/fuzz/generic_fuzz.c b/tests/qtest/fuzz/generic_fuzz.c
+index 6c67522717..cea7d4058e 100644
+--- a/tests/qtest/fuzz/generic_fuzz.c
++++ b/tests/qtest/fuzz/generic_fuzz.c
+@@ -841,9 +841,9 @@ static void generic_pre_fuzz(QTestState *s)
+ 
+     g_hash_table_iter_init(&iter, fuzzable_memoryregions);
+     while (g_hash_table_iter_next(&iter, (gpointer)&mr, NULL)) {
+-        printf("  * %s (size 0x%" PRIx64 ")\n",
++        printf("  * %s (size %lx)\n",
+                object_get_canonical_path_component(&(mr->parent_obj)),
+-               memory_region_size(mr));
++               (uint64_t)mr->size);
+     }
+ 
+     if (!g_hash_table_size(fuzzable_memoryregions)) {
+diff --git a/tests/qtest/fuzz/qos_fuzz.h b/tests/qtest/fuzz/qos_fuzz.h
+index 63d8459b71..477f11b02b 100644
+--- a/tests/qtest/fuzz/qos_fuzz.h
++++ b/tests/qtest/fuzz/qos_fuzz.h
+@@ -10,8 +10,8 @@
+  * See the COPYING file in the top-level directory.
+  */
+ 
+-#ifndef QOS_FUZZ_H
+-#define QOS_FUZZ_H
++#ifndef _QOS_FUZZ_H_
++#define _QOS_FUZZ_H_
+ 
+ #include "tests/qtest/fuzz/fuzz.h"
+ #include "tests/qtest/libqos/qgraph.h"
+diff --git a/tests/tcg/minilib/minilib.h b/tests/tcg/minilib/minilib.h
+index 17d0f2f314..e23361380a 100644
+--- a/tests/tcg/minilib/minilib.h
++++ b/tests/tcg/minilib/minilib.h
+@@ -9,8 +9,8 @@
+  * SPDX-License-Identifier: GPL-2.0-only
+  */
+ 
+-#ifndef MINILIB_H
+-#define MINILIB_H
++#ifndef _MINILIB_H_
++#define _MINILIB_H_
+ 
+ /*
+  * Provided by the individual arch

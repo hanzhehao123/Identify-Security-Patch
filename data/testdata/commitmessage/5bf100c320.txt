@@ -1,0 +1,16 @@
+commit 5bf100c3200bc74b5d7b4e430c3b23e60caf1605
+Author: Jamie Iles <jamie@nuviainc.com>
+Date:   Wed May 26 13:18:46 2021 +0100
+
+    target/arm: use raise_exception_ra for MTE check failure
+    
+    Now that raise_exception_ra restores the state before raising the
+    exception we can use restore_exception_ra to perform the state restore +
+    exception raising without clobbering the syndrome.
+    
+    Cc: Richard Henderson <richard.henderson@linaro.org>
+    Cc: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Jamie Iles <jamie@nuviainc.com>
+    [PMM: Keep the one line of the comment that is still relevant]
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

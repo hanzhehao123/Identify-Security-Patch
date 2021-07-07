@@ -1,0 +1,16 @@
+commit a14b3ad11af1803e018d2be8ca26be27f816872d
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Thu Jun 10 09:32:40 2021 -0700
+
+    tcg: Fix documentation for tcg_constant_* vs tcg_temp_free_*
+    
+    At some point during the development of tcg_constant_*, I changed
+    my mind about whether such temps should be able to be passed to
+    tcg_temp_free_*.  The final version committed allows this, but the
+    commentary was not updated to match.
+    
+    Fixes: c0522136adf
+    Reported-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

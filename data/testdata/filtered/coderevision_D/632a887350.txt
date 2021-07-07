@@ -1,0 +1,88 @@
+diff --git a/include/qemu/config-file.h b/include/qemu/config-file.h
+index 0500b3668d..8d3e53ae4d 100644
+--- a/include/qemu/config-file.h
++++ b/include/qemu/config-file.h
+@@ -1,7 +1,7 @@
+ #ifndef QEMU_CONFIG_FILE_H
+ #define QEMU_CONFIG_FILE_H
+ 
+-void qemu_load_module_for_opts(const char *group);
++
+ QemuOptsList *qemu_find_opts(const char *group);
+ QemuOptsList *qemu_find_opts_err(const char *group, Error **errp);
+ QemuOpts *qemu_find_opts_singleton(const char *group);
+diff --git a/softmmu/vl.c b/softmmu/vl.c
+index 6054f6f0b9..21e55718a6 100644
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
+@@ -2627,23 +2627,6 @@ void qmp_x_exit_preconfig(Error **errp)
+     }
+ }
+ 
+-#ifdef CONFIG_MODULES
+-void qemu_load_module_for_opts(const char *group)
+-{
+-    static bool spice_tried;
+-    if (g_str_equal(group, "spice") && !spice_tried) {
+-        ui_module_load_one("spice-core");
+-        spice_tried = true;
+-    }
+-
+-    static bool iscsi_tried;
+-    if (g_str_equal(group, "iscsi") && !iscsi_tried) {
+-        block_module_load_one("iscsi");
+-        iscsi_tried = true;
+-    }
+-}
+-#endif
+-
+ void qemu_init(int argc, char **argv, char **envp)
+ {
+     QemuOpts *opts;
+@@ -3403,6 +3386,10 @@ void qemu_init(int argc, char **argv, char **envp)
+                 break;
+             case QEMU_OPTION_spice:
+                 olist = qemu_find_opts_err("spice", NULL);
++                if (!olist) {
++                    ui_module_load_one("spice-core");
++                    olist = qemu_find_opts("spice");
++                }
+                 if (!olist) {
+                     error_report("spice support is disabled");
+                     exit(1);
+diff --git a/stubs/meson.build b/stubs/meson.build
+index f3f979c3fe..3faef16892 100644
+--- a/stubs/meson.build
++++ b/stubs/meson.build
+@@ -22,7 +22,6 @@ stub_ss.add(files('isa-bus.c'))
+ stub_ss.add(files('is-daemonized.c'))
+ stub_ss.add(when: 'CONFIG_LINUX_AIO', if_true: files('linux-aio.c'))
+ stub_ss.add(files('migr-blocker.c'))
+-stub_ss.add(files('module-opts.c'))
+ stub_ss.add(files('monitor.c'))
+ stub_ss.add(files('monitor-core.c'))
+ stub_ss.add(files('pci-bus.c'))
+diff --git a/stubs/module-opts.c b/stubs/module-opts.c
+deleted file mode 100644
+index a7d0e4ad6e..0000000000
+--- a/stubs/module-opts.c
++++ /dev/null
+@@ -1,6 +0,0 @@
+-#include "qemu/osdep.h"
+-#include "qemu/config-file.h"
+-
+-void qemu_load_module_for_opts(const char *group)
+-{
+-}
+diff --git a/util/qemu-config.c b/util/qemu-config.c
+index 34974c4b47..670bd6ebca 100644
+--- a/util/qemu-config.c
++++ b/util/qemu-config.c
+@@ -16,7 +16,6 @@ static QemuOptsList *find_list(QemuOptsList **lists, const char *group,
+ {
+     int i;
+ 
+-    qemu_load_module_for_opts(group);
+     for (i = 0; lists[i] != NULL; i++) {
+         if (strcmp(lists[i]->name, group) == 0)
+             break;

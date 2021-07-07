@@ -1,0 +1,12 @@
+commit abc2f51144242e819fd7af69d3e7c199cc9d7004
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 17 17:53:05 2021 +0200
+
+    machine: add error propagation to mc->smp_parse
+    
+    Clean up the smp_parse functions to use Error** instead of exiting.
+    
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Message-Id: <20210617155308.928754-9-pbonzini@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

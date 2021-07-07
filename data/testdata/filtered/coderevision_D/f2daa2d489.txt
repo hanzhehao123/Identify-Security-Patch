@@ -1,0 +1,13 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index 04ca6a25ae..413dd4d2de 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -278,7 +278,7 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         self._print(resp)
+         return True
+ 
+-    def connect(self, negotiate: bool = True):
++    def connect(self, negotiate):
+         self._greeting = super(QMPShell, self).connect(negotiate)
+         self.__completer_setup()
+ 

@@ -1,0 +1,14 @@
+commit da261b69aee9acb46ac1b0ebfe0ccb7b74450a88
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Tue Jun 1 10:52:17 2021 +0300
+
+    block: simplify bdrv_child_user_desc()
+    
+    All child classes have this callback. So, drop unreachable code.
+    
+    Still add an assertion to bdrv_attach_child_common(), to early detect
+    bad classes.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210601075218.79249-6-vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

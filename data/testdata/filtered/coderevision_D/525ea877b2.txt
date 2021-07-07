@@ -1,0 +1,25 @@
+diff --git a/target/mips/tcg/msa_translate.c b/target/mips/tcg/msa_translate.c
+index 9df4497c88..b0df4f85df 100644
+--- a/target/mips/tcg/msa_translate.c
++++ b/target/mips/tcg/msa_translate.c
+@@ -2162,7 +2162,7 @@ static void gen_msa_vec(DisasContext *ctx)
+     }
+ }
+ 
+-static bool trans_MSA(DisasContext *ctx, arg_MSA *a)
++static void gen_msa(DisasContext *ctx)
+ {
+     uint32_t opcode = ctx->opcode;
+ 
+@@ -2258,6 +2258,11 @@ static bool trans_MSA(DisasContext *ctx, arg_MSA *a)
+         gen_reserved_instruction(ctx);
+         break;
+     }
++}
++
++static bool trans_MSA(DisasContext *ctx, arg_MSA *a)
++{
++    gen_msa(ctx);
+ 
+     return true;
+ }

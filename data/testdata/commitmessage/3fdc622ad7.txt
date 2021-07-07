@@ -1,0 +1,20 @@
+commit 3fdc622ad79636f3d7f8bed50a53bc28af1850e1
+Author: Eric Farman <farman@linux.ibm.com>
+Date:   Fri Jun 18 01:25:34 2021 +0200
+
+    s390x/css: Introduce an ESW struct
+    
+    The Interrupt Response Block is comprised of several other
+    structures concatenated together, but only the 12-byte
+    Subchannel-Status Word (SCSW) is defined as a proper struct.
+    Everything else is a simple array of 32-bit words.
+    
+    Let's define a proper struct for the 20-byte Extended-Status
+    Word (ESW) so that we can make good decisions about the sense
+    data that would go into the ECW area for virtual vs
+    passthrough devices.
+    
+    [CH: adapted ESW definition to build with mingw, as discussed]
+    Signed-off-by: Eric Farman <farman@linux.ibm.com>
+    Message-Id: <20210617232537.1337506-2-farman@linux.ibm.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

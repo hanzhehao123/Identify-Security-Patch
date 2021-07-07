@@ -1,0 +1,150 @@
+diff --git a/include/fpu/softfloat-helpers.h b/include/fpu/softfloat-helpers.h
+index a98d759cd3..34f4cf92ae 100644
+--- a/include/fpu/softfloat-helpers.h
++++ b/include/fpu/softfloat-helpers.h
+@@ -48,8 +48,8 @@ this code that are retained.
+ ===============================================================================
+ */
+ 
+-#ifndef SOFTFLOAT_HELPERS_H
+-#define SOFTFLOAT_HELPERS_H
++#ifndef _SOFTFLOAT_HELPERS_H_
++#define _SOFTFLOAT_HELPERS_H_
+ 
+ #include "fpu/softfloat-types.h"
+ 
+diff --git a/include/hw/usb/dwc2-regs.h b/include/hw/usb/dwc2-regs.h
+index a7eb531485..40af23a0ba 100644
+--- a/include/hw/usb/dwc2-regs.h
++++ b/include/hw/usb/dwc2-regs.h
+@@ -39,8 +39,8 @@
+  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
+-#ifndef DWC2_HW_H
+-#define DWC2_HW_H
++#ifndef __DWC2_HW_H__
++#define __DWC2_HW_H__
+ 
+ #define HSOTG_REG(x)	(x)
+ 
+diff --git a/include/hw/usb/xlnx-usb-subsystem.h b/include/hw/usb/xlnx-usb-subsystem.h
+index 999e423951..739bef7f45 100644
+--- a/include/hw/usb/xlnx-usb-subsystem.h
++++ b/include/hw/usb/xlnx-usb-subsystem.h
+@@ -22,8 +22,8 @@
+  * THE SOFTWARE.
+  */
+ 
+-#ifndef XLNX_VERSAL_USB_SUBSYSTEM_H
+-#define XLNX_VERSAL_USB_SUBSYSTEM_H
++#ifndef _XLNX_VERSAL_USB_SUBSYSTEM_H_
++#define _XLNX_VERSAL_USB_SUBSYSTEM_H_
+ 
+ #include "hw/usb/xlnx-versal-usb2-ctrl-regs.h"
+ #include "hw/usb/hcd-dwc3.h"
+diff --git a/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h b/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h
+index b76dce0419..975a717627 100644
+--- a/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h
++++ b/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h
+@@ -23,8 +23,8 @@
+  * THE SOFTWARE.
+  */
+ 
+-#ifndef XLNX_USB2_REGS_H
+-#define XLNX_USB2_REGS_H
++#ifndef _XLNX_USB2_REGS_H_
++#define _XLNX_USB2_REGS_H_
+ 
+ #define TYPE_XILINX_VERSAL_USB2_CTRL_REGS "xlnx.versal-usb2-ctrl-regs"
+ 
+diff --git a/include/qemu/plugin-memory.h b/include/qemu/plugin-memory.h
+index b36def27d7..fbbe99474b 100644
+--- a/include/qemu/plugin-memory.h
++++ b/include/qemu/plugin-memory.h
+@@ -6,8 +6,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef PLUGIN_MEMORY_H
+-#define PLUGIN_MEMORY_H
++#ifndef _PLUGIN_MEMORY_H_
++#define _PLUGIN_MEMORY_H_
+ 
+ struct qemu_plugin_hwaddr {
+     bool is_io;
+diff --git a/include/qemu/selfmap.h b/include/qemu/selfmap.h
+index 80cf920fba..8382c4c779 100644
+--- a/include/qemu/selfmap.h
++++ b/include/qemu/selfmap.h
+@@ -6,8 +6,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef SELFMAP_H
+-#define SELFMAP_H
++#ifndef _SELFMAP_H_
++#define _SELFMAP_H_
+ 
+ typedef struct {
+     unsigned long start;
+diff --git a/include/user/syscall-trace.h b/include/user/syscall-trace.h
+index 614cfacfa5..42e3b48b03 100644
+--- a/include/user/syscall-trace.h
++++ b/include/user/syscall-trace.h
+@@ -7,8 +7,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef SYSCALL_TRACE_H
+-#define SYSCALL_TRACE_H
++#ifndef _SYSCALL_TRACE_H_
++#define _SYSCALL_TRACE_H_
+ 
+ #include "trace/trace-root.h"
+ 
+diff --git a/plugins/plugin.h b/plugins/plugin.h
+index b13677d0dc..55017e3581 100644
+--- a/plugins/plugin.h
++++ b/plugins/plugin.h
+@@ -9,8 +9,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef PLUGIN_INTERNAL_H
+-#define PLUGIN_INTERNAL_H
++#ifndef _PLUGIN_INTERNAL_H_
++#define _PLUGIN_INTERNAL_H_
+ 
+ #include <gmodule.h>
+ #include "qemu/qht.h"
+diff --git a/tests/qtest/fuzz/qos_fuzz.h b/tests/qtest/fuzz/qos_fuzz.h
+index 63d8459b71..477f11b02b 100644
+--- a/tests/qtest/fuzz/qos_fuzz.h
++++ b/tests/qtest/fuzz/qos_fuzz.h
+@@ -10,8 +10,8 @@
+  * See the COPYING file in the top-level directory.
+  */
+ 
+-#ifndef QOS_FUZZ_H
+-#define QOS_FUZZ_H
++#ifndef _QOS_FUZZ_H_
++#define _QOS_FUZZ_H_
+ 
+ #include "tests/qtest/fuzz/fuzz.h"
+ #include "tests/qtest/libqos/qgraph.h"
+diff --git a/tests/tcg/minilib/minilib.h b/tests/tcg/minilib/minilib.h
+index 17d0f2f314..e23361380a 100644
+--- a/tests/tcg/minilib/minilib.h
++++ b/tests/tcg/minilib/minilib.h
+@@ -9,8 +9,8 @@
+  * SPDX-License-Identifier: GPL-2.0-only
+  */
+ 
+-#ifndef MINILIB_H
+-#define MINILIB_H
++#ifndef _MINILIB_H_
++#define _MINILIB_H_
+ 
+ /*
+  * Provided by the individual arch

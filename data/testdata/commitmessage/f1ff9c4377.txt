@@ -1,0 +1,15 @@
+commit f1ff9c437711803f4862e580a211b3af8bb369c7
+Author: Rao, Lei <lei.rao@intel.com>
+Date:   Tue Jun 8 16:23:25 2021 +0800
+
+    Remove some duplicate trace code.
+    
+    There is the same trace code in the colo_compare_packet_payload.
+    
+    Signed-off-by: Lei Rao <lei.rao@intel.com>
+    Reviewed-by: Li Zhijian <lizhijian@fujitsu.com>
+    Reviewed-by: Zhang Chen <chen.zhang@intel.com>
+    Reviewed-by: Lukas Straub <lukasstraub2@web.de>
+    Tested-by: Lukas Straub <lukasstraub2@web.de>
+    Signed-off-by: Zhang Chen <chen.zhang@intel.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

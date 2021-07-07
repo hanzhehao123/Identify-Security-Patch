@@ -1,0 +1,461 @@
+diff --git a/configure b/configure
+index 897e968e02..00e7dd749a 100755
+--- a/configure
++++ b/configure
+@@ -404,9 +404,10 @@ seccomp="auto"
+ glusterfs="auto"
+ gtk="auto"
+ tls_priority="NORMAL"
+-gnutls="auto"
+-nettle="auto"
+-gcrypt="auto"
++gnutls="$default_feature"
++nettle="$default_feature"
++gcrypt="$default_feature"
++qemu_private_xts="yes"
+ auth_pam="$default_feature"
+ vte="$default_feature"
+ virglrenderer="$default_feature"
+@@ -1371,17 +1372,17 @@ for opt do
+   ;;
+   --tls-priority=*) tls_priority="$optarg"
+   ;;
+-  --disable-gnutls) gnutls="disabled"
++  --disable-gnutls) gnutls="no"
+   ;;
+-  --enable-gnutls) gnutls="enabled"
++  --enable-gnutls) gnutls="yes"
+   ;;
+-  --disable-nettle) nettle="disabled"
++  --disable-nettle) nettle="no"
+   ;;
+-  --enable-nettle) nettle="enabled"
++  --enable-nettle) nettle="yes"
+   ;;
+-  --disable-gcrypt) gcrypt="disabled"
++  --disable-gcrypt) gcrypt="no"
+   ;;
+-  --enable-gcrypt) gcrypt="enabled"
++  --enable-gcrypt) gcrypt="yes"
+   ;;
+   --disable-auth-pam) auth_pam="no"
+   ;;
+@@ -2799,6 +2800,156 @@ EOF
+   fi
+ fi
+ 
++##########################################
++# GNUTLS probe
++
++if test "$gnutls" != "no"; then
++    pass="no"
++    if $pkg_config --exists "gnutls >= 3.5.18"; then
++        gnutls_cflags=$($pkg_config --cflags gnutls)
++        gnutls_libs=$($pkg_config --libs gnutls)
++        # Packaging for the static libraries is not always correct.
++        # At least ubuntu 18.04 ships only shared libraries.
++        write_c_skeleton
++        if compile_prog "" "$gnutls_libs" ; then
++            pass="yes"
++        fi
++    fi
++    if test "$pass" = "no" && test "$gnutls" = "yes"; then
++	feature_not_found "gnutls" "Install gnutls devel >= 3.1.18"
++    else
++        gnutls="$pass"
++    fi
++fi
++
++
++# If user didn't give a --disable/enable-gcrypt flag,
++# then mark as disabled if user requested nettle
++# explicitly
++if test -z "$gcrypt"
++then
++    if test "$nettle" = "yes"
++    then
++        gcrypt="no"
++    fi
++fi
++
++# If user didn't give a --disable/enable-nettle flag,
++# then mark as disabled if user requested gcrypt
++# explicitly
++if test -z "$nettle"
++then
++    if test "$gcrypt" = "yes"
++    then
++        nettle="no"
++    fi
++fi
++
++has_libgcrypt() {
++    if ! has "libgcrypt-config"
++    then
++	return 1
++    fi
++
++    if test -n "$cross_prefix"
++    then
++	host=$(libgcrypt-config --host)
++	if test "$host-" != $cross_prefix
++	then
++	    return 1
++	fi
++    fi
++
++    maj=`libgcrypt-config --version | awk -F . '{print $1}'`
++    min=`libgcrypt-config --version | awk -F . '{print $2}'`
++
++    if test $maj != 1 || test $min -lt 8
++    then
++       return 1
++    fi
++
++    return 0
++}
++
++
++if test "$nettle" != "no"; then
++    pass="no"
++    if $pkg_config --exists "nettle >= 3.4"; then
++        nettle_cflags=$($pkg_config --cflags nettle)
++        nettle_libs=$($pkg_config --libs nettle)
++        # Link test to make sure the given libraries work (e.g for static).
++        write_c_skeleton
++        if compile_prog "" "$nettle_libs" ; then
++            if test -z "$gcrypt"; then
++               gcrypt="no"
++            fi
++            pass="yes"
++        fi
++    fi
++    if test "$pass" = "yes"
++    then
++        cat > $TMPC << EOF
++#include <nettle/xts.h>
++int main(void) {
++  return 0;
++}
++EOF
++        if compile_prog "$nettle_cflags" "$nettle_libs" ; then
++            qemu_private_xts=no
++        fi
++    fi
++    if test "$pass" = "no" && test "$nettle" = "yes"; then
++        feature_not_found "nettle" "Install nettle devel >= 2.7.1"
++    else
++        nettle="$pass"
++    fi
++fi
++
++if test "$gcrypt" != "no"; then
++    pass="no"
++    if has_libgcrypt; then
++        gcrypt_cflags=$(libgcrypt-config --cflags)
++        gcrypt_libs=$(libgcrypt-config --libs)
++        # Debian has removed -lgpg-error from libgcrypt-config
++        # as it "spreads unnecessary dependencies" which in
++        # turn breaks static builds...
++        if test "$static" = "yes"
++        then
++            gcrypt_libs="$gcrypt_libs -lgpg-error"
++        fi
++
++        # Link test to make sure the given libraries work (e.g for static).
++        write_c_skeleton
++        if compile_prog "" "$gcrypt_libs" ; then
++            pass="yes"
++        fi
++    fi
++    if test "$pass" = "yes"; then
++        gcrypt="yes"
++        cat > $TMPC << EOF
++#include <gcrypt.h>
++int main(void) {
++  gcry_cipher_hd_t handle;
++  gcry_cipher_open(&handle, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_XTS, 0);
++  return 0;
++}
++EOF
++        if compile_prog "$gcrypt_cflags" "$gcrypt_libs" ; then
++            qemu_private_xts=no
++        fi
++    elif test "$gcrypt" = "yes"; then
++        feature_not_found "gcrypt" "Install gcrypt devel >= 1.5.0"
++    else
++        gcrypt="no"
++    fi
++fi
++
++
++if test "$gcrypt" = "yes" && test "$nettle" = "yes"
++then
++    error_exit "Only one of gcrypt & nettle can be enabled"
++fi
++
+ ##########################################
+ # libtasn1 - only for the TLS creds/session test suite
+ 
+@@ -5554,6 +5705,24 @@ if test "$gdbus_codegen" != "" ; then
+     echo "GDBUS_CODEGEN=$gdbus_codegen" >> $config_host_mak
+ fi
+ echo "CONFIG_TLS_PRIORITY=\"$tls_priority\"" >> $config_host_mak
++if test "$gnutls" = "yes" ; then
++  echo "CONFIG_GNUTLS=y" >> $config_host_mak
++  echo "GNUTLS_CFLAGS=$gnutls_cflags" >> $config_host_mak
++  echo "GNUTLS_LIBS=$gnutls_libs" >> $config_host_mak
++fi
++if test "$gcrypt" = "yes" ; then
++  echo "CONFIG_GCRYPT=y" >> $config_host_mak
++  echo "GCRYPT_CFLAGS=$gcrypt_cflags" >> $config_host_mak
++  echo "GCRYPT_LIBS=$gcrypt_libs" >> $config_host_mak
++fi
++if test "$nettle" = "yes" ; then
++  echo "CONFIG_NETTLE=y" >> $config_host_mak
++  echo "NETTLE_CFLAGS=$nettle_cflags" >> $config_host_mak
++  echo "NETTLE_LIBS=$nettle_libs" >> $config_host_mak
++fi
++if test "$qemu_private_xts" = "yes" ; then
++  echo "CONFIG_QEMU_PRIVATE_XTS=y" >> $config_host_mak
++fi
+ if test "$tasn1" = "yes" ; then
+   echo "CONFIG_TASN1=y" >> $config_host_mak
+ fi
+@@ -6270,7 +6439,6 @@ if test "$skip_meson" = no; then
+         -Dcurl=$curl -Dglusterfs=$glusterfs -Dbzip2=$bzip2 -Dlibiscsi=$libiscsi \
+         -Dlibnfs=$libnfs -Diconv=$iconv -Dcurses=$curses -Dlibudev=$libudev\
+         -Drbd=$rbd -Dlzo=$lzo -Dsnappy=$snappy -Dlzfse=$lzfse \
+-        -Dgnutls=$gnutls -Dnettle=$nettle -Dgcrypt=$gcrypt \
+         -Dzstd=$zstd -Dseccomp=$seccomp -Dvirtfs=$virtfs -Dcap_ng=$cap_ng \
+         -Dattr=$attr -Ddefault_devices=$default_devices \
+         -Ddocs=$docs -Dsphinx_build=$sphinx_build -Dinstall_blobs=$blobs \
+diff --git a/crypto/meson.build b/crypto/meson.build
+index 7cbf1a6ba7..af7e80c6f6 100644
+--- a/crypto/meson.build
++++ b/crypto/meson.build
+@@ -22,31 +22,48 @@ crypto_ss.add(files(
+   'tlssession.c',
+ ))
+ 
+-if nettle.found()
+-  crypto_ss.add(nettle, files('hash-nettle.c', 'hmac-nettle.c', 'pbkdf-nettle.c'))
+-elif gcrypt.found()
+-  crypto_ss.add(gcrypt, files('hash-gcrypt.c', 'hmac-gcrypt.c', 'pbkdf-gcrypt.c'))
++if 'CONFIG_NETTLE' in config_host
++  crypto_ss.add(files('hash-nettle.c', 'hmac-nettle.c', 'pbkdf-nettle.c'))
++elif 'CONFIG_GCRYPT' in config_host
++  crypto_ss.add(files('hash-gcrypt.c', 'pbkdf-gcrypt.c'))
++  crypto_ss.add(files('hmac-gcrypt.c'))
+ else
+   crypto_ss.add(files('hash-glib.c', 'hmac-glib.c', 'pbkdf-stub.c'))
+ endif
+-if xts == 'private'
+-  crypto_ss.add(files('xts.c'))
+-endif
+ 
+ crypto_ss.add(when: 'CONFIG_SECRET_KEYRING', if_true: files('secret_keyring.c'))
++crypto_ss.add(when: 'CONFIG_QEMU_PRIVATE_XTS', if_true: files('xts.c'))
+ crypto_ss.add(when: 'CONFIG_AF_ALG', if_true: files('afalg.c', 'cipher-afalg.c', 'hash-afalg.c'))
+-crypto_ss.add(when: gnutls, if_true: files('tls-cipher-suites.c'))
++crypto_ss.add(when: 'CONFIG_GNUTLS', if_true: files('tls-cipher-suites.c'))
++
++if 'CONFIG_NETTLE' in config_host
++  crypto_ss.add(nettle)
++elif 'CONFIG_GCRYPT' in config_host
++  crypto_ss.add(gcrypt)
++endif
++
++if 'CONFIG_GNUTLS' in config_host
++  crypto_ss.add(gnutls)
++endif
++
+ 
+ util_ss.add(files('aes.c'))
+ util_ss.add(files('init.c'))
+ 
+-if gcrypt.found()
+-  util_ss.add(gcrypt, files('random-gcrypt.c'))
+-elif gnutls.found()
+-  util_ss.add(gnutls, files('random-gnutls.c'))
++if 'CONFIG_GCRYPT' in config_host
++  util_ss.add(files('random-gcrypt.c'))
++elif 'CONFIG_GNUTLS' in config_host
++  util_ss.add(files('random-gnutls.c'))
+ elif 'CONFIG_RNG_NONE' in config_host
+   util_ss.add(files('random-none.c'))
+ else
+   util_ss.add(files('random-platform.c'))
+ endif
+ 
++if 'CONFIG_GCRYPT' in config_host
++  util_ss.add(gcrypt)
++endif
++
++if 'CONFIG_GNUTLS' in config_host
++  util_ss.add(gnutls)
++endif
+diff --git a/meson.build b/meson.build
+index 286b37aecb..3809f51f7f 100644
+--- a/meson.build
++++ b/meson.build
+@@ -320,6 +320,21 @@ urcubp = not_found
+ if 'CONFIG_TRACE_UST' in config_host
+   urcubp = declare_dependency(link_args: config_host['URCU_BP_LIBS'].split())
+ endif
++gcrypt = not_found
++if 'CONFIG_GCRYPT' in config_host
++  gcrypt = declare_dependency(compile_args: config_host['GCRYPT_CFLAGS'].split(),
++                              link_args: config_host['GCRYPT_LIBS'].split())
++endif
++nettle = not_found
++if 'CONFIG_NETTLE' in config_host
++  nettle = declare_dependency(compile_args: config_host['NETTLE_CFLAGS'].split(),
++                              link_args: config_host['NETTLE_LIBS'].split())
++endif
++gnutls = not_found
++if 'CONFIG_GNUTLS' in config_host
++  gnutls = declare_dependency(compile_args: config_host['GNUTLS_CFLAGS'].split(),
++                              link_args: config_host['GNUTLS_LIBS'].split())
++endif
+ pixman = not_found
+ if have_system or have_tools
+   pixman = dependency('pixman-1', required: have_system, version:'>=0.21.8',
+@@ -814,54 +829,6 @@ if 'CONFIG_OPENGL' in config_host
+                               link_args: config_host['OPENGL_LIBS'].split())
+ endif
+ 
+-gnutls = not_found
+-if not get_option('gnutls').auto() or have_system
+-  gnutls = dependency('gnutls', version: '>=3.5.18',
+-                      method: 'pkg-config',
+-                      required: get_option('gnutls'),
+-                      kwargs: static_kwargs)
+-endif
+-
+-# Nettle has priority over gcrypt
+-gcrypt = not_found
+-nettle = not_found
+-xts = 'private'
+-if get_option('nettle').enabled() and get_option('gcrypt').enabled()
+-  error('Only one of gcrypt & nettle can be enabled')
+-elif (not get_option('nettle').auto() or have_system) and not get_option('gcrypt').enabled()
+-  nettle = dependency('nettle', version: '>=3.4',
+-                      method: 'pkg-config',
+-                      required: get_option('nettle'),
+-                      kwargs: static_kwargs)
+-  if nettle.found() and cc.has_header('nettle/xts.h', dependencies: nettle)
+-    xts = 'nettle'
+-  endif
+-endif
+-if (not get_option('gcrypt').auto() or have_system) and not nettle.found()
+-  gcrypt = dependency('libgcrypt', version: '>=1.5',
+-                         method: 'config-tool',
+-                         required: get_option('gcrypt'),
+-                         kwargs: static_kwargs)
+-  if gcrypt.found() and cc.compiles('''
+-    #include <gcrypt.h>
+-    int main(void) {
+-      gcry_cipher_hd_t handle;
+-      gcry_cipher_open(&handle, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_XTS, 0);
+-      return 0;
+-    }
+-    ''', dependencies: gcrypt)
+-    xts = 'gcrypt'
+-  endif
+-  # Debian has removed -lgpg-error from libgcrypt-config
+-  # as it "spreads unnecessary dependencies" which in
+-  # turn breaks static builds...
+-  if gcrypt.found() and enable_static
+-    gcrypt = declare_dependency(dependencies: [
+-      gcrypt,
+-      cc.find_library('gpg-error', required: true, kwargs: static_kwargs)])
+-  endif
+-endif
+-
+ gtk = not_found
+ gtkx11 = not_found
+ if not get_option('gtk').auto() or (have_system and not cocoa.found())
+@@ -1198,10 +1165,6 @@ config_host_data.set('CONFIG_VIRTFS', have_virtfs)
+ config_host_data.set('CONFIG_XKBCOMMON', xkbcommon.found())
+ config_host_data.set('CONFIG_KEYUTILS', keyutils.found())
+ config_host_data.set('CONFIG_GETTID', has_gettid)
+-config_host_data.set('CONFIG_GNUTLS', gnutls.found())
+-config_host_data.set('CONFIG_GCRYPT', gcrypt.found())
+-config_host_data.set('CONFIG_NETTLE', nettle.found())
+-config_host_data.set('CONFIG_QEMU_PRIVATE_XTS', xts == 'private')
+ config_host_data.set('CONFIG_MALLOC_TRIM', has_malloc_trim)
+ config_host_data.set('CONFIG_STATX', has_statx)
+ config_host_data.set('CONFIG_ZSTD', zstd.found())
+@@ -2696,16 +2659,16 @@ summary(summary_info, bool_yn: true, section: 'Block layer support')
+ # Crypto
+ summary_info = {}
+ summary_info += {'TLS priority':      config_host['CONFIG_TLS_PRIORITY']}
+-summary_info += {'GNUTLS support':    gnutls.found()}
++summary_info += {'GNUTLS support':    config_host.has_key('CONFIG_GNUTLS')}
+ # TODO: add back version
+-summary_info += {'libgcrypt':         gcrypt.found()}
+-if gcrypt.found()
+-   summary_info += {'  XTS':             xts != 'private'}
++summary_info += {'libgcrypt':         config_host.has_key('CONFIG_GCRYPT')}
++if config_host.has_key('CONFIG_GCRYPT')
++   summary_info += {'  XTS':             not config_host.has_key('CONFIG_QEMU_PRIVATE_XTS')}
+ endif
+ # TODO: add back version
+-summary_info += {'nettle':            nettle.found()}
+-if nettle.found()
+-   summary_info += {'  XTS':             xts != 'private'}
++summary_info += {'nettle':            config_host.has_key('CONFIG_NETTLE')}
++if config_host.has_key('CONFIG_NETTLE')
++   summary_info += {'  XTS':             not config_host.has_key('CONFIG_QEMU_PRIVATE_XTS')}
+ endif
+ summary_info += {'crypto afalg':      config_host.has_key('CONFIG_AF_ALG')}
+ summary_info += {'rng-none':          config_host.has_key('CONFIG_RNG_NONE')}
+diff --git a/meson_options.txt b/meson_options.txt
+index 343ffffb7c..3d304cac96 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -76,12 +76,6 @@ option('iconv', type : 'feature', value : 'auto',
+        description: 'Font glyph conversion support')
+ option('curses', type : 'feature', value : 'auto',
+        description: 'curses UI')
+-option('gnutls', type : 'feature', value : 'auto',
+-       description: 'GNUTLS cryptography support')
+-option('nettle', type : 'feature', value : 'auto',
+-       description: 'nettle cryptography support')
+-option('gcrypt', type : 'feature', value : 'auto',
+-       description: 'libgcrypt cryptography support')
+ option('libudev', type : 'feature', value : 'auto',
+        description: 'Use libudev to enumerate host devices')
+ option('lzfse', type : 'feature', value : 'auto',
+diff --git a/tests/unit/meson.build b/tests/unit/meson.build
+index fcf6ed2ef5..b3bc2109da 100644
+--- a/tests/unit/meson.build
++++ b/tests/unit/meson.build
+@@ -83,7 +83,7 @@ if have_block
+     'test-crypto-afsplit': [io],
+     'test-crypto-block': [io],
+   }
+-  if gnutls.found() and \
++  if 'CONFIG_GNUTLS' in config_host and \
+      'CONFIG_TASN1' in config_host and \
+      'CONFIG_POSIX' in config_host
+     tests += {
+@@ -97,7 +97,7 @@ if have_block
+   if 'CONFIG_AUTH_PAM' in config_host
+     tests += {'test-authz-pam': [authz]}
+   endif
+-  if xts == 'private'
++  if 'CONFIG_QEMU_PRIVATE_XTS' in config_host
+     tests += {'test-crypto-xts': [crypto, io]}
+   endif
+   if 'CONFIG_POSIX' in config_host
+@@ -106,7 +106,7 @@ if have_block
+   if 'CONFIG_REPLICATION' in config_host
+     tests += {'test-replication': [testblock]}
+   endif
+-  if nettle.found() or gcrypt.found()
++  if 'CONFIG_NETTLE' in config_host or 'CONFIG_GCRYPT' in config_host
+     tests += {'test-crypto-pbkdf': [io]}
+   endif
+   if 'CONFIG_EPOLL_CREATE1' in config_host

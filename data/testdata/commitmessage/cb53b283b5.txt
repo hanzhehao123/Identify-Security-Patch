@@ -1,0 +1,14 @@
+commit cb53b283b5adf4123273d07eee5e186e2e0a1b5b
+Author: Bin Meng <bin.meng@windriver.com>
+Date:   Fri Apr 30 15:12:55 2021 +0800
+
+    hw/riscv: sifive_u: Switch to use qemu_fdt_setprop_string_array() helper
+    
+    Since commit 78da6a1bca22 ("device_tree: add qemu_fdt_setprop_string_array helper"),
+    we can use the new helper to set the clock name for the ethernet
+    controller node.
+    
+    Signed-off-by: Bin Meng <bin.meng@windriver.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210430071302.1489082-1-bmeng.cn@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

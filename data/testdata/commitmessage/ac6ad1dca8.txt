@@ -1,0 +1,12 @@
+commit ac6ad1dca84e39038e149c7b91adf9642e89ca70
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:02 2021 +0100
+
+    target/arm: Implement MVE VMULL
+    
+    Implement the MVE VMULL insn, which multiplies two single
+    width integer elements to produce a double width result.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-19-peter.maydell@linaro.org

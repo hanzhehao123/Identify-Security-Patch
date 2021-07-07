@@ -1,0 +1,12 @@
+commit e1c4667a9b91b1500e47f4cbb4e43a36136e6d29
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 14 16:52:38 2020 -0800
+
+    softfloat: Move minmax_flags to softfloat-parts.c.inc
+    
+    Rename to parts$N_minmax.  Combine 3 bool arguments to a bitmask.
+    Introduce ftype_minmax functions as a common optimization point.
+    Fold bfloat16 expansions into the same macro as the other types.
+    
+    Reviewed-by: David Hildenbrand <david@redhat.com>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

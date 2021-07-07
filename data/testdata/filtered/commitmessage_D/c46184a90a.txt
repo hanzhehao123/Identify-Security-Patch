@@ -1,0 +1,13 @@
+commit c46184a90a5a0209960b7c0813aff4feb1e373e1
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Mar 9 17:02:48 2021 -0600
+
+    accel/tcg: Move alloc_code_gen_buffer to tcg/region.c
+    
+    Buffer management is integral to tcg.  Do not leave the allocation
+    to code outside of tcg/.  This is code movement, with further
+    cleanups to follow.
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

@@ -1,0 +1,15 @@
+commit fc8ec9e12529eceac4eef483cdde52c14f3ca937
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Feb 1 09:41:20 2021 -1000
+
+    tcg/tci: Emit setcond before brcond
+    
+    The encoding planned for tci does not have enough room for
+    brcond2, with 4 registers and a condition as input as well
+    as the label.  Resolve the condition into TCG_REG_TMP, and
+    relax brcond to one register plus a label, considering the
+    condition to always be reg != 0.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

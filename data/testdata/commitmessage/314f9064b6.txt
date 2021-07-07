@@ -1,0 +1,15 @@
+commit 314f9064b67f117f6a82b1a1f1c70cd75a88e943
+Author: Volker Rümelin <vr_qemu@t-online.de>
+Date:   Tue May 25 20:14:40 2021 +0200
+
+    pckbd: remove duplicated keyboard and mouse defines
+    
+    In 2005 the author of commit daa579632d "PS2 mouse and keyboard
+    separation (Paul Brook)" and 0e43e99c04 "PS2 mouse and keyboard
+    separation (Paul Brook)" separated the PS/2 controller code and
+    the PS/2 keyboard and mouse code. It seems he forgot to remove
+    a few defines. Remove them now.
+    
+    Signed-off-by: Volker Rümelin <vr_qemu@t-online.de>
+    Message-Id: <20210525181441.27768-11-vr_qemu@t-online.de>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

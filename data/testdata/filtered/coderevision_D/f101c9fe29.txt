@@ -1,0 +1,24 @@
+diff --git a/tests/tcg/hppa/Makefile.target b/tests/tcg/hppa/Makefile.target
+index 71791235f6..8bf01966bd 100644
+--- a/tests/tcg/hppa/Makefile.target
++++ b/tests/tcg/hppa/Makefile.target
+@@ -4,7 +4,3 @@
+ 
+ # On parisc Linux supports 4K/16K/64K (but currently only 4k works)
+ EXTRA_RUNS+=run-test-mmap-4096 # run-test-mmap-16384 run-test-mmap-65536
+-
+-# There is a race that causes this to fail about 1% of the time
+-run-signals: signals
+-	$(call skip-test, $<, "BROKEN awaiting vdso support")
+diff --git a/tests/tcg/s390x/Makefile.target b/tests/tcg/s390x/Makefile.target
+index 0036b8a505..241ef28f61 100644
+--- a/tests/tcg/s390x/Makefile.target
++++ b/tests/tcg/s390x/Makefile.target
+@@ -8,7 +8,3 @@ TESTS+=exrl-trtr
+ TESTS+=pack
+ TESTS+=mvo
+ TESTS+=mvc
+-
+-# This triggers failures on s390x hosts about 4% of the time
+-run-signals: signals
+-	$(call skip-test, $<, "BROKEN awaiting sigframe clean-ups")

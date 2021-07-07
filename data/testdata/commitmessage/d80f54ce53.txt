@@ -1,0 +1,17 @@
+commit d80f54ce53167e38623b8aafe8317458a6d7a6cd
+Author: Dr. David Alan Gilbert <dgilbert@redhat.com>
+Date:   Wed Apr 21 12:28:30 2021 +0100
+
+    channel-socket: Only set CLOEXEC if we have space for fds
+    
+    MSG_CMSG_CLOEXEC cleans up received fd's; it's really only for Unix
+    sockets, but currently we enable it for everything; some socket types
+    (IP_MPTCP) don't like this.
+    
+    Only enable it when we're giving the recvmsg room to receive fd's
+    anyway.
+    
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Message-Id: <20210421112834.107651-2-dgilbert@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

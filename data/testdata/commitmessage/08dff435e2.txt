@@ -1,0 +1,15 @@
+commit 08dff435e27dc2bc3582e3f25e7cf01956dddafc
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Jun 12 17:21:06 2021 -0700
+
+    accel/tcg: Probe the proper permissions for atomic ops
+    
+    We had a single ATOMIC_MMU_LOOKUP macro that probed for
+    read+write on all atomic ops.  This is incorrect for
+    plain atomic load and atomic store.
+    
+    For user-only, we rely on the host page permissions.
+    
+    Resolves: https://gitlab.com/qemu-project/qemu/-/issues/390
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

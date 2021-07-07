@@ -1,0 +1,29 @@
+commit eb1a35e47aff9bda70d74874241e7966f800f4e3
+Author: Akihiko Odaki <akihiko.odaki@gmail.com>
+Date:   Wed Jun 23 05:17:40 2021 +0900
+
+    coreaudio: Lock only the buffer
+    
+    On macOS 11.3.1, Core Audio calls AudioDeviceIOProc after calling an
+    internal function named HALB_Mutex::Lock(), which locks a mutex in
+    HALB_IOThread::Entry(void*). HALB_Mutex::Lock() is also called in
+    AudioObjectGetPropertyData, which is called by coreaudio driver.
+    Therefore, a deadlock will occur if coreaudio driver calls
+    AudioObjectGetPropertyData while holding a lock for a mutex and tries
+    to lock the same mutex in AudioDeviceIOProc.
+    
+    audioDeviceIOProc, which implements AudioDeviceIOProc in coreaudio
+    driver, requires an exclusive access for the device configuration and
+    the buffer. Fortunately, a mutex is necessary only for the buffer in
+    audioDeviceIOProc because a change for the device configuration occurs
+    only before setting up AudioDeviceIOProc or after stopping the playback
+    with AudioDeviceStop.
+    
+    With this change, the mutex owned by the driver will only be used for
+    the buffer, and the device configuration change will be protected with
+    the implicit iothread mutex.
+    
+    Signed-off-by: Akihiko Odaki <akihiko.odaki@gmail.com>
+    Message-id: 20210622201740.38005-1-akihiko.odaki@gmail.com
+    Message-Id: <20210622201740.38005-1-akihiko.odaki@gmail.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

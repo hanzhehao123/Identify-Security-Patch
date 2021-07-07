@@ -1,0 +1,33 @@
+diff --git a/.gitlab-ci.d/stages.yml b/.gitlab-ci.d/stages.yml
+deleted file mode 100644
+index f50826018d..0000000000
+--- a/.gitlab-ci.d/stages.yml
++++ /dev/null
+@@ -1,8 +0,0 @@
+-# Currently we have two build stages after our containers are built:
+-#  - build (for traditional build and test or first stage build)
+-#  - test (for test stages, using build artefacts from a build stage)
+-stages:
+-  - containers
+-  - containers-layer2
+-  - build
+-  - test
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index 2be8097f19..369963a949 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -1,5 +1,13 @@
++# Currently we have two build stages after our containers are built:
++#  - build (for traditional build and test or first stage build)
++#  - test (for test stages, using build artefacts from a build stage)
++stages:
++  - containers
++  - containers-layer2
++  - build
++  - test
++
+ include:
+-  - local: '/.gitlab-ci.d/stages.yml'
+   - local: '/.gitlab-ci.d/edk2.yml'
+   - local: '/.gitlab-ci.d/opensbi.yml'
+   - local: '/.gitlab-ci.d/containers.yml'

@@ -1,0 +1,17 @@
+commit 0f0f2bd54817ffad1ccb15dd0fb3adf2db1ec394
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:15:47 2021 +0100
+
+    target/arm: Implement MVE VCLZ
+    
+    Implement the MVE VCLZ insn (and the necessary machinery
+    for MVE 1-input vector ops).
+    
+    Note that for non-load instructions predication is always performed
+    at a byte level granularity regardless of element size (R_ZLSJ),
+    and so the masking logic here differs from that used in the VLDR
+    and VSTR helpers.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-4-peter.maydell@linaro.org

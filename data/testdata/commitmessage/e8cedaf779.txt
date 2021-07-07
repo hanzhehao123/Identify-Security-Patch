@@ -1,0 +1,16 @@
+commit e8cedaf779c0c2b13e0cc1ca580beaf5a6562a73
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 18 15:10:18 2021 +0100
+
+    target/arm: Split vfp_access_check() into A and M versions
+    
+    vfp_access_check and its helper routine full_vfp_access_check() has
+    gradually grown and is now an awkward mix of A-profile only and
+    M-profile only pieces.  Refactor it into an A-profile only and an
+    M-profile only version, taking advantage of the fact that now the
+    only direct call to full_vfp_access_check() is in A-profile-only
+    code.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210618141019.10671-7-peter.maydell@linaro.org

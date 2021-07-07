@@ -1,0 +1,83 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 02bef53ed4..5cd4e7d736 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -116,17 +116,3 @@ DEF_HELPER_FLAGS_4(mve_vabdsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vabdub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vabduh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vabduw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vhaddsb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vhaddsh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vhaddsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vhaddub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vhadduh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vhadduw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vhsubsb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vhsubsh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vhsubsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vhsubub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vhsubuh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vhsubuw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index 241d1c44c1..087d3db2a3 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -96,11 +96,6 @@ VMIN_U           111 1 1111 0 . .. ... 0 ... 0 0110 . 1 . 1 ... 0 @2op
+ VABD_S           111 0 1111 0 . .. ... 0 ... 0 0111 . 1 . 0 ... 0 @2op
+ VABD_U           111 1 1111 0 . .. ... 0 ... 0 0111 . 1 . 0 ... 0 @2op
+ 
+-VHADD_S          111 0 1111 0 . .. ... 0 ... 0 0000 . 1 . 0 ... 0 @2op
+-VHADD_U          111 1 1111 0 . .. ... 0 ... 0 0000 . 1 . 0 ... 0 @2op
+-VHSUB_S          111 0 1111 0 . .. ... 0 ... 0 0010 . 1 . 0 ... 0 @2op
+-VHSUB_U          111 1 1111 0 . .. ... 0 ... 0 0010 . 1 . 0 ... 0 @2op
+-
+ # Vector miscellaneous
+ 
+ VCLS             1111 1111 1 . 11 .. 00 ... 0 0100 01 . 0 ... 0 @1op
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index 835832fdf6..63eacd7349 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -429,28 +429,3 @@ DO_2OP_U(vminu, DO_MIN)
+ 
+ DO_2OP_S(vabds, DO_ABD)
+ DO_2OP_U(vabdu, DO_ABD)
+-
+-static inline uint32_t do_vhadd_u(uint32_t n, uint32_t m)
+-{
+-    return ((uint64_t)n + m) >> 1;
+-}
+-
+-static inline int32_t do_vhadd_s(int32_t n, int32_t m)
+-{
+-    return ((int64_t)n + m) >> 1;
+-}
+-
+-static inline uint32_t do_vhsub_u(uint32_t n, uint32_t m)
+-{
+-    return ((uint64_t)n - m) >> 1;
+-}
+-
+-static inline int32_t do_vhsub_s(int32_t n, int32_t m)
+-{
+-    return ((int64_t)n - m) >> 1;
+-}
+-
+-DO_2OP_S(vhadds, do_vhadd_s)
+-DO_2OP_U(vhaddu, do_vhadd_u)
+-DO_2OP_S(vhsubs, do_vhsub_s)
+-DO_2OP_U(vhsubu, do_vhsub_u)
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index f593d3693b..041fd1ef14 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -357,7 +357,3 @@ DO_2OP(VMIN_S, vmins)
+ DO_2OP(VMIN_U, vminu)
+ DO_2OP(VABD_S, vabds)
+ DO_2OP(VABD_U, vabdu)
+-DO_2OP(VHADD_S, vhadds)
+-DO_2OP(VHADD_U, vhaddu)
+-DO_2OP(VHSUB_S, vhsubs)
+-DO_2OP(VHSUB_U, vhsubu)

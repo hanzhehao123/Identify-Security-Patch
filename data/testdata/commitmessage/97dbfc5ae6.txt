@@ -1,0 +1,15 @@
+commit 97dbfc5ae631724a2ae7f54de28c2f8e383b5980
+Author: Vivek Goyal <vgoyal@redhat.com>
+Date:   Tue May 18 17:35:34 2021 -0400
+
+    virtiofsd: Use iov_discard_front() to skip bytes
+    
+    There are places where we need to skip few bytes from front of the iovec
+    array. We have our own custom code for that. Looks like iov_discard_front()
+    can do same thing. So use that helper instead.
+    
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Signed-off-by: Vivek Goyal <vgoyal@redhat.com>
+    Message-Id: <20210518213538.693422-4-vgoyal@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

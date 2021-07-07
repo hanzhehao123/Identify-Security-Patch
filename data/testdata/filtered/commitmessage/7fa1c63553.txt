@@ -1,0 +1,12 @@
+commit 7fa1c63553242ad557c26dafd01e828ff1507c64
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Tue Jun 1 10:00:48 2021 +0200
+
+    iscsi: link libm into the module
+    
+    Depending on the configuration of QEMU, some binaries might not need libm
+    at all.  In that case libiscsi, which uses exp(), will fail to load.
+    Link it in the module explicitly.
+    
+    Reported-by: Yi Sun <yisun@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

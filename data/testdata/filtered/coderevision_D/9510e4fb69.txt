@@ -1,0 +1,30 @@
+diff --git a/scripts/qmp/qemu-ga-client b/scripts/qmp/qemu-ga-client
+index 97f4047a62..348d85864c 100755
+--- a/scripts/qmp/qemu-ga-client
++++ b/scripts/qmp/qemu-ga-client
+@@ -36,11 +36,10 @@
+ # See also: https://wiki.qemu.org/Features/QAPI/GuestAgent
+ #
+ 
+-import base64
+ import os
+-import random
+ import sys
+-
++import base64
++import random
+ 
+ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
+ from qemu import qmp
+@@ -280,9 +279,9 @@ def main(address, cmd, args):
+ 
+ 
+ if __name__ == '__main__':
+-    import optparse
+-    import os
+     import sys
++    import os
++    import optparse
+ 
+     address = os.environ['QGA_CLIENT_ADDRESS'] if 'QGA_CLIENT_ADDRESS' in os.environ else None
+ 

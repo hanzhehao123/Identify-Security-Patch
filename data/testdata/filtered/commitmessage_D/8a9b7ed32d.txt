@@ -1,0 +1,12 @@
+commit 8a9b7ed32d491693ed57d025d8a7d26f7a6a7d14
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:36 2021 +0200
+
+    s390x/tcg: We support Vector enhancements facility
+    
+    Everything is wired up and all new instructions are implemented.
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-26-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

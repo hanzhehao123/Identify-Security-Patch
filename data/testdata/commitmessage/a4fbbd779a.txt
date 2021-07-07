@@ -1,0 +1,15 @@
+commit a4fbbd779a29b912299bc2830f0157513080ddb7
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon May 3 16:47:37 2021 -0700
+
+    tcg: Change parameters for tcg_target_const_match
+    
+    Change the return value to bool, because that's what is should
+    have been from the start.  Pass the ct mask instead of the whole
+    TCGArgConstraint, as that's the only part that's relevant.
+    
+    Change the value argument to int64_t.  We will need the extra
+    width for 32-bit hosts wanting to match vector constants.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

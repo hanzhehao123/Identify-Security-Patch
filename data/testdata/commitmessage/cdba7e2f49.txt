@@ -1,0 +1,18 @@
+commit cdba7e2f497d3922a6934b7504925483b32c0a74
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:24 2021 +0200
+
+    cpu: Introduce cpu_virtio_is_big_endian()
+    
+    Introduce the cpu_virtio_is_big_endian() generic helper to avoid
+    calling CPUClass internal virtio_is_big_endian() one.
+    
+    Similarly to commit bf7663c4bd8 ("cpu: introduce
+    CPUClass::virtio_is_big_endian()"), we keep 'virtio' in the method
+    name to hint this handler shouldn't be called anywhere but from the
+    virtio code.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-8-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

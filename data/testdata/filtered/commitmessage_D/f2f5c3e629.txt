@@ -1,0 +1,13 @@
+commit f2f5c3e62907088df2c0540f15c00ffc5a06211b
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Tue May 11 09:10:23 2021 +0200
+
+    gitlab: Extract all default build/test jobs to buildtest.yml
+    
+    Extract the build/test jobs run by default on the mainstream
+    CI into a new file (buildtest.yml).
+    
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-Id: <20210511072952.2813358-9-f4bug@amsat.org>

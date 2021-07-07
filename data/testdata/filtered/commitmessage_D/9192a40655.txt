@@ -1,0 +1,17 @@
+commit 9192a40655140b743dfe0b1f921ab3b8b51579bf
+Author: Vivek Kasireddy <vivek.kasireddy@intel.com>
+Date:   Wed May 26 16:14:19 2021 -0700
+
+    stubs: Add stubs for udmabuf helpers
+    
+    This is needed to ensure that virtio-gpu device works for
+    non-linux builds.
+    
+    Cc: Gerd Hoffmann <kraxel@redhat.com>
+    Signed-off-by: Vivek Kasireddy <vivek.kasireddy@intel.com>
+    Message-Id: <20210526231429.1045476-5-vivek.kasireddy@intel.com>
+    
+    [ kraxel: add virtio-gpu-udmabuf.c stubs only when building
+              system emulation ]
+    
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

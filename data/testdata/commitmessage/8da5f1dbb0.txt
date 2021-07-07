@@ -1,0 +1,10 @@
+commit 8da5f1dbb0d7b97686d54584c70b55cb05f89007
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 21 09:33:36 2020 -0800
+
+    softfloat: Introduce Floatx80RoundPrec
+    
+    Use an enumeration instead of raw 32/64/80 values.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

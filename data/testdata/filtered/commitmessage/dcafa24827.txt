@@ -1,0 +1,30 @@
+commit dcafa248277732863c8a472e4e5aa1cdd41228e8
+Author: Peter Xu <peterx@redhat.com>
+Date:   Tue Jun 8 21:43:55 2021 -0400
+
+    KVM: Fix dirty ring mmap incorrect size due to renaming accident
+    
+    Found this when I wanted to try the per-vcpu dirty rate series out, then I
+    found that it's not really working and it can quickly hang death a guest.  I
+    found strange errors (e.g. guest crash after migration) happens even without
+    the per-vcpu dirty rate series.
+    
+    When merging dirty ring, probably no one notice that the trivial renaming diff
+    [1] missed two existing references of kvm_dirty_ring_sizes; they do matter
+    since otherwise we'll mmap() a shorter range of memory after the renaming.
+    
+    I think it didn't SIGBUS for me easily simply because some other stuff within
+    qemu mmap()ed right after the dirty rings (e.g. when testing 4096 slots, it
+    aligned with one small page on x86), so when we access the rings we've been
+    reading/writting to random memory elsewhere of qemu.
+    
+    Fix the two sizes when map/unmap the shared dirty gfn memory.
+    
+    [1] https://lore.kernel.org/qemu-devel/dac5f0c6-1bca-3daf-e5d2-6451dbbaca93@redhat.com/
+    
+    Cc: Hyman Huang <huangy81@chinatelecom.cn>
+    Cc: Paolo Bonzini <pbonzini@redhat.com>
+    Cc: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Message-Id: <20210609014355.217110-1-peterx@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

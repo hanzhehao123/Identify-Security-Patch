@@ -1,0 +1,48 @@
+commit 8385235ba99c53d1187658f2fc289b953a8090b1
+Merge: 2ab2dad01f 7cf333a372
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Wed May 26 21:05:35 2021 +0100
+
+    Merge remote-tracking branch 'remotes/bonzini-gitlab/tags/for-upstream' into staging
+    
+    * submodule cleanups (Philippe, myself)
+    * tiny step towards a usable preconfig mode (myself)
+    * Kconfig and LOCK_GUARD cleanups (philippe)
+    * new x86 CPUID feature (Yang Zhong)
+    * "-object qtest" support (myself)
+    * Dirty ring support for KVM (Peter)
+    * Fixes for 6.0 command line parsing breakage (myself)
+    * Fix for macOS 11.3 SDK (Katsuhiro)
+    
+    # gpg: Signature made Wed 26 May 2021 13:50:12 BST
+    # gpg:                using RSA key F13338574B662389866C7682BFFBD25F78C7AE83
+    # gpg:                issuer "pbonzini@redhat.com"
+    # gpg: Good signature from "Paolo Bonzini <bonzini@gnu.org>" [full]
+    # gpg:                 aka "Paolo Bonzini <pbonzini@redhat.com>" [full]
+    # Primary key fingerprint: 46F5 9FBD 57D6 12E7 BFD4  E2F7 7E15 100C CD36 69B1
+    #      Subkey fingerprint: F133 3857 4B66 2389 866C  7682 BFFB D25F 78C7 AE83
+    
+    * remotes/bonzini-gitlab/tags/for-upstream: (28 commits)
+      gitlab-ci: use --meson=git for CFI jobs
+      hw/scsi: Fix sector translation bug in scsi_unmap_complete_noio
+      configure: Avoid error messages about missing *-config-*.h files
+      doc: Add notes about -mon option mode=control argument.
+      qemu-config: load modules when instantiating option groups
+      vl: allow not specifying size in -m when using -M memory-backend
+      replication: move include out of root directory
+      remove qemu-options* from root directory
+      meson: Set implicit_include_directories to false
+      tests/qtest/fuzz: Fix build failure
+      KVM: Dirty ring support
+      KVM: Disable manual dirty log when dirty ring enabled
+      KVM: Add dirty-ring-size property
+      KVM: Cache kvm slot dirty bitmap size
+      KVM: Simplify dirty log sync in kvm_set_phys_mem
+      KVM: Provide helper to sync dirty bitmap from slot to ramblock
+      KVM: Provide helper to get kvm dirty log
+      KVM: Create the KVMSlot dirty bitmap on flag changes
+      KVM: Use a big lock to replace per-kml slots_lock
+      memory: Introduce log_sync_global() to memory listener
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

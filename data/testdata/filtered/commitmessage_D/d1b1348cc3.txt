@@ -1,0 +1,13 @@
+commit d1b1348cc33e5de3449f47d757141d7771b10e9e
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Thu May 27 12:37:57 2021 -0700
+
+    tcg/tci: Remove the qemu_ld/st_type macros
+    
+    These macros are only used in one place.  By expanding,
+    we get to apply some common-subexpression elimination
+    and create some local variables.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

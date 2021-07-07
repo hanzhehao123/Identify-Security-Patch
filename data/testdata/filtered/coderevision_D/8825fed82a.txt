@@ -1,0 +1,12 @@
+diff --git a/python/qemu/console_socket.py b/python/qemu/console_socket.py
+index 8c4ff598ad..87237bebef 100644
+--- a/python/qemu/console_socket.py
++++ b/python/qemu/console_socket.py
+@@ -39,7 +39,6 @@ def __init__(self, address: str, file: Optional[str] = None,
+         self.connect(address)
+         self._logfile = None
+         if file:
+-            # pylint: disable=consider-using-with
+             self._logfile = open(file, "bw")
+         self._open = True
+         self._drain_thread = None

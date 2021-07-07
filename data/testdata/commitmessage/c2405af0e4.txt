@@ -1,0 +1,15 @@
+commit c2405af0e418a3f4cca0840f31161f7ac17b9697
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:54 2021 +0300
+
+    block/nbd: don't touch s->sioc in nbd_teardown_connection()
+    
+    Negotiation during reconnect is now done in a thread, and s->sioc is
+    not available during negotiation. Negotiation in thread will be
+    cancelled by nbd_client_connection_release() called from
+    nbd_clear_bdrvstate().  So, we don't need this code chunk anymore.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-25-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

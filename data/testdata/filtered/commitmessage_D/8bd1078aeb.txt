@@ -1,0 +1,18 @@
+commit 8bd1078aebcec5eac196a83ef1a7e74be0ba67b7
+Author: Dr. David Alan Gilbert <dgilbert@redhat.com>
+Date:   Wed Apr 21 12:28:34 2021 +0100
+
+    sockets: Support multipath TCP
+    
+    Multipath TCP allows combining multiple interfaces/routes into a single
+    socket, with very little work for the user/admin.
+    
+    It's enabled by 'mptcp' on most socket addresses:
+    
+       ./qemu-system-x86_64 -nographic -incoming tcp:0:4444,mptcp
+    
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Message-Id: <20210421112834.107651-6-dgilbert@redhat.com>
+    Acked-by: Markus Armbruster <armbru@redhat.com>
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

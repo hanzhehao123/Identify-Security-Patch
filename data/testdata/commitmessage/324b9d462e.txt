@@ -1,0 +1,12 @@
+commit 324b9d462ea227f10a25c80421046e6187247116
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Mar 9 16:40:37 2021 -0600
+
+    accel/tcg: Inline cpu_gen_init
+    
+    It consists of one function call and has only one caller.
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

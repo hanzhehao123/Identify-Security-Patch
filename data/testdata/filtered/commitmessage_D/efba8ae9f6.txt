@@ -1,0 +1,10 @@
+commit efba8ae9f6f4df011b0441ae2b634be6152026a4
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Thu Jun 3 13:32:11 2021 -0700
+
+    accel/tcg: Use MiB in tcg_init_machine
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

@@ -1,0 +1,15 @@
+commit 475d696af7edd74779a2ac2245496b20d4625fdf
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 16:34:06 2021 +0100
+
+    target/arm: Diagnose UNALLOCATED in disas_simd_three_reg_same_fp16
+    
+    This fprintf+assert has been in place since the beginning.
+    It is after to the fp_access_check, so we need to move the
+    check up.  Fold that in to the pairwise filter.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Message-id: 20210604183506.916654-4-richard.henderson@linaro.org
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

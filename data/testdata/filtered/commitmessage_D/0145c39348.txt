@@ -1,0 +1,15 @@
+commit 0145c3934895e2cb2b8bd679ca274bc5f7e76de7
+Author: Andrew Melnychenko <andrew@daynix.com>
+Date:   Fri May 14 14:48:33 2021 +0300
+
+    virtio-net: Added eBPF RSS to virtio-net.
+    
+    When RSS is enabled the device tries to load the eBPF program
+    to select RX virtqueue in the TUN. If eBPF can be loaded
+    the RSS will function also with vhost (works with kernel 5.8 and later).
+    Software RSS is used as a fallback with vhost=off when eBPF can't be loaded
+    or when hash population requested by the guest.
+    
+    Signed-off-by: Yuri Benditovich <yuri.benditovich@daynix.com>
+    Signed-off-by: Andrew Melnychenko <andrew@daynix.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

@@ -1,0 +1,180 @@
+diff --git a/docs/system/arm/aspeed.rst b/docs/system/arm/aspeed.rst
+index 57ee2bd94f..a1911f9403 100644
+--- a/docs/system/arm/aspeed.rst
++++ b/docs/system/arm/aspeed.rst
+@@ -5,7 +5,7 @@ The QEMU Aspeed machines model BMCs of various OpenPOWER systems and
+ Aspeed evaluation boards. They are based on different releases of the
+ Aspeed SoC : the AST2400 integrating an ARM926EJ-S CPU (400MHz), the
+ AST2500 with an ARM1176JZS CPU (800MHz) and more recently the AST2600
+-with dual cores ARM Cortex-A7 CPUs (1.2GHz).
++with dual cores ARM Cortex A7 CPUs (1.2GHz).
+ 
+ The SoC comes with RAM, Gigabit ethernet, USB, SD/MMC, USB, SPI, I2C,
+ etc.
+@@ -24,7 +24,7 @@ AST2500 SoC based machines :
+ 
+ AST2600 SoC based machines :
+ 
+-- ``ast2600-evb``          Aspeed AST2600 Evaluation board (Cortex-A7)
++- ``ast2600-evb``          Aspeed AST2600 Evaluation board (Cortex A7)
+ - ``tacoma-bmc``           OpenPOWER Witherspoon POWER9 AST2600 BMC
+ 
+ Supported devices
+diff --git a/docs/system/arm/nuvoton.rst b/docs/system/arm/nuvoton.rst
+index ca011bd479..d3cf2d9cd7 100644
+--- a/docs/system/arm/nuvoton.rst
++++ b/docs/system/arm/nuvoton.rst
+@@ -3,19 +3,19 @@ Nuvoton iBMC boards (``npcm750-evb``, ``quanta-gsj``)
+ 
+ The `Nuvoton iBMC`_ chips (NPCM7xx) are a family of ARM-based SoCs that are
+ designed to be used as Baseboard Management Controllers (BMCs) in various
+-servers. They all feature one or two ARM Cortex-A9 CPU cores, as well as an
++servers. They all feature one or two ARM Cortex A9 CPU cores, as well as an
+ assortment of peripherals targeted for either Enterprise or Data Center /
+ Hyperscale applications. The former is a superset of the latter, so NPCM750 has
+ all the peripherals of NPCM730 and more.
+ 
+ .. _Nuvoton iBMC: https://www.nuvoton.com/products/cloud-computing/ibmc/
+ 
+-The NPCM750 SoC has two Cortex-A9 cores and is targeted for the Enterprise
++The NPCM750 SoC has two Cortex A9 cores and is targeted for the Enterprise
+ segment. The following machines are based on this chip :
+ 
+ - ``npcm750-evb``       Nuvoton NPCM750 Evaluation board
+ 
+-The NPCM730 SoC has two Cortex-A9 cores and is targeted for Data Center and
++The NPCM730 SoC has two Cortex A9 cores and is targeted for Data Center and
+ Hyperscale applications. The following machines are based on this chip :
+ 
+ - ``quanta-gsj``        Quanta GSJ server BMC
+diff --git a/docs/system/arm/sabrelite.rst b/docs/system/arm/sabrelite.rst
+index 4ccb0560af..71713310e3 100644
+--- a/docs/system/arm/sabrelite.rst
++++ b/docs/system/arm/sabrelite.rst
+@@ -10,7 +10,7 @@ Supported devices
+ 
+ The SABRE Lite machine supports the following devices:
+ 
+- * Up to 4 Cortex-A9 cores
++ * Up to 4 Cortex A9 cores
+  * Generic Interrupt Controller
+  * 1 Clock Controller Module
+  * 1 System Reset Controller
+diff --git a/hw/arm/aspeed.c b/hw/arm/aspeed.c
+index 0eafc79154..3fe6c55744 100644
+--- a/hw/arm/aspeed.c
++++ b/hw/arm/aspeed.c
+@@ -947,7 +947,7 @@ static void aspeed_machine_ast2600_evb_class_init(ObjectClass *oc, void *data)
+     MachineClass *mc = MACHINE_CLASS(oc);
+     AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+ 
+-    mc->desc       = "Aspeed AST2600 EVB (Cortex-A7)";
++    mc->desc       = "Aspeed AST2600 EVB (Cortex A7)";
+     amc->soc_name  = "ast2600-a1";
+     amc->hw_strap1 = AST2600_EVB_HW_STRAP1;
+     amc->hw_strap2 = AST2600_EVB_HW_STRAP2;
+@@ -966,7 +966,7 @@ static void aspeed_machine_tacoma_class_init(ObjectClass *oc, void *data)
+     MachineClass *mc = MACHINE_CLASS(oc);
+     AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+ 
+-    mc->desc       = "OpenPOWER Tacoma BMC (Cortex-A7)";
++    mc->desc       = "OpenPOWER Tacoma BMC (Cortex A7)";
+     amc->soc_name  = "ast2600-a1";
+     amc->hw_strap1 = TACOMA_BMC_HW_STRAP1;
+     amc->hw_strap2 = TACOMA_BMC_HW_STRAP2;
+@@ -1003,7 +1003,7 @@ static void aspeed_machine_rainier_class_init(ObjectClass *oc, void *data)
+     MachineClass *mc = MACHINE_CLASS(oc);
+     AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+ 
+-    mc->desc       = "IBM Rainier BMC (Cortex-A7)";
++    mc->desc       = "IBM Rainier BMC (Cortex A7)";
+     amc->soc_name  = "ast2600-a1";
+     amc->hw_strap1 = RAINIER_BMC_HW_STRAP1;
+     amc->hw_strap2 = RAINIER_BMC_HW_STRAP2;
+diff --git a/hw/arm/mcimx6ul-evk.c b/hw/arm/mcimx6ul-evk.c
+index 77fae874b1..ce16b6b317 100644
+--- a/hw/arm/mcimx6ul-evk.c
++++ b/hw/arm/mcimx6ul-evk.c
+@@ -67,7 +67,7 @@ static void mcimx6ul_evk_init(MachineState *machine)
+ 
+ static void mcimx6ul_evk_machine_init(MachineClass *mc)
+ {
+-    mc->desc = "Freescale i.MX6UL Evaluation Kit (Cortex-A7)";
++    mc->desc = "Freescale i.MX6UL Evaluation Kit (Cortex A7)";
+     mc->init = mcimx6ul_evk_init;
+     mc->max_cpus = FSL_IMX6UL_NUM_CPUS;
+     mc->default_ram_id = "mcimx6ul-evk.ram";
+diff --git a/hw/arm/mcimx7d-sabre.c b/hw/arm/mcimx7d-sabre.c
+index 935d4b0f1c..e896222c34 100644
+--- a/hw/arm/mcimx7d-sabre.c
++++ b/hw/arm/mcimx7d-sabre.c
+@@ -67,7 +67,7 @@ static void mcimx7d_sabre_init(MachineState *machine)
+ 
+ static void mcimx7d_sabre_machine_init(MachineClass *mc)
+ {
+-    mc->desc = "Freescale i.MX7 DUAL SABRE (Cortex-A7)";
++    mc->desc = "Freescale i.MX7 DUAL SABRE (Cortex A7)";
+     mc->init = mcimx7d_sabre_init;
+     mc->max_cpus = FSL_IMX7_NUM_CPUS;
+     mc->default_ram_id = "mcimx7d-sabre.ram";
+diff --git a/hw/arm/npcm7xx_boards.c b/hw/arm/npcm7xx_boards.c
+index 698be46d30..d4553e3786 100644
+--- a/hw/arm/npcm7xx_boards.c
++++ b/hw/arm/npcm7xx_boards.c
+@@ -299,7 +299,7 @@ static void npcm750_evb_machine_class_init(ObjectClass *oc, void *data)
+ 
+     npcm7xx_set_soc_type(nmc, TYPE_NPCM750);
+ 
+-    mc->desc = "Nuvoton NPCM750 Evaluation Board (Cortex-A9)";
++    mc->desc = "Nuvoton NPCM750 Evaluation Board (Cortex A9)";
+     mc->init = npcm750_evb_init;
+     mc->default_ram_size = 512 * MiB;
+ };
+@@ -311,7 +311,7 @@ static void gsj_machine_class_init(ObjectClass *oc, void *data)
+ 
+     npcm7xx_set_soc_type(nmc, TYPE_NPCM730);
+ 
+-    mc->desc = "Quanta GSJ (Cortex-A9)";
++    mc->desc = "Quanta GSJ (Cortex A9)";
+     mc->init = quanta_gsj_init;
+     mc->default_ram_size = 512 * MiB;
+ };
+diff --git a/hw/arm/sabrelite.c b/hw/arm/sabrelite.c
+index 29fc777b61..42348e5cb1 100644
+--- a/hw/arm/sabrelite.c
++++ b/hw/arm/sabrelite.c
+@@ -105,7 +105,7 @@ static void sabrelite_init(MachineState *machine)
+ 
+ static void sabrelite_machine_init(MachineClass *mc)
+ {
+-    mc->desc = "Freescale i.MX6 Quad SABRE Lite Board (Cortex-A9)";
++    mc->desc = "Freescale i.MX6 Quad SABRE Lite Board (Cortex A9)";
+     mc->init = sabrelite_init;
+     mc->max_cpus = FSL_IMX6_NUM_CPUS;
+     mc->ignore_memory_transaction_failures = true;
+diff --git a/hw/misc/npcm7xx_clk.c b/hw/misc/npcm7xx_clk.c
+index 0b61070c52..a1ee67dc9a 100644
+--- a/hw/misc/npcm7xx_clk.c
++++ b/hw/misc/npcm7xx_clk.c
+@@ -35,7 +35,7 @@
+ #define NPCM7XX_CLOCK_REF_HZ            (25000000)
+ 
+ /* Register Field Definitions */
+-#define NPCM7XX_CLK_WDRCR_CA9C  BIT(0) /* Cortex-A9 Cores */
++#define NPCM7XX_CLK_WDRCR_CA9C  BIT(0) /* Cortex A9 Cores */
+ 
+ #define PLLCON_LOKI     BIT(31)
+ #define PLLCON_LOKS     BIT(30)
+diff --git a/include/hw/arm/allwinner-h3.h b/include/hw/arm/allwinner-h3.h
+index 63025fb27c..cc308a5d2c 100644
+--- a/include/hw/arm/allwinner-h3.h
++++ b/include/hw/arm/allwinner-h3.h
+@@ -18,7 +18,7 @@
+  */
+ 
+ /*
+- * The Allwinner H3 is a System on Chip containing four ARM Cortex-A7
++ * The Allwinner H3 is a System on Chip containing four ARM Cortex A7
+  * processor cores. Features and specifications include DDR2/DDR3 memory,
+  * SD/MMC storage cards, 10/100/1000Mbit Ethernet, USB 2.0, HDMI and
+  * various I/O modules.

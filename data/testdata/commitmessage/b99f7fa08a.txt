@@ -1,0 +1,15 @@
+commit b99f7fa08a3df8b8a6a907642e5851cdcf43fa9f
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed Jun 16 15:13:49 2021 +0200
+
+    block-backend: align max_transfer to request alignment
+    
+    Block device requests must be aligned to bs->bl.request_alignment.
+    It makes sense for drivers to align bs->bl.max_transfer the same
+    way; however when there is no specified limit, blk_get_max_transfer
+    just returns INT_MAX.  Since the contract of the function does not
+    specify that INT_MAX means "no maximum", just align the outcome
+    of the function (whether INT_MAX or bs->bl.max_transfer) before
+    returning it.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

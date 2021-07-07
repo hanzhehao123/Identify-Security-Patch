@@ -1,0 +1,77 @@
+diff --git a/tcg/arm/tcg-target-con-set.h b/tcg/arm/tcg-target-con-set.h
+index 3685e1786a..d02797cbf4 100644
+--- a/tcg/arm/tcg-target-con-set.h
++++ b/tcg/arm/tcg-target-con-set.h
+@@ -30,7 +30,6 @@ C_O1_I2(r, r, rIK)
+ C_O1_I2(r, r, rIN)
+ C_O1_I2(r, r, ri)
+ C_O1_I2(r, rZ, rZ)
+-C_O1_I2(w, 0, w)
+ C_O1_I2(w, w, w)
+ C_O1_I2(w, w, wO)
+ C_O1_I2(w, w, wV)
+diff --git a/tcg/arm/tcg-target.c.inc b/tcg/arm/tcg-target.c.inc
+index d0af654c65..a6c7889d9f 100644
+--- a/tcg/arm/tcg-target.c.inc
++++ b/tcg/arm/tcg-target.c.inc
+@@ -212,7 +212,6 @@ typedef enum {
+     INSN_VSHLI     = 0xf2800510,  /* VSHL (immediate) */
+     INSN_VSARI     = 0xf2800010,  /* VSHR.S */
+     INSN_VSHRI     = 0xf3800010,  /* VSHR.U */
+-    INSN_VSLI      = 0xf3800510,
+     INSN_VSHL_S    = 0xf2000400,  /* VSHL.S (register) */
+     INSN_VSHL_U    = 0xf3000400,  /* VSHL.U (register) */
+ 
+@@ -2424,8 +2423,6 @@ static TCGConstraintSetIndex tcg_target_op_def(TCGOpcode op)
+     case INDEX_op_arm_sshl_vec:
+     case INDEX_op_arm_ushl_vec:
+         return C_O1_I2(w, w, w);
+-    case INDEX_op_arm_sli_vec:
+-        return C_O1_I2(w, 0, w);
+     case INDEX_op_or_vec:
+     case INDEX_op_andc_vec:
+         return C_O1_I2(w, w, wO);
+@@ -2838,9 +2835,6 @@ static void tcg_out_vec_op(TCGContext *s, TCGOpcode opc,
+     case INDEX_op_sari_vec:
+         tcg_out_vshifti(s, INSN_VSARI, q, a0, a1, (16 << vece) - a2);
+         return;
+-    case INDEX_op_arm_sli_vec:
+-        tcg_out_vshifti(s, INSN_VSLI, q, a0, a2, args[3] + (8 << vece));
+-        return;
+ 
+     case INDEX_op_andc_vec:
+         if (!const_args[2]) {
+@@ -2969,7 +2963,6 @@ int tcg_can_emit_vec_op(TCGOpcode opc, TCGType type, unsigned vece)
+     case INDEX_op_shlv_vec:
+     case INDEX_op_shrv_vec:
+     case INDEX_op_sarv_vec:
+-    case INDEX_op_rotli_vec:
+         return -1;
+     default:
+         return 0;
+@@ -3017,14 +3010,6 @@ void tcg_expand_vec_op(TCGOpcode opc, TCGType type, unsigned vece,
+         tcg_temp_free_vec(t1);
+         break;
+ 
+-    case INDEX_op_rotli_vec:
+-        t1 = tcg_temp_new_vec(type);
+-        tcg_gen_shri_vec(vece, t1, v1, -a2 & ((8 << vece) - 1));
+-        vec_gen_4(INDEX_op_arm_sli_vec, type, vece,
+-                  tcgv_vec_arg(v0), tcgv_vec_arg(t1), tcgv_vec_arg(v1), a2);
+-        tcg_temp_free_vec(t1);
+-        break;
+-
+     default:
+         g_assert_not_reached();
+     }
+diff --git a/tcg/arm/tcg-target.opc.h b/tcg/arm/tcg-target.opc.h
+index d38af9a808..d19153dcb9 100644
+--- a/tcg/arm/tcg-target.opc.h
++++ b/tcg/arm/tcg-target.opc.h
+@@ -11,6 +11,5 @@
+  * consider these to be UNSPEC with names.
+  */
+ 
+-DEF(arm_sli_vec, 1, 2, 1, IMPLVEC)
+ DEF(arm_sshl_vec, 1, 2, 0, IMPLVEC)
+ DEF(arm_ushl_vec, 1, 2, 0, IMPLVEC)

@@ -1,0 +1,14 @@
+commit 6d2b0332d3a2d85bb37786a914c6865a4386ef87
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:53 2021 +0300
+
+    block/nbd: use negotiation of NBDClientConnection
+    
+    Now that we can opt in to negotiation as part of the client connection
+    thread, use that to simplify connection_co.  This is another step on
+    the way to moving all reconnect code into NBDClientConnection.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-24-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

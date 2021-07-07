@@ -1,0 +1,11 @@
+commit 7bb17a9263665c7cb0b93e6889e66bb62b9f71c1
+Author: Alex Bennée <alex.bennee@linaro.org>
+Date:   Wed Jun 2 11:35:27 2021 +0100
+
+    tests/vm: expose --source-path to scripts to find extra files
+    
+    Currently the centos8 image expects to run an in-src build to find the
+    kick starter file. Fix this.
+    
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-Id: <20210602103527.32021-1-alex.bennee@linaro.org>

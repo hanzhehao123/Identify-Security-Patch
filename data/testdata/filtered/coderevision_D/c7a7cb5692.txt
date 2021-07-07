@@ -1,0 +1,59 @@
+diff --git a/configure b/configure
+index debd50c085..0489864667 100755
+--- a/configure
++++ b/configure
+@@ -5090,6 +5090,20 @@ if compile_prog "" "" ; then
+     have_sysmacros=yes
+ fi
+ 
++##########################################
++# check for _Static_assert()
++
++have_static_assert=no
++cat > $TMPC << EOF
++_Static_assert(1, "success");
++int main(void) {
++    return 0;
++}
++EOF
++if compile_prog "" "" ; then
++    have_static_assert=yes
++fi
++
+ ##########################################
+ # check for utmpx.h, it is missing e.g. on OpenBSD
+ 
+@@ -6021,6 +6035,10 @@ if test "$have_sysmacros" = "yes" ; then
+   echo "CONFIG_SYSMACROS=y" >> $config_host_mak
+ fi
+ 
++if test "$have_static_assert" = "yes" ; then
++  echo "CONFIG_STATIC_ASSERT=y" >> $config_host_mak
++fi
++
+ if test "$have_utmpx" = "yes" ; then
+   echo "HAVE_UTMPX=y" >> $config_host_mak
+ fi
+diff --git a/include/qemu/compiler.h b/include/qemu/compiler.h
+index 3baa5e3790..5766d61589 100644
+--- a/include/qemu/compiler.h
++++ b/include/qemu/compiler.h
+@@ -72,7 +72,18 @@
+         int:(x) ? -1 : 1; \
+     }
+ 
++/* QEMU_BUILD_BUG_MSG() emits the message given if _Static_assert is
++ * supported; otherwise, it will be omitted from the compiler error
++ * message (but as it remains present in the source code, it can still
++ * be useful when debugging). */
++#if defined(CONFIG_STATIC_ASSERT)
+ #define QEMU_BUILD_BUG_MSG(x, msg) _Static_assert(!(x), msg)
++#elif defined(__COUNTER__)
++#define QEMU_BUILD_BUG_MSG(x, msg) typedef QEMU_BUILD_BUG_ON_STRUCT(x) \
++    glue(qemu_build_bug_on__, __COUNTER__) __attribute__((unused))
++#else
++#define QEMU_BUILD_BUG_MSG(x, msg)
++#endif
+ 
+ #define QEMU_BUILD_BUG_ON(x) QEMU_BUILD_BUG_MSG(x, "not expecting: " #x)
+ 

@@ -1,0 +1,15 @@
+commit f58b2dfe3e815d0c8491b33c36622824e8a08e40
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:51 2021 +0300
+
+    nbd/client-connection: shutdown connection on release
+    
+    Now, when a thread can do negotiation and retry, it may run relatively
+    long. We need a mechanism to stop it, when the user is not interested
+    in a result any more. So, on nbd_client_connection_release() let's
+    shutdown the socket, and do not retry connection if thread is detached.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210610100802.5888-22-vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

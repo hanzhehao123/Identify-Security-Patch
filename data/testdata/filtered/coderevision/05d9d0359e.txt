@@ -1,0 +1,15 @@
+diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
+index 4b7229a868..3fd0c48d77 100644
+--- a/target/mips/tcg/translate.c
++++ b/target/mips/tcg/translate.c
+@@ -12151,8 +12151,8 @@ static void gen_branch(DisasContext *ctx, int insn_bytes)
+             tcg_gen_lookup_and_goto_ptr();
+             break;
+         default:
+-            LOG_DISAS("unknown branch 0x%x\n", proc_hflags);
+-            gen_reserved_instruction(ctx);
++            fprintf(stderr, "unknown branch 0x%x\n", proc_hflags);
++            abort();
+         }
+     }
+ }

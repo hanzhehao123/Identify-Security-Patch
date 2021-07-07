@@ -1,0 +1,12 @@
+commit f933b02b59f07c17c312185a9ceaefbf9dfbb36e
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Tue May 18 20:36:33 2021 +0200
+
+    exec/memory_ldst: Use correct type sizes
+    
+    Use uint8_t for (unsigned) byte, and uint16_t for (unsigned)
+    16-bit word.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210518183655.1711377-4-philmd@redhat.com>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

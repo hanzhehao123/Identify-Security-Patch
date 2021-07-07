@@ -1,0 +1,40 @@
+commit 7de2e8565335c13fb3516cddbe2e40e366cce273
+Author: Leonardo Bras <leobras.c@gmail.com>
+Date:   Tue Jun 1 02:40:31 2021 -0300
+
+    yank: Unregister function when using TLS migration
+    
+    After yank feature was introduced in migration, whenever migration
+    is started using TLS, the following error happens in both source and
+    destination hosts:
+    
+    (qemu) qemu-kvm: ../util/yank.c:107: yank_unregister_instance:
+    Assertion `QLIST_EMPTY(&entry->yankfns)' failed.
+    
+    This happens because of a missing yank_unregister_function() when using
+    qio-channel-tls.
+    
+    Fix this by also allowing TYPE_QIO_CHANNEL_TLS object type to perform
+    yank_unregister_function() in channel_close() and multifd_load_cleanup().
+    
+    Also, inside migration_channel_connect() and
+    migration_channel_process_incoming() move yank_register_function() so
+    it only runs once on a TLS migration.
+    
+    Fixes: b5eea99ec2f ("migration: Add yank feature", 2021-01-13)
+    Buglink: https://bugzilla.redhat.com/show_bug.cgi?id=1964326
+    Signed-off-by: Leonardo Bras <leobras.c@gmail.com>
+    Reviewed-by: Lukas Straub <lukasstraub2@web.de>
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    
+    --
+    Changes since v2:
+    - Dropped all references to ioc->master
+    - yank_register_function() and yank_unregister_function() now only run
+      once in a TLS migration.
+    
+    Changes since v1:
+    - Cast p->c to QIOChannelTLS into multifd_load_cleanup()
+    Message-Id: <20210601054030.1153249-1-leobras.c@gmail.com>
+    
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

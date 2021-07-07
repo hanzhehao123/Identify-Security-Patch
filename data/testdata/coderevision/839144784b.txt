@@ -1,0 +1,164 @@
+diff --git a/target/arm/helper.h b/target/arm/helper.h
+index 376c1cef0f..de2f5331dc 100644
+--- a/target/arm/helper.h
++++ b/target/arm/helper.h
+@@ -1004,8 +1004,6 @@ DEF_HELPER_FLAGS_5(gvec_usmmla_b, TCG_CALL_NO_RWG,
+ 
+ DEF_HELPER_FLAGS_5(gvec_bfdot, TCG_CALL_NO_RWG,
+                    void, ptr, ptr, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_5(gvec_bfdot_idx, TCG_CALL_NO_RWG,
+-                   void, ptr, ptr, ptr, ptr, i32)
+ 
+ #ifdef TARGET_AARCH64
+ #include "helper-a64.h"
+diff --git a/target/arm/neon-shared.decode b/target/arm/neon-shared.decode
+index fa3cf14e3a..31a0839bbb 100644
+--- a/target/arm/neon-shared.decode
++++ b/target/arm/neon-shared.decode
+@@ -81,8 +81,6 @@ VUSDOT_scalar  1111 1110 1 . 00 .... .... 1101 . q:1 index:1 0 vm:4 \
+                vn=%vn_dp vd=%vd_dp
+ VSUDOT_scalar  1111 1110 1 . 00 .... .... 1101 . q:1 index:1 1 vm:4 \
+                vn=%vn_dp vd=%vd_dp
+-VDOT_b16_scal  1111 1110 0 . 00 .... .... 1101 . q:1 index:1 0 vm:4 \
+-               vn=%vn_dp vd=%vd_dp
+ 
+ %vfml_scalar_q0_rm 0:3 5:1
+ %vfml_scalar_q1_index 5:1 3:1
+diff --git a/target/arm/sve.decode b/target/arm/sve.decode
+index 51f87e8937..a7429b293f 100644
+--- a/target/arm/sve.decode
++++ b/target/arm/sve.decode
+@@ -1633,6 +1633,3 @@ FMLALB_zzxw     01100100 10 1 ..... 0100.0 ..... .....     @rrxr_3a esz=2
+ FMLALT_zzxw     01100100 10 1 ..... 0100.1 ..... .....     @rrxr_3a esz=2
+ FMLSLB_zzxw     01100100 10 1 ..... 0110.0 ..... .....     @rrxr_3a esz=2
+ FMLSLT_zzxw     01100100 10 1 ..... 0110.1 ..... .....     @rrxr_3a esz=2
+-
+-### SVE2 floating-point bfloat16 dot-product (indexed)
+-BFDOT_zzxz      01100100 01 1 ..... 010000 ..... .....     @rrxr_2 esz=2
+diff --git a/target/arm/translate-a64.c b/target/arm/translate-a64.c
+index 71de75e568..3c36de3df2 100644
+--- a/target/arm/translate-a64.c
++++ b/target/arm/translate-a64.c
+@@ -13449,22 +13449,8 @@ static void disas_simd_indexed(DisasContext *s, uint32_t insn)
+             return;
+         }
+         break;
+-    case 0x0f:
+-        switch (size) {
+-        case 0: /* SUDOT */
+-        case 2: /* USDOT */
+-            if (is_scalar || !dc_isar_feature(aa64_i8mm, s)) {
+-                unallocated_encoding(s);
+-                return;
+-            }
+-            break;
+-        case 1: /* BFDOT */
+-            if (is_scalar || !dc_isar_feature(aa64_bf16, s)) {
+-                unallocated_encoding(s);
+-                return;
+-            }
+-            break;
+-        default:
++    case 0x0f: /* SUDOT, USDOT */
++        if (is_scalar || (size & 1) || !dc_isar_feature(aa64_i8mm, s)) {
+             unallocated_encoding(s);
+             return;
+         }
+@@ -13584,22 +13570,13 @@ static void disas_simd_indexed(DisasContext *s, uint32_t insn)
+                          u ? gen_helper_gvec_udot_idx_b
+                          : gen_helper_gvec_sdot_idx_b);
+         return;
+-    case 0x0f:
+-        switch (extract32(insn, 22, 2)) {
+-        case 0: /* SUDOT */
+-            gen_gvec_op4_ool(s, is_q, rd, rn, rm, rd, index,
+-                             gen_helper_gvec_sudot_idx_b);
+-            return;
+-        case 1: /* BFDOT */
+-            gen_gvec_op4_ool(s, is_q, rd, rn, rm, rd, index,
+-                             gen_helper_gvec_bfdot_idx);
+-            return;
+-        case 2: /* USDOT */
+-            gen_gvec_op4_ool(s, is_q, rd, rn, rm, rd, index,
+-                             gen_helper_gvec_usdot_idx_b);
+-            return;
+-        }
+-        g_assert_not_reached();
++    case 0x0f: /* SUDOT, USDOT */
++        gen_gvec_op4_ool(s, is_q, rd, rn, rm, rd, index,
++                         extract32(insn, 23, 1)
++                         ? gen_helper_gvec_usdot_idx_b
++                         : gen_helper_gvec_sudot_idx_b);
++        return;
++
+     case 0x11: /* FCMLA #0 */
+     case 0x13: /* FCMLA #90 */
+     case 0x15: /* FCMLA #180 */
+diff --git a/target/arm/translate-neon.c b/target/arm/translate-neon.c
+index 8099767792..9460857b2a 100644
+--- a/target/arm/translate-neon.c
++++ b/target/arm/translate-neon.c
+@@ -390,15 +390,6 @@ static bool trans_VSUDOT_scalar(DisasContext *s, arg_VSUDOT_scalar *a)
+                         gen_helper_gvec_sudot_idx_b);
+ }
+ 
+-static bool trans_VDOT_b16_scal(DisasContext *s, arg_VDOT_b16_scal *a)
+-{
+-    if (!dc_isar_feature(aa32_bf16, s)) {
+-        return false;
+-    }
+-    return do_neon_ddda(s, a->q * 6, a->vd, a->vn, a->vm, a->index,
+-                        gen_helper_gvec_bfdot_idx);
+-}
+-
+ static bool trans_VFML_scalar(DisasContext *s, arg_VFML_scalar *a)
+ {
+     int opr_sz;
+diff --git a/target/arm/translate-sve.c b/target/arm/translate-sve.c
+index 6f02030635..ed290827ad 100644
+--- a/target/arm/translate-sve.c
++++ b/target/arm/translate-sve.c
+@@ -8665,15 +8665,3 @@ static bool trans_BFDOT_zzzz(DisasContext *s, arg_rrrr_esz *a)
+     }
+     return true;
+ }
+-
+-static bool trans_BFDOT_zzxz(DisasContext *s, arg_rrxr_esz *a)
+-{
+-    if (!dc_isar_feature(aa64_sve_bf16, s)) {
+-        return false;
+-    }
+-    if (sve_access_check(s)) {
+-        gen_gvec_ool_zzzz(s, gen_helper_gvec_bfdot_idx,
+-                          a->rd, a->rn, a->rm, a->ra, a->index);
+-    }
+-    return true;
+-}
+diff --git a/target/arm/vec_helper.c b/target/arm/vec_helper.c
+index 74a497f38c..7eefcd06ea 100644
+--- a/target/arm/vec_helper.c
++++ b/target/arm/vec_helper.c
+@@ -2452,23 +2452,3 @@ void HELPER(gvec_bfdot)(void *vd, void *vn, void *vm, void *va, uint32_t desc)
+     }
+     clear_tail(d, opr_sz, simd_maxsz(desc));
+ }
+-
+-void HELPER(gvec_bfdot_idx)(void *vd, void *vn, void *vm,
+-                            void *va, uint32_t desc)
+-{
+-    intptr_t i, j, opr_sz = simd_oprsz(desc);
+-    intptr_t index = simd_data(desc);
+-    intptr_t elements = opr_sz / 4;
+-    intptr_t eltspersegment = MIN(16 / 4, elements);
+-    float32 *d = vd, *a = va;
+-    uint32_t *n = vn, *m = vm;
+-
+-    for (i = 0; i < elements; i += eltspersegment) {
+-        uint32_t m_idx = m[i + H4(index)];
+-
+-        for (j = i; j < i + eltspersegment; j++) {
+-            d[j] = bfdotadd(a[j], n[j], m_idx);
+-        }
+-    }
+-    clear_tail(d, opr_sz, simd_maxsz(desc));
+-}

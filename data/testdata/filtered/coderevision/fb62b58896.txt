@@ -1,0 +1,46 @@
+diff --git a/block.c b/block.c
+index ef13076c4c..0dc97281dc 100644
+--- a/block.c
++++ b/block.c
+@@ -1412,7 +1412,7 @@ static int bdrv_child_cb_update_filename(BdrvChild *c, BlockDriverState *base,
+     return 0;
+ }
+ 
+-AioContext *child_of_bds_get_parent_aio_context(BdrvChild *c)
++static AioContext *bdrv_child_cb_get_parent_aio_context(BdrvChild *c)
+ {
+     BlockDriverState *bs = c->opaque;
+ 
+@@ -1432,7 +1432,7 @@ const BdrvChildClass child_of_bds = {
+     .can_set_aio_ctx = bdrv_child_cb_can_set_aio_ctx,
+     .set_aio_ctx     = bdrv_child_cb_set_aio_ctx,
+     .update_filename = bdrv_child_cb_update_filename,
+-    .get_parent_aio_context = child_of_bds_get_parent_aio_context,
++    .get_parent_aio_context = bdrv_child_cb_get_parent_aio_context,
+ };
+ 
+ AioContext *bdrv_child_get_parent_aio_context(BdrvChild *c)
+diff --git a/block/vvfat.c b/block/vvfat.c
+index 07232a7cfc..54807f82ca 100644
+--- a/block/vvfat.c
++++ b/block/vvfat.c
+@@ -3130,7 +3130,6 @@ static void vvfat_qcow_options(BdrvChildRole role, bool parent_is_format,
+ static const BdrvChildClass child_vvfat_qcow = {
+     .parent_is_bds      = true,
+     .inherit_options    = vvfat_qcow_options,
+-    .get_parent_aio_context = child_of_bds_get_parent_aio_context,
+ };
+ 
+ static int enable_write_target(BlockDriverState *bs, Error **errp)
+diff --git a/include/block/block.h b/include/block/block.h
+index 8e707a83b7..82185965ff 100644
+--- a/include/block/block.h
++++ b/include/block/block.h
+@@ -701,7 +701,6 @@ bool bdrv_child_can_set_aio_context(BdrvChild *c, AioContext *ctx,
+ bool bdrv_can_set_aio_context(BlockDriverState *bs, AioContext *ctx,
+                               GSList **ignore, Error **errp);
+ AioContext *bdrv_child_get_parent_aio_context(BdrvChild *c);
+-AioContext *child_of_bds_get_parent_aio_context(BdrvChild *c);
+ 
+ int bdrv_probe_blocksizes(BlockDriverState *bs, BlockSizes *bsz);
+ int bdrv_probe_geometry(BlockDriverState *bs, HDGeometry *geo);

@@ -1,0 +1,17 @@
+commit fd240a184b0e8a9889097216d182def6aece30cb
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Tue Jun 1 10:52:14 2021 +0300
+
+    block-backend: improve blk_root_get_parent_desc()
+    
+    We have different types of parents: block nodes, block backends and
+    jobs. So, it makes sense to specify type together with name.
+    
+    While being here also use g_autofree.
+    
+    iotest 307 output is updated.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Alberto Garcia <berto@igalia.com>
+    Message-Id: <20210601075218.79249-3-vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

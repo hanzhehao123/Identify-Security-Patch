@@ -1,0 +1,217 @@
+diff --git a/hw/i386/acpi-build.c b/hw/i386/acpi-build.c
+index 796ffc6f5c..80bee00da6 100644
+--- a/hw/i386/acpi-build.c
++++ b/hw/i386/acpi-build.c
+@@ -107,9 +107,7 @@ typedef struct AcpiPmInfo {
+ typedef struct AcpiMiscInfo {
+     bool is_piix4;
+     bool has_hpet;
+-#ifdef CONFIG_TPM
+     TPMVersion tpm_version;
+-#endif
+     const unsigned char *dsdt_code;
+     unsigned dsdt_size;
+     uint16_t pvpanic_port;
+@@ -288,9 +286,7 @@ static void acpi_get_misc_info(AcpiMiscInfo *info)
+     }
+ 
+     info->has_hpet = hpet_find();
+-#ifdef CONFIG_TPM
+     info->tpm_version = tpm_get_version(tpm_find());
+-#endif
+     info->pvpanic_port = pvpanic_port();
+     info->applesmc_io_base = applesmc_port();
+ }
+@@ -1375,9 +1371,7 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+     uint32_t nr_mem = machine->ram_slots;
+     int root_bus_limit = 0xFF;
+     PCIBus *bus = NULL;
+-#ifdef CONFIG_TPM
+     TPMIf *tpm = tpm_find();
+-#endif
+     int i;
+     VMBusBridge *vmbus_bridge = vmbus_bridge_find();
+ 
+@@ -1610,12 +1604,10 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+         }
+     }
+ 
+-#ifdef CONFIG_TPM
+     if (TPM_IS_TIS_ISA(tpm_find())) {
+         aml_append(crs, aml_memory32_fixed(TPM_TIS_ADDR_BASE,
+                    TPM_TIS_ADDR_SIZE, AML_READ_WRITE));
+     }
+-#endif
+     aml_append(scope, aml_name_decl("_CRS", crs));
+ 
+     /* reserve GPE0 block resources */
+@@ -1761,7 +1753,6 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+             /* Scan all PCI buses. Generate tables to support hotplug. */
+             build_append_pci_bus_devices(scope, bus, pm->pcihp_bridge_en);
+ 
+-#ifdef CONFIG_TPM
+             if (TPM_IS_TIS_ISA(tpm)) {
+                 if (misc->tpm_version == TPM_VERSION_2_0) {
+                     dev = aml_device("TPM");
+@@ -1789,13 +1780,11 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+ 
+                 aml_append(scope, dev);
+             }
+-#endif
+ 
+             aml_append(sb_scope, scope);
+         }
+     }
+ 
+-#ifdef CONFIG_TPM
+     if (TPM_IS_CRB(tpm)) {
+         dev = aml_device("TPM");
+         aml_append(dev, aml_name_decl("_HID", aml_string("MSFT0101")));
+@@ -1810,7 +1799,6 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+ 
+         aml_append(sb_scope, dev);
+     }
+-#endif
+ 
+     aml_append(dsdt, sb_scope);
+ 
+@@ -1840,7 +1828,6 @@ build_hpet(GArray *table_data, BIOSLinker *linker, const char *oem_id,
+                  "HPET", sizeof(*hpet), 1, oem_id, oem_table_id);
+ }
+ 
+-#ifdef CONFIG_TPM
+ static void
+ build_tpm_tcpa(GArray *table_data, BIOSLinker *linker, GArray *tcpalog,
+                const char *oem_id, const char *oem_table_id)
+@@ -1867,7 +1854,6 @@ build_tpm_tcpa(GArray *table_data, BIOSLinker *linker, GArray *tcpalog,
+                  (void *)(table_data->data + tcpa_start),
+                  "TCPA", sizeof(*tcpa), 2, oem_id, oem_table_id);
+ }
+-#endif
+ 
+ #define HOLE_640K_START  (640 * KiB)
+ #define HOLE_640K_END   (1 * MiB)
+@@ -2417,7 +2403,6 @@ void acpi_build(AcpiBuildTables *tables, MachineState *machine)
+         build_hpet(tables_blob, tables->linker, x86ms->oem_id,
+                    x86ms->oem_table_id);
+     }
+-#ifdef CONFIG_TPM
+     if (misc.tpm_version != TPM_VERSION_UNSPEC) {
+         if (misc.tpm_version == TPM_VERSION_1_2) {
+             acpi_add_table(table_offsets, tables_blob);
+@@ -2429,7 +2414,6 @@ void acpi_build(AcpiBuildTables *tables, MachineState *machine)
+                        x86ms->oem_id, x86ms->oem_table_id);
+         }
+     }
+-#endif
+     if (pcms->numa_nodes) {
+         acpi_add_table(table_offsets, tables_blob);
+         build_srat(tables_blob, tables->linker, machine);
+@@ -2621,10 +2605,8 @@ void acpi_setup(void)
+     AcpiBuildTables tables;
+     AcpiBuildState *build_state;
+     Object *vmgenid_dev;
+-#ifdef CONFIG_TPM
+     TPMIf *tpm;
+     static FwCfgTPMConfig tpm_config;
+-#endif
+ 
+     if (!x86ms->fw_cfg) {
+         ACPI_BUILD_DPRINTF("No fw cfg. Bailing out.\n");
+@@ -2656,7 +2638,6 @@ void acpi_setup(void)
+         acpi_add_rom_blob(acpi_build_update, build_state,
+                           tables.linker->cmd_blob, ACPI_BUILD_LOADER_FILE);
+ 
+-#ifdef CONFIG_TPM
+     fw_cfg_add_file(x86ms->fw_cfg, ACPI_BUILD_TPMLOG_FILE,
+                     tables.tcpalog->data, acpi_data_len(tables.tcpalog));
+ 
+@@ -2670,7 +2651,6 @@ void acpi_setup(void)
+         fw_cfg_add_file(x86ms->fw_cfg, "etc/tpm/config",
+                         &tpm_config, sizeof tpm_config);
+     }
+-#endif
+ 
+     vmgenid_dev = find_vmgenid_dev();
+     if (vmgenid_dev) {
+diff --git a/linux-user/mmap.c b/linux-user/mmap.c
+index 7e3b245036..0e103859fe 100644
+--- a/linux-user/mmap.c
++++ b/linux-user/mmap.c
+@@ -451,6 +451,20 @@ abi_long target_mmap(abi_ulong start, abi_ulong len, int target_prot,
+         goto fail;
+     }
+ 
++    /*
++     * If we're mapping shared memory, ensure we generate code for parallel
++     * execution and flush old translations.  This will work up to the level
++     * supported by the host -- anything that requires EXCP_ATOMIC will not
++     * be atomic with respect to an external process.
++     */
++    if (flags & MAP_SHARED) {
++        CPUState *cpu = thread_cpu;
++        if (!(cpu->tcg_cflags & CF_PARALLEL)) {
++            cpu->tcg_cflags |= CF_PARALLEL;
++            tb_flush(cpu);
++        }
++    }
++
+     real_start = start & qemu_host_page_mask;
+     host_offset = offset & qemu_host_page_mask;
+ 
+diff --git a/linux-user/signal.c b/linux-user/signal.c
+index 9016896dcd..0f19c59dee 100644
+--- a/linux-user/signal.c
++++ b/linux-user/signal.c
+@@ -38,7 +38,9 @@ static void host_signal_handler(int host_signum, siginfo_t *info,
+  * Signal number 0 is reserved for use as kill(pid, 0), to test whether
+  * a process exists without sending it a signal.
+  */
++#ifdef __SIGRTMAX
+ QEMU_BUILD_BUG_ON(__SIGRTMAX + 1 != _NSIG);
++#endif
+ static uint8_t host_to_target_signal_table[_NSIG] = {
+     [SIGHUP] = TARGET_SIGHUP,
+     [SIGINT] = TARGET_SIGINT,
+diff --git a/linux-user/syscall.c b/linux-user/syscall.c
+index 974dd46c9a..54037db8d6 100644
+--- a/linux-user/syscall.c
++++ b/linux-user/syscall.c
+@@ -4603,6 +4603,7 @@ static inline abi_ulong target_shmlba(CPUArchState *cpu_env)
+ static inline abi_ulong do_shmat(CPUArchState *cpu_env,
+                                  int shmid, abi_ulong shmaddr, int shmflg)
+ {
++    CPUState *cpu = env_cpu(cpu_env);
+     abi_long raddr;
+     void *host_raddr;
+     struct shmid_ds shm_info;
+@@ -4633,6 +4634,17 @@ static inline abi_ulong do_shmat(CPUArchState *cpu_env,
+ 
+     mmap_lock();
+ 
++    /*
++     * We're mapping shared memory, so ensure we generate code for parallel
++     * execution and flush old translations.  This will work up to the level
++     * supported by the host -- anything that requires EXCP_ATOMIC will not
++     * be atomic with respect to an external process.
++     */
++    if (!(cpu->tcg_cflags & CF_PARALLEL)) {
++        cpu->tcg_cflags |= CF_PARALLEL;
++        tb_flush(cpu);
++    }
++
+     if (shmaddr)
+         host_raddr = shmat(shmid, (void *)g2h_untagged(shmaddr), shmflg);
+     else {
+diff --git a/stubs/tpm.c b/stubs/tpm.c
+index 22014595a0..9bded191d9 100644
+--- a/stubs/tpm.c
++++ b/stubs/tpm.c
+@@ -33,3 +33,7 @@ TpmModelList *qmp_query_tpm_models(Error **errp)
+ {
+     return NULL;
+ }
++
++void tpm_build_ppi_acpi(TPMIf *tpm, Aml *dev)
++{
++}

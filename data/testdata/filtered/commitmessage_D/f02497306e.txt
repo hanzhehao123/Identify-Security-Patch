@@ -1,0 +1,10 @@
+commit f02497306ec2efb8315f604597ddf8142f00336d
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:33 2021 +0200
+
+    s390x/tcg: Implement VECTOR FP NEGATIVE MULTIPLY AND (ADD|SUBTRACT)
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-23-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

@@ -1,0 +1,25 @@
+commit 2fa3546c8f55c4548240489518784b1da4f182b5
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sun Nov 22 10:42:22 2020 -0800
+
+    softfloat: Move floatN_log2 to softfloat-parts.c.inc
+    
+    Rename to parts$N_log2.  Though this is partly a ruse, since I do not
+    believe the code will succeed for float128 without work.  Which is ok
+    for now, because we do not need this for more than float32 and float64.
+    
+    Since berkeley-testfloat-3 doesn't support log2, compare float64_log2
+    vs the system log2.  Fix the errors for inputs near 1.0:
+    
+    test: 3ff00000000000b0  +0x1.00000000000b0p+0
+      sf: 3d2fa00000000000  +0x1.fa00000000000p-45
+    libm: 3d2fbd422b1bd36f  +0x1.fbd422b1bd36fp-45
+    Error in fraction: 32170028290927 ulp
+    
+    test: 3feec24f6770b100  +0x1.ec24f6770b100p-1
+      sf: bfad3740d13c9ec0  -0x1.d3740d13c9ec0p-5
+    libm: bfad3740d13c9e98  -0x1.d3740d13c9e98p-5
+    Error in fraction: 40 ulp
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

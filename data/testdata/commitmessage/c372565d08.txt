@@ -1,0 +1,12 @@
+commit c372565d08e278d6e65a54c8b5ab082bd63234ea
+Author: Jose R. Ziviani <jziviani@suse.de>
+Date:   Thu Jun 10 19:44:50 2021 -0300
+
+    tcg/arm: Fix tcg_out_op function signature
+    
+    Commit 5e8892db93 fixed several function signatures but tcg_out_op for
+    arm is missing. This patch fixes it as well.
+    
+    Signed-off-by: Jose R. Ziviani <jziviani@suse.de>
+    Message-Id: <20210610224450.23425-1-jziviani@suse.de>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

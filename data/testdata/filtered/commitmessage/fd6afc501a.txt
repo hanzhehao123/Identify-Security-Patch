@@ -1,0 +1,26 @@
+commit fd6afc501a019682d1b8468b562355a2887087bd
+Author: Sergio Lopez <slp@redhat.com>
+Date:   Wed Jun 2 08:05:52 2021 +0200
+
+    nbd/server: Use drained block ops to quiesce the server
+    
+    Before switching between AioContexts we need to make sure that we're
+    fully quiesced ("nb_requests == 0" for every client) when entering the
+    drained section.
+    
+    To do this, we set "quiescing = true" for every client on
+    ".drained_begin" to prevent new coroutines from being created, and
+    check if "nb_requests == 0" on ".drained_poll". Finally, once we're
+    exiting the drained section, on ".drained_end" we set "quiescing =
+    false" and call "nbd_client_receive_next_request()" to resume the
+    processing of new requests.
+    
+    With these changes, "blk_aio_attach()" and "blk_aio_detach()" can be
+    reverted to be as simple as they were before f148ae7d36.
+    
+    RHBZ: https://bugzilla.redhat.com/show_bug.cgi?id=1960137
+    Suggested-by: Kevin Wolf <kwolf@redhat.com>
+    Signed-off-by: Sergio Lopez <slp@redhat.com>
+    Message-Id: <20210602060552.17433-3-slp@redhat.com>
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

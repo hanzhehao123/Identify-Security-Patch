@@ -1,0 +1,46 @@
+commit 6512fa497c2fa9751b9d774ab32d87a9764d1958
+Merge: 9e654e1019 0aebebb561
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 28 21:04:22 2021 +0100
+
+    Merge remote-tracking branch 'remotes/bonzini-gitlab/tags/for-upstream' into staging
+    
+    * Some Meson test conversions
+    * KVM dirty page ring buffer fix
+    * KVM TSC scaling support
+    * Fixes for SG_IO with /dev/sdX devices
+    * (Non)support for host devices on iOS
+    * -smp cleanups
+    
+    # gpg: Signature made Fri 25 Jun 2021 15:16:18 BST
+    # gpg:                using RSA key F13338574B662389866C7682BFFBD25F78C7AE83
+    # gpg:                issuer "pbonzini@redhat.com"
+    # gpg: Good signature from "Paolo Bonzini <bonzini@gnu.org>" [full]
+    # gpg:                 aka "Paolo Bonzini <pbonzini@redhat.com>" [full]
+    # Primary key fingerprint: 46F5 9FBD 57D6 12E7 BFD4  E2F7 7E15 100C CD36 69B1
+    #      Subkey fingerprint: F133 3857 4B66 2389 866C  7682 BFFB D25F 78C7 AE83
+    
+    * remotes/bonzini-gitlab/tags/for-upstream: (28 commits)
+      machine: reject -smp dies!=1 for non-PC machines
+      machine: pass QAPI struct to mc->smp_parse
+      machine: add error propagation to mc->smp_parse
+      machine: move common smp_parse code to caller
+      machine: move dies from X86MachineState to CpuTopology
+      file-posix: handle EINTR during ioctl
+      block: detect DKIOCGETBLOCKCOUNT/SIZE before use
+      block: try BSD disk size ioctls one after another
+      block: check for sys/disk.h
+      block: feature detection for host block support
+      file-posix: try BLKSECTGET on block devices too, do not round to power of 2
+      block: add max_hw_transfer to BlockLimits
+      block-backend: align max_transfer to request alignment
+      osdep: provide ROUND_DOWN macro
+      scsi-generic: pass max_segments via max_iov field in BlockLimits
+      file-posix: fix max_iov for /dev/sg devices
+      KVM: Fix dirty ring mmap incorrect size due to renaming accident
+      configure, meson: convert libusbredir detection to meson
+      configure, meson: convert libcacard detection to meson
+      configure, meson: convert libusb detection to meson
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

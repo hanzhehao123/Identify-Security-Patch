@@ -1,0 +1,13 @@
+commit 64deb65afe028c85fb413285046c2e81a8d25b4f
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:16 2021 +0200
+
+    s390x/tcg: Simplify vfc64() handling
+    
+    Pass the m5 field via simd_data() and don't provide specialized handlers
+    for single-element variants.
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-6-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

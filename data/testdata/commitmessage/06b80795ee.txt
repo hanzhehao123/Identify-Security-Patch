@@ -1,0 +1,21 @@
+commit 06b80795ee25d23e69747b2cb435003c6db2a6ab
+Author: Maxim Levitsky <mlevitsk@redhat.com>
+Date:   Thu Dec 17 18:56:12 2020 +0200
+
+    block/scsi: correctly emulate the VPD block limits page
+    
+    When the device doesn't support the VPD block limits page, we emulate it even
+    for SCSI passthrough.
+    
+    As a part of the emulation we need to add it to the 'Supported VPD Pages'
+    
+    The code that does this adds it to the page, but it doesn't increase the length
+    of the data to be copied to the guest, thus the guest never sees the VPD block
+    limits page as supported.
+    
+    Bump the transfer size by 1 in this case.
+    
+    Signed-off-by: Maxim Levitsky <mlevitsk@redhat.com>
+    Reviewed-by: Max Reitz <mreitz@redhat.com>
+    Message-Id: <20201217165612.942849-6-mlevitsk@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

@@ -1,0 +1,12 @@
+commit 96342d53a881a5686b1e4797aead1c025985772e
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sun May 30 11:36:29 2021 +0200
+
+    target/mips: Fix TCG temporary leaks in gen_pool32a5_nanomips_insn()
+    
+    Fix a pair of TCG temporary leak when translating nanoMIPS SHILO opcode.
+    
+    Fixes: 3285a3e4445 ("target/mips: Add emulation of DSP ASE for nanoMIPS")
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210530094538.1275329-1-f4bug@amsat.org>

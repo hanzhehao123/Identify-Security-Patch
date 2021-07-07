@@ -1,0 +1,23 @@
+commit b873ed83311d96644b544b10f6869a430660585a
+Author: Daniel Henrique Barboza <danielhb413@gmail.com>
+Date:   Fri May 28 17:16:19 2021 -0300
+
+    ppc/pef.c: initialize cgs->ready in kvmppc_svm_init()
+    
+    QEMU is failing to launch a CGS pSeries guest in a host that has PEF
+    support:
+    
+    qemu-system-ppc64: ../softmmu/vl.c:2585: qemu_machine_creation_done: Assertion `machine->cgs->ready' failed.
+    Aborted
+    
+    This is happening because we're not setting the cgs->ready flag that is
+    asserted in qemu_machine_creation_done() during machine start.
+    
+    cgs->ready is set in s390_pv_kvm_init() and sev_kvm_init(). Let's set it
+    in kvmppc_svm_init() as well.
+    
+    Reported-by: Ram Pai <linuxram@us.ibm.com>
+    Signed-off-by: Daniel Henrique Barboza <danielhb413@gmail.com>
+    Message-Id: <20210528201619.52363-1-danielhb413@gmail.com>
+    Acked-by: Ram Pai <linuxram@us.ibm.com>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

@@ -1,0 +1,13 @@
+commit 7682f857f49fdac2cd3094a634a606f6d6994cc3
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:16 2021 +0200
+
+    i386: introduce hyperv_feature_supported()
+    
+    Clean up hv_cpuid_check_and_set() by separating hyperv_feature_supported()
+    off it. No functional change intended.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-6-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

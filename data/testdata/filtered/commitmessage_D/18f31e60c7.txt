@@ -1,0 +1,8 @@
+commit 18f31e60c7f02e2fdeebce344b2f95c65cbf2bef
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 3 11:15:26 2021 +0200
+
+    configure, meson: convert libusbredir detection to meson
+    
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

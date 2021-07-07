@@ -1,0 +1,13 @@
+commit d14d4f4f1815dcf63fa6b90e9a34854977e42f84
+Author: Mahmoud Mandour <ma.mandourr@gmail.com>
+Date:   Sun Mar 14 05:23:22 2021 +0200
+
+    tools/virtiofsd/buffer.c: replaced a calloc call with GLib's g_try_new0
+    
+    Replaced a call to calloc() and its respective free() call
+    with GLib's g_try_new0() and g_free() calls.
+    
+    Signed-off-by: Mahmoud Mandour <ma.mandourr@gmail.com>
+    Message-Id: <20210314032324.45142-7-ma.mandourr@gmail.com>
+    Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

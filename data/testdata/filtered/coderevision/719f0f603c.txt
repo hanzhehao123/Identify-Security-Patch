@@ -1,0 +1,35 @@
+diff --git a/target/riscv/cpu_bits.h b/target/riscv/cpu_bits.h
+index 7330ff5a19..52640e6856 100644
+--- a/target/riscv/cpu_bits.h
++++ b/target/riscv/cpu_bits.h
+@@ -390,7 +390,6 @@
+ #define HSTATUS_HU           0x00000200
+ #define HSTATUS_VGEIN        0x0003F000
+ #define HSTATUS_VTVM         0x00100000
+-#define HSTATUS_VTW          0x00200000
+ #define HSTATUS_VTSR         0x00400000
+ #define HSTATUS_VSXL         0x300000000
+ 
+diff --git a/target/riscv/op_helper.c b/target/riscv/op_helper.c
+index 3c48e739ac..170b494227 100644
+--- a/target/riscv/op_helper.c
++++ b/target/riscv/op_helper.c
+@@ -177,15 +177,10 @@ target_ulong helper_mret(CPURISCVState *env, target_ulong cpu_pc_deb)
+ void helper_wfi(CPURISCVState *env)
+ {
+     CPUState *cs = env_cpu(env);
+-    bool rvs = riscv_has_ext(env, RVS);
+-    bool prv_u = env->priv == PRV_U;
+-    bool prv_s = env->priv == PRV_S;
+ 
+-    if (((prv_s || (!rvs && prv_u)) && get_field(env->mstatus, MSTATUS_TW)) ||
+-        (rvs && prv_u && !riscv_cpu_virt_enabled(env))) {
+-        riscv_raise_exception(env, RISCV_EXCP_ILLEGAL_INST, GETPC());
+-    } else if (riscv_cpu_virt_enabled(env) && (prv_u ||
+-        (prv_s && get_field(env->hstatus, HSTATUS_VTW)))) {
++    if ((env->priv == PRV_S &&
++        get_field(env->mstatus, MSTATUS_TW)) ||
++        riscv_cpu_virt_enabled(env)) {
+         riscv_raise_exception(env, RISCV_EXCP_VIRT_INSTRUCTION_FAULT, GETPC());
+     } else {
+         cs->halted = 1;

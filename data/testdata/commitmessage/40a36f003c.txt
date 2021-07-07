@@ -1,0 +1,13 @@
+commit 40a36f003c0375bb9d347eeb3f60bac7bbeb82c3
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 16:09:18 2021 +0100
+
+    target/arm: Implement MVE DLSTP
+    
+    Implement the MVE DLSTP insn; this is like the existing DLS
+    insn, except that it must do an FPU access check and it
+    sets LTPSIZE to the value specified in the insn.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210614151007.4545-9-peter.maydell@linaro.org

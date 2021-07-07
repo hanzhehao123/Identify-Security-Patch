@@ -1,0 +1,53 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index f1dc52f7a5..4c89387587 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -47,5 +47,3 @@ DEF_HELPER_FLAGS_3(mve_vrev32h, TCG_CALL_NO_WG, void, env, ptr, ptr)
+ DEF_HELPER_FLAGS_3(mve_vrev64b, TCG_CALL_NO_WG, void, env, ptr, ptr)
+ DEF_HELPER_FLAGS_3(mve_vrev64h, TCG_CALL_NO_WG, void, env, ptr, ptr)
+ DEF_HELPER_FLAGS_3(mve_vrev64w, TCG_CALL_NO_WG, void, env, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_3(mve_vmvn, TCG_CALL_NO_WG, void, env, ptr, ptr)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index ff8afb682f..16ee511a5c 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -30,7 +30,6 @@
+ @vldst_wn ... u:1 ... . . . . l:1 . rn:3 qd:3 . ... .. imm:7 &vldr_vstr
+ 
+ @1op .... .... .... size:2 .. .... .... .... .... &1op qd=%qd qm=%qm
+-@1op_nosz .... .... .... .... .... .... .... .... &1op qd=%qd qm=%qm size=0
+ 
+ # Vector loads and stores
+ 
+@@ -75,5 +74,3 @@ VCLZ             1111 1111 1 . 11 .. 00 ... 0 0100 11 . 0 ... 0 @1op
+ VREV16           1111 1111 1 . 11 .. 00 ... 0 0001 01 . 0 ... 0 @1op
+ VREV32           1111 1111 1 . 11 .. 00 ... 0 0000 11 . 0 ... 0 @1op
+ VREV64           1111 1111 1 . 11 .. 00 ... 0 0000 01 . 0 ... 0 @1op
+-
+-VMVN             1111 1111 1 . 11 00 00 ... 0 0101 11 . 0 ... 0 @1op_nosz
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index fa0a32d284..8b565b50a9 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -277,7 +277,3 @@ DO_1OP(vrev32h, 4, uint32_t, hswap32)
+ DO_1OP(vrev64b, 8, uint64_t, bswap64)
+ DO_1OP(vrev64h, 8, uint64_t, hswap64)
+ DO_1OP(vrev64w, 8, uint64_t, wswap64)
+-
+-#define DO_NOT(N) (~(N))
+-
+-DO_1OP(vmvn, 8, uint64_t, DO_NOT)
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index bd908abcff..32a8324c5e 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -232,8 +232,3 @@ static bool trans_VREV64(DisasContext *s, arg_1op *a)
+     };
+     return do_1op(s, a, fns[a->size]);
+ }
+-
+-static bool trans_VMVN(DisasContext *s, arg_1op *a)
+-{
+-    return do_1op(s, a, gen_helper_mve_vmvn);
+-}

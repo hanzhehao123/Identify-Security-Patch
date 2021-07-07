@@ -1,0 +1,10 @@
+commit 2a785dfb5071fdb269c77aeb7fa3930e93d413ef
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:22 2021 +0200
+
+    s390x/tcg: Implement VECTOR BIT PERMUTE
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-12-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

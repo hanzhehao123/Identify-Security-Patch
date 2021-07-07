@@ -1,0 +1,50 @@
+commit 38848ce565849e5b867a5e08022b3c755039c11a
+Merge: e3897b75fd 703235a303
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Wed Jun 16 17:02:30 2021 +0100
+
+    Merge remote-tracking branch 'remotes/pmaydell/tags/pull-target-arm-20210616' into staging
+    
+    target-arm queue:
+     * hw/intc/arm_gicv3_cpuif: Tolerate spurious EOIR writes
+     * handle some UNALLOCATED decode cases correctly rather
+       than asserting
+     * hw: virt: consider hw_compat_6_0
+     * hw/arm: add quanta-gbs-bmc machine
+     * hw/intc/armv7m_nvic: Remove stale comment
+     * target/arm: Fix mte page crossing test
+     * hw/arm: quanta-q71l add pca954x muxes
+     * target/arm: First few parts of MVE support
+    
+    # gpg: Signature made Wed 16 Jun 2021 14:34:49 BST
+    # gpg:                using RSA key E1A5C593CD419DE28E8315CF3C2525ED14360CDE
+    # gpg:                issuer "peter.maydell@linaro.org"
+    # gpg: Good signature from "Peter Maydell <peter.maydell@linaro.org>" [ultimate]
+    # gpg:                 aka "Peter Maydell <pmaydell@gmail.com>" [ultimate]
+    # gpg:                 aka "Peter Maydell <pmaydell@chiark.greenend.org.uk>" [ultimate]
+    # Primary key fingerprint: E1A5 C593 CD41 9DE2 8E83  15CF 3C25 25ED 1436 0CDE
+    
+    * remotes/pmaydell/tags/pull-target-arm-20210616: (25 commits)
+      include/qemu/int128.h: Add function to create Int128 from int64_t
+      bitops.h: Provide hswap32(), hswap64(), wswap64() swapping operations
+      target/arm: Move expand_pred_b() data to vec_helper.c
+      target/arm: Add framework for MVE decode
+      target/arm: Implement MVE LETP insn
+      target/arm: Implement MVE DLSTP
+      target/arm: Implement MVE WLSTP insn
+      target/arm: Implement MVE LCTP
+      target/arm: Let vfp_access_check() handle late NOCP checks
+      target/arm: Add handling for PSR.ECI/ICI
+      target/arm: Handle VPR semantics in existing code
+      target/arm: Enable FPSCR.QC bit for MVE
+      target/arm: Provide and use H8 and H1_8 macros
+      hw/arm: quanta-q71l add pca954x muxes
+      hw/arm: gsj add pca9548
+      hw/arm: gsj add i2c comments
+      target/arm: Fix mte page crossing test
+      hw/intc/armv7m_nvic: Remove stale comment
+      hw/arm: quanta-gbs-bmc add i2c comments
+      hw/arm: add quanta-gbs-bmc machine
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

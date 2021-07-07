@@ -1,0 +1,14 @@
+commit 04c9f7e04ae102edf384613df98268d59ff8fb9b
+Author: Vivek Goyal <vgoyal@redhat.com>
+Date:   Tue May 18 17:35:32 2021 -0400
+
+    virtiofsd: Check for EINTR in preadv() and retry
+    
+    We don't seem to check for EINTR and retry. There are other places
+    in code where we check for EINTR. So lets add a check.
+    
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Signed-off-by: Vivek Goyal <vgoyal@redhat.com>
+    Message-Id: <20210518213538.693422-2-vgoyal@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

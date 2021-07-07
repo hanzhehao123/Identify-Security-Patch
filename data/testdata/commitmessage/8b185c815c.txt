@@ -1,0 +1,14 @@
+commit 8b185c815ce8c16d7dea20c5ec379f9f30f00c74
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Tue May 25 06:34:01 2021 +0200
+
+    gitlab: Document how forks can use different set of jobs
+    
+    Document how forks can use different set of jobs and add
+    a big warning so no new configuration is added to this
+    file.
+    
+    Suggested-by: Daniel Berrangé <berrange@redhat.com>
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-Id: <20210525082556.4011380-4-f4bug@amsat.org>

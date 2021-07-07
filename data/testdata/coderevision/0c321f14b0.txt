@@ -1,0 +1,17 @@
+diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
+index 7849e84e9a..ce02cb6713 100644
+--- a/target/i386/kvm/kvm.c
++++ b/target/i386/kvm/kvm.c
+@@ -1257,7 +1257,11 @@ static int hyperv_handle_properties(CPUState *cs,
+         c = cpuid_find_entry(cpuid, HV_CPUID_ENLIGHTMENT_INFO, 0);
+         if (c) {
+             env->features[FEAT_HV_RECOMM_EAX] = c->eax;
+-            cpu->hyperv_spinlock_attempts = c->ebx;
++
++            /* hv-spinlocks may have been overriden */
++            if (cpu->hyperv_spinlock_attempts != HYPERV_SPINLOCK_NEVER_NOTIFY) {
++                c->ebx = cpu->hyperv_spinlock_attempts;
++            }
+         }
+         c = cpuid_find_entry(cpuid, HV_CPUID_NESTED_FEATURES, 0);
+         if (c) {

@@ -1,0 +1,21 @@
+diff --git a/target/s390x/helper.c b/target/s390x/helper.c
+index 559fc3573f..d311903b94 100644
+--- a/target/s390x/helper.c
++++ b/target/s390x/helper.c
+@@ -321,12 +321,12 @@ uint64_t s390_cpu_get_psw_mask(CPUS390XState *env)
+     uint64_t r = env->psw.mask;
+ 
+     if (tcg_enabled()) {
+-        uint64_t cc = calc_cc(env, env->cc_op, env->cc_src,
+-                              env->cc_dst, env->cc_vr);
++        env->cc_op = calc_cc(env, env->cc_op, env->cc_src, env->cc_dst,
++                             env->cc_vr);
+ 
+-        assert(cc <= 3);
+         r &= ~PSW_MASK_CC;
+-        r |= cc << 44;
++        assert(!(env->cc_op & ~3));
++        r |= (uint64_t)env->cc_op << 44;
+     }
+ 
+     return r;

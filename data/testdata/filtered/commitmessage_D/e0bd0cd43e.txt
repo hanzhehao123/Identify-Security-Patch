@@ -1,0 +1,15 @@
+commit e0bd0cd43e4105dcb4e7f1849879170ae3d9da78
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Tue May 11 10:23:52 2021 +0100
+
+    docs: add table of contents to QAPI references
+    
+    The QAPI reference docs for the guest agent, storage daemon and QMP are
+    all rather long and hard to navigate unless you already know the name of
+    the command and can do full text search for it.
+    
+    A table of contents in each doc will help people locate stuff much more
+    easily.
+    
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>

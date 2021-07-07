@@ -1,0 +1,55 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 7356385d60..0138e28278 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -152,8 +152,3 @@ DEF_HELPER_FLAGS_4(mve_vmlaldavxsw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+ 
+ DEF_HELPER_FLAGS_4(mve_vmlaldavuh, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+ DEF_HELPER_FLAGS_4(mve_vmlaldavuw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+-
+-DEF_HELPER_FLAGS_4(mve_vmlsldavsh, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+-DEF_HELPER_FLAGS_4(mve_vmlsldavsw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+-DEF_HELPER_FLAGS_4(mve_vmlsldavxsh, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+-DEF_HELPER_FLAGS_4(mve_vmlsldavxsw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index 1be2d6b270..bde54d05bb 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -145,5 +145,3 @@ VDUP             1110 1110 1 0 10 ... 0 .... 1011 . 0 0 1 0000 @vdup size=2
+                  qn=%qn rdahi=%rdahi rdalo=%rdalo size=%size_16 &vmlaldav
+ VMLALDAV_S       1110 1110 1 ... ... . ... x:1 1110 . 0 a:1 0 ... 0 @vmlaldav
+ VMLALDAV_U       1111 1110 1 ... ... . ... x:1 1110 . 0 a:1 0 ... 0 @vmlaldav
+-
+-VMLSLDAV         1110 1110 1 ... ... . ... x:1 1110 . 0 a:1 0 ... 1 @vmlaldav
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index b496e1f4d3..4d586c4d26 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -522,8 +522,3 @@ DO_LDAV(vmlaldavxsw, 4, int32_t, true, +=, +=)
+ 
+ DO_LDAV(vmlaldavuh, 2, uint16_t, false, +=, +=)
+ DO_LDAV(vmlaldavuw, 4, uint32_t, false, +=, +=)
+-
+-DO_LDAV(vmlsldavsh, 2, int16_t, false, +=, -=)
+-DO_LDAV(vmlsldavxsh, 2, int16_t, true, +=, -=)
+-DO_LDAV(vmlsldavsw, 4, int32_t, false, +=, -=)
+-DO_LDAV(vmlsldavxsw, 4, int32_t, true, +=, -=)
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index 77b461c218..f8ceeac5a4 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -461,14 +461,3 @@ static bool trans_VMLALDAV_U(DisasContext *s, arg_vmlaldav *a)
+     };
+     return do_long_dual_acc(s, a, fns[a->size][a->x]);
+ }
+-
+-static bool trans_VMLSLDAV(DisasContext *s, arg_vmlaldav *a)
+-{
+-    static MVEGenDualAccOpFn * const fns[4][2] = {
+-        { NULL, NULL },
+-        { gen_helper_mve_vmlsldavsh, gen_helper_mve_vmlsldavxsh },
+-        { gen_helper_mve_vmlsldavsw, gen_helper_mve_vmlsldavxsw },
+-        { NULL, NULL },
+-    };
+-    return do_long_dual_acc(s, a, fns[a->size][a->x]);
+-}

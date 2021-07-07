@@ -1,0 +1,47 @@
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index 48dabc5238..d150378c40 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -6141,16 +6141,17 @@ static void x86_cpu_hyperv_realize(X86CPU *cpu)
+ 
+     /* Hyper-V vendor id */
+     if (!cpu->hyperv_vendor) {
+-        object_property_set_str(OBJECT(cpu), "hv-vendor-id", "Microsoft Hv",
+-                                &error_abort);
+-    }
+-    len = strlen(cpu->hyperv_vendor);
+-    if (len > 12) {
+-        warn_report("hv-vendor-id truncated to 12 characters");
+-        len = 12;
++        memcpy(cpu->hyperv_vendor_id, "Microsoft Hv", 12);
++    } else {
++        len = strlen(cpu->hyperv_vendor);
++
++        if (len > 12) {
++            warn_report("hv-vendor-id truncated to 12 characters");
++            len = 12;
++        }
++        memset(cpu->hyperv_vendor_id, 0, 12);
++        memcpy(cpu->hyperv_vendor_id, cpu->hyperv_vendor, len);
+     }
+-    memset(cpu->hyperv_vendor_id, 0, 12);
+-    memcpy(cpu->hyperv_vendor_id, cpu->hyperv_vendor, len);
+ 
+     /* 'Hv#1' interface identification*/
+     cpu->hyperv_interface_id[0] = 0x31237648;
+diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
+index ce02cb6713..d972eb4705 100644
+--- a/target/i386/kvm/kvm.c
++++ b/target/i386/kvm/kvm.c
+@@ -1216,11 +1216,6 @@ static int hyperv_handle_properties(CPUState *cs,
+             cpu->hyperv_vendor_id[0] = c->ebx;
+             cpu->hyperv_vendor_id[1] = c->ecx;
+             cpu->hyperv_vendor_id[2] = c->edx;
+-            cpu->hyperv_vendor = g_realloc(cpu->hyperv_vendor,
+-                                           sizeof(cpu->hyperv_vendor_id) + 1);
+-            memcpy(cpu->hyperv_vendor, cpu->hyperv_vendor_id,
+-                   sizeof(cpu->hyperv_vendor_id));
+-            cpu->hyperv_vendor[sizeof(cpu->hyperv_vendor_id)] = 0;
+         }
+ 
+         c = cpuid_find_entry(cpuid, HV_CPUID_INTERFACE, 0);

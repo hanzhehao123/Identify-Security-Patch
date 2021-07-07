@@ -1,0 +1,30 @@
+commit ea776d15adc021a9f38179d27227a7f4d90a8698
+Author: Peter Xu <peterx@redhat.com>
+Date:   Thu May 6 12:05:42 2021 -0400
+
+    KVM: Create the KVMSlot dirty bitmap on flag changes
+    
+    Previously we have two places that will create the per KVMSlot dirty
+    bitmap:
+    
+      1. When a newly created KVMSlot has dirty logging enabled,
+      2. When the first log_sync() happens for a memory slot.
+    
+    The 2nd case is lazy-init, while the 1st case is not (which is a fix
+    of what the 2nd case missed).
+    
+    To do explicit initialization of dirty bitmaps, what we're missing is
+    to create the dirty bitmap when the slot changed from not-dirty-track
+    to dirty-track.  Do that in kvm_slot_update_flags().
+    
+    With that, we can safely remove the 2nd lazy-init.
+    
+    This change will be needed for kvm dirty ring because kvm dirty ring
+    does not use the log_sync() interface at all.
+    
+    Also move all the pre-checks into kvm_slot_init_dirty_bitmap().
+    
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Message-Id: <20210506160549.130416-4-peterx@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

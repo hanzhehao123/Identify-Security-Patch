@@ -1,0 +1,50 @@
+diff --git a/python/qemu/qmp/__init__.py b/python/qemu/qmp/__init__.py
+index a6e1a7b857..822c793c32 100644
+--- a/python/qemu/qmp/__init__.py
++++ b/python/qemu/qmp/__init__.py
+@@ -35,19 +35,14 @@
+ )
+ 
+ 
+-#: QMPMessage is an entire QMP message of any kind.
+-QMPMessage = Dict[str, Any]
+-
+-#: QMPReturnValue is the 'return' value of a command.
+-QMPReturnValue = object
+-
+-# QMPMessage can be outgoing commands or incoming events/returns.
+-# QMPReturnValue is usually a dict/json object, but due to QAPI's
+-# 'returns-whitelist', it can actually be anything.
++# QMPMessage is a QMP Message of any kind.
++# e.g. {'yee': 'haw'}
+ #
+-# {'return': {}} is a QMPMessage,
++# QMPReturnValue is the inner value of return values only.
++# {'return': {}} is the QMPMessage,
+ # {} is the QMPReturnValue.
+-
++QMPMessage = Dict[str, Any]
++QMPReturnValue = Dict[str, Any]
+ 
+ InternetAddrT = Tuple[str, int]
+ UnixAddrT = str
+@@ -302,8 +297,8 @@ def cmd_obj(self, qmp_cmd: QMPMessage) -> QMPMessage:
+         return resp
+ 
+     def cmd(self, name: str,
+-            args: Optional[Dict[str, object]] = None,
+-            cmd_id: Optional[object] = None) -> QMPMessage:
++            args: Optional[Dict[str, Any]] = None,
++            cmd_id: Optional[Any] = None) -> QMPMessage:
+         """
+         Build a QMP command and send it to the QMP Monitor.
+ 
+@@ -318,7 +313,7 @@ def cmd(self, name: str,
+             qmp_cmd['id'] = cmd_id
+         return self.cmd_obj(qmp_cmd)
+ 
+-    def command(self, cmd: str, **kwds: object) -> QMPReturnValue:
++    def command(self, cmd: str, **kwds: Any) -> QMPReturnValue:
+         """
+         Build and send a QMP command to the monitor, report errors if any
+         """

@@ -1,0 +1,15 @@
+commit f3fa412de28ae3cb31d38811d30a77e4e20456cc
+Author: Andrew Melnychenko <andrew@daynix.com>
+Date:   Fri May 14 14:48:31 2021 +0300
+
+    ebpf: Added eBPF RSS program.
+    
+    RSS program and Makefile to build it.
+    The bpftool used to generate '.h' file.
+    The data in that file may be loaded by libbpf.
+    EBPF compilation is not required for building qemu.
+    You can use Makefile if you need to regenerate rss.bpf.skeleton.h.
+    
+    Signed-off-by: Yuri Benditovich <yuri.benditovich@daynix.com>
+    Signed-off-by: Andrew Melnychenko <andrew@daynix.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

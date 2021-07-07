@@ -1,0 +1,23 @@
+commit a7b4f8fc09ec62d09a11cce72a886c453636c547
+Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date:   Mon Jun 14 10:11:29 2021 +0200
+
+    progressmeter: protect with a mutex
+    
+    Progressmeter is protected by the AioContext mutex, which
+    is taken by the block jobs and their caller (like blockdev).
+    
+    We would like to remove the dependency of block layer code on the
+    AioContext mutex, since most drivers and the core I/O code are already
+    not relying on it.
+    
+    Create a new C file to implement the ProgressMeter API, but keep the
+    struct as public, to avoid forcing allocation on the heap.
+    
+    Also add a mutex to be able to provide an accurate snapshot of the
+    progress values to the caller.
+    
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+    Message-Id: <20210614081130.22134-5-eesposit@redhat.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>

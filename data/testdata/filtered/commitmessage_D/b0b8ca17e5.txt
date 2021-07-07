@@ -1,0 +1,12 @@
+commit b0b8ca17e518bc57ae231ade4be4a7ed0e5f07f1
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:35 2021 -0400
+
+    scripts/qmp-shell: Accept SocketAddrT instead of string
+    
+    Don't "extend" QEMUMonitorProtocol by changing the argument types. Move
+    the string parsing just outside of the class instead.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-29-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

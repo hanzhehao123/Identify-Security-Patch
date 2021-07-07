@@ -1,0 +1,64 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index b7e2243a19..56b3e8591a 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -177,14 +177,6 @@ DEF_HELPER_FLAGS_4(mve_vshlub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vshluh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vshluw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ 
+-DEF_HELPER_FLAGS_4(mve_vrshlsb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vrshlsh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vrshlsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vrshlub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vrshluh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vrshluw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+ DEF_HELPER_FLAGS_4(mve_vqshlsb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vqshlsh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vqshlsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index c30fb2c153..ebf156b46b 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -133,9 +133,6 @@ VQSUB_U          111 1 1111 0 . .. ... 0 ... 0 0010 . 1 . 1 ... 0 @2op
+ VSHL_S           111 0 1111 0 . .. ... 0 ... 0 0100 . 1 . 0 ... 0 @2op_rev
+ VSHL_U           111 1 1111 0 . .. ... 0 ... 0 0100 . 1 . 0 ... 0 @2op_rev
+ 
+-VRSHL_S          111 0 1111 0 . .. ... 0 ... 0 0101 . 1 . 0 ... 0 @2op_rev
+-VRSHL_U          111 1 1111 0 . .. ... 0 ... 0 0101 . 1 . 0 ... 0 @2op_rev
+-
+ VQSHL_S          111 0 1111 0 . .. ... 0 ... 0 0100 . 1 . 1 ... 0 @2op_rev
+ VQSHL_U          111 1 1111 0 . .. ... 0 ... 0 0100 . 1 . 1 ... 0 @2op_rev
+ 
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index 770938d76c..4a07ddfc56 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -523,13 +523,9 @@ DO_2OP_U(vhsubu, do_vhsub_u)
+ 
+ #define DO_VSHLS(N, M) do_sqrshl_bhs(N, (int8_t)(M), sizeof(N) * 8, false, NULL)
+ #define DO_VSHLU(N, M) do_uqrshl_bhs(N, (int8_t)(M), sizeof(N) * 8, false, NULL)
+-#define DO_VRSHLS(N, M) do_sqrshl_bhs(N, (int8_t)(M), sizeof(N) * 8, true, NULL)
+-#define DO_VRSHLU(N, M) do_uqrshl_bhs(N, (int8_t)(M), sizeof(N) * 8, true, NULL)
+ 
+ DO_2OP_S(vshls, DO_VSHLS)
+ DO_2OP_U(vshlu, DO_VSHLU)
+-DO_2OP_S(vrshls, DO_VRSHLS)
+-DO_2OP_U(vrshlu, DO_VRSHLU)
+ 
+ static inline int32_t do_sat_bhw(int64_t val, int64_t min, int64_t max, bool *s)
+ {
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index d75cc377fe..487ac3185c 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -404,8 +404,6 @@ DO_2OP(VQSUB_S, vqsubs)
+ DO_2OP(VQSUB_U, vqsubu)
+ DO_2OP(VSHL_S, vshls)
+ DO_2OP(VSHL_U, vshlu)
+-DO_2OP(VRSHL_S, vrshls)
+-DO_2OP(VRSHL_U, vrshlu)
+ DO_2OP(VQSHL_S, vqshls)
+ DO_2OP(VQSHL_U, vqshlu)
+ DO_2OP(VQRSHL_S, vqrshls)

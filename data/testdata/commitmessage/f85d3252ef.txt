@@ -1,0 +1,24 @@
+commit f85d3252ef889b102eb42756450f45c973d3cb43
+Author: John Snow <jsnow@redhat.com>
+Date:   Fri Jun 4 11:55:27 2021 -0400
+
+    scripts/qemu-ga-client: apply (most) pylint rules
+    
+    I'm only doing a very quick best-effort to preserve this script, to help
+    keep it from breaking further. I think there are pending ideas swirling
+    on the right way to implement better SDKs and better clients, and this
+    script might be a handy reference for those discussions. It presents
+    some interesting design problems, like static type safety when using a
+    dynamic RPC mechanism.
+    
+    I believe it's worth preserving the effort and care that went into
+    making this script by updating it to work with our current
+    infrastructure. However, I am disabling the requirement for docstrings
+    in this file.
+    
+    If you would like to help improve this script, please add docstrings
+    alongside any refactors or rejuvenations you might apply at that time.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210604155532.1499282-7-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

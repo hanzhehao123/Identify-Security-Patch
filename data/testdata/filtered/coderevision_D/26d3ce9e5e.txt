@@ -1,0 +1,22 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index 8d5845ab48..78e4eae007 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -291,13 +291,10 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+     def _execute_cmd(self, cmdline: str) -> bool:
+         try:
+             qmpcmd = self.__build_cmd(cmdline)
+-        except QMPShellError as err:
+-            print(
+-                f"Error while parsing command line: {err!s}\n"
+-                "command format: <command-name> "
+-                "[arg-name1=arg1] ... [arg-nameN=argN",
+-                file=sys.stderr
+-            )
++        except Exception as err:
++            print('Error while parsing command line: %s' % err)
++            print('command format: <command-name> ', end=' ')
++            print('[arg-name1=arg1] ... [arg-nameN=argN]')
+             return True
+         # For transaction mode, we may have just cached the action:
+         if qmpcmd is None:

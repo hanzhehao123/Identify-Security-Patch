@@ -1,0 +1,17 @@
+commit eba3c766fe355a4e593c1ee6944770f80b68acad
+Author: Luis Pires <luis.pires@eldorado.org.br>
+Date:   Wed Jun 2 09:51:03 2021 -0300
+
+    target/ppc: fix single-step exception regression
+    
+    Commit 6086c75 (target/ppc: Replace POWERPC_EXCP_BRANCH with
+    DISAS_NORETURN) broke the generation of exceptions when
+    CPU_SINGLE_STEP or CPU_BRANCH_STEP were set, due to nip always being
+    reset to the address of the current instruction.
+    This fix leaves nip untouched when generating the exception.
+    
+    Signed-off-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reported-by: Matheus Ferst <matheus.ferst@eldorado.org.br>
+    Message-Id: <20210602125103.332793-1-luis.pires@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

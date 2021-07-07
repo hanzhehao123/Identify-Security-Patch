@@ -1,0 +1,35 @@
+diff --git a/.gitlab-ci.d/buildtest.yml b/.gitlab-ci.d/buildtest.yml
+index d9b834c848..b72c57e4df 100644
+--- a/.gitlab-ci.d/buildtest.yml
++++ b/.gitlab-ci.d/buildtest.yml
+@@ -558,27 +558,16 @@ check-deprecated:
+   allow_failure: true
+ 
+ # gprof/gcov are GCC features
+-build-gprof-gcov:
++gprof-gcov:
+   extends: .native_build_job_template
+   needs:
+     job: amd64-ubuntu2004-container
+   variables:
+     IMAGE: ubuntu2004
+     CONFIGURE_ARGS: --enable-gprof --enable-gcov
+-    TARGETS: aarch64-softmmu ppc64-softmmu s390x-softmmu x86_64-softmmu
+-  artifacts:
+-    expire_in: 1 days
+-    paths:
+-      - build
+-
+-check-gprof-gcov:
+-  extends: .native_test_job_template
+-  needs:
+-    - job: build-gprof-gcov
+-      artifacts: true
+-  variables:
+-    IMAGE: ubuntu2004
+     MAKE_CHECK_ARGS: check
++    TARGETS: aarch64-softmmu ppc64-softmmu s390x-softmmu x86_64-softmmu
++  timeout: 70m
+   after_script:
+     - ${CI_PROJECT_DIR}/scripts/ci/coverage-summary.sh
+ 

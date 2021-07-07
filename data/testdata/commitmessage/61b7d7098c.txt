@@ -1,0 +1,16 @@
+commit 61b7d7098cd53dd386939610d534f8bd79240881
+Author: Tom Lendacky <thomas.lendacky@amd.com>
+Date:   Fri Apr 23 15:08:18 2021 -0500
+
+    docs: Add SEV-ES documentation to amd-memory-encryption.txt
+    
+    Update the amd-memory-encryption.txt file with information about SEV-ES,
+    including how to launch an SEV-ES guest and some of the differences
+    between SEV and SEV-ES guests in regards to launching and measuring the
+    guest.
+    
+    Signed-off-by: Tom Lendacky <thomas.lendacky@amd.com>
+    Acked-by: Laszlo Ersek <lersek@redhat.com>
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Message-Id: <fa1825a5eb0290eac4712cde75ba4c6829946eac.1619208498.git.thomas.lendacky@amd.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

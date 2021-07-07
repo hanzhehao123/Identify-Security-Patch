@@ -1,0 +1,15 @@
+commit 39f2ec8592dd3c823034dc4decc64c7e4cc42bfd
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:11 2021 +0100
+
+    target/arm: Implement MVE VQADD and VQSUB
+    
+    Implement the MVE VQADD and VQSUB insns, which perform saturating
+    addition of a scalar to each element.  Note that individual bytes of
+    each result element are used or discarded according to the predicate
+    mask, but FPSCR.QC is only set if the predicate mask for the lowest
+    byte of the element is set.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-28-peter.maydell@linaro.org

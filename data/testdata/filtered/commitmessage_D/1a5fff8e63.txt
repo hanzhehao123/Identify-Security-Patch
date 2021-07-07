@@ -1,0 +1,19 @@
+commit 1a5fff8e63a5ab55ccdec4f134b2f96453bf789f
+Author: Vivek Goyal <vgoyal@redhat.com>
+Date:   Tue May 18 17:35:37 2021 -0400
+
+    virtiofsd: Check EOF before short read
+    
+    In virtio_send_data_iov() we are checking first for short read and then
+    EOF condition. Change the order. Basically check for error and EOF first
+    and last remaining piece is short ready which will lead to retry
+    automatically at the end of while loop.
+    
+    Just that it is little simpler to read to the code. There is no need
+    to call "continue" and also one less call of "len-=ret".
+    
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Signed-off-by: Vivek Goyal <vgoyal@redhat.com>
+    Message-Id: <20210518213538.693422-7-vgoyal@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

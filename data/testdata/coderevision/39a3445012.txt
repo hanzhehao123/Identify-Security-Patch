@@ -1,0 +1,44 @@
+diff --git a/accel/hvf/meson.build b/accel/hvf/meson.build
+index fc52cb7843..227b11cd71 100644
+--- a/accel/hvf/meson.build
++++ b/accel/hvf/meson.build
+@@ -1,7 +1,6 @@
+ hvf_ss = ss.source_set()
+ hvf_ss.add(files(
+   'hvf-all.c',
+-  'hvf-accel-ops.c',
+ ))
+ 
+ specific_ss.add_all(when: 'CONFIG_HVF', if_true: hvf_ss)
+diff --git a/accel/hvf/hvf-accel-ops.c b/target/i386/hvf/hvf-accel-ops.c
+similarity index 100%
+rename from accel/hvf/hvf-accel-ops.c
+rename to target/i386/hvf/hvf-accel-ops.c
+diff --git a/accel/hvf/hvf-accel-ops.h b/target/i386/hvf/hvf-accel-ops.h
+similarity index 100%
+rename from accel/hvf/hvf-accel-ops.h
+rename to target/i386/hvf/hvf-accel-ops.h
+diff --git a/target/i386/hvf/meson.build b/target/i386/hvf/meson.build
+index f6d4c394d3..d253d5fd10 100644
+--- a/target/i386/hvf/meson.build
++++ b/target/i386/hvf/meson.build
+@@ -1,5 +1,6 @@
+ i386_softmmu_ss.add(when: [hvf, 'CONFIG_HVF'], if_true: files(
+   'hvf.c',
++  'hvf-accel-ops.c',
+   'x86.c',
+   'x86_cpuid.c',
+   'x86_decode.c',
+diff --git a/target/i386/hvf/x86hvf.c b/target/i386/hvf/x86hvf.c
+index 2b99f3eaa2..0d7533742e 100644
+--- a/target/i386/hvf/x86hvf.c
++++ b/target/i386/hvf/x86hvf.c
+@@ -32,7 +32,7 @@
+ #include <Hypervisor/hv.h>
+ #include <Hypervisor/hv_vmx.h>
+ 
+-#include "accel/hvf/hvf-accel-ops.h"
++#include "hvf-accel-ops.h"
+ 
+ void hvf_set_segment(struct CPUState *cpu, struct vmx_segment *vmx_seg,
+                      SegmentCache *qseg, bool is_tr)

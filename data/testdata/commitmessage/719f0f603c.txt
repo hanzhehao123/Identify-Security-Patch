@@ -1,0 +1,30 @@
+commit 719f0f603c2289f438b8d6ef4358d9407b4c2905
+Author: Jose Martins <josemartins90@gmail.com>
+Date:   Tue Apr 20 22:36:56 2021 +0100
+
+    target/riscv: fix wfi exception behavior
+    
+    The wfi exception trigger behavior should take into account user mode,
+    hstatus.vtw, and the fact the an wfi might raise different types of
+    exceptions depending on various factors:
+    
+    If supervisor mode is not present:
+    
+    - an illegal instruction exception should be generated if user mode
+    executes and wfi instruction and mstatus.tw = 1.
+    
+    If supervisor mode is present:
+    
+    - when a wfi instruction is executed, an illegal exception should be triggered
+    if either the current mode is user or the mode is supervisor and mstatus.tw is
+    set.
+    
+    Plus, if the hypervisor extensions are enabled:
+    
+    - a virtual instruction exception should be raised when a wfi is executed from
+    virtual-user or virtual-supervisor and hstatus.vtw is set.
+    
+    Signed-off-by: Jose Martins <josemartins90@gmail.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210420213656.85148-1-josemartins90@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

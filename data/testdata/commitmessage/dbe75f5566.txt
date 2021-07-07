@@ -1,0 +1,25 @@
+commit dbe75f55669a4e2295b0dae161b8f796e6dbaded
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:17:10 2021 -0400
+
+    python: add devel package requirements to setuptools
+    
+    setuptools doesn't have a formal understanding of development requires,
+    but it has an optional feataures section. Fine; add a "devel" feature
+    and add the requirements to it.
+    
+    To avoid duplication, we can modify pipenv to install qemu[devel]
+    instead. This enables us to run invocations like "pip install -e
+    .[devel]" and test the package on bleeding-edge packages beyond those
+    specified in Pipfile.lock.
+    
+    Importantly, this also allows us to install the qemu development
+    packages in a non-networked mode: `pip3 install --no-index -e .[devel]`
+    will now fail if the proper development dependencies are not already
+    met. This can be useful for automated build scripts where fetching
+    network packages may be undesirable.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-27-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

@@ -1,0 +1,21 @@
+diff --git a/tests/qtest/bios-tables-test.c b/tests/qtest/bios-tables-test.c
+index 51d3a4e239..156d4174aa 100644
+--- a/tests/qtest/bios-tables-test.c
++++ b/tests/qtest/bios-tables-test.c
+@@ -489,14 +489,10 @@ static void test_acpi_asl(test_data *data)
+                                                  exp_sdt->asl_file, sdt->asl_file);
+                     int out = dup(STDOUT_FILENO);
+                     int ret G_GNUC_UNUSED;
+-                    int dupret;
+ 
+-                    g_assert(out >= 0);
+-                    dupret = dup2(STDERR_FILENO, STDOUT_FILENO);
+-                    g_assert(dupret >= 0);
++                    dup2(STDERR_FILENO, STDOUT_FILENO);
+                     ret = system(diff) ;
+-                    dupret = dup2(out, STDOUT_FILENO);
+-                    g_assert(dupret >= 0);
++                    dup2(out, STDOUT_FILENO);
+                     close(out);
+                     g_free(diff);
+                 }

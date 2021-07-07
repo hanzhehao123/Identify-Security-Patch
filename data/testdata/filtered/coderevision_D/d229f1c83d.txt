@@ -1,0 +1,18 @@
+diff --git a/python/setup.cfg b/python/setup.cfg
+index c9b9445af9..a19029d538 100644
+--- a/python/setup.cfg
++++ b/python/setup.cfg
+@@ -78,10 +78,9 @@ good-names=i,
+            k,
+            ex,
+            Run,
+-           _,   # By convention: Unused variable
+-           fh,  # fh = open(...)
+-           fd,  # fd = os.open(...)
+-           c,   # for c in string: ...
++           _,
++           fd,
++           c,
+ 
+ [pylint.similarities]
+ # Ignore imports when computing similarities.

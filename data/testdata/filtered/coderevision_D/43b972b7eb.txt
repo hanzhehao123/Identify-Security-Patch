@@ -1,0 +1,174 @@
+diff --git a/accel/tcg/tcg-all.c b/accel/tcg/tcg-all.c
+index 00803f76d8..1ee89902c3 100644
+--- a/accel/tcg/tcg-all.c
++++ b/accel/tcg/tcg-all.c
+@@ -33,9 +33,6 @@
+ #include "qemu/accel.h"
+ #include "qapi/qapi-builtin-visit.h"
+ #include "qemu/units.h"
+-#if !defined(CONFIG_USER_ONLY)
+-#include "hw/boards.h"
+-#endif
+ #include "internal.h"
+ 
+ struct TCGState {
+@@ -113,18 +110,13 @@ bool mttcg_enabled;
+ static int tcg_init_machine(MachineState *ms)
+ {
+     TCGState *s = TCG_STATE(current_accel());
+-#ifdef CONFIG_USER_ONLY
+-    unsigned max_cpus = 1;
+-#else
+-    unsigned max_cpus = ms->smp.max_cpus;
+-#endif
+ 
+     tcg_allowed = true;
+     mttcg_enabled = s->mttcg_enabled;
+ 
+     page_init();
+     tb_htable_init();
+-    tcg_init(s->tb_size * MiB, s->splitwx_enabled, max_cpus);
++    tcg_init(s->tb_size * MiB, s->splitwx_enabled);
+ 
+ #if defined(CONFIG_SOFTMMU)
+     /*
+diff --git a/include/tcg/tcg.h b/include/tcg/tcg.h
+index 2316a64139..b3304ce095 100644
+--- a/include/tcg/tcg.h
++++ b/include/tcg/tcg.h
+@@ -905,7 +905,7 @@ static inline void *tcg_malloc(int size)
+     }
+ }
+ 
+-void tcg_init(size_t tb_size, int splitwx, unsigned max_cpus);
++void tcg_init(size_t tb_size, int splitwx);
+ void tcg_register_thread(void);
+ void tcg_prologue_init(TCGContext *s);
+ void tcg_func_start(TCGContext *s);
+diff --git a/tcg/region.c b/tcg/region.c
+index 877baf16f5..162b4d6486 100644
+--- a/tcg/region.c
++++ b/tcg/region.c
+@@ -27,6 +27,9 @@
+ #include "qapi/error.h"
+ #include "exec/exec-all.h"
+ #include "tcg/tcg.h"
++#if !defined(CONFIG_USER_ONLY)
++#include "hw/boards.h"
++#endif
+ #include "tcg-internal.h"
+ 
+ 
+@@ -363,20 +366,27 @@ void tcg_region_reset_all(void)
+     tcg_region_tree_reset_all();
+ }
+ 
+-static size_t tcg_n_regions(unsigned max_cpus)
+-{
+ #ifdef CONFIG_USER_ONLY
++static size_t tcg_n_regions(void)
++{
+     return 1;
++}
+ #else
+-    /*
+-     * It is likely that some vCPUs will translate more code than others,
+-     * so we first try to set more regions than max_cpus, with those regions
+-     * being of reasonable size. If that's not possible we make do by evenly
+-     * dividing the code_gen_buffer among the vCPUs.
+-     */
++/*
++ * It is likely that some vCPUs will translate more code than others, so we
++ * first try to set more regions than max_cpus, with those regions being of
++ * reasonable size. If that's not possible we make do by evenly dividing
++ * the code_gen_buffer among the vCPUs.
++ */
++static size_t tcg_n_regions(void)
++{
+     size_t i;
+ 
+     /* Use a single region if all we have is one vCPU thread */
++#if !defined(CONFIG_USER_ONLY)
++    MachineState *ms = MACHINE(qdev_get_machine());
++    unsigned int max_cpus = ms->smp.max_cpus;
++#endif
+     if (max_cpus == 1 || !qemu_tcg_mttcg_enabled()) {
+         return 1;
+     }
+@@ -395,8 +405,8 @@ static size_t tcg_n_regions(unsigned max_cpus)
+     }
+     /* If we can't, then just allocate one region per vCPU thread */
+     return max_cpus;
+-#endif
+ }
++#endif
+ 
+ /*
+  * Minimum size of the code gen buffer.  This number is randomly chosen,
+@@ -838,7 +848,7 @@ static bool alloc_code_gen_buffer(size_t size, int splitwx, Error **errp)
+  * in practice. Multi-threaded guests share most if not all of their translated
+  * code, which makes parallel code generation less appealing than in softmmu.
+  */
+-void tcg_region_init(size_t tb_size, int splitwx, unsigned max_cpus)
++void tcg_region_init(size_t tb_size, int splitwx)
+ {
+     void *buf, *aligned;
+     size_t size;
+@@ -855,7 +865,7 @@ void tcg_region_init(size_t tb_size, int splitwx, unsigned max_cpus)
+     buf = tcg_init_ctx.code_gen_buffer;
+     size = tcg_init_ctx.code_gen_buffer_size;
+     page_size = qemu_real_host_page_size;
+-    n_regions = tcg_n_regions(max_cpus);
++    n_regions = tcg_n_regions();
+ 
+     /* The first region will be 'aligned - buf' bytes larger than the others */
+     aligned = QEMU_ALIGN_PTR_UP(buf, page_size);
+diff --git a/tcg/tcg-internal.h b/tcg/tcg-internal.h
+index fcfeca232f..f13c564d9b 100644
+--- a/tcg/tcg-internal.h
++++ b/tcg/tcg-internal.h
+@@ -30,7 +30,7 @@
+ extern TCGContext **tcg_ctxs;
+ extern unsigned int n_tcg_ctxs;
+ 
+-void tcg_region_init(size_t tb_size, int splitwx, unsigned max_cpus);
++void tcg_region_init(size_t tb_size, int splitwx);
+ bool tcg_region_alloc(TCGContext *s);
+ void tcg_region_initial_alloc(TCGContext *s);
+ void tcg_region_prologue_set(TCGContext *s);
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index 5cc384e205..2625d9e502 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -576,7 +576,7 @@ static void process_op_defs(TCGContext *s);
+ static TCGTemp *tcg_global_reg_new_internal(TCGContext *s, TCGType type,
+                                             TCGReg reg, const char *name);
+ 
+-static void tcg_context_init(unsigned max_cpus)
++static void tcg_context_init(void)
+ {
+     TCGContext *s = &tcg_init_ctx;
+     int op, total_args, n, i;
+@@ -645,6 +645,8 @@ static void tcg_context_init(unsigned max_cpus)
+     tcg_ctxs = &tcg_ctx;
+     n_tcg_ctxs = 1;
+ #else
++    MachineState *ms = MACHINE(qdev_get_machine());
++    unsigned int max_cpus = ms->smp.max_cpus;
+     tcg_ctxs = g_new(TCGContext *, max_cpus);
+ #endif
+ 
+@@ -653,10 +655,10 @@ static void tcg_context_init(unsigned max_cpus)
+     cpu_env = temp_tcgv_ptr(ts);
+ }
+ 
+-void tcg_init(size_t tb_size, int splitwx, unsigned max_cpus)
++void tcg_init(size_t tb_size, int splitwx)
+ {
+-    tcg_context_init(max_cpus);
+-    tcg_region_init(tb_size, splitwx, max_cpus);
++    tcg_context_init();
++    tcg_region_init(tb_size, splitwx);
+ }
+ 
+ /*

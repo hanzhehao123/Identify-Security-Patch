@@ -1,0 +1,29 @@
+commit 35579b523cf8f441da12f968ce5dcf6ae0bfbfea
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Wed May 19 11:08:02 2021 +0100
+
+    esp: revert 75ef849696 "esp: correctly fill bus id with requested lun"
+    
+    This commit from nearly 10 years ago is now broken due to the improvements
+    in esp emulation (or perhaps was never correct).  It shows up as a bug
+    in detecting the CDROM drive under MacOS. The error is caused by the
+    MacOS CDROM driver sending this CDB with an "S without ATN" command and
+    without DMA:
+    
+        0x12 0x00 0x00 0x00 0x05 0x00 (INQUIRY)
+    
+    This is a valid INQUIRY command, however with this logic present the 3rd
+    byte (0x0) is copied over the 1st byte (0x12) which silently converts the
+    INQUIRY command to a TEST UNIT READY command before passing it to the
+    QEMU SCSI layer.  Since the TEST UNIT READY command has a zero length
+    response the MacOS CDROM driver never receives a response and assumes
+    the CDROM is not present.
+    
+    The logic was to ignore the IDENTIFY byte and copy the LUN over from
+    the CDB, which did store the LUN in bits 5-7 of the second byte in
+    olden times.  This however is all obsolete, so just drop the code.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Message-Id: <20210519100803.10293-5-mark.cave-ayland@ilande.co.uk>
+    [Tweaked commit message. - Paolo]
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

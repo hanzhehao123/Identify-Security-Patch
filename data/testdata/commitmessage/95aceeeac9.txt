@@ -1,0 +1,13 @@
+commit 95aceeeac9a37d05c106ba807867616496d5c90e
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 18 15:10:17 2021 +0100
+
+    target/arm: Factor FP context update code out into helper function
+    
+    Factor the code in full_vfp_access_check() which updates the
+    ownership of the FP context and creates a new FP context
+    out into its own function.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210618141019.10671-6-peter.maydell@linaro.org

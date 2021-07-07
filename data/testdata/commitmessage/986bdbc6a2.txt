@@ -1,0 +1,20 @@
+commit 986bdbc6a29c4d7ef125299c5013783e30dc2cae
+Author: Akihiko Odaki <akihiko.odaki@gmail.com>
+Date:   Wed Jun 16 23:17:21 2021 +0900
+
+    coreaudio: Fix output stream format settings
+    
+    Before commit 7d6948cd98cf5ad8a3458a4ce7fdbcb79bcd1212, it was coded to
+    retrieve the initial output stream format settings, modify the frame
+    rate, and set again. However, I removed a frame rate modification code by
+    mistake in the commit. It also assumes the initial output stream format
+    is consistent with what QEMU expects, but that expectation is not in the
+    code, which makes it harder to understand and will lead to breakage if
+    the initial settings change.
+    
+    This change explicitly sets all of the output stream settings to solve
+    these problems.
+    
+    Signed-off-by: Akihiko Odaki <akihiko.odaki@gmail.com>
+    Message-Id: <20210616141721.54091-1-akihiko.odaki@gmail.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

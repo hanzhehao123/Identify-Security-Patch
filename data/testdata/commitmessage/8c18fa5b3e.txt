@@ -1,0 +1,12 @@
+commit 8c18fa5b3eba2b5c4d1285714682db066ea711fa
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:23 2021 +0200
+
+    s390x/tcg: Implement VECTOR MULTIPLY SUM LOGICAL
+    
+    Fortunately, we only need the Doubleword implementation.
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-13-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

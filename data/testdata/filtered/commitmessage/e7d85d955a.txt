@@ -1,0 +1,20 @@
+commit e7d85d955a7a3405934a104f35228aae1d338a6d
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed Jun 9 14:34:35 2021 +0200
+
+    qemu-config: use qemu_opts_from_qdict
+    
+    Using qemu_opts_absorb_qdict, and then checking for any leftover options,
+    is redundant because there is already a function that does the same,
+    qemu_opts_from_qdict.  qemu_opts_from_qdict consumes the whole dictionary
+    and therefore can just return an error message if an option fails to validate.
+    
+    This also fixes a bug, because the "id" entry was retrieved in
+    qemu_config_do_parse and then left there by qemu_opts_absorb_qdict.
+    As a result, it was reported as an unrecognized option.
+    
+    Reported-by: Markus Armbruster <armbru@redhat.com>
+    Reviewed-by: Markus Armbruster <armbru@redhat.com>
+    Fixes: 3770141139 ("qemu-config: parse configuration files to a QDict")
+    Cc: qemu-stable@nongnu.org
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

@@ -1,0 +1,12 @@
+commit 813c6459ee774ee48496653cd530658b733b79cd
+Author: Lara Lazier <laramglazier@gmail.com>
+Date:   Wed Jun 16 14:39:04 2021 +0200
+
+    target/i386: Refactored intercept checks into cpu_svm_has_intercept
+    
+    Added cpu_svm_has_intercept to reduce duplication when checking the
+    corresponding intercept bit outside of cpu_svm_check_intercept_param
+    
+    Signed-off-by: Lara Lazier <laramglazier@gmail.com>
+    Message-Id: <20210616123907.17765-2-laramglazier@gmail.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

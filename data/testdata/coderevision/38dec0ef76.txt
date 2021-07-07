@@ -1,0 +1,119 @@
+diff --git a/MAINTAINERS b/MAINTAINERS
+index ccdb81c9f6..636bf2f536 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -328,7 +328,7 @@ F: tests/tcg/i386/
+ F: tests/tcg/x86_64/
+ F: hw/i386/
+ F: disas/i386.c
+-F: docs/system/cpu-models-x86*
++F: docs/system/cpu-models-x86.rst.inc
+ T: git https://gitlab.com/ehabkost/qemu.git x86-next
+ 
+ Xtensa TCG CPUs
+diff --git a/docs/system/cpu-models-x86-abi.csv b/docs/system/cpu-models-x86-abi.csv
+deleted file mode 100644
+index f3f3b60be1..0000000000
+--- a/docs/system/cpu-models-x86-abi.csv
++++ /dev/null
+@@ -1,67 +0,0 @@
+-Model,baseline,v2,v3,v4
+-486-v1,,,,
+-Broadwell-v1,✅,✅,✅,
+-Broadwell-v2,✅,✅,✅,
+-Broadwell-v3,✅,✅,✅,
+-Broadwell-v4,✅,✅,✅,
+-Cascadelake-Server-v1,✅,✅,✅,✅
+-Cascadelake-Server-v2,✅,✅,✅,✅
+-Cascadelake-Server-v3,✅,✅,✅,✅
+-Cascadelake-Server-v4,✅,✅,✅,✅
+-Conroe-v1,✅,,,
+-Cooperlake-v1,✅,✅,✅,✅
+-Denverton-v1,✅,✅,,
+-Denverton-v2,✅,✅,,
+-Dhyana-v1,✅,✅,✅,
+-EPYC-Milan-v1,✅,✅,✅,
+-EPYC-Rome-v1,✅,✅,✅,
+-EPYC-Rome-v2,✅,✅,✅,
+-EPYC-v1,✅,✅,✅,
+-EPYC-v2,✅,✅,✅,
+-EPYC-v3,✅,✅,✅,
+-Haswell-v1,✅,✅,✅,
+-Haswell-v2,✅,✅,✅,
+-Haswell-v3,✅,✅,✅,
+-Haswell-v4,✅,✅,✅,
+-Icelake-Client-v1,✅,✅,✅,
+-Icelake-Client-v2,✅,✅,✅,
+-Icelake-Server-v1,✅,✅,✅,✅
+-Icelake-Server-v2,✅,✅,✅,✅
+-Icelake-Server-v3,✅,✅,✅,✅
+-Icelake-Server-v4,✅,✅,✅,✅
+-IvyBridge-v1,✅,✅,,
+-IvyBridge-v2,✅,✅,,
+-KnightsMill-v1,✅,✅,✅,
+-Nehalem-v1,✅,✅,,
+-Nehalem-v2,✅,✅,,
+-Opteron_G1-v1,✅,,,
+-Opteron_G2-v1,✅,,,
+-Opteron_G3-v1,✅,,,
+-Opteron_G4-v1,✅,✅,,
+-Opteron_G5-v1,✅,✅,,
+-Penryn-v1,✅,,,
+-SandyBridge-v1,✅,✅,,
+-SandyBridge-v2,✅,✅,,
+-Skylake-Client-v1,✅,✅,✅,
+-Skylake-Client-v2,✅,✅,✅,
+-Skylake-Client-v3,✅,✅,✅,
+-Skylake-Server-v1,✅,✅,✅,✅
+-Skylake-Server-v2,✅,✅,✅,✅
+-Skylake-Server-v3,✅,✅,✅,✅
+-Skylake-Server-v4,✅,✅,✅,✅
+-Snowridge-v1,✅,✅,,
+-Snowridge-v2,✅,✅,,
+-Westmere-v1,✅,✅,,
+-Westmere-v2,✅,✅,,
+-athlon-v1,,,,
+-core2duo-v1,✅,,,
+-coreduo-v1,,,,
+-kvm32-v1,,,,
+-kvm64-v1,✅,,,
+-n270-v1,,,,
+-pentium-v1,,,,
+-pentium2-v1,,,,
+-pentium3-v1,,,,
+-phenom-v1,✅,,,
+-qemu32-v1,,,,
+-qemu64-v1,✅,,,
+diff --git a/docs/system/cpu-models-x86.rst.inc b/docs/system/cpu-models-x86.rst.inc
+index f40ee03ecc..867c8216b5 100644
+--- a/docs/system/cpu-models-x86.rst.inc
++++ b/docs/system/cpu-models-x86.rst.inc
+@@ -39,28 +39,6 @@ CPU, as they would with "Host passthrough", but gives much of the
+ benefit of passthrough, while making live migration safe.
+ 
+ 
+-ABI compatibility levels for CPU models
+-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+-
+-The x86_64 architecture has a number of `ABI compatibility levels`_
+-defined. Traditionally most operating systems and toolchains would
+-only target the original baseline ABI. It is expected that in
+-future OS and toolchains are likely to target newer ABIs. The
+-table that follows illustrates which ABI compatibility levels
+-can be satisfied by the QEMU CPU models. Note that the table only
+-lists the long term stable CPU model versions (eg Haswell-v4).
+-In addition to whats listed, there are also many CPU model
+-aliases which resolve to a different CPU model version,
+-depending on the machine type is in use.
+-
+-.. _ABI compatibility levels: https://gitlab.com/x86-psABIs/x86-64-ABI/
+-
+-.. csv-table:: x86-64 ABI compatibility levels
+-   :file: cpu-models-x86-abi.csv
+-   :widths: 40,15,15,15,15
+-   :header-rows: 2
+-
+-
+ Preferred CPU models for Intel x86 hosts
+ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 

@@ -1,0 +1,20 @@
+commit 69049bcf5114f7af379b4f3cccfb0b213b30f88a
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu May 20 16:28:33 2021 +0100
+
+    target/arm: Update feature checks for insns which are "MVE or FP"
+    
+    Some v8M instructions are present if either the floating point
+    extension or MVE is implemented.  Update our implementation of them
+    to check for MVE as well as for FP.
+    
+    This is all the insns which use CheckDecodeFaults(ExtType_MveOrFp) or
+    CheckDecodeFaults(ExtType_MveOrDpFp) in their pseudocode, which are
+    essentially the loads and stores, moves and sysreg accesses, except
+    for VMOV_reg_sp and VMOV_reg_dp, which we handle in subsequent
+    patches because they need a refactor to provide a place to put the
+    new MVE check.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210520152840.24453-3-peter.maydell@linaro.org

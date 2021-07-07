@@ -1,0 +1,30 @@
+commit d7878875ae09e9c59aa2bd52e6f289cb845e944e
+Author: John Snow <jsnow@redhat.com>
+Date:   Tue May 11 15:29:50 2021 -0400
+
+    docs: fix broken reference
+    
+    Long story short, we need a space here for the reference to work
+    correctly.
+    
+    Longer story:
+    
+    Without the space, kerneldoc generates a line like this:
+    
+    one of :c:type:`MemoryListener.region_add\(\) <MemoryListener>`,:c:type:`MemoryListener.region_del\(\)
+    
+    Sphinx does not process the role information correctly, so we get this
+    (my pseudo-notation) construct:
+    
+    <text>,:c:type:</text>
+    <reference target="MemoryListener">MemoryListener.region_del()</reference>
+    
+    which does not reference the desired entity, and leaves some extra junk
+    in the rendered output. See
+    https://qemu-project.gitlab.io/qemu/devel/memory.html#c.MemoryListener
+    member log_start for an example of the broken output as it looks today.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Message-Id: <20210511192950.2061326-1-jsnow@redhat.com>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

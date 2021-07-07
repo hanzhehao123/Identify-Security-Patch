@@ -1,0 +1,18 @@
+commit 93128815af4efcaba03a5581c959bc7f98ee2725
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:16:56 2021 -0400
+
+    python: add directory structure README.rst files
+    
+    Add short readmes to python/, python/qemu/, python/qemu/machine,
+    python/qemu/qmp, and python/qemu/utils that explain the directory
+    hierarchy. These readmes are visible when browsing the source on
+    e.g. gitlab/github and are designed to help new developers/users quickly
+    make sense of the source tree.
+    
+    They are not designed for inclusion in a published manual.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-13-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

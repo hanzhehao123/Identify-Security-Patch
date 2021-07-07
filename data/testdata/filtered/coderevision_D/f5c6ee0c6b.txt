@@ -1,0 +1,97 @@
+diff --git a/target/mips/tcg/meson.build b/target/mips/tcg/meson.build
+index bf4001e574..5d8acbaf0d 100644
+--- a/target/mips/tcg/meson.build
++++ b/target/mips/tcg/meson.build
+@@ -1,7 +1,8 @@
+ gen = [
+   decodetree.process('mips32r6.decode', extra_args: '--static-decode=decode_mips32r6'),
+   decodetree.process('mips64r6.decode', extra_args: '--static-decode=decode_mips64r6'),
+-  decodetree.process('msa.decode', extra_args: '--decode=decode_ase_msa'),
++  decodetree.process('msa32.decode', extra_args: '--static-decode=decode_msa32'),
++  decodetree.process('msa64.decode', extra_args: '--static-decode=decode_msa64'),
+   decodetree.process('tx79.decode', extra_args: '--static-decode=decode_tx79'),
+ ]
+ 
+diff --git a/target/mips/tcg/msa.decode b/target/mips/tcg/msa32.decode
+similarity index 74%
+rename from target/mips/tcg/msa.decode
+rename to target/mips/tcg/msa32.decode
+index bf132e36b9..ca200e373b 100644
+--- a/target/mips/tcg/msa.decode
++++ b/target/mips/tcg/msa32.decode
+@@ -6,10 +6,9 @@
+ #
+ # Reference:
+ #       MIPS Architecture for Programmers Volume IV-j
+-#       - The MIPS32 SIMD Architecture Module, Revision 1.12
+-#         (Document Number: MD00866-2B-MSA32-AFP-01.12)
+-#       - The MIPS64 SIMD Architecture Module, Revision 1.12
+-#         (Document Number: MD00868-1D-MSA64-AFP-01.12)
++#       The MIPS32 SIMD Architecture Module, Revision 1.12
++#       (Document Number: MD00866-2B-MSA32-AFP-01.12)
++#
+ 
+ &rtype              rs rt rd sa
+ 
+@@ -20,7 +19,6 @@
+ @bz_df              ...... ... df:2 wt:5 s16:16             &msa_bz
+ 
+ LSA                 000000 ..... ..... ..... 000 .. 000101  @lsa
+-DLSA                000000 ..... ..... ..... 000 .. 010101  @lsa
+ 
+ BZ_V                010001 01011  ..... ................    @bz
+ BNZ_V               010001 01111  ..... ................    @bz
+diff --git a/target/mips/tcg/msa64.decode b/target/mips/tcg/msa64.decode
+new file mode 100644
+index 0000000000..d2442474d0
+--- /dev/null
++++ b/target/mips/tcg/msa64.decode
+@@ -0,0 +1,17 @@
++# MIPS SIMD Architecture Module instruction set
++#
++# Copyright (C) 2020  Philippe Mathieu-Daudé
++#
++# SPDX-License-Identifier: LGPL-2.1-or-later
++#
++# Reference:
++#       MIPS Architecture for Programmers Volume IV-j
++#       The MIPS64 SIMD Architecture Module, Revision 1.12
++#       (Document Number: MD00868-1D-MSA64-AFP-01.12)
++#
++
++&rtype              rs rt rd sa !extern
++
++@lsa                ...... rs:5 rt:5 rd:5 ... sa:2 ......   &rtype
++
++DLSA                 000000 ..... ..... ..... 000 .. 010101 @lsa
+diff --git a/target/mips/tcg/msa_translate.c b/target/mips/tcg/msa_translate.c
+index eed2eca6c9..9df4497c88 100644
+--- a/target/mips/tcg/msa_translate.c
++++ b/target/mips/tcg/msa_translate.c
+@@ -18,7 +18,8 @@
+ #include "internal.h"
+ 
+ /* Include the auto-generated decoder.  */
+-#include "decode-msa.c.inc"
++#include "decode-msa32.c.inc"
++#include "decode-msa64.c.inc"
+ 
+ #define OPC_MSA (0x1E << 26)
+ 
+@@ -2268,8 +2269,13 @@ static bool trans_LSA(DisasContext *ctx, arg_rtype *a)
+ 
+ static bool trans_DLSA(DisasContext *ctx, arg_rtype *a)
+ {
+-    if (TARGET_LONG_BITS != 64) {
+-        return false;
+-    }
+     return gen_dlsa(ctx, a->rd, a->rt, a->rs, a->sa);
+ }
++
++bool decode_ase_msa(DisasContext *ctx, uint32_t insn)
++{
++    if (TARGET_LONG_BITS == 64 && decode_msa64(ctx, insn)) {
++        return true;
++    }
++    return decode_msa32(ctx, insn);
++}

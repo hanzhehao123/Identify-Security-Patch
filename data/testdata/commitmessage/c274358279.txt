@@ -1,0 +1,12 @@
+commit c274358279b80d7ff382a8f20f12add6ce49625f
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Tue May 25 08:53:55 2021 -0300
+
+    target/ppc: updated meson.build to support disable-tcg
+    
+    updated build file to not compile some sources that are unnecessary if
+    TCG is disabled on the system.
+    
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Message-Id: <20210525115355.8254-5-bruno.larsen@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

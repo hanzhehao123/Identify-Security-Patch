@@ -1,0 +1,24 @@
+commit 2b44e21949352ffa045399c56a6ddde86eeb2ec6
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Tue May 25 08:53:53 2021 -0300
+
+    target/ppc: added ifdefs around TCG-only code
+    
+    excp_helper.c, mmu-hash64.c and mmu_helper.c have some function
+    declarations that are TCG-only, and couldn't be easily moved to a
+    TCG only file, so ifdefs were added around them.
+    
+    We also needed ifdefs around some header files because helper-proto.h
+    includes trace/generated-helpers.h, which is never created when building
+    without TCG, and cpu_ldst.h includes tcg/tcg.h, whose containing folder
+    is not included as a -iquote. As future cleanup, we could change the
+    part of the configuration script to add those.
+    
+    cpu_init.c also had a callback definition that is TCG only and could be
+    removed as part of a future cleanup (all the dump_statistics part is
+    almost never used and will become obsolete as we transition to using
+    decodetree).
+    
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Message-Id: <20210525115355.8254-3-bruno.larsen@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

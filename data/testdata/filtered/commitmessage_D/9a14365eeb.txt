@@ -1,0 +1,15 @@
+commit 9a14365eeb0d8b0e9d69692c34cdce76b9505189
+Author: Matheus Ferst <matheus.ferst@eldorado.org.br>
+Date:   Tue Jun 1 16:35:24 2021 -0300
+
+    target/ppc: Implement setbc/setbcr/stnbc/setnbcr instructions
+    
+    Implements the following PowerISA v3.1 instructions:
+    setbc: Set Boolean Condition
+    setbcr: Set Boolean Condition Reverse
+    setnbc: Set Negative Boolean Condition
+    setnbcr: Set Negative Boolean Condition Reverse
+    
+    Signed-off-by: Matheus Ferst <matheus.ferst@eldorado.org.br>
+    Message-Id: <20210601193528.2533031-11-matheus.ferst@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

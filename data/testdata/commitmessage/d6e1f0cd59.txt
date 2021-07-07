@@ -1,0 +1,14 @@
+commit d6e1f0cd59a59a27a2b109600653e57917cc9594
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Fri Nov 20 18:28:31 2020 -0800
+
+    softfloat: Reduce FloatFmt
+    
+    Remove frac_lsb, frac_lsbm1, roundeven_mask.  Compute
+    these from round_mask in parts$N_uncanon_normal.
+    
+    With floatx80, round_mask will not be tied to frac_shift.
+    Everything else is easily computable.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

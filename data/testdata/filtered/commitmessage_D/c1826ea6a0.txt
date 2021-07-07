@@ -1,0 +1,28 @@
+commit c1826ea6a052084f2e6a0bae9dd5932a727df039
+Author: Yang Zhong <yang.zhong@intel.com>
+Date:   Wed Apr 7 09:56:09 2021 +0800
+
+    i386/cpu: Expose AVX_VNNI instruction to guest
+    
+    Expose AVX (VEX-encoded) versions of the Vector Neural Network
+    Instructions to guest.
+    
+    The bit definition:
+    CPUID.(EAX=7,ECX=1):EAX[bit 4] AVX_VNNI
+    
+    The following instructions are available when this feature is
+    present in the guest.
+      1. VPDPBUS: Multiply and Add Unsigned and Signed Bytes
+      2. VPDPBUSDS: Multiply and Add Unsigned and Signed Bytes with Saturation
+      3. VPDPWSSD: Multiply and Add Signed Word Integers
+      4. VPDPWSSDS: Multiply and Add Signed Integers with Saturation
+    
+    As for the kvm related code, please reference Linux commit id 1085a6b585d7.
+    
+    The release document ref below link:
+    https://software.intel.com/content/www/us/en/develop/download/\
+    intel-architecture-instruction-set-extensions-programming-reference.html
+    
+    Signed-off-by: Yang Zhong <yang.zhong@intel.com>
+    Message-Id: <20210407015609.22936-1-yang.zhong@intel.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

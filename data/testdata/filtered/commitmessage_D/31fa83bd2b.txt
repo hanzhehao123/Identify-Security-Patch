@@ -1,0 +1,21 @@
+commit 31fa83bd2b3293227c50a646ee74ded6b70b87f4
+Author: Alex Bennée <alex.bennee@linaro.org>
+Date:   Thu May 27 17:03:16 2021 +0100
+
+    tests/tcg/configure.sh: tweak quoting of target_compiler
+    
+    If you configure the host compiler with a multi-command stanza like:
+    
+      --cc="ccache gcc"
+    
+    then the configure.sh machinery falls over with confusion. Work around
+    this by ensuring we correctly quote so where we need a complete
+    evaluation we get it. Of course the has() check needs single variable
+    so we need to unquote that. This does mean it essentially checks that
+    just the ccache command exits but if we got past that step we still
+    check the compiler actually does something.
+    
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Cc: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210527160319.19834-4-alex.bennee@linaro.org>

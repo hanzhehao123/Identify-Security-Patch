@@ -1,0 +1,37 @@
+diff --git a/include/qemu/qemu-plugin.h b/include/qemu/qemu-plugin.h
+index dc3496f36c..97cdfd7761 100644
+--- a/include/qemu/qemu-plugin.h
++++ b/include/qemu/qemu-plugin.h
+@@ -525,15 +525,6 @@ qemu_plugin_register_vcpu_syscall_ret_cb(qemu_plugin_id_t id,
+ 
+ char *qemu_plugin_insn_disas(const struct qemu_plugin_insn *insn);
+ 
+-/**
+- * qemu_plugin_insn_symbol() - best effort symbol lookup
+- * @insn: instruction reference
+- *
+- * Return a static string referring to the symbol. This is dependent
+- * on the binary QEMU is running having provided a symbol table.
+- */
+-const char *qemu_plugin_insn_symbol(const struct qemu_plugin_insn *insn);
+-
+ /**
+  * qemu_plugin_vcpu_for_each() - iterate over the existing vCPU
+  * @id: plugin ID
+diff --git a/plugins/api.c b/plugins/api.c
+index 332e2c60e2..817c9b6b69 100644
+--- a/plugins/api.c
++++ b/plugins/api.c
+@@ -233,12 +233,6 @@ char *qemu_plugin_insn_disas(const struct qemu_plugin_insn *insn)
+     return plugin_disas(cpu, insn->vaddr, insn->data->len);
+ }
+ 
+-const char *qemu_plugin_insn_symbol(const struct qemu_plugin_insn *insn)
+-{
+-    const char *sym = lookup_symbol(insn->vaddr);
+-    return sym[0] != 0 ? sym : NULL;
+-}
+-
+ /*
+  * The memory queries allow the plugin to query information about a
+  * memory access.

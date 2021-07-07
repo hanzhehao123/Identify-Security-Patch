@@ -1,0 +1,15 @@
+commit 2c1730f780b2baf37acd7c466d6111061370d117
+Author: Thomas Huth <thuth@redhat.com>
+Date:   Mon Jun 7 19:23:11 2021 +0200
+
+    docs/interop/live-block-operations: Do not hard-code the QEMU binary name
+    
+    In downstream, we want to use a different name for the QEMU binary,
+    and some people might also use the docs for non-x86 binaries, that's
+    why we already created the |qemu_system| placeholder in the past.
+    Use it now in the live-block-operations doc, too.
+    
+    Signed-off-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210607172311.915385-1-thuth@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

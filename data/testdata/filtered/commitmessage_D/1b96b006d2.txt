@@ -1,0 +1,8 @@
+commit 1b96b006d23badf42c3fb3378413dcab1d3d2da2
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 21 18:34:39 2020 -0800
+
+    softfloat: Convert floatx80 compare to FloatParts
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

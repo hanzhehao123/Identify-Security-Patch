@@ -1,0 +1,13 @@
+commit 9ec8a3869480a9826ba77b480bb7ca567aa3d26b
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:13 2021 -0400
+
+    scripts/qom-fuse: use QOMCommand.qom_list()
+    
+    the qom_list method provides a type-safe object that's easier to type
+    check, so switch to using it.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210603003719.1321369-14-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

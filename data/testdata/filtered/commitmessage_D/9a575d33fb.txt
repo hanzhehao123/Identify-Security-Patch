@@ -1,0 +1,14 @@
+commit 9a575d33fba497db48cda36273bde8710651888e
+Author: Bin Meng <bmeng.cn@gmail.com>
+Date:   Fri May 14 13:24:35 2021 +0800
+
+    target/riscv: Remove unnecessary riscv_*_names[] declaration
+    
+    riscv_excp_names[] and riscv_intr_names[] are only referenced by
+    target/riscv/cpu.c locally.
+    
+    Signed-off-by: Bin Meng <bmeng.cn@gmail.com>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210514052435.2203156-1-bmeng.cn@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

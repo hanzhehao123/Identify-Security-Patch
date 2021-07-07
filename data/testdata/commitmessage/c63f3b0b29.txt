@@ -1,0 +1,26 @@
+commit c63f3b0b29f8320e77a83acd9d055e6607f02f85
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:16 2021 -0400
+
+    python: add optional FUSE dependencies
+    
+    In preparation for moving qom-fuse over to the python package, we need
+    some new dependencies to support it.
+    
+    Add an optional 'fusepy' dependency that users of the package can opt
+    into with e.g. "pip install qemu[fuse]" which installs the requirements
+    necessary to obtain the additional functionality.
+    
+    Add the same fusepy dependency to the 'devel' extras group --
+    unfortunately I do not see a way for optional groups to imply other
+    optional groups at present, so the dependency is repeated. The
+    development group needs to include the full set of dependencies for the
+    purpose of static analysis of all features offered by this library.
+    
+    Lastly, add the [fuse] extras group to tox's configuration as a
+    workaround so that if a stale tox environment is found when running
+    `make check-tox`, tox will know to rebuild its environments.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210603003719.1321369-17-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

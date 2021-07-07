@@ -1,0 +1,12 @@
+diff --git a/block/nbd.c b/block/nbd.c
+index f4b3407587..616f9ae6c4 100644
+--- a/block/nbd.c
++++ b/block/nbd.c
+@@ -381,7 +381,6 @@ static void nbd_free_connect_thread(NBDConnectThread *thr)
+ {
+     if (thr->sioc) {
+         qio_channel_close(QIO_CHANNEL(thr->sioc), NULL);
+-        object_unref(OBJECT(thr->sioc));
+     }
+     error_free(thr->err);
+     qapi_free_SocketAddress(thr->saddr);

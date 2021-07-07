@@ -1,0 +1,17 @@
+commit 32db3c63ae113da6ac06d65d1ffb764e0c357a6c
+Author: Vivek Kasireddy <vivek.kasireddy@intel.com>
+Date:   Wed May 26 16:14:28 2021 -0700
+
+    virtio-gpu: Add virtio_gpu_set_scanout_blob
+    
+    This API allows Qemu to set the blob allocated by the Guest as
+    the scanout buffer. If Opengl support is available, then the
+    scanout buffer would be submitted as a dmabuf to the UI; if not,
+    a pixman image is created from the scanout buffer and is
+    submitted to the UI via the display surface.
+    
+    Based-on-patch-by: Gerd Hoffmann <kraxel@redhat.com>
+    Cc: Gerd Hoffmann <kraxel@redhat.com>
+    Signed-off-by: Vivek Kasireddy <vivek.kasireddy@intel.com>
+    Message-Id: <20210526231429.1045476-14-vivek.kasireddy@intel.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

@@ -1,0 +1,117 @@
+diff --git a/hmp-commands-info.hx b/hmp-commands-info.hx
+index fb59c27200..b2347a6aea 100644
+--- a/hmp-commands-info.hx
++++ b/hmp-commands-info.hx
+@@ -867,16 +867,3 @@ SRST
+   ``info replay``
+     Display the record/replay information: mode and the current icount.
+ ERST
+-
+-    {
+-        .name       = "dirty_rate",
+-        .args_type  = "",
+-        .params     = "",
+-        .help       = "show dirty rate information",
+-        .cmd        = hmp_info_dirty_rate,
+-    },
+-
+-SRST
+-  ``info dirty_rate``
+-    Display the vcpu dirty rate information.
+-ERST
+diff --git a/hmp-commands.hx b/hmp-commands.hx
+index 84dcc3aae6..2d21fe5ad4 100644
+--- a/hmp-commands.hx
++++ b/hmp-commands.hx
+@@ -1727,17 +1727,3 @@ ERST
+         .flags      = "p",
+     },
+ 
+-SRST
+-``calc_dirty_rate`` *second*
+-  Start a round of dirty rate measurement with the period specified in *second*.
+-  The result of the dirty rate measurement may be observed with ``info
+-  dirty_rate`` command.
+-ERST
+-
+-    {
+-        .name       = "calc_dirty_rate",
+-        .args_type  = "second:l,sample_pages_per_GB:l?",
+-        .params     = "second [sample_pages_per_GB]",
+-        .help       = "start a round of guest dirty rate measurement",
+-        .cmd        = hmp_calc_dirty_rate,
+-    },
+diff --git a/include/monitor/hmp.h b/include/monitor/hmp.h
+index 3baa1058e2..605d57287a 100644
+--- a/include/monitor/hmp.h
++++ b/include/monitor/hmp.h
+@@ -129,7 +129,5 @@ void hmp_info_replay(Monitor *mon, const QDict *qdict);
+ void hmp_replay_break(Monitor *mon, const QDict *qdict);
+ void hmp_replay_delete_break(Monitor *mon, const QDict *qdict);
+ void hmp_replay_seek(Monitor *mon, const QDict *qdict);
+-void hmp_info_dirty_rate(Monitor *mon, const QDict *qdict);
+-void hmp_calc_dirty_rate(Monitor *mon, const QDict *qdict);
+ 
+ #endif
+diff --git a/migration/dirtyrate.c b/migration/dirtyrate.c
+index 320c56ba2c..2ee3890721 100644
+--- a/migration/dirtyrate.c
++++ b/migration/dirtyrate.c
+@@ -20,9 +20,6 @@
+ #include "ram.h"
+ #include "trace.h"
+ #include "dirtyrate.h"
+-#include "monitor/hmp.h"
+-#include "monitor/monitor.h"
+-#include "qapi/qmp/qdict.h"
+ 
+ static int CalculatingState = DIRTY_RATE_STATUS_UNSTARTED;
+ static struct DirtyRateStat DirtyStat;
+@@ -450,47 +447,3 @@ struct DirtyRateInfo *qmp_query_dirty_rate(Error **errp)
+ {
+     return query_dirty_rate_info();
+ }
+-
+-void hmp_info_dirty_rate(Monitor *mon, const QDict *qdict)
+-{
+-    DirtyRateInfo *info = query_dirty_rate_info();
+-
+-    monitor_printf(mon, "Status: %s\n",
+-                   DirtyRateStatus_str(info->status));
+-    monitor_printf(mon, "Start Time: %"PRIi64" (ms)\n",
+-                   info->start_time);
+-    monitor_printf(mon, "Sample Pages: %"PRIu64" (per GB)\n",
+-                   info->sample_pages);
+-    monitor_printf(mon, "Period: %"PRIi64" (sec)\n",
+-                   info->calc_time);
+-    monitor_printf(mon, "Dirty rate: ");
+-    if (info->has_dirty_rate) {
+-        monitor_printf(mon, "%"PRIi64" (MB/s)\n", info->dirty_rate);
+-    } else {
+-        monitor_printf(mon, "(not ready)\n");
+-    }
+-    g_free(info);
+-}
+-
+-void hmp_calc_dirty_rate(Monitor *mon, const QDict *qdict)
+-{
+-    int64_t sec = qdict_get_try_int(qdict, "second", 0);
+-    int64_t sample_pages = qdict_get_try_int(qdict, "sample_pages_per_GB", -1);
+-    bool has_sample_pages = (sample_pages != -1);
+-    Error *err = NULL;
+-
+-    if (!sec) {
+-        monitor_printf(mon, "Incorrect period length specified!\n");
+-        return;
+-    }
+-
+-    qmp_calc_dirty_rate(sec, has_sample_pages, sample_pages, &err);
+-    if (err) {
+-        hmp_handle_error(mon, err);
+-        return;
+-    }
+-
+-    monitor_printf(mon, "Starting dirty rate measurement with period %"PRIi64
+-                   " seconds\n", sec);
+-    monitor_printf(mon, "[Please use 'info dirty_rate' to check results]\n");
+-}

@@ -1,0 +1,70 @@
+diff --git a/include/ui/console.h b/include/ui/console.h
+index b30b63976a..ca3c7af6a6 100644
+--- a/include/ui/console.h
++++ b/include/ui/console.h
+@@ -471,7 +471,4 @@ bool vnc_display_reload_certs(const char *id,  Error **errp);
+ /* input.c */
+ int index_from_key(const char *key, size_t key_length);
+ 
+-/* udmabuf.c */
+-int udmabuf_fd(void);
+-
+ #endif
+diff --git a/ui/meson.build b/ui/meson.build
+index a3a187d633..b5aed14886 100644
+--- a/ui/meson.build
++++ b/ui/meson.build
+@@ -12,7 +12,6 @@ softmmu_ss.add(files(
+   'kbd-state.c',
+   'keymaps.c',
+   'qemu-pixman.c',
+-  'udmabuf.c',
+ ))
+ softmmu_ss.add([spice_headers, files('spice-module.c')])
+ softmmu_ss.add(when: spice_protocol, if_true: files('vdagent.c'))
+diff --git a/ui/udmabuf.c b/ui/udmabuf.c
+deleted file mode 100644
+index 23abe1e7eb..0000000000
+--- a/ui/udmabuf.c
++++ /dev/null
+@@ -1,40 +0,0 @@
+-/*
+- * udmabuf helper functions.
+- *
+- * This work is licensed under the terms of the GNU GPL, version 2 or later.
+- * See the COPYING file in the top-level directory.
+- */
+-#include "qemu/osdep.h"
+-#include "qapi/error.h"
+-#include "ui/console.h"
+-
+-#ifdef CONFIG_LINUX
+-
+-#include <fcntl.h>
+-#include <sys/ioctl.h>
+-
+-int udmabuf_fd(void)
+-{
+-    static bool first = true;
+-    static int udmabuf;
+-
+-    if (!first) {
+-        return udmabuf;
+-    }
+-    first = false;
+-
+-    udmabuf = open("/dev/udmabuf", O_RDWR);
+-    if (udmabuf < 0) {
+-        warn_report("open /dev/udmabuf: %s", strerror(errno));
+-    }
+-    return udmabuf;
+-}
+-
+-#else
+-
+-int udmabuf_fd(void)
+-{
+-    return -1;
+-}
+-
+-#endif

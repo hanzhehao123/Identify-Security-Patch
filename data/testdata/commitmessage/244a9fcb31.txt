@@ -1,0 +1,13 @@
+commit 244a9fcb31c0f2b599caa7370c8e9d064497a920
+Author: Lukas Jünger <lukas.juenger@greensocs.com>
+Date:   Wed Jun 16 11:23:25 2021 +0200
+
+    hw/char: Consistent function names for sifive_uart
+    
+    This cleans up function names in the SiFive UART model.
+    
+    Signed-off-by: Lukas Jünger <lukas.juenger@greensocs.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Reviewed-by: Bin Meng <bmeng.cn@gmail.com>
+    Message-id: 20210616092326.59639-2-lukas.juenger@greensocs.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

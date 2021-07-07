@@ -1,0 +1,16 @@
+commit c32c3d68ed0629910d5a1cd72bfb57d7f89b553b
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Wed May 26 19:04:21 2021 +0200
+
+    MAINTAINERS: Add qtest/arm-cpu-features.c to ARM TCG CPUs section
+    
+    We want the ARM maintainers and the qemu-arm@ list to be
+    notified when this file is modified. Add an entry to the
+    'ARM TCG CPUs' section in the MAINTAINERS file.
+    
+    Acked-by: Andrew Jones <drjones@redhat.com>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210526170432.343588-2-philmd@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

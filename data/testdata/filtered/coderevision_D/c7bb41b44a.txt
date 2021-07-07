@@ -1,0 +1,114 @@
+diff --git a/accel/tcg/plugin-gen.c b/accel/tcg/plugin-gen.c
+index 88e25c6df9..48bd2f36f0 100644
+--- a/accel/tcg/plugin-gen.c
++++ b/accel/tcg/plugin-gen.c
+@@ -384,7 +384,7 @@ static TCGOp *copy_st_ptr(TCGOp **begin_op, TCGOp *op)
+ }
+ 
+ static TCGOp *copy_call(TCGOp **begin_op, TCGOp *op, void *empty_func,
+-                        void *func, int *cb_idx)
++                        void *func, unsigned tcg_flags, int *cb_idx)
+ {
+     /* copy all ops until the call */
+     do {
+@@ -411,7 +411,7 @@ static TCGOp *copy_call(TCGOp **begin_op, TCGOp *op, void *empty_func,
+         tcg_debug_assert(i < MAX_OPC_PARAM_ARGS);
+     }
+     op->args[*cb_idx] = (uintptr_t)func;
+-    op->args[*cb_idx + 1] = (*begin_op)->args[*cb_idx + 1];
++    op->args[*cb_idx + 1] = tcg_flags;
+ 
+     return op;
+ }
+@@ -438,7 +438,7 @@ static TCGOp *append_udata_cb(const struct qemu_plugin_dyn_cb *cb,
+ 
+     /* call */
+     op = copy_call(&begin_op, op, HELPER(plugin_vcpu_udata_cb),
+-                   cb->f.vcpu_udata, cb_idx);
++                   cb->f.vcpu_udata, cb->tcg_flags, cb_idx);
+ 
+     return op;
+ }
+@@ -489,7 +489,7 @@ static TCGOp *append_mem_cb(const struct qemu_plugin_dyn_cb *cb,
+     if (type == PLUGIN_GEN_CB_MEM) {
+         /* call */
+         op = copy_call(&begin_op, op, HELPER(plugin_vcpu_mem_cb),
+-                       cb->f.vcpu_udata, cb_idx);
++                       cb->f.vcpu_udata, cb->tcg_flags, cb_idx);
+     }
+ 
+     return op;
+diff --git a/accel/tcg/plugin-helpers.h b/accel/tcg/plugin-helpers.h
+index 853bd21677..1916ee7920 100644
+--- a/accel/tcg/plugin-helpers.h
++++ b/accel/tcg/plugin-helpers.h
+@@ -1,4 +1,5 @@
+ #ifdef CONFIG_PLUGIN
++/* Note: no TCG flags because those are overwritten later */
+ DEF_HELPER_2(plugin_vcpu_udata_cb, void, i32, ptr)
+ DEF_HELPER_4(plugin_vcpu_mem_cb, void, i32, i32, i64, ptr)
+ #endif
+diff --git a/include/qemu/plugin.h b/include/qemu/plugin.h
+index 0fefbc6084..c5a79a89f0 100644
+--- a/include/qemu/plugin.h
++++ b/include/qemu/plugin.h
+@@ -79,6 +79,7 @@ enum plugin_dyn_cb_subtype {
+ struct qemu_plugin_dyn_cb {
+     union qemu_plugin_cb_sig f;
+     void *userp;
++    unsigned tcg_flags;
+     enum plugin_dyn_cb_subtype type;
+     /* @rw applies to mem callbacks only (both regular and inline) */
+     enum qemu_plugin_mem_rw rw;
+diff --git a/plugins/core.c b/plugins/core.c
+index e1bcdb570d..55d188af51 100644
+--- a/plugins/core.c
++++ b/plugins/core.c
+@@ -295,15 +295,33 @@ void plugin_register_inline_op(GArray **arr,
+     dyn_cb->inline_insn.imm = imm;
+ }
+ 
+-void plugin_register_dyn_cb__udata(GArray **arr,
+-                                   qemu_plugin_vcpu_udata_cb_t cb,
+-                                   enum qemu_plugin_cb_flags flags,
+-                                   void *udata)
++static inline uint32_t cb_to_tcg_flags(enum qemu_plugin_cb_flags flags)
++{
++    uint32_t ret;
++
++    switch (flags) {
++    case QEMU_PLUGIN_CB_RW_REGS:
++        ret = 0;
++        break;
++    case QEMU_PLUGIN_CB_R_REGS:
++        ret = TCG_CALL_NO_WG;
++        break;
++    case QEMU_PLUGIN_CB_NO_REGS:
++    default:
++        ret = TCG_CALL_NO_RWG;
++    }
++    return ret;
++}
++
++inline void
++plugin_register_dyn_cb__udata(GArray **arr,
++                              qemu_plugin_vcpu_udata_cb_t cb,
++                              enum qemu_plugin_cb_flags flags, void *udata)
+ {
+     struct qemu_plugin_dyn_cb *dyn_cb = plugin_get_dyn_cb(arr);
+ 
+     dyn_cb->userp = udata;
+-    /* Note flags are discarded as unused. */
++    dyn_cb->tcg_flags = cb_to_tcg_flags(flags);
+     dyn_cb->f.vcpu_udata = cb;
+     dyn_cb->type = PLUGIN_CB_REGULAR;
+ }
+@@ -318,7 +336,7 @@ void plugin_register_vcpu_mem_cb(GArray **arr,
+ 
+     dyn_cb = plugin_get_dyn_cb(arr);
+     dyn_cb->userp = udata;
+-    /* Note flags are discarded as unused. */
++    dyn_cb->tcg_flags = cb_to_tcg_flags(flags);
+     dyn_cb->type = PLUGIN_CB_REGULAR;
+     dyn_cb->rw = rw;
+     dyn_cb->f.generic = cb;

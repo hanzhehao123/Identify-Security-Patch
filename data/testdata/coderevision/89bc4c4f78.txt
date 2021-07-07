@@ -1,0 +1,143 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 459c8eebdd..2f0cf99359 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -246,11 +246,6 @@ DEF_HELPER_FLAGS_4(mve_vrhaddub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vrhadduh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vrhadduw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ 
+-DEF_HELPER_FLAGS_4(mve_vadc, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vadci, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vsbc, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vsbci, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarb, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index 79915f45d7..6b969902df 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -160,11 +160,6 @@ VQDMULLT         111 . 1110 0 . 11 ... 0 ... 1 1111 . 0 . 0 ... 1 @2op_sz28
+ VRHADD_S         111 0 1111 0 . .. ... 0 ... 0 0001 . 1 . 0 ... 0 @2op
+ VRHADD_U         111 1 1111 0 . .. ... 0 ... 0 0001 . 1 . 0 ... 0 @2op
+ 
+-VADC             1110 1110 0 . 11 ... 0 ... 0 1111 . 0 . 0 ... 0 @2op_nosz
+-VSBC             1111 1110 0 . 11 ... 0 ... 0 1111 . 0 . 0 ... 0 @2op_nosz
+-VADCI            1110 1110 0 . 11 ... 0 ... 1 1111 . 0 . 0 ... 0 @2op_nosz
+-VSBCI            1111 1110 0 . 11 ... 0 ... 1 1111 . 0 . 0 ... 0 @2op_nosz
+-
+ # Vector miscellaneous
+ 
+ VCLS             1111 1111 1 . 11 .. 00 ... 0 0100 01 . 0 ... 0 @1op
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index 8f55f70659..8e18a967b7 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -537,58 +537,6 @@ DO_2OP_U(vrshlu, DO_VRSHLU)
+ DO_2OP_S(vrhadds, DO_RHADD_S)
+ DO_2OP_U(vrhaddu, DO_RHADD_U)
+ 
+-static void do_vadc(CPUARMState *env, uint32_t *d, uint32_t *n, uint32_t *m,
+-                    uint32_t inv, uint32_t carry_in, bool update_flags)
+-{
+-    uint16_t mask = mve_element_mask(env);
+-    unsigned e;
+-
+-    /* If any additions trigger, we will update flags. */
+-    if (mask & 0x1111) {
+-        update_flags = true;
+-    }
+-
+-    for (e = 0; e < 16 / 4; e++, mask >>= 4) {
+-        uint64_t r = carry_in;
+-        r += n[H4(e)];
+-        r += m[H4(e)] ^ inv;
+-        if (mask & 1) {
+-            carry_in = r >> 32;
+-        }
+-        mergemask(&d[H4(e)], r, mask);
+-    }
+-
+-    if (update_flags) {
+-        /* Store C, clear NZV. */
+-        env->vfp.xregs[ARM_VFP_FPSCR] &= ~FPCR_NZCV_MASK;
+-        env->vfp.xregs[ARM_VFP_FPSCR] |= carry_in * FPCR_C;
+-    }
+-    mve_advance_vpt(env);
+-}
+-
+-void HELPER(mve_vadc)(CPUARMState *env, void *vd, void *vn, void *vm)
+-{
+-    bool carry_in = env->vfp.xregs[ARM_VFP_FPSCR] & FPCR_C;
+-    do_vadc(env, vd, vn, vm, 0, carry_in, false);
+-}
+-
+-void HELPER(mve_vsbc)(CPUARMState *env, void *vd, void *vn, void *vm)
+-{
+-    bool carry_in = env->vfp.xregs[ARM_VFP_FPSCR] & FPCR_C;
+-    do_vadc(env, vd, vn, vm, -1, carry_in, false);
+-}
+-
+-
+-void HELPER(mve_vadci)(CPUARMState *env, void *vd, void *vn, void *vm)
+-{
+-    do_vadc(env, vd, vn, vm, 0, 0, true);
+-}
+-
+-void HELPER(mve_vsbci)(CPUARMState *env, void *vd, void *vn, void *vm)
+-{
+-    do_vadc(env, vd, vn, vm, -1, 1, true);
+-}
+-
+ static inline int32_t do_sat_bhw(int64_t val, int64_t min, int64_t max, bool *s)
+ {
+     if (val > max) {
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index f8cc6080c9..febf644079 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -451,43 +451,6 @@ static bool trans_VQDMULLT(DisasContext *s, arg_2op *a)
+     return do_2op(s, a, fns[a->size]);
+ }
+ 
+-/*
+- * VADC and VSBC: these perform an add-with-carry or subtract-with-carry
+- * of the 32-bit elements in each lane of the input vectors, where the
+- * carry-out of each add is the carry-in of the next.  The initial carry
+- * input is either fixed (0 for VADCI, 1 for VSBCI) or is from FPSCR.C
+- * (for VADC and VSBC); the carry out at the end is written back to FPSCR.C.
+- * These insns are subject to beat-wise execution.  Partial execution
+- * of an I=1 (initial carry input fixed) insn which does not
+- * execute the first beat must start with the current FPSCR.NZCV
+- * value, not the fixed constant input.
+- */
+-static bool trans_VADC(DisasContext *s, arg_2op *a)
+-{
+-    return do_2op(s, a, gen_helper_mve_vadc);
+-}
+-
+-static bool trans_VADCI(DisasContext *s, arg_2op *a)
+-{
+-    if (mve_skip_first_beat(s)) {
+-        return trans_VADC(s, a);
+-    }
+-    return do_2op(s, a, gen_helper_mve_vadci);
+-}
+-
+-static bool trans_VSBC(DisasContext *s, arg_2op *a)
+-{
+-    return do_2op(s, a, gen_helper_mve_vsbc);
+-}
+-
+-static bool trans_VSBCI(DisasContext *s, arg_2op *a)
+-{
+-    if (mve_skip_first_beat(s)) {
+-        return trans_VSBC(s, a);
+-    }
+-    return do_2op(s, a, gen_helper_mve_vsbci);
+-}
+-
+ static bool do_2op_scalar(DisasContext *s, arg_2scalar *a,
+                           MVEGenTwoOpScalarFn fn)
+ {

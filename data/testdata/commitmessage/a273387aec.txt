@@ -1,0 +1,16 @@
+commit a273387aec43d2f2cff19b232c8c3e569a669971
+Author: Cleber Rosa <crosa@redhat.com>
+Date:   Mon Apr 12 00:46:41 2021 -0400
+
+    tests/acceptance/virtiofs_submounts.py: remove launch_vm()
+    
+    The LinuxTest class' launch_and_wait() method now behaves the same way
+    as this test's custom launch_vm(), so let's just use the upper layer
+    (common) method.
+    
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Reviewed-by: Eric Auger <eric.auger@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210412044644.55083-9-crosa@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>

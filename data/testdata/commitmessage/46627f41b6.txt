@@ -1,0 +1,16 @@
+commit 46627f41b6b781885c64a2b12814060a7ca8da36
+Author: Andrew Melnychenko <andrew@daynix.com>
+Date:   Fri May 14 14:48:32 2021 +0300
+
+    ebpf: Added eBPF RSS loader.
+    
+    Added function that loads RSS eBPF program.
+    Added stub functions for RSS eBPF loader.
+    Added meson and configuration options.
+    
+    By default, eBPF feature enabled if libbpf is present in the build system.
+    libbpf checked in configuration shell script and meson script.
+    
+    Signed-off-by: Yuri Benditovich <yuri.benditovich@daynix.com>
+    Signed-off-by: Andrew Melnychenko <andrew@daynix.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

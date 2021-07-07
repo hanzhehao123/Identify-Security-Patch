@@ -1,0 +1,13 @@
+diff --git a/net/colo-compare.c b/net/colo-compare.c
+index b100e7b51f..5b538f4e0b 100644
+--- a/net/colo-compare.c
++++ b/net/colo-compare.c
+@@ -211,7 +211,7 @@ static void fill_pkt_tcp_info(void *data, uint32_t *max_ack)
+     pkt->tcp_ack = ntohl(tcphd->th_ack);
+     *max_ack = *max_ack > pkt->tcp_ack ? *max_ack : pkt->tcp_ack;
+     pkt->header_size = pkt->transport_header - (uint8_t *)pkt->data
+-                       + (tcphd->th_off << 2);
++                       + (tcphd->th_off << 2) - pkt->vnet_hdr_len;
+     pkt->payload_size = pkt->size - pkt->header_size;
+     pkt->seq_end = pkt->tcp_seq + pkt->payload_size;
+     pkt->flags = tcphd->th_flags;

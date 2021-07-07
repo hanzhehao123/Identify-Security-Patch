@@ -1,0 +1,12 @@
+commit 82655d8115f022a0132a74e0229dc7fa9b623b87
+Author: Kito Cheng <kito.cheng@sifive.com>
+Date:   Thu May 6 00:06:07 2021 +0800
+
+    target/riscv: rvb: min/max instructions
+    
+    Signed-off-by: Kito Cheng <kito.cheng@sifive.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Signed-off-by: Frank Chang <frank.chang@sifive.com>
+    Message-id: 20210505160620.15723-7-frank.chang@sifive.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

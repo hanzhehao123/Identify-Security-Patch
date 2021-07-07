@@ -1,0 +1,26 @@
+commit 96a664d05c238ea1b64af2394b58e956fe0afe26
+Author: Jean-Philippe Brucker <jean-philippe@linaro.org>
+Date:   Mon Jun 14 16:34:05 2021 +0100
+
+    hw/intc/arm_gicv3_cpuif: Tolerate spurious EOIR writes
+    
+    Commit 382c7160d1cd ("hw/intc/arm_gicv3_cpuif: Fix EOIR write access
+    check logic") added an assert_not_reached() if the guest writes the EOIR
+    register while no interrupt is active.
+    
+    It turns out some software does this: EDK2, in
+    GicV3ExitBootServicesEvent(), unconditionally write EOIR for all
+    interrupts that it manages. This now causes QEMU to abort when running
+    UEFI on a VM with GICv3. Although it is UNPREDICTABLE behavior and EDK2
+    does need fixing, the punishment seems a little harsh, especially since
+    icc_eoir_write() already tolerates writes of nonexistent interrupt
+    numbers. Display a guest error and tolerate spurious EOIR writes.
+    
+    Fixes: 382c7160d1cd ("hw/intc/arm_gicv3_cpuif: Fix EOIR write access check logic")
+    Signed-off-by: Jean-Philippe Brucker <jean-philippe@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Tested-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-id: 20210604130352.1887560-1-jean-philippe@linaro.org
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

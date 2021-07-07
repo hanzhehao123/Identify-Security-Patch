@@ -1,0 +1,13 @@
+commit bf99f30bc3420f2f4b82f7f827fb93197d33c017
+Author: Mahmoud Mandour <ma.mandourr@gmail.com>
+Date:   Sun Mar 14 05:23:23 2021 +0200
+
+    tools/virtiofsd/fuse_opt.c: Replaced a malloc with GLib's g_try_malloc
+    
+    Replaced a malloc() call and its respective free() with
+    GLib's g_try_malloc() and g_free() calls.
+    
+    Signed-off-by: Mahmoud Mandour <ma.mandourr@gmail.com>
+    Message-Id: <20210314032324.45142-8-ma.mandourr@gmail.com>
+    Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

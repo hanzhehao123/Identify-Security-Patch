@@ -1,0 +1,88 @@
+diff --git a/hw/arm/sysbus-fdt.c b/hw/arm/sysbus-fdt.c
+index 48c5fe9bf1..6b6906f4cf 100644
+--- a/hw/arm/sysbus-fdt.c
++++ b/hw/arm/sysbus-fdt.c
+@@ -437,7 +437,6 @@ static bool vfio_platform_match(SysBusDevice *sbdev,
+ 
+ #endif /* CONFIG_LINUX */
+ 
+-#ifdef CONFIG_TPM
+ /*
+  * add_tpm_tis_fdt_node: Create a DT node for TPM TIS
+  *
+@@ -468,7 +467,6 @@ static int add_tpm_tis_fdt_node(SysBusDevice *sbdev, void *opaque)
+     g_free(nodename);
+     return 0;
+ }
+-#endif
+ 
+ static int no_fdt_node(SysBusDevice *sbdev, void *opaque)
+ {
+@@ -490,9 +488,7 @@ static const BindingEntry bindings[] = {
+     TYPE_BINDING(TYPE_VFIO_AMD_XGBE, add_amd_xgbe_fdt_node),
+     VFIO_PLATFORM_BINDING("amd,xgbe-seattle-v1a", add_amd_xgbe_fdt_node),
+ #endif
+-#ifdef CONFIG_TPM
+     TYPE_BINDING(TYPE_TPM_TIS_SYSBUS, add_tpm_tis_fdt_node),
+-#endif
+     TYPE_BINDING(TYPE_RAMFB_DEVICE, no_fdt_node),
+     TYPE_BINDING("", NULL), /* last element */
+ };
+diff --git a/hw/arm/virt-acpi-build.c b/hw/arm/virt-acpi-build.c
+index f1024843dd..60fe2e65a7 100644
+--- a/hw/arm/virt-acpi-build.c
++++ b/hw/arm/virt-acpi-build.c
+@@ -205,7 +205,6 @@ static void acpi_dsdt_add_gpio(Aml *scope, const MemMapEntry *gpio_memmap,
+     aml_append(scope, dev);
+ }
+ 
+-#ifdef CONFIG_TPM
+ static void acpi_dsdt_add_tpm(Aml *scope, VirtMachineState *vms)
+ {
+     PlatformBusDevice *pbus = PLATFORM_BUS_DEVICE(vms->platform_bus_dev);
+@@ -237,7 +236,6 @@ static void acpi_dsdt_add_tpm(Aml *scope, VirtMachineState *vms)
+     aml_append(dev, aml_name_decl("_CRS", crs));
+     aml_append(scope, dev);
+ }
+-#endif
+ 
+ static void
+ build_iort(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
+@@ -644,9 +642,7 @@ build_dsdt(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
+     }
+ 
+     acpi_dsdt_add_power_button(scope);
+-#ifdef CONFIG_TPM
+     acpi_dsdt_add_tpm(scope, vms);
+-#endif
+ 
+     aml_append(dsdt, scope);
+ 
+@@ -749,13 +745,11 @@ void virt_acpi_build(VirtMachineState *vms, AcpiBuildTables *tables)
+         build_iort(tables_blob, tables->linker, vms);
+     }
+ 
+-#ifdef CONFIG_TPM
+     if (tpm_get_version(tpm_find()) == TPM_VERSION_2_0) {
+         acpi_add_table(table_offsets, tables_blob);
+         build_tpm2(tables_blob, tables->linker, tables->tcpalog, vms->oem_id,
+                    vms->oem_table_id);
+     }
+-#endif
+ 
+     /* XSDT is pointed to by RSDP */
+     xsdt = tables_blob->len;
+diff --git a/hw/arm/virt.c b/hw/arm/virt.c
+index 9122e22ee0..840758666d 100644
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -2599,9 +2599,7 @@ static void virt_machine_class_init(ObjectClass *oc, void *data)
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_VFIO_AMD_XGBE);
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_RAMFB_DEVICE);
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_VFIO_PLATFORM);
+-#ifdef CONFIG_TPM
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_TPM_TIS_SYSBUS);
+-#endif
+     mc->block_default_type = IF_VIRTIO;
+     mc->no_cdrom = 1;
+     mc->pci_allow_0_address = true;

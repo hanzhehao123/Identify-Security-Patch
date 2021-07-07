@@ -1,0 +1,21 @@
+commit d1e0476958cd275419754b8acf31a9f1dc62d3dd
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:16:59 2021 -0400
+
+    python: add pylint import exceptions
+    
+    Pylint 2.5.x - 2.7.x have regressions that make import checking
+    inconsistent, see:
+    
+    https://github.com/PyCQA/pylint/issues/3609
+    https://github.com/PyCQA/pylint/issues/3624
+    https://github.com/PyCQA/pylint/issues/3651
+    
+    Pinning to 2.4.4 is worse, because it mandates versions of shared
+    dependencies that are too old for features we want in isort and mypy.
+    Oh well.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-16-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

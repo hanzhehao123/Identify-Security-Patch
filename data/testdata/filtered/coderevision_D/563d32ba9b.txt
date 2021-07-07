@@ -1,0 +1,24 @@
+diff --git a/accel/kvm/kvm-all.c b/accel/kvm/kvm-all.c
+index df9fbf59a6..0ba6d48120 100644
+--- a/accel/kvm/kvm-all.c
++++ b/accel/kvm/kvm-all.c
+@@ -610,7 +610,6 @@ static void kvm_slot_init_dirty_bitmap(KVMSlot *mem)
+     hwaddr bitmap_size = ALIGN(mem->memory_size / qemu_real_host_page_size,
+                                         /*HOST_LONG_BITS*/ 64) / 8;
+     mem->dirty_bmap = g_malloc0(bitmap_size);
+-    mem->dirty_bmap_size = bitmap_size;
+ }
+ 
+ /*
+diff --git a/include/sysemu/kvm_int.h b/include/sysemu/kvm_int.h
+index c788452cd9..ab09a150e1 100644
+--- a/include/sysemu/kvm_int.h
++++ b/include/sysemu/kvm_int.h
+@@ -23,7 +23,6 @@ typedef struct KVMSlot
+     int old_flags;
+     /* Dirty bitmap cache for the slot */
+     unsigned long *dirty_bmap;
+-    unsigned long dirty_bmap_size;
+     /* Cache of the address space ID */
+     int as_id;
+     /* Cache of the offset in ram address space */

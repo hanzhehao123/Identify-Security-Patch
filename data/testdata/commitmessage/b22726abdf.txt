@@ -1,0 +1,29 @@
+commit b22726abdfa54592d6ad88f65b0297c0e8b363e2
+Merge: bf7942e406 96ff758c6e
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue Jun 22 16:07:53 2021 +0100
+
+    Merge remote-tracking branch 'remotes/vivier2/tags/linux-user-for-6.1-pull-request' into staging
+    
+    Linux-user pull request 20210621
+    
+    # gpg: Signature made Mon 21 Jun 2021 12:03:53 BST
+    # gpg:                using RSA key CD2F75DDC8E3A4DC2E4F5173F30C38BD3F2FBE3C
+    # gpg:                issuer "laurent@vivier.eu"
+    # gpg: Good signature from "Laurent Vivier <lvivier@redhat.com>" [full]
+    # gpg:                 aka "Laurent Vivier <laurent@vivier.eu>" [full]
+    # gpg:                 aka "Laurent Vivier (Red Hat) <lvivier@redhat.com>" [full]
+    # Primary key fingerprint: CD2F 75DD C8E3 A4DC 2E4F  5173 F30C 38BD 3F2F BE3C
+    
+    * remotes/vivier2/tags/linux-user-for-6.1-pull-request:
+      linux-user: Use public sigev_notify_thread_id member if available
+      linux-user: Fix incorrect use of feature-test-macros
+      linux-user: Check for ieee128 fpbits in PPC64 HWCAP2 feature list
+      tests/tcg/linux-test: Check that sigaction can query SIGKILL/SIGSTOP
+      linux-user: Let sigaction query SIGKILL/SIGSTOP
+      linux-user: Implement pivot_root
+      linux-user/trace-events: fix minor typo in format string
+      linux-user: Disable static assert involving __SIGRTMAX if it is missing
+      linux-user: Set CF_PARALLEL when mapping shared memory
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

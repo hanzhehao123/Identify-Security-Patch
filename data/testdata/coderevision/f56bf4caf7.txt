@@ -1,0 +1,54 @@
+diff --git a/.gitlab-ci.d/buildtest-template.yml b/.gitlab-ci.d/buildtest-template.yml
+index 3e3e19d96b..aabd6c07d2 100644
+--- a/.gitlab-ci.d/buildtest-template.yml
++++ b/.gitlab-ci.d/buildtest-template.yml
+@@ -67,15 +67,3 @@
+   after_script:
+     - cd build
+     - du -chs ${CI_PROJECT_DIR}/avocado-cache
+-  rules:
+-    # Only run these jobs if running on the mainstream namespace,
+-    # or if the user set the QEMU_CI_AVOCADO_TESTING variable (either
+-    # in its namespace setting or via git-push option, see documentation
+-    # in /.gitlab-ci.yml of this repository).
+-    - if: '$CI_PROJECT_NAMESPACE == "qemu-project"'
+-      when: always
+-    - if: '$QEMU_CI_AVOCADO_TESTING'
+-      when: always
+-    # Otherwise, set to manual (the jobs are created but not run).
+-    - when: manual
+-      allow_failure: true
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index 6dc5385e69..7e4ffab4d1 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -11,29 +11,5 @@
+ # configuration path", on your GitLab CI namespace:
+ # https://docs.gitlab.com/ee/ci/pipelines/settings.html#custom-cicd-configuration-path
+ #
+-# ----------------------------------------------------------------------
+-#
+-# QEMU CI jobs are based on templates. Some templates provide
+-# user-configurable options, modifiable via configuration variables.
+-#
+-# These variables can be set globally in the user's CI namespace
+-# setting:
+-# https://docs.gitlab.com/ee/ci/variables/#create-a-custom-variable-in-the-ui
+-# or set manually each time a branch/tag is pushed, as a git-push
+-# command line argument:
+-# https://docs.gitlab.com/ee/user/project/push_options.html#push-options-for-gitlab-cicd
+-#
+-# Example setting the QEMU_CI_EXAMPLE_VAR variable:
+-#
+-#   git push -o ci.variable="QEMU_CI_EXAMPLE_VAR=value" myrepo mybranch
+-#
+-# ----------------------------------------------------------------------
+-#
+-# List of environment variables that can be use to modify the set
+-# of jobs selected:
+-#
+-# - QEMU_CI_AVOCADO_TESTING
+-#   If set, tests using the Avocado framework will be run
+-
+ include:
+   - local: '/.gitlab-ci.d/qemu-project.yml'

@@ -1,0 +1,14 @@
+commit e70da5ff6445bf09db55e4828c08c2a30d816137
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:48 2021 +0300
+
+    nbd/client-connection: use QEMU_LOCK_GUARD
+    
+    We don't update connect_thread_func() to use QEMU_LOCK_GUARD, as it
+    will get more complex critical sections logic in further commit, where
+    QEMU_LOCK_GUARD doesn't help.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210610100802.5888-19-vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

@@ -1,0 +1,16 @@
+commit 8ad5ab6148dca8aad297c134c09c84b0b92d45ed
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Apr 15 12:41:31 2021 +0200
+
+    file-posix: fix max_iov for /dev/sg devices
+    
+    Even though it was only called for devices that have bs->sg set (which
+    must be character devices), sg_get_max_segments looked at /sys/dev/block
+    which only works for block devices.
+    
+    On Linux the sg driver has its own way to provide the maximum number of
+    iovecs in a scatter/gather list, so add support for it.  The block device
+    path is kept because it will be reinstated in the next patches.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Reviewed-by: Max Reitz <mreitz@redhat.com>

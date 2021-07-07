@@ -1,0 +1,19 @@
+commit 98b3cff7537ad2a9ce0faa6ad0af4191bd066916
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 21 16:35:54 2020 -0800
+
+    softfloat: Adjust parts_uncanon_normal for floatx80
+    
+    With floatx80_precision_x, the rounding happens across
+    the break between words.  Notice this case with
+    
+      frac_lsb = round_mask + 1 -> 0
+    
+    and check the bits in frac_hi as needed.
+    
+    In addition, since frac_shift == 0, we won't implicitly clear
+    round_mask via the right-shift, so explicitly clear those bits.
+    This fixes rounding for floatx80_precision_[sd].
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

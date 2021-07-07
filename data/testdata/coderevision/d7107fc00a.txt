@@ -1,0 +1,32 @@
+diff --git a/include/qemu/osdep.h b/include/qemu/osdep.h
+index 236a045671..4c6f2390be 100644
+--- a/include/qemu/osdep.h
++++ b/include/qemu/osdep.h
+@@ -512,7 +512,6 @@ void sigaction_invoke(struct sigaction *action,
+ #endif
+ 
+ int qemu_madvise(void *addr, size_t len, int advice);
+-int qemu_mprotect_rw(void *addr, size_t size);
+ int qemu_mprotect_rwx(void *addr, size_t size);
+ int qemu_mprotect_none(void *addr, size_t size);
+ 
+diff --git a/util/osdep.c b/util/osdep.c
+index 42a0a4986a..66d01b9160 100644
+--- a/util/osdep.c
++++ b/util/osdep.c
+@@ -97,15 +97,6 @@ static int qemu_mprotect__osdep(void *addr, size_t size, int prot)
+ #endif
+ }
+ 
+-int qemu_mprotect_rw(void *addr, size_t size)
+-{
+-#ifdef _WIN32
+-    return qemu_mprotect__osdep(addr, size, PAGE_READWRITE);
+-#else
+-    return qemu_mprotect__osdep(addr, size, PROT_READ | PROT_WRITE);
+-#endif
+-}
+-
+ int qemu_mprotect_rwx(void *addr, size_t size)
+ {
+ #ifdef _WIN32

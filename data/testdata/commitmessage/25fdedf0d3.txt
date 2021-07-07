@@ -1,0 +1,11 @@
+commit 25fdedf0d33e01ad4c950b7e4d58da498649aa29
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Fri Nov 20 12:11:08 2020 -0800
+
+    softfloat: Split out parts_uncanon_normal
+    
+    We will need to treat the non-normal cases of floatx80 specially,
+    so split out the normal case that we can reuse.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

@@ -1,0 +1,14 @@
+commit 60c8f7265d7eb51dfb38ea6701d10cbe2d7c7a64
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue May 25 15:58:10 2021 -0700
+
+    softfpu: Add float_round_to_odd_inf
+    
+    For Arm BFDOT and BFMMLA, we need a version of round-to-odd
+    that overflows to infinity, instead of the max normal number.
+    
+    Cc: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210525225817.400336-6-richard.henderson@linaro.org
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

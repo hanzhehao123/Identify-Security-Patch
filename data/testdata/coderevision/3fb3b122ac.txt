@@ -1,0 +1,377 @@
+diff --git a/.github/lockdown.yml b/.github/lockdown.yml
+index 07fc2f31ee..d3546bd2bc 100644
+--- a/.github/lockdown.yml
++++ b/.github/lockdown.yml
+@@ -14,11 +14,11 @@ issues:
+     at https://gitlab.com/qemu-project/qemu.git.
+     The project does not process issues filed on GitHub.
+ 
+-    The project issues are tracked on Launchpad:
+-    https://bugs.launchpad.net/qemu
++    The project issues are tracked on GitLab:
++    https://gitlab.com/qemu-project/qemu/-/issues
+ 
+     QEMU welcomes bug report contributions. You can file new ones on:
+-    https://bugs.launchpad.net/qemu/+filebug
++    https://gitlab.com/qemu-project/qemu/-/issues/new
+ 
+ pulls:
+   comment: |
+diff --git a/README.rst b/README.rst
+index a92c7394b7..79b19f1481 100644
+--- a/README.rst
++++ b/README.rst
+@@ -131,16 +131,16 @@ will be tagged as my-feature-v2.
+ Bug reporting
+ =============
+ 
+-The QEMU project uses Launchpad as its primary upstream bug tracker. Bugs
++The QEMU project uses GitLab issues to track bugs. Bugs
+ found when running code built from QEMU git or upstream released sources
+ should be reported via:
+ 
+-* `<https://bugs.launchpad.net/qemu/>`_
++* `<https://gitlab.com/qemu-project/qemu/-/issues>`_
+ 
+ If using QEMU via an operating system vendor pre-built binary package, it
+ is preferable to report bugs to the vendor's own bug tracker first. If
+ the bug is also known to affect latest upstream code, it can also be
+-reported via launchpad.
++reported via GitLab.
+ 
+ For additional information on bug reporting consult:
+ 
+diff --git a/docs/interop/live-block-operations.rst b/docs/interop/live-block-operations.rst
+index 1073b930dc..477d085f54 100644
+--- a/docs/interop/live-block-operations.rst
++++ b/docs/interop/live-block-operations.rst
+@@ -127,13 +127,15 @@ Interacting with a QEMU instance
+ 
+ To show some example invocations of command-line, we will use the
+ following invocation of QEMU, with a QMP server running over UNIX
+-socket::
++socket:
+ 
+-    $ ./qemu-system-x86_64 -display none -no-user-config \
+-        -M q35 -nodefaults -m 512 \
+-        -blockdev node-name=node-A,driver=qcow2,file.driver=file,file.node-name=file,file.filename=./a.qcow2 \
+-        -device virtio-blk,drive=node-A,id=virtio0 \
+-        -monitor stdio -qmp unix:/tmp/qmp-sock,server=on,wait=off
++.. parsed-literal::
++
++  $ |qemu_system| -display none -no-user-config -nodefaults \\
++    -m 512 -blockdev \\
++    node-name=node-A,driver=qcow2,file.driver=file,file.node-name=file,file.filename=./a.qcow2 \\
++    -device virtio-blk,drive=node-A,id=virtio0 \\
++    -monitor stdio -qmp unix:/tmp/qmp-sock,server=on,wait=off
+ 
+ The ``-blockdev`` command-line option, used above, is available from
+ QEMU 2.9 onwards.  In the above invocation, notice the ``node-name``
+@@ -692,14 +694,16 @@ And start the destination QEMU (we already have the source QEMU running
+ -- discussed in the section: `Interacting with a QEMU instance`_)
+ instance, with the following invocation.  (As noted earlier, for
+ simplicity's sake, the destination QEMU is started on the same host, but
+-it could be located elsewhere)::
+-
+-    $ ./qemu-system-x86_64 -display none -no-user-config \
+-        -M q35 -nodefaults -m 512 \
+-        -blockdev node-name=node-TargetDisk,driver=qcow2,file.driver=file,file.node-name=file,file.filename=./target-disk.qcow2 \
+-        -device virtio-blk,drive=node-TargetDisk,id=virtio0 \
+-        -S -monitor stdio -qmp unix:./qmp-sock2,server=on,wait=off \
+-        -incoming tcp:localhost:6666
++it could be located elsewhere):
++
++.. parsed-literal::
++
++  $ |qemu_system| -display none -no-user-config -nodefaults \\
++    -m 512 -blockdev \\
++    node-name=node-TargetDisk,driver=qcow2,file.driver=file,file.node-name=file,file.filename=./target-disk.qcow2 \\
++    -device virtio-blk,drive=node-TargetDisk,id=virtio0 \\
++    -S -monitor stdio -qmp unix:./qmp-sock2,server=on,wait=off \\
++    -incoming tcp:localhost:6666
+ 
+ Given the disk image chain on source QEMU::
+ 
+diff --git a/docs/tools/virtiofsd.rst b/docs/tools/virtiofsd.rst
+index 00554c75bd..4911e797cb 100644
+--- a/docs/tools/virtiofsd.rst
++++ b/docs/tools/virtiofsd.rst
+@@ -239,7 +239,7 @@ xattr-mapping Examples
+ 
+ ::
+ 
+--o xattrmap=":prefix:all::user.virtiofs.::bad:all:::"
++ -o xattrmap=":prefix:all::user.virtiofs.::bad:all:::"
+ 
+ 
+ This uses two rules, using : as the field separator;
+@@ -250,7 +250,8 @@ the host set.
+ This is equivalent to the 'map' rule:
+ 
+ ::
+--o xattrmap=":map::user.virtiofs.:"
++
++ -o xattrmap=":map::user.virtiofs.:"
+ 
+ 2) Prefix 'trusted.' attributes, allow others through
+ 
+@@ -277,7 +278,8 @@ through.
+ This is equivalent to the 'map' rule:
+ 
+ ::
+--o xattrmap="/map/trusted./user.virtiofs./"
++
++ -o xattrmap="/map/trusted./user.virtiofs./"
+ 
+ 3) Hide 'security.' attributes, and allow everything else
+ 
+@@ -298,13 +300,13 @@ Examples
+ Export ``/var/lib/fs/vm001/`` on vhost-user UNIX domain socket
+ ``/var/run/vm001-vhost-fs.sock``:
+ 
+-::
++.. parsed-literal::
+ 
+   host# virtiofsd --socket-path=/var/run/vm001-vhost-fs.sock -o source=/var/lib/fs/vm001
+-  host# qemu-system-x86_64 \
+-      -chardev socket,id=char0,path=/var/run/vm001-vhost-fs.sock \
+-      -device vhost-user-fs-pci,chardev=char0,tag=myfs \
+-      -object memory-backend-memfd,id=mem,size=4G,share=on \
+-      -numa node,memdev=mem \
+-      ...
++  host# |qemu_system| \\
++        -chardev socket,id=char0,path=/var/run/vm001-vhost-fs.sock \\
++        -device vhost-user-fs-pci,chardev=char0,tag=myfs \\
++        -object memory-backend-memfd,id=mem,size=4G,share=on \\
++        -numa node,memdev=mem \\
++        ...
+   guest# mount -t virtiofs myfs /mnt
+diff --git a/include/fpu/softfloat-helpers.h b/include/fpu/softfloat-helpers.h
+index 34f4cf92ae..a98d759cd3 100644
+--- a/include/fpu/softfloat-helpers.h
++++ b/include/fpu/softfloat-helpers.h
+@@ -48,8 +48,8 @@ this code that are retained.
+ ===============================================================================
+ */
+ 
+-#ifndef _SOFTFLOAT_HELPERS_H_
+-#define _SOFTFLOAT_HELPERS_H_
++#ifndef SOFTFLOAT_HELPERS_H
++#define SOFTFLOAT_HELPERS_H
+ 
+ #include "fpu/softfloat-types.h"
+ 
+diff --git a/include/hw/usb/dwc2-regs.h b/include/hw/usb/dwc2-regs.h
+index 40af23a0ba..a7eb531485 100644
+--- a/include/hw/usb/dwc2-regs.h
++++ b/include/hw/usb/dwc2-regs.h
+@@ -39,8 +39,8 @@
+  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
+-#ifndef __DWC2_HW_H__
+-#define __DWC2_HW_H__
++#ifndef DWC2_HW_H
++#define DWC2_HW_H
+ 
+ #define HSOTG_REG(x)	(x)
+ 
+diff --git a/include/hw/usb/xlnx-usb-subsystem.h b/include/hw/usb/xlnx-usb-subsystem.h
+index 739bef7f45..999e423951 100644
+--- a/include/hw/usb/xlnx-usb-subsystem.h
++++ b/include/hw/usb/xlnx-usb-subsystem.h
+@@ -22,8 +22,8 @@
+  * THE SOFTWARE.
+  */
+ 
+-#ifndef _XLNX_VERSAL_USB_SUBSYSTEM_H_
+-#define _XLNX_VERSAL_USB_SUBSYSTEM_H_
++#ifndef XLNX_VERSAL_USB_SUBSYSTEM_H
++#define XLNX_VERSAL_USB_SUBSYSTEM_H
+ 
+ #include "hw/usb/xlnx-versal-usb2-ctrl-regs.h"
+ #include "hw/usb/hcd-dwc3.h"
+diff --git a/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h b/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h
+index 975a717627..b76dce0419 100644
+--- a/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h
++++ b/include/hw/usb/xlnx-versal-usb2-ctrl-regs.h
+@@ -23,8 +23,8 @@
+  * THE SOFTWARE.
+  */
+ 
+-#ifndef _XLNX_USB2_REGS_H_
+-#define _XLNX_USB2_REGS_H_
++#ifndef XLNX_USB2_REGS_H
++#define XLNX_USB2_REGS_H
+ 
+ #define TYPE_XILINX_VERSAL_USB2_CTRL_REGS "xlnx.versal-usb2-ctrl-regs"
+ 
+diff --git a/include/qemu/plugin-memory.h b/include/qemu/plugin-memory.h
+index fbbe99474b..b36def27d7 100644
+--- a/include/qemu/plugin-memory.h
++++ b/include/qemu/plugin-memory.h
+@@ -6,8 +6,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef _PLUGIN_MEMORY_H_
+-#define _PLUGIN_MEMORY_H_
++#ifndef PLUGIN_MEMORY_H
++#define PLUGIN_MEMORY_H
+ 
+ struct qemu_plugin_hwaddr {
+     bool is_io;
+diff --git a/include/qemu/selfmap.h b/include/qemu/selfmap.h
+index 8382c4c779..80cf920fba 100644
+--- a/include/qemu/selfmap.h
++++ b/include/qemu/selfmap.h
+@@ -6,8 +6,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef _SELFMAP_H_
+-#define _SELFMAP_H_
++#ifndef SELFMAP_H
++#define SELFMAP_H
+ 
+ typedef struct {
+     unsigned long start;
+diff --git a/include/user/syscall-trace.h b/include/user/syscall-trace.h
+index 42e3b48b03..614cfacfa5 100644
+--- a/include/user/syscall-trace.h
++++ b/include/user/syscall-trace.h
+@@ -7,8 +7,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef _SYSCALL_TRACE_H_
+-#define _SYSCALL_TRACE_H_
++#ifndef SYSCALL_TRACE_H
++#define SYSCALL_TRACE_H
+ 
+ #include "trace/trace-root.h"
+ 
+diff --git a/plugins/plugin.h b/plugins/plugin.h
+index 55017e3581..b13677d0dc 100644
+--- a/plugins/plugin.h
++++ b/plugins/plugin.h
+@@ -9,8 +9,8 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
+-#ifndef _PLUGIN_INTERNAL_H_
+-#define _PLUGIN_INTERNAL_H_
++#ifndef PLUGIN_INTERNAL_H
++#define PLUGIN_INTERNAL_H
+ 
+ #include <gmodule.h>
+ #include "qemu/qht.h"
+diff --git a/target/s390x/kvm-stub.c b/target/s390x/kvm-stub.c
+index 8a308cfebb..9970b5a8c7 100644
+--- a/target/s390x/kvm-stub.c
++++ b/target/s390x/kvm-stub.c
+@@ -49,6 +49,11 @@ int kvm_s390_get_ri(void)
+     return 0;
+ }
+ 
++int kvm_s390_get_gs(void)
++{
++    return 0;
++}
++
+ int kvm_s390_get_clock(uint8_t *tod_high, uint64_t *tod_low)
+ {
+     return -ENOSYS;
+diff --git a/target/s390x/kvm.c b/target/s390x/kvm.c
+index 2388924587..4fb3bbfef5 100644
+--- a/target/s390x/kvm.c
++++ b/target/s390x/kvm.c
+@@ -154,6 +154,7 @@ static int cap_async_pf;
+ static int cap_mem_op;
+ static int cap_s390_irq;
+ static int cap_ri;
++static int cap_gs;
+ static int cap_hpage_1m;
+ static int cap_vcpu_resets;
+ static int cap_protected;
+@@ -368,7 +369,9 @@ int kvm_arch_init(MachineState *ms, KVMState *s)
+         }
+     }
+     if (cpu_model_allowed()) {
+-        kvm_vm_enable_cap(s, KVM_CAP_S390_GS, 0);
++        if (kvm_vm_enable_cap(s, KVM_CAP_S390_GS, 0) == 0) {
++            cap_gs = 1;
++        }
+     }
+ 
+     /*
+@@ -2036,6 +2039,11 @@ int kvm_s390_get_ri(void)
+     return cap_ri;
+ }
+ 
++int kvm_s390_get_gs(void)
++{
++    return cap_gs;
++}
++
+ int kvm_s390_set_cpu_state(S390CPU *cpu, uint8_t cpu_state)
+ {
+     struct kvm_mp_state mp_state = {};
+diff --git a/target/s390x/kvm_s390x.h b/target/s390x/kvm_s390x.h
+index 05a5e1e6f4..25bbe98b25 100644
+--- a/target/s390x/kvm_s390x.h
++++ b/target/s390x/kvm_s390x.h
+@@ -27,6 +27,7 @@ void kvm_s390_vcpu_interrupt_pre_save(S390CPU *cpu);
+ int kvm_s390_vcpu_interrupt_post_load(S390CPU *cpu);
+ int kvm_s390_get_hpage_1m(void);
+ int kvm_s390_get_ri(void);
++int kvm_s390_get_gs(void);
+ int kvm_s390_get_clock(uint8_t *tod_high, uint64_t *tod_clock);
+ int kvm_s390_get_clock_ext(uint8_t *tod_high, uint64_t *tod_clock);
+ int kvm_s390_set_clock(uint8_t tod_high, uint64_t tod_clock);
+diff --git a/tests/qtest/fuzz/generic_fuzz.c b/tests/qtest/fuzz/generic_fuzz.c
+index cea7d4058e..6c67522717 100644
+--- a/tests/qtest/fuzz/generic_fuzz.c
++++ b/tests/qtest/fuzz/generic_fuzz.c
+@@ -841,9 +841,9 @@ static void generic_pre_fuzz(QTestState *s)
+ 
+     g_hash_table_iter_init(&iter, fuzzable_memoryregions);
+     while (g_hash_table_iter_next(&iter, (gpointer)&mr, NULL)) {
+-        printf("  * %s (size %lx)\n",
++        printf("  * %s (size 0x%" PRIx64 ")\n",
+                object_get_canonical_path_component(&(mr->parent_obj)),
+-               (uint64_t)mr->size);
++               memory_region_size(mr));
+     }
+ 
+     if (!g_hash_table_size(fuzzable_memoryregions)) {
+diff --git a/tests/qtest/fuzz/qos_fuzz.h b/tests/qtest/fuzz/qos_fuzz.h
+index 477f11b02b..63d8459b71 100644
+--- a/tests/qtest/fuzz/qos_fuzz.h
++++ b/tests/qtest/fuzz/qos_fuzz.h
+@@ -10,8 +10,8 @@
+  * See the COPYING file in the top-level directory.
+  */
+ 
+-#ifndef _QOS_FUZZ_H_
+-#define _QOS_FUZZ_H_
++#ifndef QOS_FUZZ_H
++#define QOS_FUZZ_H
+ 
+ #include "tests/qtest/fuzz/fuzz.h"
+ #include "tests/qtest/libqos/qgraph.h"
+diff --git a/tests/tcg/minilib/minilib.h b/tests/tcg/minilib/minilib.h
+index e23361380a..17d0f2f314 100644
+--- a/tests/tcg/minilib/minilib.h
++++ b/tests/tcg/minilib/minilib.h
+@@ -9,8 +9,8 @@
+  * SPDX-License-Identifier: GPL-2.0-only
+  */
+ 
+-#ifndef _MINILIB_H_
+-#define _MINILIB_H_
++#ifndef MINILIB_H
++#define MINILIB_H
+ 
+ /*
+  * Provided by the individual arch

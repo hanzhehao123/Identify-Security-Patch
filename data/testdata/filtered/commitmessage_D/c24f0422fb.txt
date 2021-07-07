@@ -1,0 +1,10 @@
+commit c24f0422fbc0924389c1345ee30d8f87730ae633
+Author: Frank Chang <frank.chang@sifive.com>
+Date:   Thu May 6 00:06:14 2021 +0800
+
+    target/riscv: rvb: generalized or-combine
+    
+    Signed-off-by: Frank Chang <frank.chang@sifive.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210505160620.15723-14-frank.chang@sifive.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

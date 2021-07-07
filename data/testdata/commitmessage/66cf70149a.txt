@@ -1,0 +1,17 @@
+commit 66cf70149ad23ba8ea71b88d3564517c44e35630
+Author: Alex Bennée <alex.bennee@linaro.org>
+Date:   Wed Jun 23 11:27:44 2021 +0100
+
+    scripts/checkpatch: roll diff tweaking into checkpatch itself
+    
+    Rather than relying on external tweaks lets just do it inside
+    checkpatch's direct commitish handling which is QEMU specific code
+    anyway.
+    
+    Suggested-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Reviewed-by: Wainer dos Santos Moschetta <wainersm@redhat.com>
+    Message-Id: <20210623102749.25686-4-alex.bennee@linaro.org>

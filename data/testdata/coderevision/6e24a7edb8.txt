@@ -1,0 +1,31 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index f14fe211cc..b465c7f9e2 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -135,11 +135,11 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         super().__init__(address)
+         self._greeting: Optional[QMPMessage] = None
+         self._completer = QMPCompleter()
++        self._pretty = pretty
+         self._transmode = False
+         self._actions: List[QMPMessage] = []
+         self._histfile = os.path.join(os.path.expanduser('~'),
+                                       '.qmp-shell_history')
+-        self.pretty = pretty
+         self.verbose = verbose
+ 
+     def _fill_completion(self) -> None:
+@@ -274,9 +274,10 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         return qmpcmd
+ 
+     def _print(self, qmp_message: object) -> None:
+-        jsobj = json.dumps(qmp_message,
+-                           indent=4 if self.pretty else None,
+-                           sort_keys=self.pretty)
++        indent = None
++        if self._pretty:
++            indent = 4
++        jsobj = json.dumps(qmp_message, indent=indent, sort_keys=self._pretty)
+         print(str(jsobj))
+ 
+     def _execute_cmd(self, cmdline: str) -> bool:

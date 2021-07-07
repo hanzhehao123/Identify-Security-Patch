@@ -1,0 +1,15 @@
+commit 863b9507a61bb4f5707de0dadca829945c149e6e
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:14 2021 +0200
+
+    s390x/tcg: Simplify vop64_3() handling
+    
+    Let's simplify, reworking our handler generation, passing the whole "m5"
+    register content and not providing specialized handlers for "se", and
+    reading/writing proper float64 values using new helpers.
+    
+    Suggested-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-4-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

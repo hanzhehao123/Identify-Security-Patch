@@ -1,0 +1,18 @@
+commit aaad026480e91266be19dad6c5aa3b83579b6b6e
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Thu May 13 18:20:08 2021 +0200
+
+    tests/qtest/fuzz: Fix build failure
+    
+    On Fedora 32, using clang (version 10.0.1-3.fc32) we get:
+    
+      tests/qtest/fuzz/fuzz.c:237:5: error: implicit declaration of function 'qemu_init' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+          qemu_init(result.we_wordc, result.we_wordv, NULL);
+          ^
+    
+    qemu_init() is declared in "sysemu/sysemu.h", include this
+    header to fix.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210513162008.3922223-1-philmd@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

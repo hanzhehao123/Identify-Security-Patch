@@ -1,0 +1,13 @@
+commit d60c75d28fe9d49bef28f7fa863481e1d9f6ff96
+Author: Jason Wang <jasowang@redhat.com>
+Date:   Wed Jun 2 16:41:05 2021 +0800
+
+    vhost-vdpa: skip ram device from the IOTLB mapping
+    
+    vDPA is not tie to any specific hardware, for safety and simplicity,
+    vhost-vDPA doesn't allow MMIO area to be mapped via IOTLB. Only the
+    doorbell could be mapped via mmap(). So this patch exclude skip the
+    ram device from the IOTLB mapping.
+    
+    Reviewed-by: Si-Wei Liu <si-wei.liu@oracle.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

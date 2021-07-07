@@ -1,0 +1,13 @@
+commit c89b38cd0a9ec852ed5504b3083ca7592d76b730
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:18 2021 -0400
+
+    scripts/qom-fuse: add redirection shim to python/qemu/qmp/qom-fuse.py
+    
+    By leaving the script absent for a commit, git-blame travels to the new
+    file instead of staying on the shim.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210603003719.1321369-19-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

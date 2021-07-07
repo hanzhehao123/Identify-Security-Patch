@@ -1,0 +1,13 @@
+commit c9797456f64ce72c03eb2969d97ac1dd4698d91e
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed Jun 16 15:18:20 2021 +0200
+
+    osdep: provide ROUND_DOWN macro
+    
+    osdep.h provides a ROUND_UP macro to hide bitwise operations for the
+    purpose of rounding a number up to a power of two; add a ROUND_DOWN
+    macro that does the same with truncation towards zero.
+    
+    While at it, change the formatting of some comments.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

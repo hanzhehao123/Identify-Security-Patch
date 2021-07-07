@@ -1,0 +1,92 @@
+diff --git a/target/hexagon/gen_tcg.h b/target/hexagon/gen_tcg.h
+index ee94c903db..a375d6a7c5 100644
+--- a/target/hexagon/gen_tcg.h
++++ b/target/hexagon/gen_tcg.h
+@@ -424,9 +424,9 @@
+ #define fGEN_TCG_L4_loadd_locked(SHORTCODE) \
+     SHORTCODE
+ #define fGEN_TCG_S2_storew_locked(SHORTCODE) \
+-    SHORTCODE
++    do { SHORTCODE; READ_PREG(PdV, PdN); } while (0)
+ #define fGEN_TCG_S4_stored_locked(SHORTCODE) \
+-    SHORTCODE
++    do { SHORTCODE; READ_PREG(PdV, PdN); } while (0)
+ 
+ #define fGEN_TCG_STORE(SHORTCODE) \
+     do { \
+diff --git a/target/hexagon/genptr.c b/target/hexagon/genptr.c
+index fba5ec6012..797a6c0cc9 100644
+--- a/target/hexagon/genptr.c
++++ b/target/hexagon/genptr.c
+@@ -27,6 +27,12 @@
+ #undef QEMU_GENERATE
+ #include "gen_tcg.h"
+ 
++static inline TCGv gen_read_preg(TCGv pred, uint8_t num)
++{
++    tcg_gen_mov_tl(pred, hex_pred[num]);
++    return pred;
++}
++
+ static inline void gen_log_predicated_reg_write(int rnum, TCGv val, int slot)
+ {
+     TCGv zero = tcg_const_tl(0);
+@@ -328,7 +334,8 @@ static inline void gen_load_locked8u(TCGv_i64 dest, TCGv vaddr, int mem_index)
+     tcg_gen_mov_i64(hex_llsc_val_i64, dest);
+ }
+ 
+-static inline void gen_store_conditional4(DisasContext *ctx,
++static inline void gen_store_conditional4(CPUHexagonState *env,
++                                          DisasContext *ctx, int prednum,
+                                           TCGv pred, TCGv vaddr, TCGv src)
+ {
+     TCGLabel *fail = gen_new_label();
+@@ -342,7 +349,7 @@ static inline void gen_store_conditional4(DisasContext *ctx,
+     tmp = tcg_temp_new();
+     tcg_gen_atomic_cmpxchg_tl(tmp, hex_llsc_addr, hex_llsc_val, src,
+                               ctx->mem_idx, MO_32);
+-    tcg_gen_movcond_tl(TCG_COND_EQ, pred, tmp, hex_llsc_val,
++    tcg_gen_movcond_tl(TCG_COND_EQ, hex_pred[prednum], tmp, hex_llsc_val,
+                        one, zero);
+     tcg_temp_free(one);
+     tcg_temp_free(zero);
+@@ -356,7 +363,8 @@ static inline void gen_store_conditional4(DisasContext *ctx,
+     tcg_gen_movi_tl(hex_llsc_addr, ~0);
+ }
+ 
+-static inline void gen_store_conditional8(DisasContext *ctx,
++static inline void gen_store_conditional8(CPUHexagonState *env,
++                                          DisasContext *ctx, int prednum,
+                                           TCGv pred, TCGv vaddr, TCGv_i64 src)
+ {
+     TCGLabel *fail = gen_new_label();
+@@ -372,7 +380,7 @@ static inline void gen_store_conditional8(DisasContext *ctx,
+                                ctx->mem_idx, MO_64);
+     tcg_gen_movcond_i64(TCG_COND_EQ, tmp, tmp, hex_llsc_val_i64,
+                         one, zero);
+-    tcg_gen_extrl_i64_i32(pred, tmp);
++    tcg_gen_extrl_i64_i32(hex_pred[prednum], tmp);
+     tcg_temp_free_i64(one);
+     tcg_temp_free_i64(zero);
+     tcg_temp_free_i64(tmp);
+diff --git a/target/hexagon/macros.h b/target/hexagon/macros.h
+index 094b8dabb5..2b208f3a21 100644
+--- a/target/hexagon/macros.h
++++ b/target/hexagon/macros.h
+@@ -24,6 +24,7 @@
+ 
+ #ifdef QEMU_GENERATE
+ #define READ_REG(dest, NUM)              gen_read_reg(dest, NUM)
++#define READ_PREG(dest, NUM)             gen_read_preg(dest, (NUM))
+ #else
+ #define READ_REG(NUM)                    (env->gpr[(NUM)])
+ #define READ_PREG(NUM)                   (env->pred[NUM])
+@@ -590,7 +591,7 @@ static inline TCGv gen_read_ireg(TCGv result, TCGv val, int shift)
+ 
+ #ifdef QEMU_GENERATE
+ #define fSTORE_LOCKED(NUM, SIZE, EA, SRC, PRED) \
+-    gen_store_conditional##SIZE(ctx, PRED, EA, SRC);
++    gen_store_conditional##SIZE(env, ctx, PdN, PRED, EA, SRC);
+ #endif
+ 
+ #ifdef QEMU_GENERATE

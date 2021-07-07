@@ -1,0 +1,13 @@
+commit b0a0794a0f16e2160d8d35b14cca8f5e81b8b67e
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Mar 9 08:45:58 2021 -0800
+
+    tcg: Re-order tcg_region_init vs tcg_prologue_init
+    
+    Instead of delaying tcg_region_init until after tcg_prologue_init
+    is complete, do tcg_region_init first and let tcg_prologue_init
+    shrink the first region by the size of the generated prologue.
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

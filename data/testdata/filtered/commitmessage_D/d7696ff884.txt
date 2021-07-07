@@ -1,0 +1,17 @@
+commit d7696ff884e35c6dacf83a7cbe3355e3b0a90125
+Author: Akihiko Odaki <akihiko.odaki@gmail.com>
+Date:   Thu Jun 17 11:31:13 2021 +0900
+
+    input: Add lang1 and lang2 to QKeyCode
+    
+    lang1 and lang2 represents the keys with the same names in the
+    keyboard/keypad usage page (0x07) included in the "HID Usage Tables for
+    Universal Serial Bus (USB)" version 1.22. Although the keys are
+    described as "Hangul/English toggle key" and "Hanja conversion key" in
+    the specification, the meaning depends on the variety of the keyboard,
+    and it will be used as the representations of Kana and Eisu keys on
+    Japanese Macs in qemu_input_map_osx_to_qcode, which is used by ui/gtk.
+    
+    Signed-off-by: Akihiko Odaki <akihiko.odaki@gmail.com>
+    Message-Id: <20210617023113.2441-2-akihiko.odaki@gmail.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

@@ -1,0 +1,13 @@
+diff --git a/tests/acceptance/virtiofs_submounts.py b/tests/acceptance/virtiofs_submounts.py
+index 21ad7d792e..d77ee35674 100644
+--- a/tests/acceptance/virtiofs_submounts.py
++++ b/tests/acceptance/virtiofs_submounts.py
+@@ -195,7 +195,7 @@ def setUp(self):
+ 
+         self.run(('ssh-keygen', '-N', '', '-t', 'ed25519', '-f', self.ssh_key))
+ 
+-        pubkey = self.ssh_key + '.pub'
++        pubkey = open(self.ssh_key + '.pub').read()
+ 
+         super(VirtiofsSubmountsTest, self).setUp(pubkey)
+ 

@@ -1,0 +1,19 @@
+commit b4420f198dd8eab53cf6062c1871d0e5f5601e86
+Author: Peter Xu <peterx@redhat.com>
+Date:   Mon May 17 04:23:50 2021 -0400
+
+    KVM: Dirty ring support
+    
+    KVM dirty ring is a new interface to pass over dirty bits from kernel to the
+    userspace.  Instead of using a bitmap for each memory region, the dirty ring
+    contains an array of dirtied GPAs to fetch (in the form of offset in slots).
+    For each vcpu there will be one dirty ring that binds to it.
+    
+    kvm_dirty_ring_reap() is the major function to collect dirty rings.  It can be
+    called either by a standalone reaper thread that runs in the background,
+    collecting dirty pages for the whole VM.  It can also be called directly by any
+    thread that has BQL taken.
+    
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Message-Id: <20210506160549.130416-11-peterx@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

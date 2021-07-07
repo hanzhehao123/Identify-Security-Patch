@@ -1,0 +1,15 @@
+commit 05c900ce7392ef2f0bc7647863c8680641e137df
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:23 2021 +0200
+
+    i386: adjust the expected KVM_GET_SUPPORTED_HV_CPUID array size
+    
+    SYNDBG leaves were recently (Linux-5.8) added to KVM but we haven't
+    updated the expected size of KVM_GET_SUPPORTED_HV_CPUID output in
+    KVM so we now make serveral tries before succeeding. Update the
+    default.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-13-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

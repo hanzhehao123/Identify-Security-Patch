@@ -1,0 +1,14 @@
+commit 703235a303d6862a7e3f5c6aa9eff7471cb138b2
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 16:09:43 2021 +0100
+
+    include/qemu/int128.h: Add function to create Int128 from int64_t
+    
+    int128_make64() creates an Int128 from an unsigned 64 bit value; add
+    a function int128_makes64() creating an Int128 from a signed 64 bit
+    value.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Message-id: 20210614151007.4545-34-peter.maydell@linaro.org

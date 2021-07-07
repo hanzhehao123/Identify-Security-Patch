@@ -1,0 +1,16 @@
+commit 76c32d721da1a69999eb2d3cd5f1d272ca26f98e
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 16:09:16 2021 +0100
+
+    target/arm: Implement MVE LCTP
+    
+    Implement the MVE LCTP instruction.
+    
+    We put its decode and implementation with the other
+    low-overhead-branch insns because although it is only present if MVE
+    is implemented it is logically in the same group as the other LOB
+    insns.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210614151007.4545-7-peter.maydell@linaro.org

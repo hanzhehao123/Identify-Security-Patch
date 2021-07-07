@@ -1,0 +1,169 @@
+diff --git a/backends/hostmem-file.c b/backends/hostmem-file.c
+index cd038024fa..9b1b9f0a56 100644
+--- a/backends/hostmem-file.c
++++ b/backends/hostmem-file.c
+@@ -39,7 +39,6 @@ file_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+                object_get_typename(OBJECT(backend)));
+ #else
+     HostMemoryBackendFile *fb = MEMORY_BACKEND_FILE(backend);
+-    uint32_t ram_flags;
+     gchar *name;
+ 
+     if (!backend->size) {
+@@ -52,11 +51,11 @@ file_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+     }
+ 
+     name = host_memory_backend_get_name(backend);
+-    ram_flags = backend->share ? RAM_SHARED : 0;
+-    ram_flags |= backend->reserve ? 0 : RAM_NORESERVE;
+-    ram_flags |= fb->is_pmem ? RAM_PMEM : 0;
+-    memory_region_init_ram_from_file(&backend->mr, OBJECT(backend), name,
+-                                     backend->size, fb->align, ram_flags,
++    memory_region_init_ram_from_file(&backend->mr, OBJECT(backend),
++                                     name,
++                                     backend->size, fb->align,
++                                     (backend->share ? RAM_SHARED : 0) |
++                                     (fb->is_pmem ? RAM_PMEM : 0),
+                                      fb->mem_path, fb->readonly, errp);
+     g_free(name);
+ #endif
+diff --git a/backends/hostmem-memfd.c b/backends/hostmem-memfd.c
+index 3fc85c3db8..3076da146d 100644
+--- a/backends/hostmem-memfd.c
++++ b/backends/hostmem-memfd.c
+@@ -54,7 +54,6 @@ memfd_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+ 
+     name = host_memory_backend_get_name(backend);
+     ram_flags = backend->share ? RAM_SHARED : 0;
+-    ram_flags |= backend->reserve ? 0 : RAM_NORESERVE;
+     memory_region_init_ram_from_fd(&backend->mr, OBJECT(backend), name,
+                                    backend->size, ram_flags, fd, 0, errp);
+     g_free(name);
+diff --git a/backends/hostmem-ram.c b/backends/hostmem-ram.c
+index b8e55cdbd0..741e701062 100644
+--- a/backends/hostmem-ram.c
++++ b/backends/hostmem-ram.c
+@@ -29,7 +29,6 @@ ram_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+ 
+     name = host_memory_backend_get_name(backend);
+     ram_flags = backend->share ? RAM_SHARED : 0;
+-    ram_flags |= backend->reserve ? 0 : RAM_NORESERVE;
+     memory_region_init_ram_flags_nomigrate(&backend->mr, OBJECT(backend), name,
+                                            backend->size, ram_flags, errp);
+     g_free(name);
+diff --git a/backends/hostmem.c b/backends/hostmem.c
+index 4c05862ed5..aab3de8408 100644
+--- a/backends/hostmem.c
++++ b/backends/hostmem.c
+@@ -216,11 +216,6 @@ static void host_memory_backend_set_prealloc(Object *obj, bool value,
+     Error *local_err = NULL;
+     HostMemoryBackend *backend = MEMORY_BACKEND(obj);
+ 
+-    if (!backend->reserve && value) {
+-        error_setg(errp, "'prealloc=on' and 'reserve=off' are incompatible");
+-        return;
+-    }
+-
+     if (!host_memory_backend_mr_inited(backend)) {
+         backend->prealloc = value;
+         return;
+@@ -272,7 +267,6 @@ static void host_memory_backend_init(Object *obj)
+     /* TODO: convert access to globals to compat properties */
+     backend->merge = machine_mem_merge(machine);
+     backend->dump = machine_dump_guest_core(machine);
+-    backend->reserve = true;
+     backend->prealloc_threads = 1;
+ }
+ 
+@@ -431,30 +425,6 @@ static void host_memory_backend_set_share(Object *o, bool value, Error **errp)
+     backend->share = value;
+ }
+ 
+-#ifdef CONFIG_LINUX
+-static bool host_memory_backend_get_reserve(Object *o, Error **errp)
+-{
+-    HostMemoryBackend *backend = MEMORY_BACKEND(o);
+-
+-    return backend->reserve;
+-}
+-
+-static void host_memory_backend_set_reserve(Object *o, bool value, Error **errp)
+-{
+-    HostMemoryBackend *backend = MEMORY_BACKEND(o);
+-
+-    if (host_memory_backend_mr_inited(backend)) {
+-        error_setg(errp, "cannot change property value");
+-        return;
+-    }
+-    if (backend->prealloc && !value) {
+-        error_setg(errp, "'prealloc=on' and 'reserve=off' are incompatible");
+-        return;
+-    }
+-    backend->reserve = value;
+-}
+-#endif /* CONFIG_LINUX */
+-
+ static bool
+ host_memory_backend_get_use_canonical_path(Object *obj, Error **errp)
+ {
+@@ -523,12 +493,6 @@ host_memory_backend_class_init(ObjectClass *oc, void *data)
+         host_memory_backend_get_share, host_memory_backend_set_share);
+     object_class_property_set_description(oc, "share",
+         "Mark the memory as private to QEMU or shared");
+-#ifdef CONFIG_LINUX
+-    object_class_property_add_bool(oc, "reserve",
+-        host_memory_backend_get_reserve, host_memory_backend_set_reserve);
+-    object_class_property_set_description(oc, "reserve",
+-        "Reserve swap space (or huge pages) if applicable");
+-#endif /* CONFIG_LINUX */
+     /*
+      * Do not delete/rename option. This option must be considered stable
+      * (as if it didn't have the 'x-' prefix including deprecation period) as
+diff --git a/include/sysemu/hostmem.h b/include/sysemu/hostmem.h
+index 9ff5c16963..df5644723a 100644
+--- a/include/sysemu/hostmem.h
++++ b/include/sysemu/hostmem.h
+@@ -64,7 +64,7 @@ struct HostMemoryBackend {
+     /* protected */
+     uint64_t size;
+     bool merge, dump, use_canonical_path;
+-    bool prealloc, is_mapped, share, reserve;
++    bool prealloc, is_mapped, share;
+     uint32_t prealloc_threads;
+     DECLARE_BITMAP(host_nodes, MAX_NODES + 1);
+     HostMemPolicy policy;
+diff --git a/qapi/qom.json b/qapi/qom.json
+index 652be317b8..f7ef30f940 100644
+--- a/qapi/qom.json
++++ b/qapi/qom.json
+@@ -545,9 +545,6 @@
+ # @share: if false, the memory is private to QEMU; if true, it is shared
+ #         (default: false)
+ #
+-# @reserve: if true, reserve swap space (or huge pages) if applicable
+-#           (default: true) (since 6.1)
+-#
+ # @size: size of the memory region in bytes
+ #
+ # @x-use-canonical-path-for-ramblock-id: if true, the canoncial path is used
+@@ -559,12 +556,6 @@
+ #                                        false generally, but true for machine
+ #                                        types <= 4.0)
+ #
+-# Note: prealloc=true and reserve=false cannot be set at the same time. With
+-#       reserve=true, the behavior depends on the operating system: for example,
+-#       Linux will not reserve swap space for shared file mappings --
+-#       "not applicable". In contrast, reserve=false will bail out if it cannot
+-#       be configured accordingly.
+-#
+ # Since: 2.1
+ ##
+ { 'struct': 'MemoryBackendProperties',
+@@ -575,7 +566,6 @@
+             '*prealloc': 'bool',
+             '*prealloc-threads': 'uint32',
+             '*share': 'bool',
+-            '*reserve': 'bool',
+             'size': 'size',
+             '*x-use-canonical-path-for-ramblock-id': 'bool' } }
+ 

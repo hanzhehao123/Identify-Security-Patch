@@ -1,0 +1,13 @@
+commit b114a0b94338ea36be2e3a8efb36a82c7b298cc4
+Author: Alex Bennée <alex.bennee@linaro.org>
+Date:   Wed Jun 2 16:32:47 2021 +0100
+
+    gitlab: work harder to avoid false positives in checkpatch
+    
+    This copies the behaviour of patchew's configuration to make the diff
+    algorithm generate a minimal diff.
+    
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Wainer dos Santos Moschetta <wainersm@redhat.com>
+    Message-Id: <20210602153247.27651-1-alex.bennee@linaro.org>

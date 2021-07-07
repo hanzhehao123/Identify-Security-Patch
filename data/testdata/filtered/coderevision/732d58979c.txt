@@ -1,0 +1,17 @@
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index 5e53c3348f..bdeea18234 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -3038,11 +3038,7 @@ static void temp_allocate_frame(TCGContext *s, TCGTemp *ts)
+ 
+     assert(align <= TCG_TARGET_STACK_ALIGN);
+     off = ROUND_UP(s->current_frame_offset, align);
+-
+-    /* If we've exhausted the stack frame, restart with a smaller TB. */
+-    if (off + size > s->frame_end) {
+-        tcg_raise_tb_overflow(s);
+-    }
++    assert(off + size <= s->frame_end);
+     s->current_frame_offset = off + size;
+ 
+     ts->mem_offset = off;

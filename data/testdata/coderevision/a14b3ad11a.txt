@@ -1,0 +1,14 @@
+diff --git a/include/tcg/tcg.h b/include/tcg/tcg.h
+index 064dab383b..1d056ed0ed 100644
+--- a/include/tcg/tcg.h
++++ b/include/tcg/tcg.h
+@@ -1095,8 +1095,7 @@ TCGv_vec tcg_const_ones_vec_matching(TCGv_vec);
+ 
+ /*
+  * Locate or create a read-only temporary that is a constant.
+- * This kind of temporary need not be freed, but for convenience
+- * will be silently ignored by tcg_temp_free_*.
++ * This kind of temporary need not and should not be freed.
+  */
+ TCGTemp *tcg_constant_internal(TCGType type, int64_t val);
+ 

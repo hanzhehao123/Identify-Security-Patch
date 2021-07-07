@@ -1,0 +1,15 @@
+commit c5423704184c43cadd7b3c5ff0aea3925c5509bc
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:35 2021 +0300
+
+    qemu-sockets: introduce socket_address_parse_named_fd()
+    
+    Add function that transforms named fd inside SocketAddress structure
+    into number representation. This way it may be then used in a context
+    where current monitor is not available.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210610100802.5888-6-vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    [eblake: comment tweak]
+    Signed-off-by: Eric Blake <eblake@redhat.com>

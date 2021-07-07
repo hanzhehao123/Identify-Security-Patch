@@ -1,0 +1,14 @@
+commit 1eab88723c4c8c18cd67b4cad88dbbccf5916061
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:34 2021 -0400
+
+    scripts/qmp-shell: add mypy types
+    
+    As per my usual, this patch is annotations only. Any changes with side
+    effects are done elsewhere.
+    
+    Note: pylint does not understand the subscripts for Collection in Python 3.6,
+    so use the stronger Sequence type as a workaround.
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-28-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

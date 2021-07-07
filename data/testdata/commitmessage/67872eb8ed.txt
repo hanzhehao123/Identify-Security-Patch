@@ -1,0 +1,14 @@
+commit 67872eb8ed194117f5af71694374a083c3f45eb2
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 17 17:53:03 2021 +0200
+
+    machine: move dies from X86MachineState to CpuTopology
+    
+    In order to make SMP configuration a Machine property, we need a getter as
+    well as a setter.  To simplify the implementation put everything that the
+    getter needs in the CpuTopology struct.
+    
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Message-Id: <20210617155308.928754-7-pbonzini@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

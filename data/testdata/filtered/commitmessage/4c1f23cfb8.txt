@@ -1,0 +1,13 @@
+commit 4c1f23cfb84c386a8f4f5433f0fd98e0c85d057b
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed Jun 16 17:36:55 2021 +0200
+
+    tests: remove QCRYPTO_HAVE_TLS_TEST_SUPPORT
+    
+    meson.build already decides whether it is possible to build the TLS
+    test suite.  There is no need to include that in the source as well.
+    The dummy tests in fact are broken because they do not produce valid
+    TAP output (empty output is rejected by scripts/tap-driver.pl).
+    
+    Cc: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

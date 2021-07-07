@@ -1,0 +1,101 @@
+diff --git a/include/tcg/tcg.h b/include/tcg/tcg.h
+index f48b5aa166..2316a64139 100644
+--- a/include/tcg/tcg.h
++++ b/include/tcg/tcg.h
+@@ -695,7 +695,16 @@ extern const void *tcg_code_gen_epilogue;
+ extern uintptr_t tcg_splitwx_diff;
+ extern TCGv_env cpu_env;
+ 
+-bool in_code_gen_buffer(const void *p);
++static inline bool in_code_gen_buffer(const void *p)
++{
++    const TCGContext *s = &tcg_init_ctx;
++    /*
++     * Much like it is valid to have a pointer to the byte past the
++     * end of an array (so long as you don't dereference it), allow
++     * a pointer to the byte past the end of the code gen buffer.
++     */
++    return (size_t)(p - s->code_gen_buffer) <= s->code_gen_buffer_size;
++}
+ 
+ #ifdef CONFIG_DEBUG_TCG
+ const void *tcg_splitwx_to_rx(void *rw);
+diff --git a/tcg/region.c b/tcg/region.c
+index 5beba41412..445a278702 100644
+--- a/tcg/region.c
++++ b/tcg/region.c
+@@ -68,40 +68,6 @@ static struct tcg_region_state region;
+ static void *region_trees;
+ static size_t tree_size;
+ 
+-bool in_code_gen_buffer(const void *p)
+-{
+-    const TCGContext *s = &tcg_init_ctx;
+-    /*
+-     * Much like it is valid to have a pointer to the byte past the
+-     * end of an array (so long as you don't dereference it), allow
+-     * a pointer to the byte past the end of the code gen buffer.
+-     */
+-    return (size_t)(p - s->code_gen_buffer) <= s->code_gen_buffer_size;
+-}
+-
+-#ifdef CONFIG_DEBUG_TCG
+-const void *tcg_splitwx_to_rx(void *rw)
+-{
+-    /* Pass NULL pointers unchanged. */
+-    if (rw) {
+-        g_assert(in_code_gen_buffer(rw));
+-        rw += tcg_splitwx_diff;
+-    }
+-    return rw;
+-}
+-
+-void *tcg_splitwx_to_rw(const void *rx)
+-{
+-    /* Pass NULL pointers unchanged. */
+-    if (rx) {
+-        rx -= tcg_splitwx_diff;
+-        /* Assert that we end with a pointer in the rw region. */
+-        g_assert(in_code_gen_buffer(rx));
+-    }
+-    return (void *)rx;
+-}
+-#endif /* CONFIG_DEBUG_TCG */
+-
+ /* compare a pointer @ptr and a tb_tc @s */
+ static int ptr_cmp_tb_tc(const void *ptr, const struct tb_tc *s)
+ {
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index 4bb35b455b..9880d5205e 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -416,6 +416,29 @@ static const TCGTargetOpDef constraint_sets[] = {
+ 
+ #include "tcg-target.c.inc"
+ 
++#ifdef CONFIG_DEBUG_TCG
++const void *tcg_splitwx_to_rx(void *rw)
++{
++    /* Pass NULL pointers unchanged. */
++    if (rw) {
++        g_assert(in_code_gen_buffer(rw));
++        rw += tcg_splitwx_diff;
++    }
++    return rw;
++}
++
++void *tcg_splitwx_to_rw(const void *rx)
++{
++    /* Pass NULL pointers unchanged. */
++    if (rx) {
++        rx -= tcg_splitwx_diff;
++        /* Assert that we end with a pointer in the rw region. */
++        g_assert(in_code_gen_buffer(rx));
++    }
++    return (void *)rx;
++}
++#endif /* CONFIG_DEBUG_TCG */
++
+ static void alloc_tcg_plugin_context(TCGContext *s)
+ {
+ #ifdef CONFIG_PLUGIN

@@ -1,0 +1,69 @@
+diff --git a/target/arm/translate-vfp.c b/target/arm/translate-vfp.c
+index 728856dfd4..d01e465821 100644
+--- a/target/arm/translate-vfp.c
++++ b/target/arm/translate-vfp.c
+@@ -784,17 +784,10 @@ static bool gen_M_fp_sysreg_write(DisasContext *s, int regno,
+     {
+         TCGv_i32 fpscr;
+         tmp = loadfn(s, opaque);
+-        if (dc_isar_feature(aa32_mve, s)) {
+-            /* QC is only present for MVE; otherwise RES0 */
+-            TCGv_i32 qc = tcg_temp_new_i32();
+-            tcg_gen_andi_i32(qc, tmp, FPCR_QC);
+-            /*
+-             * The 4 vfp.qc[] fields need only be "zero" vs "non-zero";
+-             * here writing the same value into all elements is simplest.
+-             */
+-            tcg_gen_gvec_dup_i32(MO_32, offsetof(CPUARMState, vfp.qc),
+-                                 16, 16, qc);
+-        }
++        /*
++         * TODO: when we implement MVE, write the QC bit.
++         * For non-MVE, QC is RES0.
++         */
+         tcg_gen_andi_i32(tmp, tmp, FPCR_NZCV_MASK);
+         fpscr = load_cpu_field(vfp.xregs[ARM_VFP_FPSCR]);
+         tcg_gen_andi_i32(fpscr, fpscr, ~FPCR_NZCV_MASK);
+@@ -876,11 +869,6 @@ static bool gen_M_fp_sysreg_read(DisasContext *s, int regno,
+         break;
+     }
+ 
+-    if (regno == ARM_VFP_FPSCR_NZCVQC && !dc_isar_feature(aa32_mve, s)) {
+-        /* QC is RES0 without MVE, so NZCVQC simplifies to NZCV */
+-        regno = QEMU_VFP_FPSCR_NZCV;
+-    }
+-
+     switch (regno) {
+     case ARM_VFP_FPSCR:
+         tmp = tcg_temp_new_i32();
+@@ -888,11 +876,11 @@ static bool gen_M_fp_sysreg_read(DisasContext *s, int regno,
+         storefn(s, opaque, tmp);
+         break;
+     case ARM_VFP_FPSCR_NZCVQC:
+-        tmp = tcg_temp_new_i32();
+-        gen_helper_vfp_get_fpscr(tmp, cpu_env);
+-        tcg_gen_andi_i32(tmp, tmp, FPCR_NZCVQC_MASK);
+-        storefn(s, opaque, tmp);
+-        break;
++        /*
++         * TODO: MVE has a QC bit, which we probably won't store
++         * in the xregs[] field. For non-MVE, where QC is RES0,
++         * we can just fall through to the FPSCR_NZCV case.
++         */
+     case QEMU_VFP_FPSCR_NZCV:
+         /*
+          * Read just NZCV; this is a special case to avoid the
+diff --git a/target/arm/vfp_helper.c b/target/arm/vfp_helper.c
+index 8a71660059..496f003477 100644
+--- a/target/arm/vfp_helper.c
++++ b/target/arm/vfp_helper.c
+@@ -220,8 +220,7 @@ void HELPER(vfp_set_fpscr)(CPUARMState *env, uint32_t val)
+                                      FPCR_LTPSIZE_LENGTH);
+     }
+ 
+-    if (arm_feature(env, ARM_FEATURE_NEON) ||
+-        cpu_isar_feature(aa32_mve, cpu)) {
++    if (arm_feature(env, ARM_FEATURE_NEON)) {
+         /*
+          * The bit we set within fpscr_q is arbitrary; the register as a
+          * whole being zero/non-zero is what counts.

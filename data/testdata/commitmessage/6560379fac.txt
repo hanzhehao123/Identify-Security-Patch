@@ -1,0 +1,30 @@
+commit 6560379facf40e66fd8fbf4578f3d28f510167d8
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:17:12 2021 -0400
+
+    python: add Makefile for some common tasks
+    
+    Add "make venv" to create the pipenv-managed virtual environment that
+    contains our explicitly pinned dependencies.
+    
+    Add "make check" to run the python linters [in the host execution
+    environment].
+    
+    Add "make venv-check" which combines the above two: create/update the
+    venv, then run the linters in that explicitly managed environment.
+    
+    Add "make develop" which canonizes the runes needed to get both the
+    linting pre-requisites (the "[devel]" part), and the editable
+    live-install (the "-e" part) of these python libraries.
+    
+    make clean: delete miscellaneous python packaging output possibly
+    created by pipenv, pip, or other python packaging utilities
+    
+    make distclean: delete the above, the .venv, and the editable "qemu"
+    package forwarder (qemu.egg-info) if there is one.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Tested-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-29-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

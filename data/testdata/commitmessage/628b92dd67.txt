@@ -1,0 +1,11 @@
+commit 628b92dd67a262ebeac12dba65905c8143ce710f
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:20 2021 -0400
+
+    scripts/qmp-shell: rename one and two-letter variables
+    
+    A bit of churn and housekeeping for pylint, flake8 et al.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-14-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

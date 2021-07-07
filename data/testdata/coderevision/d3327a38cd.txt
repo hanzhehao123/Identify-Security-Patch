@@ -1,0 +1,936 @@
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 7d9cd29042..636bf2f536 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -2707,7 +2707,6 @@ TPM
+ M: Stefan Berger <stefanb@linux.ibm.com>
+ S: Maintained
+ F: tpm.c
+-F: stubs/tpm.c
+ F: hw/tpm/*
+ F: include/hw/acpi/tpm.h
+ F: include/sysemu/tpm*
+diff --git a/contrib/vhost-user-gpu/vhost-user-gpu.c b/contrib/vhost-user-gpu/vhost-user-gpu.c
+index 6dc6a44f4e..611360e6b4 100644
+--- a/contrib/vhost-user-gpu/vhost-user-gpu.c
++++ b/contrib/vhost-user-gpu/vhost-user-gpu.c
+@@ -350,8 +350,8 @@ vg_resource_create_2d(VuGpu *g,
+     if (!res->image) {
+         g_critical("%s: resource creation failed %d %d %d",
+                    __func__, c2d.resource_id, c2d.width, c2d.height);
+-        g_free(res);
+         vugbm_buffer_destroy(&res->buffer);
++        g_free(res);
+         cmd->error = VIRTIO_GPU_RESP_ERR_OUT_OF_MEMORY;
+         return;
+     }
+diff --git a/hw/acpi/aml-build.c b/hw/acpi/aml-build.c
+index f0035d2b4a..d5103e6d7b 100644
+--- a/hw/acpi/aml-build.c
++++ b/hw/acpi/aml-build.c
+@@ -2044,6 +2044,7 @@ build_hdr:
+                  "FACP", tbl->len - fadt_start, f->rev, oem_id, oem_table_id);
+ }
+ 
++#ifdef CONFIG_TPM
+ /*
+  * build_tpm2 - Build the TPM2 table as specified in
+  * table 7: TCG Hardware Interface Description Table Format for TPM 2.0
+@@ -2101,6 +2102,7 @@ void build_tpm2(GArray *table_data, BIOSLinker *linker, GArray *tcpalog,
+                  (void *)(table_data->data + tpm2_start),
+                  "TPM2", table_data->len - tpm2_start, 4, oem_id, oem_table_id);
+ }
++#endif
+ 
+ Aml *build_crs(PCIHostState *host, CrsRangeSet *range_set, uint32_t io_offset,
+                uint32_t mmio32_offset, uint64_t mmio64_offset,
+diff --git a/hw/arm/npcm7xx_boards.c b/hw/arm/npcm7xx_boards.c
+index bba23e24fa..698be46d30 100644
+--- a/hw/arm/npcm7xx_boards.c
++++ b/hw/arm/npcm7xx_boards.c
+@@ -29,7 +29,6 @@
+ 
+ #define NPCM750_EVB_POWER_ON_STRAPS 0x00001ff7
+ #define QUANTA_GSJ_POWER_ON_STRAPS 0x00001fff
+-#define QUANTA_GBS_POWER_ON_STRAPS 0x000017ff
+ 
+ static const char npcm7xx_default_bootrom[] = "npcm7xx_bootrom.bin";
+ 
+@@ -238,65 +237,6 @@ static void quanta_gsj_fan_init(NPCM7xxMachine *machine, NPCM7xxState *soc)
+     npcm7xx_connect_pwm_fan(soc, &splitter[2], 0x05, 1);
+ }
+ 
+-static void quanta_gbs_i2c_init(NPCM7xxState *soc)
+-{
+-    /*
+-     * i2c-0:
+-     *     pca9546@71
+-     *
+-     * i2c-1:
+-     *     pca9535@24
+-     *     pca9535@20
+-     *     pca9535@21
+-     *     pca9535@22
+-     *     pca9535@23
+-     *     pca9535@25
+-     *     pca9535@26
+-     *
+-     * i2c-2:
+-     *     sbtsi@4c
+-     *
+-     * i2c-5:
+-     *     atmel,24c64@50 mb_fru
+-     *     pca9546@71
+-     *         - channel 0: max31725@54
+-     *         - channel 1: max31725@55
+-     *         - channel 2: max31725@5d
+-     *                      atmel,24c64@51 fan_fru
+-     *         - channel 3: atmel,24c64@52 hsbp_fru
+-     *
+-     * i2c-6:
+-     *     pca9545@73
+-     *
+-     * i2c-7:
+-     *     pca9545@72
+-     *
+-     * i2c-8:
+-     *     adi,adm1272@10
+-     *
+-     * i2c-9:
+-     *     pca9546@71
+-     *         - channel 0: isil,isl68137@60
+-     *         - channel 1: isil,isl68137@61
+-     *         - channel 2: isil,isl68137@63
+-     *         - channel 3: isil,isl68137@45
+-     *
+-     * i2c-10:
+-     *     pca9545@71
+-     *
+-     * i2c-11:
+-     *     pca9545@76
+-     *
+-     * i2c-12:
+-     *     maxim,max34451@4e
+-     *     isil,isl68137@5d
+-     *     isil,isl68137@5e
+-     *
+-     * i2c-14:
+-     *     pca9545@70
+-     */
+-}
+-
+ static void npcm750_evb_init(MachineState *machine)
+ {
+     NPCM7xxState *soc;
+@@ -328,23 +268,6 @@ static void quanta_gsj_init(MachineState *machine)
+     npcm7xx_load_kernel(machine, soc);
+ }
+ 
+-static void quanta_gbs_init(MachineState *machine)
+-{
+-    NPCM7xxState *soc;
+-
+-    soc = npcm7xx_create_soc(machine, QUANTA_GBS_POWER_ON_STRAPS);
+-    npcm7xx_connect_dram(soc, machine->ram);
+-    qdev_realize(DEVICE(soc), NULL, &error_fatal);
+-
+-    npcm7xx_load_bootrom(machine, soc);
+-
+-    npcm7xx_connect_flash(&soc->fiu[0], 0, "mx66u51235f",
+-                          drive_get(IF_MTD, 0, 0));
+-
+-    quanta_gbs_i2c_init(soc);
+-    npcm7xx_load_kernel(machine, soc);
+-}
+-
+ static void npcm7xx_set_soc_type(NPCM7xxMachineClass *nmc, const char *type)
+ {
+     NPCM7xxClass *sc = NPCM7XX_CLASS(object_class_by_name(type));
+@@ -393,18 +316,6 @@ static void gsj_machine_class_init(ObjectClass *oc, void *data)
+     mc->default_ram_size = 512 * MiB;
+ };
+ 
+-static void gbs_bmc_machine_class_init(ObjectClass *oc, void *data)
+-{
+-    NPCM7xxMachineClass *nmc = NPCM7XX_MACHINE_CLASS(oc);
+-    MachineClass *mc = MACHINE_CLASS(oc);
+-
+-    npcm7xx_set_soc_type(nmc, TYPE_NPCM730);
+-
+-    mc->desc = "Quanta GBS (Cortex-A9)";
+-    mc->init = quanta_gbs_init;
+-    mc->default_ram_size = 1 * GiB;
+-}
+-
+ static const TypeInfo npcm7xx_machine_types[] = {
+     {
+         .name           = TYPE_NPCM7XX_MACHINE,
+@@ -421,10 +332,6 @@ static const TypeInfo npcm7xx_machine_types[] = {
+         .name           = MACHINE_TYPE_NAME("quanta-gsj"),
+         .parent         = TYPE_NPCM7XX_MACHINE,
+         .class_init     = gsj_machine_class_init,
+-    }, {
+-        .name           = MACHINE_TYPE_NAME("quanta-gbs-bmc"),
+-        .parent         = TYPE_NPCM7XX_MACHINE,
+-        .class_init     = gbs_bmc_machine_class_init,
+     },
+ };
+ 
+diff --git a/hw/arm/sysbus-fdt.c b/hw/arm/sysbus-fdt.c
+index 6b6906f4cf..48c5fe9bf1 100644
+--- a/hw/arm/sysbus-fdt.c
++++ b/hw/arm/sysbus-fdt.c
+@@ -437,6 +437,7 @@ static bool vfio_platform_match(SysBusDevice *sbdev,
+ 
+ #endif /* CONFIG_LINUX */
+ 
++#ifdef CONFIG_TPM
+ /*
+  * add_tpm_tis_fdt_node: Create a DT node for TPM TIS
+  *
+@@ -467,6 +468,7 @@ static int add_tpm_tis_fdt_node(SysBusDevice *sbdev, void *opaque)
+     g_free(nodename);
+     return 0;
+ }
++#endif
+ 
+ static int no_fdt_node(SysBusDevice *sbdev, void *opaque)
+ {
+@@ -488,7 +490,9 @@ static const BindingEntry bindings[] = {
+     TYPE_BINDING(TYPE_VFIO_AMD_XGBE, add_amd_xgbe_fdt_node),
+     VFIO_PLATFORM_BINDING("amd,xgbe-seattle-v1a", add_amd_xgbe_fdt_node),
+ #endif
++#ifdef CONFIG_TPM
+     TYPE_BINDING(TYPE_TPM_TIS_SYSBUS, add_tpm_tis_fdt_node),
++#endif
+     TYPE_BINDING(TYPE_RAMFB_DEVICE, no_fdt_node),
+     TYPE_BINDING("", NULL), /* last element */
+ };
+diff --git a/hw/arm/virt-acpi-build.c b/hw/arm/virt-acpi-build.c
+index 60fe2e65a7..f1024843dd 100644
+--- a/hw/arm/virt-acpi-build.c
++++ b/hw/arm/virt-acpi-build.c
+@@ -205,6 +205,7 @@ static void acpi_dsdt_add_gpio(Aml *scope, const MemMapEntry *gpio_memmap,
+     aml_append(scope, dev);
+ }
+ 
++#ifdef CONFIG_TPM
+ static void acpi_dsdt_add_tpm(Aml *scope, VirtMachineState *vms)
+ {
+     PlatformBusDevice *pbus = PLATFORM_BUS_DEVICE(vms->platform_bus_dev);
+@@ -236,6 +237,7 @@ static void acpi_dsdt_add_tpm(Aml *scope, VirtMachineState *vms)
+     aml_append(dev, aml_name_decl("_CRS", crs));
+     aml_append(scope, dev);
+ }
++#endif
+ 
+ static void
+ build_iort(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
+@@ -642,7 +644,9 @@ build_dsdt(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
+     }
+ 
+     acpi_dsdt_add_power_button(scope);
++#ifdef CONFIG_TPM
+     acpi_dsdt_add_tpm(scope, vms);
++#endif
+ 
+     aml_append(dsdt, scope);
+ 
+@@ -745,11 +749,13 @@ void virt_acpi_build(VirtMachineState *vms, AcpiBuildTables *tables)
+         build_iort(tables_blob, tables->linker, vms);
+     }
+ 
++#ifdef CONFIG_TPM
+     if (tpm_get_version(tpm_find()) == TPM_VERSION_2_0) {
+         acpi_add_table(table_offsets, tables_blob);
+         build_tpm2(tables_blob, tables->linker, tables->tcpalog, vms->oem_id,
+                    vms->oem_table_id);
+     }
++#endif
+ 
+     /* XSDT is pointed to by RSDP */
+     xsdt = tables_blob->len;
+diff --git a/hw/arm/virt.c b/hw/arm/virt.c
+index 8bc3b408fe..9122e22ee0 100644
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -2599,7 +2599,9 @@ static void virt_machine_class_init(ObjectClass *oc, void *data)
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_VFIO_AMD_XGBE);
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_RAMFB_DEVICE);
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_VFIO_PLATFORM);
++#ifdef CONFIG_TPM
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_TPM_TIS_SYSBUS);
++#endif
+     mc->block_default_type = IF_VIRTIO;
+     mc->no_cdrom = 1;
+     mc->pci_allow_0_address = true;
+@@ -2764,8 +2766,6 @@ DEFINE_VIRT_MACHINE_AS_LATEST(6, 1)
+ 
+ static void virt_machine_6_0_options(MachineClass *mc)
+ {
+-    virt_machine_6_1_options(mc);
+-    compat_props_add(mc->compat_props, hw_compat_6_0, hw_compat_6_0_len);
+ }
+ DEFINE_VIRT_MACHINE(6, 0)
+ 
+diff --git a/hw/display/vga.c b/hw/display/vga.c
+index 28a90e30d0..9d1f66af40 100644
+--- a/hw/display/vga.c
++++ b/hw/display/vga.c
+@@ -752,7 +752,8 @@ void vbe_ioport_write_data(void *opaque, uint32_t addr, uint32_t val)
+                 val == VBE_DISPI_ID1 ||
+                 val == VBE_DISPI_ID2 ||
+                 val == VBE_DISPI_ID3 ||
+-                val == VBE_DISPI_ID4) {
++                val == VBE_DISPI_ID4 ||
++                val == VBE_DISPI_ID5) {
+                 s->vbe_regs[s->vbe_index] = val;
+             }
+             break;
+diff --git a/hw/display/virtio-gpu.c b/hw/display/virtio-gpu.c
+index 4d549377cb..e183f4ecda 100644
+--- a/hw/display/virtio-gpu.c
++++ b/hw/display/virtio-gpu.c
+@@ -610,12 +610,6 @@ static void virtio_gpu_do_set_scanout(VirtIOGPU *g,
+     struct virtio_gpu_scanout *scanout;
+     uint8_t *data;
+ 
+-    if (scanout_id >= g->parent_obj.conf.max_outputs) {
+-        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal scanout id specified %d",
+-                      __func__, scanout_id);
+-        *error = VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID;
+-        return;
+-    }
+     scanout = &g->parent_obj.scanout[scanout_id];
+ 
+     if (r->x > fb->width ||
+@@ -694,6 +688,13 @@ static void virtio_gpu_set_scanout(VirtIOGPU *g,
+     trace_virtio_gpu_cmd_set_scanout(ss.scanout_id, ss.resource_id,
+                                      ss.r.width, ss.r.height, ss.r.x, ss.r.y);
+ 
++    if (ss.scanout_id >= g->parent_obj.conf.max_outputs) {
++        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal scanout id specified %d",
++                      __func__, ss.scanout_id);
++        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID;
++        return;
++    }
++
+     if (ss.resource_id == 0) {
+         virtio_gpu_disable_scanout(g, ss.scanout_id);
+         return;
+@@ -730,6 +731,13 @@ static void virtio_gpu_set_scanout_blob(VirtIOGPU *g,
+                                           ss.r.width, ss.r.height, ss.r.x,
+                                           ss.r.y);
+ 
++    if (ss.scanout_id >= g->parent_obj.conf.max_outputs) {
++        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal scanout id specified %d",
++                      __func__, ss.scanout_id);
++        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID;
++        return;
++    }
++
+     if (ss.resource_id == 0) {
+         virtio_gpu_disable_scanout(g, ss.scanout_id);
+         return;
+diff --git a/hw/i386/acpi-build.c b/hw/i386/acpi-build.c
+index 80bee00da6..796ffc6f5c 100644
+--- a/hw/i386/acpi-build.c
++++ b/hw/i386/acpi-build.c
+@@ -107,7 +107,9 @@ typedef struct AcpiPmInfo {
+ typedef struct AcpiMiscInfo {
+     bool is_piix4;
+     bool has_hpet;
++#ifdef CONFIG_TPM
+     TPMVersion tpm_version;
++#endif
+     const unsigned char *dsdt_code;
+     unsigned dsdt_size;
+     uint16_t pvpanic_port;
+@@ -286,7 +288,9 @@ static void acpi_get_misc_info(AcpiMiscInfo *info)
+     }
+ 
+     info->has_hpet = hpet_find();
++#ifdef CONFIG_TPM
+     info->tpm_version = tpm_get_version(tpm_find());
++#endif
+     info->pvpanic_port = pvpanic_port();
+     info->applesmc_io_base = applesmc_port();
+ }
+@@ -1371,7 +1375,9 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+     uint32_t nr_mem = machine->ram_slots;
+     int root_bus_limit = 0xFF;
+     PCIBus *bus = NULL;
++#ifdef CONFIG_TPM
+     TPMIf *tpm = tpm_find();
++#endif
+     int i;
+     VMBusBridge *vmbus_bridge = vmbus_bridge_find();
+ 
+@@ -1604,10 +1610,12 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+         }
+     }
+ 
++#ifdef CONFIG_TPM
+     if (TPM_IS_TIS_ISA(tpm_find())) {
+         aml_append(crs, aml_memory32_fixed(TPM_TIS_ADDR_BASE,
+                    TPM_TIS_ADDR_SIZE, AML_READ_WRITE));
+     }
++#endif
+     aml_append(scope, aml_name_decl("_CRS", crs));
+ 
+     /* reserve GPE0 block resources */
+@@ -1753,6 +1761,7 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+             /* Scan all PCI buses. Generate tables to support hotplug. */
+             build_append_pci_bus_devices(scope, bus, pm->pcihp_bridge_en);
+ 
++#ifdef CONFIG_TPM
+             if (TPM_IS_TIS_ISA(tpm)) {
+                 if (misc->tpm_version == TPM_VERSION_2_0) {
+                     dev = aml_device("TPM");
+@@ -1780,11 +1789,13 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+ 
+                 aml_append(scope, dev);
+             }
++#endif
+ 
+             aml_append(sb_scope, scope);
+         }
+     }
+ 
++#ifdef CONFIG_TPM
+     if (TPM_IS_CRB(tpm)) {
+         dev = aml_device("TPM");
+         aml_append(dev, aml_name_decl("_HID", aml_string("MSFT0101")));
+@@ -1799,6 +1810,7 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+ 
+         aml_append(sb_scope, dev);
+     }
++#endif
+ 
+     aml_append(dsdt, sb_scope);
+ 
+@@ -1828,6 +1840,7 @@ build_hpet(GArray *table_data, BIOSLinker *linker, const char *oem_id,
+                  "HPET", sizeof(*hpet), 1, oem_id, oem_table_id);
+ }
+ 
++#ifdef CONFIG_TPM
+ static void
+ build_tpm_tcpa(GArray *table_data, BIOSLinker *linker, GArray *tcpalog,
+                const char *oem_id, const char *oem_table_id)
+@@ -1854,6 +1867,7 @@ build_tpm_tcpa(GArray *table_data, BIOSLinker *linker, GArray *tcpalog,
+                  (void *)(table_data->data + tcpa_start),
+                  "TCPA", sizeof(*tcpa), 2, oem_id, oem_table_id);
+ }
++#endif
+ 
+ #define HOLE_640K_START  (640 * KiB)
+ #define HOLE_640K_END   (1 * MiB)
+@@ -2403,6 +2417,7 @@ void acpi_build(AcpiBuildTables *tables, MachineState *machine)
+         build_hpet(tables_blob, tables->linker, x86ms->oem_id,
+                    x86ms->oem_table_id);
+     }
++#ifdef CONFIG_TPM
+     if (misc.tpm_version != TPM_VERSION_UNSPEC) {
+         if (misc.tpm_version == TPM_VERSION_1_2) {
+             acpi_add_table(table_offsets, tables_blob);
+@@ -2414,6 +2429,7 @@ void acpi_build(AcpiBuildTables *tables, MachineState *machine)
+                        x86ms->oem_id, x86ms->oem_table_id);
+         }
+     }
++#endif
+     if (pcms->numa_nodes) {
+         acpi_add_table(table_offsets, tables_blob);
+         build_srat(tables_blob, tables->linker, machine);
+@@ -2605,8 +2621,10 @@ void acpi_setup(void)
+     AcpiBuildTables tables;
+     AcpiBuildState *build_state;
+     Object *vmgenid_dev;
++#ifdef CONFIG_TPM
+     TPMIf *tpm;
+     static FwCfgTPMConfig tpm_config;
++#endif
+ 
+     if (!x86ms->fw_cfg) {
+         ACPI_BUILD_DPRINTF("No fw cfg. Bailing out.\n");
+@@ -2638,6 +2656,7 @@ void acpi_setup(void)
+         acpi_add_rom_blob(acpi_build_update, build_state,
+                           tables.linker->cmd_blob, ACPI_BUILD_LOADER_FILE);
+ 
++#ifdef CONFIG_TPM
+     fw_cfg_add_file(x86ms->fw_cfg, ACPI_BUILD_TPMLOG_FILE,
+                     tables.tcpalog->data, acpi_data_len(tables.tcpalog));
+ 
+@@ -2651,6 +2670,7 @@ void acpi_setup(void)
+         fw_cfg_add_file(x86ms->fw_cfg, "etc/tpm/config",
+                         &tpm_config, sizeof tpm_config);
+     }
++#endif
+ 
+     vmgenid_dev = find_vmgenid_dev();
+     if (vmgenid_dev) {
+diff --git a/hw/intc/arm_gicv3_cpuif.c b/hw/intc/arm_gicv3_cpuif.c
+index 3e0641aff9..81f94c7f4a 100644
+--- a/hw/intc/arm_gicv3_cpuif.c
++++ b/hw/intc/arm_gicv3_cpuif.c
+@@ -14,7 +14,6 @@
+ 
+ #include "qemu/osdep.h"
+ #include "qemu/bitops.h"
+-#include "qemu/log.h"
+ #include "qemu/main-loop.h"
+ #include "trace.h"
+ #include "gicv3_internal.h"
+@@ -1358,9 +1357,7 @@ static void icc_eoir_write(CPUARMState *env, const ARMCPRegInfo *ri,
+         }
+         break;
+     default:
+-        qemu_log_mask(LOG_GUEST_ERROR,
+-                      "%s: IRQ %d isn't active\n", __func__, irq);
+-        return;
++        g_assert_not_reached();
+     }
+ 
+     icc_drop_prio(cs, grp);
+diff --git a/hw/intc/armv7m_nvic.c b/hw/intc/armv7m_nvic.c
+index 94fe00235a..c4287d82d8 100644
+--- a/hw/intc/armv7m_nvic.c
++++ b/hw/intc/armv7m_nvic.c
+@@ -2941,6 +2941,12 @@ static void armv7m_nvic_realize(DeviceState *dev, Error **errp)
+ 
+ static void armv7m_nvic_instance_init(Object *obj)
+ {
++    /* We have a different default value for the num-irq property
++     * than our superclass. This function runs after qdev init
++     * has set the defaults from the Property array and before
++     * any user-specified property setting, so just modify the
++     * value in the GICState struct.
++     */
+     DeviceState *dev = DEVICE(obj);
+     NVICState *nvic = NVIC(obj);
+     SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
+diff --git a/include/hw/acpi/tpm.h b/include/hw/acpi/tpm.h
+index 1a2a57a21f..559ba6906c 100644
+--- a/include/hw/acpi/tpm.h
++++ b/include/hw/acpi/tpm.h
+@@ -21,6 +21,8 @@
+ #include "hw/acpi/aml-build.h"
+ #include "sysemu/tpm.h"
+ 
++#ifdef CONFIG_TPM
++
+ #define TPM_TIS_ADDR_BASE           0xFED40000
+ #define TPM_TIS_ADDR_SIZE           0x5000
+ 
+@@ -209,4 +211,6 @@ REG32(CRB_DATA_BUFFER, 0x80)
+ 
+ void tpm_build_ppi_acpi(TPMIf *tpm, Aml *dev);
+ 
++#endif /* CONFIG_TPM */
++
+ #endif /* HW_ACPI_TPM_H */
+diff --git a/include/sysemu/tpm.h b/include/sysemu/tpm.h
+index 1a85564e47..68b2206463 100644
+--- a/include/sysemu/tpm.h
++++ b/include/sysemu/tpm.h
+@@ -15,6 +15,8 @@
+ #include "qapi/qapi-types-tpm.h"
+ #include "qom/object.h"
+ 
++#ifdef CONFIG_TPM
++
+ int tpm_config_parse(QemuOptsList *opts_list, const char *optarg);
+ int tpm_init(void);
+ void tpm_cleanup(void);
+@@ -73,4 +75,11 @@ static inline TPMVersion tpm_get_version(TPMIf *ti)
+     return TPM_IF_GET_CLASS(ti)->get_version(ti);
+ }
+ 
++#else /* CONFIG_TPM */
++
++#define tpm_init()  (0)
++#define tpm_cleanup()
++
++#endif /* CONFIG_TPM */
++
+ #endif /* QEMU_TPM_H */
+diff --git a/include/sysemu/tpm_backend.h b/include/sysemu/tpm_backend.h
+index 6f078f5f48..8fd3269c11 100644
+--- a/include/sysemu/tpm_backend.h
++++ b/include/sysemu/tpm_backend.h
+@@ -18,6 +18,8 @@
+ #include "sysemu/tpm.h"
+ #include "qapi/error.h"
+ 
++#ifdef CONFIG_TPM
++
+ #define TYPE_TPM_BACKEND "tpm-backend"
+ OBJECT_DECLARE_TYPE(TPMBackend, TPMBackendClass,
+                     TPM_BACKEND)
+@@ -209,4 +211,6 @@ TPMInfo *tpm_backend_query_tpm(TPMBackend *s);
+ 
+ TPMBackend *qemu_find_tpm_be(const char *id);
+ 
+-#endif
++#endif /* CONFIG_TPM */
++
++#endif /* TPM_BACKEND_H */
+diff --git a/monitor/hmp-cmds.c b/monitor/hmp-cmds.c
+index d10ee14110..0942027208 100644
+--- a/monitor/hmp-cmds.c
++++ b/monitor/hmp-cmds.c
+@@ -901,6 +901,7 @@ void hmp_info_pci(Monitor *mon, const QDict *qdict)
+ 
+ void hmp_info_tpm(Monitor *mon, const QDict *qdict)
+ {
++#ifdef CONFIG_TPM
+     TPMInfoList *info_list, *info;
+     Error *err = NULL;
+     unsigned int c = 0;
+@@ -946,6 +947,9 @@ void hmp_info_tpm(Monitor *mon, const QDict *qdict)
+         c++;
+     }
+     qapi_free_TPMInfoList(info_list);
++#else
++    monitor_printf(mon, "TPM device not supported\n");
++#endif /* CONFIG_TPM */
+ }
+ 
+ void hmp_quit(Monitor *mon, const QDict *qdict)
+diff --git a/qapi/tpm.json b/qapi/tpm.json
+index 6a10c9ed8d..75590979fd 100644
+--- a/qapi/tpm.json
++++ b/qapi/tpm.json
+@@ -17,7 +17,9 @@
+ #
+ # Since: 1.5
+ ##
+-{ 'enum': 'TpmModel', 'data': [ 'tpm-tis', 'tpm-crb', 'tpm-spapr' ] }
++{ 'enum': 'TpmModel', 'data': [ 'tpm-tis', 'tpm-crb', 'tpm-spapr' ],
++  'if': 'defined(CONFIG_TPM)' }
++
+ ##
+ # @query-tpm-models:
+ #
+@@ -33,7 +35,8 @@
+ # <- { "return": [ "tpm-tis", "tpm-crb", "tpm-spapr" ] }
+ #
+ ##
+-{ 'command': 'query-tpm-models', 'returns': ['TpmModel'] }
++{ 'command': 'query-tpm-models', 'returns': ['TpmModel'],
++  'if': 'defined(CONFIG_TPM)' }
+ 
+ ##
+ # @TpmType:
+@@ -46,7 +49,8 @@
+ #
+ # Since: 1.5
+ ##
+-{ 'enum': 'TpmType', 'data': [ 'passthrough', 'emulator' ] }
++{ 'enum': 'TpmType', 'data': [ 'passthrough', 'emulator' ],
++  'if': 'defined(CONFIG_TPM)' }
+ 
+ ##
+ # @query-tpm-types:
+@@ -63,7 +67,8 @@
+ # <- { "return": [ "passthrough", "emulator" ] }
+ #
+ ##
+-{ 'command': 'query-tpm-types', 'returns': ['TpmType'] }
++{ 'command': 'query-tpm-types', 'returns': ['TpmType'],
++  'if': 'defined(CONFIG_TPM)' }
+ 
+ ##
+ # @TPMPassthroughOptions:
+@@ -79,7 +84,8 @@
+ ##
+ { 'struct': 'TPMPassthroughOptions',
+   'data': { '*path': 'str',
+-            '*cancel-path': 'str' } }
++            '*cancel-path': 'str' },
++  'if': 'defined(CONFIG_TPM)' }
+ 
+ ##
+ # @TPMEmulatorOptions:
+@@ -90,7 +96,8 @@
+ #
+ # Since: 2.11
+ ##
+-{ 'struct': 'TPMEmulatorOptions', 'data': { 'chardev' : 'str' } }
++{ 'struct': 'TPMEmulatorOptions', 'data': { 'chardev' : 'str' },
++  'if': 'defined(CONFIG_TPM)' }
+ 
+ ##
+ # @TpmTypeOptions:
+@@ -104,7 +111,8 @@
+ ##
+ { 'union': 'TpmTypeOptions',
+    'data': { 'passthrough' : 'TPMPassthroughOptions',
+-             'emulator': 'TPMEmulatorOptions' } }
++             'emulator': 'TPMEmulatorOptions' },
++  'if': 'defined(CONFIG_TPM)' }
+ 
+ ##
+ # @TPMInfo:
+@@ -122,7 +130,8 @@
+ { 'struct': 'TPMInfo',
+   'data': {'id': 'str',
+            'model': 'TpmModel',
+-           'options': 'TpmTypeOptions' } }
++           'options': 'TpmTypeOptions' },
++  'if': 'defined(CONFIG_TPM)' }
+ 
+ ##
+ # @query-tpm:
+@@ -152,4 +161,5 @@
+ #    }
+ #
+ ##
+-{ 'command': 'query-tpm', 'returns': ['TPMInfo'] }
++{ 'command': 'query-tpm', 'returns': ['TPMInfo'],
++  'if': 'defined(CONFIG_TPM)' }
+diff --git a/stubs/meson.build b/stubs/meson.build
+index 65c22c0568..d4e9549dc9 100644
+--- a/stubs/meson.build
++++ b/stubs/meson.build
+@@ -38,7 +38,6 @@ stub_ss.add(files('runstate-check.c'))
+ stub_ss.add(files('sysbus.c'))
+ stub_ss.add(files('target-get-monitor-def.c'))
+ stub_ss.add(files('target-monitor-defs.c'))
+-stub_ss.add(files('tpm.c'))
+ stub_ss.add(files('trace-control.c'))
+ stub_ss.add(files('uuid.c'))
+ stub_ss.add(files('vmgenid.c'))
+diff --git a/stubs/tpm.c b/stubs/tpm.c
+deleted file mode 100644
+index 9bded191d9..0000000000
+--- a/stubs/tpm.c
++++ /dev/null
+@@ -1,39 +0,0 @@
+-/*
+- * TPM stubs
+- *
+- * This work is licensed under the terms of the GNU GPL, version 2 or later.
+- * See the COPYING file in the top-level directory.
+- */
+-
+-#include "qemu/osdep.h"
+-#include "qapi/qapi-commands-tpm.h"
+-#include "sysemu/tpm.h"
+-#include "hw/acpi/tpm.h"
+-
+-int tpm_init(void)
+-{
+-    return 0;
+-}
+-
+-void tpm_cleanup(void)
+-{
+-}
+-
+-TPMInfoList *qmp_query_tpm(Error **errp)
+-{
+-    return NULL;
+-}
+-
+-TpmTypeList *qmp_query_tpm_types(Error **errp)
+-{
+-    return NULL;
+-}
+-
+-TpmModelList *qmp_query_tpm_models(Error **errp)
+-{
+-    return NULL;
+-}
+-
+-void tpm_build_ppi_acpi(TPMIf *tpm, Aml *dev)
+-{
+-}
+diff --git a/target/arm/mte_helper.c b/target/arm/mte_helper.c
+index 9e615cc513..166b9d260f 100644
+--- a/target/arm/mte_helper.c
++++ b/target/arm/mte_helper.c
+@@ -730,7 +730,7 @@ static int mte_probe_int(CPUARMState *env, uint32_t desc, uint64_t ptr,
+     prev_page = ptr & TARGET_PAGE_MASK;
+     next_page = prev_page + TARGET_PAGE_SIZE;
+ 
+-    if (likely(tag_last - prev_page < TARGET_PAGE_SIZE)) {
++    if (likely(tag_last - prev_page <= TARGET_PAGE_SIZE)) {
+         /* Memory access stays on one page. */
+         tag_size = ((tag_byte_last - tag_byte_first) / (2 * TAG_GRANULE)) + 1;
+         mem1 = allocation_tag_mem(env, mmu_idx, ptr, type, sizem1 + 1,
+diff --git a/target/arm/translate-a64.c b/target/arm/translate-a64.c
+index 7f74d0e81a..8713dfec17 100644
+--- a/target/arm/translate-a64.c
++++ b/target/arm/translate-a64.c
+@@ -8291,6 +8291,7 @@ static void disas_simd_mod_imm(DisasContext *s, uint32_t insn)
+         }
+         break;
+     default:
++        fprintf(stderr, "%s: cmode_3_1: %x\n", __func__, cmode_3_1);
+         g_assert_not_reached();
+     }
+ 
+@@ -11989,46 +11990,38 @@ static void disas_simd_three_reg_same(DisasContext *s, uint32_t insn)
+  */
+ static void disas_simd_three_reg_same_fp16(DisasContext *s, uint32_t insn)
+ {
+-    int opcode = extract32(insn, 11, 3);
+-    int u = extract32(insn, 29, 1);
+-    int a = extract32(insn, 23, 1);
+-    int is_q = extract32(insn, 30, 1);
+-    int rm = extract32(insn, 16, 5);
+-    int rn = extract32(insn, 5, 5);
+-    int rd = extract32(insn, 0, 5);
+-    /*
+-     * For these floating point ops, the U, a and opcode bits
++    int opcode, fpopcode;
++    int is_q, u, a, rm, rn, rd;
++    int datasize, elements;
++    int pass;
++    TCGv_ptr fpst;
++    bool pairwise = false;
++
++    if (!dc_isar_feature(aa64_fp16, s)) {
++        unallocated_encoding(s);
++        return;
++    }
++
++    if (!fp_access_check(s)) {
++        return;
++    }
++
++    /* For these floating point ops, the U, a and opcode bits
+      * together indicate the operation.
+      */
+-    int fpopcode = opcode | (a << 3) | (u << 4);
+-    int datasize = is_q ? 128 : 64;
+-    int elements = datasize / 16;
+-    bool pairwise;
+-    TCGv_ptr fpst;
+-    int pass;
++    opcode = extract32(insn, 11, 3);
++    u = extract32(insn, 29, 1);
++    a = extract32(insn, 23, 1);
++    is_q = extract32(insn, 30, 1);
++    rm = extract32(insn, 16, 5);
++    rn = extract32(insn, 5, 5);
++    rd = extract32(insn, 0, 5);
++
++    fpopcode = opcode | (a << 3) |  (u << 4);
++    datasize = is_q ? 128 : 64;
++    elements = datasize / 16;
+ 
+     switch (fpopcode) {
+-    case 0x0: /* FMAXNM */
+-    case 0x1: /* FMLA */
+-    case 0x2: /* FADD */
+-    case 0x3: /* FMULX */
+-    case 0x4: /* FCMEQ */
+-    case 0x6: /* FMAX */
+-    case 0x7: /* FRECPS */
+-    case 0x8: /* FMINNM */
+-    case 0x9: /* FMLS */
+-    case 0xa: /* FSUB */
+-    case 0xe: /* FMIN */
+-    case 0xf: /* FRSQRTS */
+-    case 0x13: /* FMUL */
+-    case 0x14: /* FCMGE */
+-    case 0x15: /* FACGE */
+-    case 0x17: /* FDIV */
+-    case 0x1a: /* FABD */
+-    case 0x1c: /* FCMGT */
+-    case 0x1d: /* FACGT */
+-        pairwise = false;
+-        break;
+     case 0x10: /* FMAXNMP */
+     case 0x12: /* FADDP */
+     case 0x16: /* FMAXP */
+@@ -12036,18 +12029,6 @@ static void disas_simd_three_reg_same_fp16(DisasContext *s, uint32_t insn)
+     case 0x1e: /* FMINP */
+         pairwise = true;
+         break;
+-    default:
+-        unallocated_encoding(s);
+-        return;
+-    }
+-
+-    if (!dc_isar_feature(aa64_fp16, s)) {
+-        unallocated_encoding(s);
+-        return;
+-    }
+-
+-    if (!fp_access_check(s)) {
+-        return;
+     }
+ 
+     fpst = fpstatus_ptr(FPST_FPCR_F16);
+@@ -12172,6 +12153,8 @@ static void disas_simd_three_reg_same_fp16(DisasContext *s, uint32_t insn)
+                 gen_helper_advsimd_acgt_f16(tcg_res, tcg_op1, tcg_op2, fpst);
+                 break;
+             default:
++                fprintf(stderr, "%s: insn 0x%04x, fpop 0x%2x @ 0x%" PRIx64 "\n",
++                        __func__, insn, fpopcode, s->pc_curr);
+                 g_assert_not_reached();
+             }
+ 
+@@ -13251,8 +13234,8 @@ static void disas_simd_two_reg_misc_fp16(DisasContext *s, uint32_t insn)
+     case 0x7f: /* FSQRT (vector) */
+         break;
+     default:
+-        unallocated_encoding(s);
+-        return;
++        fprintf(stderr, "%s: insn 0x%04x fpop 0x%2x\n", __func__, insn, fpop);
++        g_assert_not_reached();
+     }
+ 
+ 
+diff --git a/tests/tcg/aarch64/Makefile.target b/tests/tcg/aarch64/Makefile.target
+index 2c05c90d17..928357b10a 100644
+--- a/tests/tcg/aarch64/Makefile.target
++++ b/tests/tcg/aarch64/Makefile.target
+@@ -37,7 +37,7 @@ AARCH64_TESTS += bti-2
+ 
+ # MTE Tests
+ ifneq ($(DOCKER_IMAGE)$(CROSS_CC_HAS_ARMV8_MTE),)
+-AARCH64_TESTS += mte-1 mte-2 mte-3 mte-4 mte-5 mte-6 mte-7
++AARCH64_TESTS += mte-1 mte-2 mte-3 mte-4 mte-5 mte-6
+ mte-%: CFLAGS += -march=armv8.5-a+memtag
+ endif
+ 
+diff --git a/tests/tcg/aarch64/mte-7.c b/tests/tcg/aarch64/mte-7.c
+deleted file mode 100644
+index a981de62d4..0000000000
+--- a/tests/tcg/aarch64/mte-7.c
++++ /dev/null
+@@ -1,31 +0,0 @@
+-/*
+- * Memory tagging, unaligned access crossing pages.
+- * https://gitlab.com/qemu-project/qemu/-/issues/403
+- *
+- * Copyright (c) 2021 Linaro Ltd
+- * SPDX-License-Identifier: GPL-2.0-or-later
+- */
+-
+-#include "mte.h"
+-
+-int main(int ac, char **av)
+-{
+-    void *p;
+-
+-    enable_mte(PR_MTE_TCF_SYNC);
+-    p = alloc_mte_mem(2 * 0x1000);
+-
+-    /* Tag the pointer. */
+-    p = (void *)((unsigned long)p | (1ul << 56));
+-
+-    /* Store tag in sequential granules. */
+-    asm("stg %0, [%0]" : : "r"(p + 0x0ff0));
+-    asm("stg %0, [%0]" : : "r"(p + 0x1000));
+-
+-    /*
+-     * Perform an unaligned store with tag 1 crossing the pages.
+-     * Failure dies with SIGSEGV.
+-     */
+-    asm("str %0, [%0]" : : "r"(p + 0x0ffc));
+-    return 0;
+-}

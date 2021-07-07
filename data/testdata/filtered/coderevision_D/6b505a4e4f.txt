@@ -1,0 +1,63 @@
+diff --git a/.gitlab-ci.d/container-core.yml b/.gitlab-ci.d/container-core.yml
+deleted file mode 100644
+index e8dd1f476a..0000000000
+--- a/.gitlab-ci.d/container-core.yml
++++ /dev/null
+@@ -1,17 +0,0 @@
+-include:
+-  - local: '/.gitlab-ci.d/container-template.yml'
+-
+-amd64-centos8-container:
+-  extends: .container_job_template
+-  variables:
+-    NAME: centos8
+-
+-amd64-fedora-container:
+-  extends: .container_job_template
+-  variables:
+-    NAME: fedora
+-
+-amd64-debian10-container:
+-  extends: .container_job_template
+-  variables:
+-    NAME: debian10
+diff --git a/.gitlab-ci.d/containers.yml b/.gitlab-ci.d/containers.yml
+index 0acc8381ac..2b06763d73 100644
+--- a/.gitlab-ci.d/containers.yml
++++ b/.gitlab-ci.d/containers.yml
+@@ -1,5 +1,5 @@
+ include:
+-  - local: '/.gitlab-ci.d/container-core.yml'
++  - local: '/.gitlab-ci.d/container-template.yml'
+ 
+ amd64-alpine-container:
+   extends: .container_job_template
+@@ -11,6 +11,16 @@ amd64-centos7-container:
+   variables:
+     NAME: centos7
+ 
++amd64-centos8-container:
++  extends: .container_job_template
++  variables:
++    NAME: centos8
++
++amd64-debian10-container:
++  extends: .container_job_template
++  variables:
++    NAME: debian10
++
+ amd64-debian11-container:
+   extends: .container_job_template
+   variables:
+@@ -201,6 +211,11 @@ cris-fedora-cross-container:
+   variables:
+     NAME: fedora-cris-cross
+ 
++amd64-fedora-container:
++  extends: .container_job_template
++  variables:
++    NAME: fedora
++
+ i386-fedora-cross-container:
+   extends: .container_job_template
+   variables:

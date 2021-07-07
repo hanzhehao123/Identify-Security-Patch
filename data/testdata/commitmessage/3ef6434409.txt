@@ -1,0 +1,12 @@
+commit 3ef6434409c575e11faf537ce50ca05426c78940
+Author: Alistair Francis <alistair.francis@wdc.com>
+Date:   Fri Jun 18 17:28:01 2021 +1000
+
+    hw/riscv: OpenTitan: Connect the mtime and mtimecmp timer
+    
+    Connect the Ibex timer to the OpenTitan machine. The timer can trigger
+    the RISC-V MIE interrupt as well as a custom device interrupt.
+    
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>
+    Reviewed-by: Bin Meng <bmeng.cn@gmail.com>
+    Message-id: 5e7f4e9b4537f863bcb8db1264b840b56ef2a929.1624001156.git.alistair.francis@wdc.com

@@ -1,0 +1,15 @@
+commit c750c02891a81f07c6c90735432306bea79fac4b
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:04 2021 -0400
+
+    python/qmp: Add qom script rewrites
+    
+    Inspired by qom-set, qom-get, qom-tree and qom-list; combine all four of
+    those scripts into a single script.
+    
+    A later addition of qom-fuse as an 'extension' necessitates that some
+    common features are split out and shared between them.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210603003719.1321369-5-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

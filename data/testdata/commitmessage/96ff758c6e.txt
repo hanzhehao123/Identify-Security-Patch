@@ -1,0 +1,24 @@
+commit 96ff758c6e9cd5a01443ee15afbd0df4f00c37a8
+Author: Michael Forney <mforney@mforney.org>
+Date:   Tue May 25 20:55:56 2021 -0700
+
+    linux-user: Use public sigev_notify_thread_id member if available
+    
+    _sigev_un._tid is an internal glibc field and is not available on
+    musl libc. The sigevent(7) man page and Linux UAPI headers both use
+    sigev_notify_thread_id as a public way to access this field.
+    
+    musl libc supports this field since 1.2.2[0], and glibc plans to
+    add support as well[1][2].
+    
+    If sigev_notify_thread_id is not available, fall back to _sigev_un._tid
+    as before.
+    
+    [0] http://git.musl-libc.org/cgit/musl/commit/?id=7c71792e87691451f2a6b76348e83ad1889f1dcb
+    [1] https://www.openwall.com/lists/musl/2019/08/01/5
+    [2] https://sourceware.org/bugzilla/show_bug.cgi?id=27417
+    
+    Signed-off-by: Michael Forney <mforney@mforney.org>
+    Reviewed-by: Laurent Vivier <laurent@vivier.eu>
+    Message-Id: <20210526035556.7931-1-mforney@mforney.org>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

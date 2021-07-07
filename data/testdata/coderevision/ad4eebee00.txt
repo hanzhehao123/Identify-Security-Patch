@@ -1,0 +1,29 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index aa148517a8..31269859c4 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -318,12 +318,6 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+ 
+         return self._execute_cmd(cmdline)
+ 
+-    def repl(self):
+-        self.show_banner()
+-        while self.read_exec_command():
+-            yield
+-        self.close()
+-
+ 
+ class HMPShell(QMPShell):
+     def __init__(self, address, pretty=False, verbose=False):
+@@ -441,8 +435,10 @@ def main():
+     except OSError as err:
+         die(f"Couldn't connect to {args.qmp_server}: {err!s}")
+ 
+-    for _ in qemu.repl():
++    qemu.show_banner()
++    while qemu.read_exec_command():
+         pass
++    qemu.close()
+ 
+ 
+ if __name__ == '__main__':

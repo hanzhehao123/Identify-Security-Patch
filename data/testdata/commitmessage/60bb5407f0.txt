@@ -1,0 +1,15 @@
+commit 60bb5407f02b9d7cf7078ff339cbae961b7e98cc
+Author: Bin Meng <bin.meng@windriver.com>
+Date:   Fri Apr 30 15:12:58 2021 +0800
+
+    hw/riscv: Support the official PLIC DT bindings
+    
+    The official DT bindings of PLIC uses "sifive,plic-1.0.0" as the
+    compatible string in the upstream Linux kernel. "riscv,plic0" is
+    now legacy and has to be kept for backward compatibility of legacy
+    systems.
+    
+    Signed-off-by: Bin Meng <bin.meng@windriver.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210430071302.1489082-4-bmeng.cn@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

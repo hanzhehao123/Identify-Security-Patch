@@ -1,0 +1,17 @@
+commit bf042e8e52f0140388837ce75f865969831ab1ab
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Mar 9 16:33:15 2021 -0600
+
+    tcg: Split out tcg_region_prologue_set
+    
+    This has only one user, but will make more sense after some
+    code motion.
+    
+    Always leave the tcg_init_ctx initialized to the first region,
+    in preparation for tcg_prologue_init().  This also requires
+    that we don't re-allocate the region for the first cpu, lest
+    we hit the assertion for total number of regions allocated .
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

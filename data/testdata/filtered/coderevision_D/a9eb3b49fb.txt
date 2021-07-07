@@ -1,0 +1,4 @@
+diff --git a/target/mips/tcg/translate.h b/target/mips/translate.h
+similarity index 100%
+rename from target/mips/tcg/translate.h
+rename to target/mips/translate.h

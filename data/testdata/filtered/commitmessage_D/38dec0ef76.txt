@@ -1,0 +1,19 @@
+commit 38dec0ef76a852d10636a69fc93b21cee9a67715
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Mon Jun 7 14:58:40 2021 +0100
+
+    docs: add a table showing x86-64 ABI compatibility levels
+    
+    It is useful to know which CPUs satisfy each x86-64 ABI
+    compatibility level, when dealing with guest OS that require
+    something newer than the baseline ABI.
+    
+    These ABI levels are defined in:
+    
+      https://gitlab.com/x86-psABIs/x86-64-ABI/
+    
+    and supported by GCC, Clang, glibc and more.
+    
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+    Message-Id: <20210607135843.196595-2-berrange@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

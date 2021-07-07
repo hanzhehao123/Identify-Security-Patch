@@ -1,0 +1,12 @@
+commit 23cd17773bdc559877cc81b7129c4dd41ae53e4f
+Author: Frank Chang <frank.chang@sifive.com>
+Date:   Thu May 6 00:06:10 2021 +0800
+
+    target/riscv: rvb: single-bit instructions
+    
+    Signed-off-by: Kito Cheng <kito.cheng@sifive.com>
+    Signed-off-by: Frank Chang <frank.chang@sifive.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210505160620.15723-10-frank.chang@sifive.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

@@ -1,0 +1,46 @@
+diff --git a/hmp-commands-info.hx b/hmp-commands-info.hx
+index b2347a6aea..ab0c7aa5ee 100644
+--- a/hmp-commands-info.hx
++++ b/hmp-commands-info.hx
+@@ -500,6 +500,19 @@ SRST
+     Show the current VM UUID.
+ ERST
+ 
++    {
++        .name       = "cpustats",
++        .args_type  = "",
++        .params     = "",
++        .help       = "show CPU statistics",
++        .cmd        = hmp_info_cpustats,
++    },
++
++SRST
++  ``info cpustats``
++    Show CPU statistics.
++ERST
++
+ #if defined(CONFIG_SLIRP)
+     {
+         .name       = "usernet",
+diff --git a/monitor/misc.c b/monitor/misc.c
+index 1539e18557..f3a393ea59 100644
+--- a/monitor/misc.c
++++ b/monitor/misc.c
+@@ -369,6 +369,17 @@ static void hmp_info_history(Monitor *mon, const QDict *qdict)
+     }
+ }
+ 
++static void hmp_info_cpustats(Monitor *mon, const QDict *qdict)
++{
++    CPUState *cs = mon_get_cpu(mon);
++
++    if (!cs) {
++        monitor_printf(mon, "No CPU available\n");
++        return;
++    }
++    cpu_dump_statistics(cs, 0);
++}
++
+ static void hmp_info_trace_events(Monitor *mon, const QDict *qdict)
+ {
+     const char *name = qdict_get_try_str(qdict, "name");

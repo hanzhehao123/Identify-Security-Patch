@@ -1,0 +1,14 @@
+commit 81cd9f71087b31d0fb231d3736a31262d232375e
+Author: Vivek Kasireddy <vivek.kasireddy@intel.com>
+Date:   Wed May 26 16:14:27 2021 -0700
+
+    virtio-gpu: Factor out update scanout
+    
+    Creating a small helper function for updating the scanout
+    will be useful in the next patch where this needs to be
+    done early in do_set_scanout before returning.
+    
+    Cc: Gerd Hoffmann <kraxel@redhat.com>
+    Signed-off-by: Vivek Kasireddy <vivek.kasireddy@intel.com>
+    Message-Id: <20210526231429.1045476-13-vivek.kasireddy@intel.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

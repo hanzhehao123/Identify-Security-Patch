@@ -1,0 +1,12 @@
+commit fca87b78f3d178518a38063498d477f5e10c5c22
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:15:58 2021 +0100
+
+    target/arm: Implement MVE VRMULH
+    
+    Implement the MVE VRMULH insn, which performs a rounding multiply
+    and then returns the high half.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-15-peter.maydell@linaro.org

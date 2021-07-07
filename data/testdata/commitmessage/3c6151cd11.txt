@@ -1,0 +1,20 @@
+commit 3c6151cd11ae7e4a7dae10f8c17ab1fe2f0a73bf
+Author: Ruimei Yan <ruimei.yan@windriver.com>
+Date:   Fri May 21 10:42:23 2021 +0800
+
+    hw/usb: hcd-xhci-pci: Raise MSI/MSI-X interrupts only when told to
+    
+    At present MSI / MSI-X interrupts are triggered regardless of the
+    irq level. We should have checked the level to determine whether
+    the interrupt needs to be delivered.
+    
+    The level check logic was present in early versions of the xhci
+    model, but got dropped later by a rework of interrupt handling
+    under commit 4c4abe7cc903 ("xhci: rework interrupt handling").
+    
+    Fixes: 4c4abe7cc903 ("xhci: rework interrupt handling")
+    Signed-off-by: Ruimei Yan <ruimei.yan@windriver.com>
+    Signed-off-by: Bin Meng <bin.meng@windriver.com>
+    Message-Id: <20210521024224.2277634-1-bmeng.cn@gmail.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

@@ -1,0 +1,31 @@
+diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
+index 797eba4434..c03a8ae1fe 100644
+--- a/target/mips/tcg/translate.c
++++ b/target/mips/tcg/translate.c
+@@ -12238,7 +12238,7 @@ static void gen_compute_compact_branch(DisasContext *ctx, uint32_t opc,
+     }
+ 
+     if (bcond_compute == 0) {
+-        /* Unconditional compact branch */
++        /* Uncoditional compact branch */
+         switch (opc) {
+         case OPC_JIALC:
+             tcg_gen_movi_tl(cpu_gpr[31], ctx->base.pc_next + 4 + m16_lowbit);
+@@ -19092,7 +19092,7 @@ static void gen_compute_imm_branch(DisasContext *ctx, uint32_t opc,
+     ctx->base.is_jmp = DISAS_NORETURN;
+ 
+     if (cond == TCG_COND_ALWAYS) {
+-        /* Unconditional compact branch */
++        /* Uncoditional compact branch */
+         gen_goto_tb(ctx, 0, ctx->btarget);
+     } else {
+         /* Conditional compact branch */
+@@ -19201,7 +19201,7 @@ static void gen_compute_compact_branch_nm(DisasContext *ctx, uint32_t opc,
+     }
+ 
+     if (bcond_compute == 0) {
+-        /* Unconditional compact branch */
++        /* Uncoditional compact branch */
+         switch (opc) {
+         case OPC_BC:
+             gen_goto_tb(ctx, 0, ctx->btarget);

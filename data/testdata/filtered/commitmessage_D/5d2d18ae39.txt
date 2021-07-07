@@ -1,0 +1,21 @@
+commit 5d2d18ae395f40c6df016229ed9d659cd12375db
+Merge: e3955ae93f 60e543f5ce
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 25 18:55:58 2021 +0100
+
+    Merge remote-tracking branch 'remotes/kraxel/tags/audio-20210624-pull-request' into staging
+    
+    audio: bugfixes
+    
+    # gpg: Signature made Thu 24 Jun 2021 13:16:16 BST
+    # gpg:                using RSA key A0328CFFB93A17A79901FE7D4CB6D8EED3E87138
+    # gpg: Good signature from "Gerd Hoffmann (work) <kraxel@redhat.com>" [full]
+    # gpg:                 aka "Gerd Hoffmann <gerd@kraxel.org>" [full]
+    # gpg:                 aka "Gerd Hoffmann (private) <kraxel@gmail.com>" [full]
+    # Primary key fingerprint: A032 8CFF B93A 17A7 9901  FE7D 4CB6 D8EE D3E8 7138
+    
+    * remotes/kraxel/tags/audio-20210624-pull-request:
+      hw/audio/sb16: Restrict I/O sampling rate range for command 41h/42h
+      coreaudio: Lock only the buffer
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

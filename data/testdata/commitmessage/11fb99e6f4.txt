@@ -1,0 +1,13 @@
+commit 11fb99e6f48ca51364e070bb3cd365680edee90c
+Author: Stefan Berger <stefanb@linux.vnet.ibm.com>
+Date:   Tue Jun 15 16:21:17 2021 +0200
+
+    i386: Eliminate all TPM related code if CONFIG_TPM is not set
+    
+    Cc: Michael S. Tsirkin <mst@redhat.com>
+    Cc: Igor Mammedov <imammedo@redhat.com>
+    Signed-off-by: Stefan Berger <stefanb@linux.ibm.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Tested-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210614191335.1968807-2-stefanb@linux.ibm.com>
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>

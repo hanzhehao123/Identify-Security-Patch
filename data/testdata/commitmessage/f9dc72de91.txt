@@ -1,0 +1,41 @@
+commit f9dc72de91d2915b808e82da34bf613afa5cce43
+Merge: a648df3889 bdd53f7392
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Sun May 30 18:33:43 2021 +0100
+
+    Merge remote-tracking branch 'remotes/kraxel/tags/vga-20210527-pull-request' into staging
+    
+    virtio-gpu: add blob resource support.
+    vhost-user-gpu: security fixes.
+    
+    # gpg: Signature made Thu 27 May 2021 15:23:25 BST
+    # gpg:                using RSA key A0328CFFB93A17A79901FE7D4CB6D8EED3E87138
+    # gpg: Good signature from "Gerd Hoffmann (work) <kraxel@redhat.com>" [full]
+    # gpg:                 aka "Gerd Hoffmann <gerd@kraxel.org>" [full]
+    # gpg:                 aka "Gerd Hoffmann (private) <kraxel@gmail.com>" [full]
+    # Primary key fingerprint: A032 8CFF B93A 17A7 9901  FE7D 4CB6 D8EE D3E8 7138
+    
+    * remotes/kraxel/tags/vga-20210527-pull-request: (23 commits)
+      virtio-gpu: Update cursor data using blob
+      virtio-gpu: Add virtio_gpu_set_scanout_blob
+      virtio-gpu: Factor out update scanout
+      virtio-gpu: Add helpers to create and destroy dmabuf objects
+      ui/pixman: Add qemu_pixman_to_drm_format()
+      virtio-gpu: Add virtio_gpu_resource_create_blob
+      virtio-gpu: Add initial definitions for blob resources
+      virtio-gpu: Refactor virtio_gpu_create_mapping_iov
+      virtio-gpu: Refactor virtio_gpu_set_scanout
+      virtio-gpu: Add virtio_gpu_find_check_resource
+      stubs: Add stubs for udmabuf helpers
+      virtio-gpu: Add udmabuf helpers
+      headers: Add udmabuf.h
+      ui: Get the fd associated with udmabuf driver
+      hw/display/qxl: Set pci rom address aligned with page size
+      vhost-user-gpu: abstract vg_cleanup_mapping_iov
+      vhost-user-gpu: fix OOB write in 'virgl_cmd_get_capset' (CVE-2021-3546)
+      vhost-user-gpu: fix memory leak in 'virgl_resource_attach_backing' (CVE-2021-3544)
+      vhost-user-gpu: fix memory leak in 'virgl_cmd_resource_unref' (CVE-2021-3544)
+      vhost-user-gpu: fix memory leak while calling 'vg_resource_unref' (CVE-2021-3544)
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

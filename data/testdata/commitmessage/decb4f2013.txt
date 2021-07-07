@@ -1,0 +1,14 @@
+commit decb4f2013141906913b2c358f043337ab982d3e
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:21 2021 +0200
+
+    i386: move eVMCS enablement to hyperv_init_vcpu()
+    
+    hyperv_expand_features() will be called before we create vCPU so
+    evmcs enablement should go away. hyperv_init_vcpu() looks like the
+    right place.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-11-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

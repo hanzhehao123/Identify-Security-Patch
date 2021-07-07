@@ -1,0 +1,92 @@
+diff --git a/hw/core/cpu-sysemu.c b/hw/core/cpu-sysemu.c
+deleted file mode 100644
+index f517ef5d46..0000000000
+--- a/hw/core/cpu-sysemu.c
++++ /dev/null
+@@ -1,34 +0,0 @@
+-/*
+- * QEMU CPU model (system emulation specific)
+- *
+- * Copyright (c) 2012-2014 SUSE LINUX Products GmbH
+- *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
+- *
+- * This program is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
+- *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, see
+- * <http://www.gnu.org/licenses/gpl-2.0.html>
+- */
+-
+-#include "qemu/osdep.h"
+-#include "qapi/error.h"
+-#include "hw/core/cpu.h"
+-
+-GuestPanicInformation *cpu_get_crash_info(CPUState *cpu)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-    GuestPanicInformation *res = NULL;
+-
+-    if (cc->get_crash_info) {
+-        res = cc->get_crash_info(cpu);
+-    }
+-    return res;
+-}
+diff --git a/hw/core/cpu-common.c b/hw/core/cpu.c
+similarity index 96%
+rename from hw/core/cpu-common.c
+rename to hw/core/cpu.c
+index ddddf4b10e..919dc3435a 100644
+--- a/hw/core/cpu-common.c
++++ b/hw/core/cpu.c
+@@ -190,6 +190,23 @@ static bool cpu_common_virtio_is_big_endian(CPUState *cpu)
+     return target_words_bigendian();
+ }
+ 
++/*
++ * XXX the following #if is always true because this is a common_ss
++ * module, so target CONFIG_* is never defined.
++ */
++#if !defined(CONFIG_USER_ONLY)
++GuestPanicInformation *cpu_get_crash_info(CPUState *cpu)
++{
++    CPUClass *cc = CPU_GET_CLASS(cpu);
++    GuestPanicInformation *res = NULL;
++
++    if (cc->get_crash_info) {
++        res = cc->get_crash_info(cpu);
++    }
++    return res;
++}
++#endif
++
+ void cpu_dump_state(CPUState *cpu, FILE *f, int flags)
+ {
+     CPUClass *cc = CPU_GET_CLASS(cpu);
+diff --git a/hw/core/meson.build b/hw/core/meson.build
+index 18f44fb7c2..59f1605bb0 100644
+--- a/hw/core/meson.build
++++ b/hw/core/meson.build
+@@ -13,7 +13,7 @@ hwcore_files = files(
+   'qdev-clock.c',
+ )
+ 
+-common_ss.add(files('cpu-common.c'))
++common_ss.add(files('cpu.c'))
+ common_ss.add(when: 'CONFIG_FITLOADER', if_true: files('loader-fit.c'))
+ common_ss.add(when: 'CONFIG_GENERIC_LOADER', if_true: files('generic-loader.c'))
+ common_ss.add(when: ['CONFIG_GUEST_LOADER', fdt], if_true: files('guest-loader.c'))
+@@ -25,7 +25,6 @@ common_ss.add(when: 'CONFIG_SPLIT_IRQ', if_true: files('split-irq.c'))
+ common_ss.add(when: 'CONFIG_XILINX_AXI', if_true: files('stream.c'))
+ 
+ softmmu_ss.add(files(
+-  'cpu-sysemu.c',
+   'fw-path-provider.c',
+   'loader.c',
+   'machine-hmp-cmds.c',

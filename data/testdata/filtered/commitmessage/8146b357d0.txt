@@ -1,0 +1,13 @@
+commit 8146b357d0cb3a3f5d500a1536f9f0e1ff3302cc
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Fri May 28 17:16:27 2021 +0300
+
+    block-copy: fix block_copy_task_entry() progress update
+    
+    Don't report successful progress on failure, when call_state->ret is
+    set.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210528141628.44287-2-vsementsov@virtuozzo.com>
+    Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

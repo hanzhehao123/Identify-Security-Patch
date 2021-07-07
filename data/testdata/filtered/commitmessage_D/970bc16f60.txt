@@ -1,0 +1,13 @@
+commit 970bc16f60937bcfd334f14c614bd4407c247961
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri Apr 30 12:59:06 2021 +0100
+
+    usb/dev-mtp: use GDateTime for formatting timestamp for objects
+    
+    The GDateTime APIs provided by GLib avoid portability pitfalls, such
+    as some platforms where 'struct timeval.tv_sec' field is still 'long'
+    instead of 'time_t'. When combined with automatic cleanup, GDateTime
+    often results in simpler code too.
+    
+    Reviewed-by: Gerd Hoffmann <kraxel@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>

@@ -1,0 +1,14 @@
+commit f6e01ab5633da17d3c5e346bf07d01af12d39b9b
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:20 2021 +0200
+
+    i386: split hyperv_handle_properties() into hyperv_expand_features()/hyperv_fill_cpuids()
+    
+    The intention is to call hyperv_expand_features() early, before vCPUs
+    are created and use the acquired data later when we set guest visible
+    CPUID data.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-10-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

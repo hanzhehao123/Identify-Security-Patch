@@ -1,0 +1,16 @@
+commit c626710fc755628d0d6b88aab0514c9238a84522
+Author: Eric Farman <farman@linux.ibm.com>
+Date:   Fri Jun 18 01:25:37 2021 +0200
+
+    s390x/css: Add passthrough IRB
+    
+    Wire in the subchannel callback for building the IRB
+    ESW and ECW space for passthrough devices, and copy
+    the hardware's ESW into the IRB we are building.
+    
+    If the hardware presented concurrent sense, then copy
+    that sense data into the IRB's ECW space.
+    
+    Signed-off-by: Eric Farman <farman@linux.ibm.com>
+    Message-Id: <20210617232537.1337506-5-farman@linux.ibm.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

@@ -1,0 +1,21 @@
+commit 2d9e45b9cb0baa7316901238f3795a74206af457
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Tue May 25 15:17:10 2021 +0200
+
+    gitlab: Convert check-dco/check-patch jobs to the 'rules' syntax
+    
+    Per GitLab documentation [*]:
+    
+      "rules replaces only/except and they can’t be used together
+       in the same job."
+    
+    Since the 'rules' syntax is more powerful and we are already using
+    it, convert the check-dco/check-patch jobs so no job use the 'only/
+    except' syntax.
+    
+    [*] https://docs.gitlab.com/ee/ci/yaml/#rules
+    
+    Inspired-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210525132418.4133235-3-f4bug@amsat.org>

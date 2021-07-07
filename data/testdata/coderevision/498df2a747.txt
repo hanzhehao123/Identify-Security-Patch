@@ -1,0 +1,60 @@
+diff --git a/target/i386/cpu.h b/target/i386/cpu.h
+index 1e11071d81..64b4e46731 100644
+--- a/target/i386/cpu.h
++++ b/target/i386/cpu.h
+@@ -224,8 +224,6 @@ typedef enum X86Seg {
+ #define CR0_NE_MASK  (1U << 5)
+ #define CR0_WP_MASK  (1U << 16)
+ #define CR0_AM_MASK  (1U << 18)
+-#define CR0_NW_MASK  (1U << 29)
+-#define CR0_CD_MASK  (1U << 30)
+ #define CR0_PG_MASK  (1U << 31)
+ 
+ #define CR4_VME_MASK  (1U << 0)
+diff --git a/target/i386/svm.h b/target/i386/svm.h
+index 5098733053..87965e5bc2 100644
+--- a/target/i386/svm.h
++++ b/target/i386/svm.h
+@@ -135,8 +135,6 @@
+ #define SVM_NPTEXIT_GPA     (1ULL << 32)
+ #define SVM_NPTEXIT_GPT     (1ULL << 33)
+ 
+-#define SVM_CR0_RESERVED_MASK 0xffffffff00000000U
+-
+ struct QEMU_PACKED vmcb_control_area {
+ 	uint16_t intercept_cr_read;
+ 	uint16_t intercept_cr_write;
+diff --git a/target/i386/tcg/sysemu/svm_helper.c b/target/i386/tcg/sysemu/svm_helper.c
+index 1c2dbc1862..902bf03fc3 100644
+--- a/target/i386/tcg/sysemu/svm_helper.c
++++ b/target/i386/tcg/sysemu/svm_helper.c
+@@ -73,7 +73,6 @@ void helper_vmrun(CPUX86State *env, int aflag, int next_eip_addend)
+     uint32_t event_inj;
+     uint32_t int_ctl;
+     uint32_t asid;
+-    uint64_t new_cr0;
+ 
+     cpu_svm_check_intercept_param(env, SVM_EXIT_VMRUN, 0, GETPC());
+ 
+@@ -193,18 +192,13 @@ void helper_vmrun(CPUX86State *env, int aflag, int next_eip_addend)
+     env->idt.limit = x86_ldl_phys(cs, env->vm_vmcb + offsetof(struct vmcb,
+                                                       save.idtr.limit));
+ 
+-    new_cr0 = x86_ldq_phys(cs, env->vm_vmcb + offsetof(struct vmcb, save.cr0));
+-    if (new_cr0 & SVM_CR0_RESERVED_MASK) {
+-        cpu_vmexit(env, SVM_EXIT_ERR, 0, GETPC());
+-    }
+-    if ((new_cr0 & CR0_NW_MASK) && !(new_cr0 & CR0_CD_MASK)) {
+-        cpu_vmexit(env, SVM_EXIT_ERR, 0, GETPC());
+-    }
+     /* clear exit_info_2 so we behave like the real hardware */
+     x86_stq_phys(cs,
+              env->vm_vmcb + offsetof(struct vmcb, control.exit_info_2), 0);
+ 
+-    cpu_x86_update_cr0(env, new_cr0);
++    cpu_x86_update_cr0(env, x86_ldq_phys(cs,
++                                     env->vm_vmcb + offsetof(struct vmcb,
++                                                             save.cr0)));
+     cpu_x86_update_cr4(env, x86_ldq_phys(cs,
+                                      env->vm_vmcb + offsetof(struct vmcb,
+                                                              save.cr4)));

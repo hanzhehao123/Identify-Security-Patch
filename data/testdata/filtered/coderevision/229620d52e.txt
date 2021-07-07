@@ -1,0 +1,12 @@
+diff --git a/softmmu/runstate.c b/softmmu/runstate.c
+index 15640572c0..ce8977c6a2 100644
+--- a/softmmu/runstate.c
++++ b/softmmu/runstate.c
+@@ -126,7 +126,6 @@ static const RunStateTransition runstate_transitions_def[] = {
+     { RUN_STATE_RESTORE_VM, RUN_STATE_PRELAUNCH },
+ 
+     { RUN_STATE_COLO, RUN_STATE_RUNNING },
+-    { RUN_STATE_COLO, RUN_STATE_SHUTDOWN},
+ 
+     { RUN_STATE_RUNNING, RUN_STATE_DEBUG },
+     { RUN_STATE_RUNNING, RUN_STATE_INTERNAL_ERROR },

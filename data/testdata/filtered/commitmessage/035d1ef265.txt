@@ -1,0 +1,45 @@
+commit 035d1ef26565f8f8eae058c37f5731a9ae304b96
+Author: Chenyi Qiang <chenyi.qiang@intel.com>
+Date:   Fri May 21 12:38:20 2021 +0800
+
+    i386: Add ratelimit for bus locks acquired in guest
+    
+    A bus lock is acquired through either split locked access to writeback
+    (WB) memory or any locked access to non-WB memory. It is typically >1000
+    cycles slower than an atomic operation within a cache and can also
+    disrupts performance on other cores.
+    
+    Virtual Machines can exploit bus locks to degrade the performance of
+    system. To address this kind of performance DOS attack coming from the
+    VMs, bus lock VM exit is introduced in KVM and it can report the bus
+    locks detected in guest. If enabled in KVM, it would exit to the
+    userspace to let the user enforce throttling policies once bus locks
+    acquired in VMs.
+    
+    The availability of bus lock VM exit can be detected through the
+    KVM_CAP_X86_BUS_LOCK_EXIT. The returned bitmap contains the potential
+    policies supported by KVM. The field KVM_BUS_LOCK_DETECTION_EXIT in
+    bitmap is the only supported strategy at present. It indicates that KVM
+    will exit to userspace to handle the bus locks.
+    
+    This patch adds a ratelimit on the bus locks acquired in guest as a
+    mitigation policy.
+    
+    Introduce a new field "bus_lock_ratelimit" to record the limited speed
+    of bus locks in the target VM. The user can specify it through the
+    "bus-lock-ratelimit" as a machine property. In current implementation,
+    the default value of the speed is 0 per second, which means no
+    restrictions on the bus locks.
+    
+    As for ratelimit on detected bus locks, simply set the ratelimit
+    interval to 1s and restrict the quota of bus lock occurence to the value
+    of "bus_lock_ratelimit". A potential alternative is to introduce the
+    time slice as a property which can help the user achieve more precise
+    control.
+    
+    The detail of bus lock VM exit can be found in spec:
+    https://software.intel.com/content/www/us/en/develop/download/intel-architecture-instruction-set-extensions-programming-reference.html
+    
+    Signed-off-by: Chenyi Qiang <chenyi.qiang@intel.com>
+    Message-Id: <20210521043820.29678-1-chenyi.qiang@intel.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

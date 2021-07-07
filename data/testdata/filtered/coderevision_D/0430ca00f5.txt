@@ -1,0 +1,31 @@
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index 36ea21d596..ba690e0483 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -726,15 +726,6 @@ static void tcg_region_initial_alloc__locked(TCGContext *s)
+     g_assert(!err);
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-static void tcg_region_initial_alloc(TCGContext *s)
+-{
+-    qemu_mutex_lock(&region.lock);
+-    tcg_region_initial_alloc__locked(s);
+-    qemu_mutex_unlock(&region.lock);
+-}
+-#endif
+-
+ /* Call from a safe-work context */
+ void tcg_region_reset_all(void)
+ {
+@@ -968,7 +959,9 @@ void tcg_register_thread(void)
+     }
+ 
+     tcg_ctx = s;
+-    tcg_region_initial_alloc(s);
++    qemu_mutex_lock(&region.lock);
++    tcg_region_initial_alloc__locked(s);
++    qemu_mutex_unlock(&region.lock);
+ }
+ #endif /* !CONFIG_USER_ONLY */
+ 

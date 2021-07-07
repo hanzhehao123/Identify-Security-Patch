@@ -1,0 +1,31 @@
+commit 33ba8b0adc91482dd4247a0773cfe7def011933f
+Merge: a35947f15c df77d45a51
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 7 20:05:29 2021 +0100
+
+    Merge remote-tracking branch 'remotes/vivier2/tags/trivial-branch-for-6.1-pull-request' into staging
+    
+    Trivial branch pull request 20210607
+    
+    # gpg: Signature made Mon 07 Jun 2021 19:56:43 BST
+    # gpg:                using RSA key CD2F75DDC8E3A4DC2E4F5173F30C38BD3F2FBE3C
+    # gpg:                issuer "laurent@vivier.eu"
+    # gpg: Good signature from "Laurent Vivier <lvivier@redhat.com>" [full]
+    # gpg:                 aka "Laurent Vivier <laurent@vivier.eu>" [full]
+    # gpg:                 aka "Laurent Vivier (Red Hat) <lvivier@redhat.com>" [full]
+    # Primary key fingerprint: CD2F 75DD C8E3 A4DC 2E4F  5173 F30C 38BD 3F2F BE3C
+    
+    * remotes/vivier2/tags/trivial-branch-for-6.1-pull-request:
+      vhost-vdpa: Remove redundant declaration of address_space_memory
+      scripts/oss-fuzz: Fix typo in documentation
+      target/mips: Fix 'Uncoditional' typo
+      target/hppa: Remove unused 'memory.h' header
+      hw/display/macfb: Classify the "nubus-macfb" as display device
+      target/nios2: fix page-fit instruction count
+      docs: fix broken reference
+      linux-user/syscall: Constify bitmask_transtbl fcntl/mmap flags_tlb[]
+      misc: Correct relative include path
+      i386/kvm: The value passed to strerror should be positive
+      target/riscv: Do not include 'pmp.h' in user emulation
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

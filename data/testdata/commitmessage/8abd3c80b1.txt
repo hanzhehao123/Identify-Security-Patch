@@ -1,0 +1,12 @@
+commit 8abd3c80b18757c54e9b270244ca351e407b6405
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:15:50 2021 +0100
+
+    target/arm: Implement MVE VMVN (register)
+    
+    Implement the MVE VMVN(register) operation.  Note that for
+    predication this operation is byte-by-byte.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-7-peter.maydell@linaro.org

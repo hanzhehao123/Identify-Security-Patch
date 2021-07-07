@@ -1,0 +1,85 @@
+diff --git a/hw/core/cpu-sysemu.c b/hw/core/cpu-sysemu.c
+index 00253f8929..3850fcb27f 100644
+--- a/hw/core/cpu-sysemu.c
++++ b/hw/core/cpu-sysemu.c
+@@ -27,8 +27,8 @@ bool cpu_paging_enabled(const CPUState *cpu)
+ {
+     CPUClass *cc = CPU_GET_CLASS(cpu);
+ 
+-    if (cc->sysemu_ops->get_paging_enabled) {
+-        return cc->sysemu_ops->get_paging_enabled(cpu);
++    if (cc->get_paging_enabled) {
++        return cc->get_paging_enabled(cpu);
+     }
+ 
+     return false;
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index e4328de8d4..4f6dd24112 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -94,6 +94,7 @@ struct SysemuCPUOps;
+  * @dump_state: Callback for dumping state.
+  * @dump_statistics: Callback for dumping statistics.
+  * @get_arch_id: Callback for getting architecture-dependent CPU ID.
++ * @get_paging_enabled: Callback for inquiring whether paging is enabled.
+  * @set_pc: Callback for setting the Program Counter register. This
+  *       should have the semantics used by the target architecture when
+  *       setting the PC from a source such as an ELF file entry point;
+@@ -136,6 +137,7 @@ struct CPUClass {
+     void (*dump_state)(CPUState *cpu, FILE *, int flags);
+     void (*dump_statistics)(CPUState *cpu, int flags);
+     int64_t (*get_arch_id)(CPUState *cpu);
++    bool (*get_paging_enabled)(const CPUState *cpu);
+     void (*set_pc)(CPUState *cpu, vaddr value);
+     int (*gdb_read_register)(CPUState *cpu, GByteArray *buf, int reg);
+     int (*gdb_write_register)(CPUState *cpu, uint8_t *buf, int reg);
+diff --git a/include/hw/core/sysemu-cpu-ops.h b/include/hw/core/sysemu-cpu-ops.h
+index a9ba39e5f2..213e5287ab 100644
+--- a/include/hw/core/sysemu-cpu-ops.h
++++ b/include/hw/core/sysemu-cpu-ops.h
+@@ -21,10 +21,6 @@ typedef struct SysemuCPUOps {
+      */
+     void (*get_memory_mapping)(CPUState *cpu, MemoryMappingList *list,
+                                Error **errp);
+-    /**
+-     * @get_paging_enabled: Callback for inquiring whether paging is enabled.
+-     */
+-    bool (*get_paging_enabled)(const CPUState *cpu);
+     /**
+      * @get_phys_page_debug: Callback for obtaining a physical address.
+      */
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index 744afc0ff2..d400feec8f 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -6485,14 +6485,12 @@ static int64_t x86_cpu_get_arch_id(CPUState *cs)
+     return cpu->apic_id;
+ }
+ 
+-#if !defined(CONFIG_USER_ONLY)
+ static bool x86_cpu_get_paging_enabled(const CPUState *cs)
+ {
+     X86CPU *cpu = X86_CPU(cs);
+ 
+     return cpu->env.cr[0] & CR0_PG_MASK;
+ }
+-#endif /* !CONFIG_USER_ONLY */
+ 
+ static void x86_cpu_set_pc(CPUState *cs, vaddr value)
+ {
+@@ -6721,7 +6719,6 @@ static Property x86_cpu_properties[] = {
+ 
+ static const struct SysemuCPUOps i386_sysemu_ops = {
+     .get_memory_mapping = x86_cpu_get_memory_mapping,
+-    .get_paging_enabled = x86_cpu_get_paging_enabled,
+     .get_phys_page_attrs_debug = x86_cpu_get_phys_page_attrs_debug,
+     .asidx_from_attrs = x86_asidx_from_attrs,
+     .get_crash_info = x86_cpu_get_crash_info,
+@@ -6757,6 +6754,7 @@ static void x86_cpu_common_class_init(ObjectClass *oc, void *data)
+     cc->gdb_read_register = x86_cpu_gdb_read_register;
+     cc->gdb_write_register = x86_cpu_gdb_write_register;
+     cc->get_arch_id = x86_cpu_get_arch_id;
++    cc->get_paging_enabled = x86_cpu_get_paging_enabled;
+ 
+ #ifndef CONFIG_USER_ONLY
+     cc->sysemu_ops = &i386_sysemu_ops;

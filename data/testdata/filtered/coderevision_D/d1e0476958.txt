@@ -1,0 +1,40 @@
+diff --git a/python/qemu/machine/__init__.py b/python/qemu/machine/__init__.py
+index 728f27adbe..98302ea31e 100644
+--- a/python/qemu/machine/__init__.py
++++ b/python/qemu/machine/__init__.py
+@@ -22,9 +22,6 @@
+ # the COPYING file in the top-level directory.
+ #
+ 
+-# pylint: disable=import-error
+-# see: https://github.com/PyCQA/pylint/issues/3624
+-# see: https://github.com/PyCQA/pylint/issues/3651
+ from .machine import QEMUMachine
+ from .qtest import QEMUQtestMachine, QEMUQtestProtocol
+ 
+diff --git a/python/qemu/machine/machine.py b/python/qemu/machine/machine.py
+index b62435528e..d33b02d2ce 100644
+--- a/python/qemu/machine/machine.py
++++ b/python/qemu/machine/machine.py
+@@ -38,7 +38,7 @@
+     Type,
+ )
+ 
+-from qemu.qmp import (  # pylint: disable=import-error
++from qemu.qmp import (
+     QEMUMonitorProtocol,
+     QMPMessage,
+     QMPReturnValue,
+diff --git a/python/qemu/machine/qtest.py b/python/qemu/machine/qtest.py
+index 93700684d1..e893ca3697 100644
+--- a/python/qemu/machine/qtest.py
++++ b/python/qemu/machine/qtest.py
+@@ -26,7 +26,7 @@
+     TextIO,
+ )
+ 
+-from qemu.qmp import SocketAddrT  # pylint: disable=import-error
++from qemu.qmp import SocketAddrT
+ 
+ from .machine import QEMUMachine
+ 

@@ -1,0 +1,14 @@
+commit 981d3568dfa8b5180de1719fa590db558e9720b7
+Author: Frank Chang <frank.chang@sifive.com>
+Date:   Thu May 6 00:06:09 2021 +0800
+
+    target/riscv: add gen_shifti() and gen_shiftiw() helper functions
+    
+    Add gen_shifti() and gen_shiftiw() helper functions to reuse the same
+    interfaces for immediate shift instructions.
+    
+    Signed-off-by: Frank Chang <frank.chang@sifive.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210505160620.15723-9-frank.chang@sifive.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

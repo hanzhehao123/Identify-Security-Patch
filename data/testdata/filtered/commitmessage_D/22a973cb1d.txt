@@ -1,0 +1,22 @@
+commit 22a973cb1d365f6c506e190d26e2261a65066e15
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:17:08 2021 -0400
+
+    python/qemu: add isort to pipenv
+    
+    isort 5.0.0 through 5.0.4 has a bug that causes it to misinterpret
+    certain "from ..." clauses that are not related to imports.
+    
+    isort < 5.1.1 has a bug where it does not handle comments near import
+    statements correctly.
+    
+    Require 5.1.2 or greater.
+    
+    isort can be run (in "check" mode) with 'isort -c qemu' from the python
+    root. isort can also be used to fix/rewrite import order automatically
+    by using 'isort qemu'.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-25-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

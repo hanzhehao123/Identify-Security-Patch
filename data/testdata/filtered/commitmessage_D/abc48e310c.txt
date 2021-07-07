@@ -1,0 +1,12 @@
+commit abc48e310cc95f616ae65ccb167019eebf7e705b
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:01 2021 +0100
+
+    target/arm: Implement MVE VHADD, VHSUB
+    
+    Implement MVE VHADD and VHSUB insns, which perform an addition
+    or subtraction and then halve the result.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-18-peter.maydell@linaro.org

@@ -1,0 +1,14 @@
+commit 1e63fe685804dfadddd643bf3860b1a59702d4bf
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 17 17:53:06 2021 +0200
+
+    machine: pass QAPI struct to mc->smp_parse
+    
+    As part of converting -smp to a property with a QAPI type, define
+    the struct and use it to do the actual parsing.  machine_smp_parse
+    takes care of doing the QemuOpts->QAPI conversion by hand, for now.
+    
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Message-Id: <20210617155308.928754-10-pbonzini@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

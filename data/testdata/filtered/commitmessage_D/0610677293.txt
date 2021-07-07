@@ -1,0 +1,14 @@
+commit 06106772933bd215a797d28cdbff4aac5676b430
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sat May 29 20:13:44 2021 +0200
+
+    target/mips: Optimize regnames[] arrays
+    
+    Since all entries are no more than 3/4/6 bytes (including nul
+    terminator), can save space and pie runtime relocations by
+    declaring regnames[] as array of 3/4/6 const char.
+    
+    Inspired-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210617174323.2900831-10-f4bug@amsat.org>

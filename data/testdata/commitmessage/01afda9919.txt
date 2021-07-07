@@ -1,0 +1,13 @@
+commit 01afda991971745948633529bf52df8fbf3710d1
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Wed Mar 10 11:06:17 2021 -0600
+
+    tcg: Tidy tcg_n_regions
+    
+    Compute the value using straight division and bounds,
+    rather than a loop.  Pass in tb_size rather than reading
+    from tcg_init_ctx.code_gen_buffer_size,
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

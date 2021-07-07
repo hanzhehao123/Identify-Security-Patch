@@ -1,0 +1,29 @@
+commit 66c2207fd28a6025792fbb75151ee848b911dc35
+Author: Thomas Huth <thuth@redhat.com>
+Date:   Tue Jun 15 11:04:39 2021 +0200
+
+    ui: Make the DisplayType enum entries conditional
+    
+    Libvirt's "domcapabilities" command has a way to state whether certain
+    graphic frontends are available in QEMU or not. Originally, libvirt
+    looked at the "--help" output of the QEMU binary to determine whether
+    SDL was available or not (by looking for the "-sdl" parameter in the
+    help text), but since libvirt stopped doing this analysis of the help
+    text, the detection of SDL is currently broken, see:
+    
+     https://bugzilla.redhat.com/show_bug.cgi?id=1790902
+    
+    QEMU should provide a way via the QMP interface instead. A simple way,
+    without introducing additional commands, is to make the DisplayType
+    enum entries conditional, so that the enum only contains the entries if
+    the corresponding CONFIG_xxx switches have been set. This of course
+    only gives an indication which possibilities have been enabled during
+    compile-time of QEMU (and does not take into account whether modules
+    are later available or not for example - for this we'd need a separate
+    command), but anyway, this should already be good enough for the above
+    bug ticket, and it's a good idea anyway to make the QMP interface
+    conditional here, so let's simply do it.
+    
+    Signed-off-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210615090439.70926-1-thuth@redhat.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

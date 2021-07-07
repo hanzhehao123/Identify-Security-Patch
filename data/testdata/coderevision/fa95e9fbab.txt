@@ -1,0 +1,31 @@
+diff --git a/block/file-posix.c b/block/file-posix.c
+index f37dfc10b3..6e24083f3f 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -1625,17 +1625,17 @@ static int handle_aiocb_write_zeroes(void *opaque)
+     if (s->has_write_zeroes) {
+         int ret = do_fallocate(s->fd, FALLOC_FL_ZERO_RANGE,
+                                aiocb->aio_offset, aiocb->aio_nbytes);
+-        if (ret == -ENOTSUP) {
+-            s->has_write_zeroes = false;
+-        } else if (ret == 0 || ret != -EINVAL) {
++        if (ret == -EINVAL) {
++            /*
++             * Allow falling back to pwrite for file systems that
++             * do not support fallocate() for an unaligned byte range.
++             */
++            return -ENOTSUP;
++        }
++        if (ret == 0 || ret != -ENOTSUP) {
+             return ret;
+         }
+-        /*
+-         * Note: Some file systems do not like unaligned byte ranges, and
+-         * return EINVAL in such a case, though they should not do it according
+-         * to the man-page of fallocate(). Thus we simply ignore this return
+-         * value and try the other fallbacks instead.
+-         */
++        s->has_write_zeroes = false;
+     }
+ #endif
+ 

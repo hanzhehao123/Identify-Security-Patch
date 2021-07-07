@@ -1,0 +1,15 @@
+commit 7c3d47dab908ac1770726e68cf72e47bb5a9cbcb
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu May 20 16:28:37 2021 +0100
+
+    target/arm: Implement M-profile VPR register
+    
+    If MVE is implemented for an M-profile CPU then it has a VPR
+    register, which tracks predication information.
+    
+    Implement the read and write handling of this register, and
+    the migration of its state.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210520152840.24453-7-peter.maydell@linaro.org

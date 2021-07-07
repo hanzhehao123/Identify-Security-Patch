@@ -1,0 +1,14 @@
+commit 6ba7ada3559ed464c06cea7efa4c66f8f2ccbf5b
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Mon Nov 9 10:13:30 2020 -0500
+
+    qtest: add a QOM object for qtest
+    
+    The qtest server right now can only be created using the -qtest
+    and -qtest-log options.  Allow an alternative way to create it
+    using "-object qtest,chardev=...,log=...".
+    
+    This is part of the long term plan to make more (or all) of
+    QEMU configurable through QMP and preconfig mode.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

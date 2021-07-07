@@ -1,0 +1,45 @@
+diff --git a/include/tcg/tcg.h b/include/tcg/tcg.h
+index 1d056ed0ed..e95abac9f4 100644
+--- a/include/tcg/tcg.h
++++ b/include/tcg/tcg.h
+@@ -1071,16 +1071,6 @@ void tcg_op_remove(TCGContext *s, TCGOp *op);
+ TCGOp *tcg_op_insert_before(TCGContext *s, TCGOp *op, TCGOpcode opc);
+ TCGOp *tcg_op_insert_after(TCGContext *s, TCGOp *op, TCGOpcode opc);
+ 
+-/**
+- * tcg_remove_ops_after:
+- * @op: target operation
+- *
+- * Discard any opcodes emitted since @op.  Expected usage is to save
+- * a starting point with tcg_last_op(), speculatively emit opcodes,
+- * then decide whether or not to keep those opcodes after the fact.
+- */
+-void tcg_remove_ops_after(TCGOp *op);
+-
+ void tcg_optimize(TCGContext *s);
+ 
+ /* Allocate a new temporary and initialize it with a constant. */
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index ca482c2301..81da553244 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -2083,19 +2083,6 @@ void tcg_op_remove(TCGContext *s, TCGOp *op)
+ #endif
+ }
+ 
+-void tcg_remove_ops_after(TCGOp *op)
+-{
+-    TCGContext *s = tcg_ctx;
+-
+-    while (true) {
+-        TCGOp *last = tcg_last_op();
+-        if (last == op) {
+-            return;
+-        }
+-        tcg_op_remove(s, last);
+-    }
+-}
+-
+ static TCGOp *tcg_op_alloc(TCGOpcode opc)
+ {
+     TCGContext *s = tcg_ctx;

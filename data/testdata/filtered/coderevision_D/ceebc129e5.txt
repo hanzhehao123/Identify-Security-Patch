@@ -1,0 +1,48 @@
+diff --git a/fpu/softfloat.c b/fpu/softfloat.c
+index 4fee5a6cb7..ef750e1e95 100644
+--- a/fpu/softfloat.c
++++ b/fpu/softfloat.c
+@@ -3324,18 +3324,6 @@ static float64 float64_minmax(float64 a, float64 b, float_status *s, int flags)
+     return float64_round_pack_canonical(pr, s);
+ }
+ 
+-static float128 float128_minmax(float128 a, float128 b,
+-                                float_status *s, int flags)
+-{
+-    FloatParts128 pa, pb, *pr;
+-
+-    float128_unpack_canonical(&pa, a, s);
+-    float128_unpack_canonical(&pb, b, s);
+-    pr = parts_minmax(&pa, &pb, s, flags);
+-
+-    return float128_round_pack_canonical(pr, s);
+-}
+-
+ #define MINMAX_1(type, name, flags) \
+     type type##_##name(type a, type b, float_status *s) \
+     { return type##_minmax(a, b, s, flags); }
+@@ -3352,7 +3340,6 @@ MINMAX_2(float16)
+ MINMAX_2(bfloat16)
+ MINMAX_2(float32)
+ MINMAX_2(float64)
+-MINMAX_2(float128)
+ 
+ #undef MINMAX_1
+ #undef MINMAX_2
+diff --git a/include/fpu/softfloat.h b/include/fpu/softfloat.h
+index ed32040aa9..53f2c2ea3c 100644
+--- a/include/fpu/softfloat.h
++++ b/include/fpu/softfloat.h
+@@ -1204,12 +1204,6 @@ float128 float128_rem(float128, float128, float_status *status);
+ float128 float128_sqrt(float128, float_status *status);
+ FloatRelation float128_compare(float128, float128, float_status *status);
+ FloatRelation float128_compare_quiet(float128, float128, float_status *status);
+-float128 float128_min(float128, float128, float_status *status);
+-float128 float128_max(float128, float128, float_status *status);
+-float128 float128_minnum(float128, float128, float_status *status);
+-float128 float128_maxnum(float128, float128, float_status *status);
+-float128 float128_minnummag(float128, float128, float_status *status);
+-float128 float128_maxnummag(float128, float128, float_status *status);
+ bool float128_is_quiet_nan(float128, float_status *status);
+ bool float128_is_signaling_nan(float128, float_status *status);
+ float128 float128_silence_nan(float128, float_status *status);

@@ -1,0 +1,15 @@
+commit 7c4ab60f18f5257d37164df0ae0951ece4425b02
+Author: Alex Bennée <alex.bennee@linaro.org>
+Date:   Wed Jun 23 11:27:48 2021 +0100
+
+    plugins/api: expose symbol lookup to plugins
+    
+    This is a quality of life helper for plugins so they don't need to
+    re-implement symbol lookup when dumping an address. The strings are
+    constant so don't need to be duplicated. One minor tweak is to return
+    NULL instead of a zero length string to show lookup failed.
+    
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Mahmoud Mandour <ma.mandourr@gmail.com>
+    Message-Id: <20210608040532.56449-2-ma.mandourr@gmail.com>
+    Message-Id: <20210623102749.25686-8-alex.bennee@linaro.org>

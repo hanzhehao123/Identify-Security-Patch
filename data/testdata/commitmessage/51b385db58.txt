@@ -1,0 +1,22 @@
+commit 51b385db586dafa4cd1f23413f0cbbf5ec2a256c
+Author: Fabiano Rosas <farosas@linux.ibm.com>
+Date:   Tue Jun 1 18:46:47 2021 -0300
+
+    target/ppc: powerpc_excp: Consolidade TLB miss code
+    
+    The only difference in the code for Instruction fetch, Data load and
+    Data store TLB miss errors is that when called from an unsupported
+    processor (i.e. not one of 602, 603, 603e, G2, 7x5 or 74xx), they
+    abort with a message specific to the operation type (insn fetch, data
+    load/store).
+    
+    If a processor does not support those interrupts we should not be
+    registering them in init_excp_<proc> to begin with, so that error
+    message would never be used.
+    
+    I'm leaving the message in for completeness, but making it generic and
+    consolidating the three interrupts into the same case statement body.
+    
+    Signed-off-by: Fabiano Rosas <farosas@linux.ibm.com>
+    Message-Id: <20210601214649.785647-4-farosas@linux.ibm.com>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

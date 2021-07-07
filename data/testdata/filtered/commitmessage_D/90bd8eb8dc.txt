@@ -1,0 +1,11 @@
+commit 90bd8eb8dcdc94da964786ddedd90c30eb54ada7
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:23 2021 -0400
+
+    scripts/qmp-shell: use isinstance() instead of type()
+    
+    A bit more idiomatic, and quiets some linter warnings.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-17-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

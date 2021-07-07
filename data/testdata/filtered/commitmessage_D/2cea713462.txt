@@ -1,0 +1,14 @@
+commit 2cea7134620749b106af167322d921716ef61144
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:14 2021 -0400
+
+    scripts/qom-fuse: ensure QOMFuse.read always returns bytes
+    
+    - Use FuseOSError to signal ENOENT instead of returning it
+    - Wrap qom-get in str(), as we don't always know its type
+    - The empty return should be b'', not ''.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210603003719.1321369-15-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

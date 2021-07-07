@@ -1,0 +1,13 @@
+diff --git a/block/file-posix.c b/block/file-posix.c
+index 74b8216077..f16d987c07 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -2341,7 +2341,7 @@ again:
+             }
+         }
+ #endif
+-#if defined(DKIOCGETBLOCKCOUNT) && defined(DKIOCGETBLOCKSIZE)
++#if defined(__APPLE__) && defined(__MACH__)
+         if (size == 0) {
+             uint64_t sectors = 0;
+             uint32_t sector_size = 0;

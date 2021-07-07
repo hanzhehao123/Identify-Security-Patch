@@ -1,0 +1,167 @@
+diff --git a/target/arm/helper.h b/target/arm/helper.h
+index de2f5331dc..8b4b7d92f3 100644
+--- a/target/arm/helper.h
++++ b/target/arm/helper.h
+@@ -1002,9 +1002,6 @@ DEF_HELPER_FLAGS_5(gvec_ummla_b, TCG_CALL_NO_RWG,
+ DEF_HELPER_FLAGS_5(gvec_usmmla_b, TCG_CALL_NO_RWG,
+                    void, ptr, ptr, ptr, ptr, i32)
+ 
+-DEF_HELPER_FLAGS_5(gvec_bfdot, TCG_CALL_NO_RWG,
+-                   void, ptr, ptr, ptr, ptr, i32)
+-
+ #ifdef TARGET_AARCH64
+ #include "helper-a64.h"
+ #include "helper-sve.h"
+diff --git a/target/arm/neon-shared.decode b/target/arm/neon-shared.decode
+index 31a0839bbb..cc9f4cdd85 100644
+--- a/target/arm/neon-shared.decode
++++ b/target/arm/neon-shared.decode
+@@ -52,8 +52,6 @@ VUDOT          1111 110 00 . 10 .... .... 1101 . q:1 . 1 .... \
+                vm=%vm_dp vn=%vn_dp vd=%vd_dp
+ VUSDOT         1111 110 01 . 10 .... .... 1101 . q:1 . 0 .... \
+                vm=%vm_dp vn=%vn_dp vd=%vd_dp
+-VDOT_b16       1111 110 00 . 00 .... .... 1101 . q:1 . 0 .... \
+-               vm=%vm_dp vn=%vn_dp vd=%vd_dp
+ 
+ # VFM[AS]L
+ VFML           1111 110 0 s:1 . 10 .... .... 1000 . 0 . 1 .... \
+diff --git a/target/arm/sve.decode b/target/arm/sve.decode
+index a7429b293f..18d1a0eecc 100644
+--- a/target/arm/sve.decode
++++ b/target/arm/sve.decode
+@@ -1625,9 +1625,6 @@ FMLALT_zzzw     01100100 10 1 ..... 10 0 00 1 ..... .....  @rda_rn_rm_e0
+ FMLSLB_zzzw     01100100 10 1 ..... 10 1 00 0 ..... .....  @rda_rn_rm_e0
+ FMLSLT_zzzw     01100100 10 1 ..... 10 1 00 1 ..... .....  @rda_rn_rm_e0
+ 
+-### SVE2 floating-point bfloat16 dot-product
+-BFDOT_zzzz      01100100 01 1 ..... 10 0 00 0 ..... .....  @rda_rn_rm_e0
+-
+ ### SVE2 floating-point multiply-add long (indexed)
+ FMLALB_zzxw     01100100 10 1 ..... 0100.0 ..... .....     @rrxr_3a esz=2
+ FMLALT_zzxw     01100100 10 1 ..... 0100.1 ..... .....     @rrxr_3a esz=2
+diff --git a/target/arm/translate-a64.c b/target/arm/translate-a64.c
+index 3c36de3df2..0f15fa42fc 100644
+--- a/target/arm/translate-a64.c
++++ b/target/arm/translate-a64.c
+@@ -12235,16 +12235,6 @@ static void disas_simd_three_reg_same_extra(DisasContext *s, uint32_t insn)
+         }
+         feature = dc_isar_feature(aa64_fcma, s);
+         break;
+-    case 0x1f: /* BFDOT */
+-        switch (size) {
+-        case 1:
+-            feature = dc_isar_feature(aa64_bf16, s);
+-            break;
+-        default:
+-            unallocated_encoding(s);
+-            return;
+-        }
+-        break;
+     default:
+         unallocated_encoding(s);
+         return;
+@@ -12328,16 +12318,6 @@ static void disas_simd_three_reg_same_extra(DisasContext *s, uint32_t insn)
+         }
+         return;
+ 
+-    case 0xf: /* BFDOT */
+-        switch (size) {
+-        case 1:
+-            gen_gvec_op4_ool(s, is_q, rd, rn, rm, rd, 0, gen_helper_gvec_bfdot);
+-            break;
+-        default:
+-            g_assert_not_reached();
+-        }
+-        return;
+-
+     default:
+         g_assert_not_reached();
+     }
+diff --git a/target/arm/translate-neon.c b/target/arm/translate-neon.c
+index 9460857b2a..6d94229c69 100644
+--- a/target/arm/translate-neon.c
++++ b/target/arm/translate-neon.c
+@@ -296,15 +296,6 @@ static bool trans_VUSDOT(DisasContext *s, arg_VUSDOT *a)
+                         gen_helper_gvec_usdot_b);
+ }
+ 
+-static bool trans_VDOT_b16(DisasContext *s, arg_VDOT_b16 *a)
+-{
+-    if (!dc_isar_feature(aa32_bf16, s)) {
+-        return false;
+-    }
+-    return do_neon_ddda(s, a->q * 7, a->vd, a->vn, a->vm, 0,
+-                        gen_helper_gvec_bfdot);
+-}
+-
+ static bool trans_VFML(DisasContext *s, arg_VFML *a)
+ {
+     int opr_sz;
+diff --git a/target/arm/translate-sve.c b/target/arm/translate-sve.c
+index ed290827ad..fb692a1835 100644
+--- a/target/arm/translate-sve.c
++++ b/target/arm/translate-sve.c
+@@ -8653,15 +8653,3 @@ static bool trans_UMMLA(DisasContext *s, arg_rrrr_esz *a)
+ {
+     return do_i8mm_zzzz_ool(s, a, gen_helper_gvec_ummla_b, 0);
+ }
+-
+-static bool trans_BFDOT_zzzz(DisasContext *s, arg_rrrr_esz *a)
+-{
+-    if (!dc_isar_feature(aa64_sve_bf16, s)) {
+-        return false;
+-    }
+-    if (sve_access_check(s)) {
+-        gen_gvec_ool_zzzz(s, gen_helper_gvec_bfdot,
+-                          a->rd, a->rn, a->rm, a->ra, 0);
+-    }
+-    return true;
+-}
+diff --git a/target/arm/vec_helper.c b/target/arm/vec_helper.c
+index 7eefcd06ea..e84b438340 100644
+--- a/target/arm/vec_helper.c
++++ b/target/arm/vec_helper.c
+@@ -2412,43 +2412,3 @@ static void do_mmla_b(void *vd, void *vn, void *vm, void *va, uint32_t desc,
+ DO_MMLA_B(gvec_smmla_b, do_smmla_b)
+ DO_MMLA_B(gvec_ummla_b, do_ummla_b)
+ DO_MMLA_B(gvec_usmmla_b, do_usmmla_b)
+-
+-/*
+- * BFloat16 Dot Product
+- */
+-
+-static float32 bfdotadd(float32 sum, uint32_t e1, uint32_t e2)
+-{
+-    /* FPCR is ignored for BFDOT and BFMMLA. */
+-    float_status bf_status = {
+-        .tininess_before_rounding = float_tininess_before_rounding,
+-        .float_rounding_mode = float_round_to_odd_inf,
+-        .flush_to_zero = true,
+-        .flush_inputs_to_zero = true,
+-        .default_nan_mode = true,
+-    };
+-    float32 t1, t2;
+-
+-    /*
+-     * Extract each BFloat16 from the element pair, and shift
+-     * them such that they become float32.
+-     */
+-    t1 = float32_mul(e1 << 16, e2 << 16, &bf_status);
+-    t2 = float32_mul(e1 & 0xffff0000u, e2 & 0xffff0000u, &bf_status);
+-    t1 = float32_add(t1, t2, &bf_status);
+-    t1 = float32_add(sum, t1, &bf_status);
+-
+-    return t1;
+-}
+-
+-void HELPER(gvec_bfdot)(void *vd, void *vn, void *vm, void *va, uint32_t desc)
+-{
+-    intptr_t i, opr_sz = simd_oprsz(desc);
+-    float32 *d = vd, *a = va;
+-    uint32_t *n = vn, *m = vm;
+-
+-    for (i = 0; i < opr_sz / 4; ++i) {
+-        d[i] = bfdotadd(a[i], n[i], m[i]);
+-    }
+-    clear_tail(d, opr_sz, simd_maxsz(desc));
+-}

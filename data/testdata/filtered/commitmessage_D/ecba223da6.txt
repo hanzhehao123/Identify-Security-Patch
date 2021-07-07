@@ -1,0 +1,47 @@
+commit ecba223da6215d6f6ce2d343b70b2e9a19bfb90b
+Merge: d0ac9a6147 90a76c6316
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 24 15:00:33 2021 +0100
+
+    Merge remote-tracking branch 'remotes/pmaydell/tags/pull-target-arm-20210624' into staging
+    
+    target-arm queue:
+     * Don't require 'virt' board to be compiled in for ACPI GHES code
+     * docs: Document which architecture extensions we emulate
+     * Fix bugs in M-profile FPCXT_NS accesses
+     * First slice of MVE patches
+     * Implement MTE3
+     * docs/system: arm: Add nRF boards description
+    
+    # gpg: Signature made Thu 24 Jun 2021 14:59:16 BST
+    # gpg:                using RSA key E1A5C593CD419DE28E8315CF3C2525ED14360CDE
+    # gpg:                issuer "peter.maydell@linaro.org"
+    # gpg: Good signature from "Peter Maydell <peter.maydell@linaro.org>" [ultimate]
+    # gpg:                 aka "Peter Maydell <pmaydell@gmail.com>" [ultimate]
+    # gpg:                 aka "Peter Maydell <pmaydell@chiark.greenend.org.uk>" [ultimate]
+    # Primary key fingerprint: E1A5 C593 CD41 9DE2 8E83  15CF 3C25 25ED 1436 0CDE
+    
+    * remotes/pmaydell/tags/pull-target-arm-20210624: (57 commits)
+      docs/system: arm: Add nRF boards description
+      target/arm: Implement MTE3
+      target/arm: Make VMOV scalar <-> gpreg beatwise for MVE
+      target/arm: Implement MVE VADDV
+      target/arm: Implement MVE VHCADD
+      target/arm: Implement MVE VCADD
+      target/arm: Implement MVE VADC, VSBC
+      target/arm: Implement MVE VRHADD
+      target/arm: Implement MVE VQDMULL (vector)
+      target/arm: Implement MVE VQDMLSDH and VQRDMLSDH
+      target/arm: Implement MVE VQDMLADH and VQRDMLADH
+      target/arm: Implement MVE VRSHL
+      target/arm: Implement MVE VSHL insn
+      target/arm: Implement MVE VQRSHL
+      target/arm: Implement MVE VQSHL (vector)
+      target/arm: Implement MVE VQADD, VQSUB (vector)
+      target/arm: Implement MVE VQDMULH, VQRDMULH (vector)
+      target/arm: Implement MVE VQDMULL scalar
+      target/arm: Implement MVE VQDMULH and VQRDMULH (scalar)
+      target/arm: Implement MVE VQADD and VQSUB
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

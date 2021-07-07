@@ -1,0 +1,12 @@
+commit e1d2dbee5704e4db5dda6cda3da1bbbb4f950f90
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Tue May 18 20:36:32 2021 +0200
+
+    exec/memory_ldst_phys: Sort declarations
+    
+    To ease the file review, sort the declarations by the size of
+    the access (8, 16, 32). Simple code movement, no logical change.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210518183655.1711377-3-philmd@redhat.com>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

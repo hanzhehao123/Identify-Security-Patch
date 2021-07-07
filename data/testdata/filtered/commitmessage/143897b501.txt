@@ -1,0 +1,38 @@
+commit 143897b50140cfd7540f867edca5d658e76aa9bf
+Author: Bin Meng <bin.meng@windriver.com>
+Date:   Fri Apr 30 15:13:02 2021 +0800
+
+    hw/riscv: microchip_pfsoc: Support direct kernel boot
+    
+    At present the Microchip Icicle Kit machine only supports using
+    '-bios' to load the HSS, and does not support '-kernel' for direct
+    kernel booting just like other RISC-V machines do. One has to use
+    U-Boot which is chain-loaded by HSS, to load a kernel for testing.
+    This is not so convenient.
+    
+    Adding '-kernel' support together with the existing '-bios', we
+    follow the following table to select which payload we execute:
+    
+      -bios |    -kernel | payload
+      ------+------------+--------
+          N |          N | HSS
+          Y | don't care | HSS
+          N |          Y | kernel
+    
+    This ensures backwards compatibility with how we used to expose
+    '-bios' to users. When '-kernel' is used for direct boot, '-dtb'
+    must be present to provide a valid device tree for the board,
+    as we don't generate device tree.
+    
+    When direct kernel boot is used, the OpenSBI fw_dynamic BIOS image
+    is used to boot a payload like U-Boot or OS kernel directly.
+    
+    Documentation is updated to describe the direct kernel boot. Note
+    as of today there is still no PolarFire SoC support in the upstream
+    Linux kernel hence the document does not include instructions for
+    that. It will be updated in the future.
+    
+    Signed-off-by: Bin Meng <bin.meng@windriver.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210430071302.1489082-8-bmeng.cn@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

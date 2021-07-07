@@ -1,0 +1,20 @@
+commit 10b81272b305da375c3c3e9ec86f2e35df702f2e
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 20:07:44 2021 -0700
+
+    linux-user/s390x: Save and restore psw.mask properly
+    
+    At present, we're referencing env->psw.mask directly, which
+    fails to ensure that env->cc_op is incorporated or updated.
+    Use s390_cpu_{set_psw,get_psw_mask} to fix this.
+    
+    Mirror the kernel's cleaning of the psw.mask in save_sigregs
+    and restore_sigregs.  Ignore PSW_MASK_RI for now, as qemu does
+    not support that.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: David Hildenbrand <david@redhat.com>
+    Tested-by: jonathan.albrecht <jonathan.albrecht@linux.vnet.ibm.com>
+    Tested-by: <ruixin.bao@ibm.com>
+    Message-Id: <20210615030744.1252385-6-richard.henderson@linaro.org>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

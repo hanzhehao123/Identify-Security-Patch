@@ -1,0 +1,12 @@
+commit f5c6ee0c6b7b4b79b52a1614a808633dbb694de4
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sat May 29 20:06:13 2021 +0200
+
+    target/mips: Merge msa32/msa64 decodetree definitions
+    
+    We don't need to maintain 2 sets of decodetree definitions.
+    Merge them into a single file.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210617174636.2902654-3-f4bug@amsat.org>

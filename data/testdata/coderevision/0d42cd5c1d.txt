@@ -1,0 +1,14 @@
+diff --git a/target/riscv/cpu.h b/target/riscv/cpu.h
+index 0619b491a4..7e879fb9ca 100644
+--- a/target/riscv/cpu.h
++++ b/target/riscv/cpu.h
+@@ -97,9 +97,7 @@ enum {
+ 
+ typedef struct CPURISCVState CPURISCVState;
+ 
+-#if !defined(CONFIG_USER_ONLY)
+ #include "pmp.h"
+-#endif
+ 
+ #define RV_VLEN_MAX 256
+ 

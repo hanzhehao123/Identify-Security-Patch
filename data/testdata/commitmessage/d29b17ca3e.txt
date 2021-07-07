@@ -1,0 +1,13 @@
+commit d29b17ca3eac79ab77c76ec8285698b0c57d04b2
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue May 25 15:58:09 2021 -0700
+
+    target/arm: Implement vector float32 to bfloat16 conversion
+    
+    This is BFCVT{N,T} for both AArch64 AdvSIMD and SVE,
+    and VCVT.BF16.F32 for AArch32 NEON.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210525225817.400336-5-richard.henderson@linaro.org
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

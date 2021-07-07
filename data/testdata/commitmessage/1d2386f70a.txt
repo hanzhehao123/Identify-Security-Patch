@@ -1,0 +1,13 @@
+commit 1d2386f70a0cb2ad9c5fab2cf1eedb80bb5b313d
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:03 2021 +0100
+
+    target/arm: Implement MVE VMLALDAV
+    
+    Implement the MVE VMLALDAV insn, which multiplies pairs of integer
+    elements, accumulating them into a 64-bit result in a pair of
+    general-purpose registers.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-20-peter.maydell@linaro.org

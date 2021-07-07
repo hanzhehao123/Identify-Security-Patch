@@ -1,0 +1,16 @@
+commit 2c398ee5e3a4b8db995ec4b211f28a1119bf10ca
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue May 25 14:44:55 2021 +0100
+
+    tests/qtest/hd-geo-test: Fix checks on mkstemp() return value
+    
+    Coverity notices that the checks against mkstemp() failing in
+    create_qcow2_with_mbr() are wrong: mkstemp returns -1 on failure but
+    the check is just "g_assert(fd)".  Fix to use "g_assert(fd >= 0)",
+    matching the correct check in create_test_img().
+    
+    Fixes: Coverity CID 1432274
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Stefan Berger <stefanb@linux.ibm.com>
+    Message-id: 20210525134458.6675-4-peter.maydell@linaro.org

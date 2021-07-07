@@ -1,0 +1,15 @@
+commit 07df3dfafa94460082f704dab674a7911c844ba6
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Wed May 19 20:55:00 2021 +0200
+
+    gitlab: Extract build stages to stages.yml
+    
+    Extract the build stages used by our job templates to a new file
+    (stages.yml) to be able to include it with the other templates,
+    without having to run all the jobs included in the default
+    .gitlab-ci.yml, which are mainly useful for mainstream CI.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210519185504.2198573-7-f4bug@amsat.org>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

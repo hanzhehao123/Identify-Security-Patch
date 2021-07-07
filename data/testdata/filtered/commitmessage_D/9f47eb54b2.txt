@@ -1,0 +1,14 @@
+commit 9f47eb54b25e67b28a85a0b3eac304f2909f10ae
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sun May 30 00:32:16 2021 +0200
+
+    target/mips: Remove SmartMIPS / MDMX unuseful comments
+    
+    These placeholder comments for SmartMIPS and MDMX extensions have
+    been added commit 3c824109da0 ("target-mips: microMIPS ASE support").
+    More than 11 years later it is safe to assume there won't be added
+    soon, so remove these unuseful comments.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210617174323.2900831-7-f4bug@amsat.org>

@@ -1,0 +1,30 @@
+commit d0ac9a61474cf594d19082bc8976247e984ea9a3
+Merge: b22726abdf c32c3d68ed
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 24 09:31:26 2021 +0100
+
+    Merge remote-tracking branch 'remotes/thuth-gitlab/tags/pull-request-2021-06-21' into staging
+    
+    * Documentation updates
+    * Remove leading underscores from header guards
+    * Display hexadecimal value with '0x' prefix
+    
+    # gpg: Signature made Mon 21 Jun 2021 11:33:53 BST
+    # gpg:                using RSA key 27B88847EEE0250118F3EAB92ED9D774FE702DB5
+    # gpg:                issuer "thuth@redhat.com"
+    # gpg: Good signature from "Thomas Huth <th.huth@gmx.de>" [full]
+    # gpg:                 aka "Thomas Huth <thuth@redhat.com>" [full]
+    # gpg:                 aka "Thomas Huth <huth@tuxfamily.org>" [full]
+    # gpg:                 aka "Thomas Huth <th.huth@posteo.de>" [unknown]
+    # Primary key fingerprint: 27B8 8847 EEE0 2501 18F3  EAB9 2ED9 D774 FE70 2DB5
+    
+    * remotes/thuth-gitlab/tags/pull-request-2021-06-21:
+      MAINTAINERS: Add qtest/arm-cpu-features.c to ARM TCG CPUs section
+      fuzz: Display hexadecimal value with '0x' prefix
+      Remove leading underscores from QEMU defines
+      Update documentation to refer to new location for issues
+      docs/tools/virtiofsd: Fix bad rst syntax
+      docs/tools/virtiofsd.rst: Do not hard-code the QEMU binary name
+      docs/interop/live-block-operations: Do not hard-code the QEMU binary name
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

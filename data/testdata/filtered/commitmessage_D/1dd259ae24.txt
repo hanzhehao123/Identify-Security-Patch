@@ -1,0 +1,24 @@
+commit 1dd259ae24a26d8a987ab83aefb5c04dbe5f4b2a
+Merge: 1ea06abcee caff255a54
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue Jun 15 16:33:05 2021 +0100
+
+    Merge remote-tracking branch 'remotes/stefanberger/tags/pull-tpm-2021-06-15-1' into staging
+    
+    Merge tpm 2021/06/15 v1
+    
+    # gpg: Signature made Tue 15 Jun 2021 16:09:31 BST
+    # gpg:                using RSA key B818B9CADF9089C2D5CEC66B75AD65802A0B4211
+    # gpg: Good signature from "Stefan Berger <stefanb@linux.vnet.ibm.com>" [unknown]
+    # gpg: WARNING: This key is not certified with a trusted signature!
+    # gpg:          There is no indication that the signature belongs to the owner.
+    # Primary key fingerprint: B818 B9CA DF90 89C2 D5CE  C66B 75AD 6580 2A0B 4211
+    
+    * remotes/stefanberger/tags/pull-tpm-2021-06-15-1:
+      tpm: Return QMP error when TPM is disabled in build
+      sysemu: Make TPM structures inaccessible if CONFIG_TPM is not defined
+      acpi: Eliminate all TPM related code if CONFIG_TPM is not set
+      arm: Eliminate all TPM related code if CONFIG_TPM is not set
+      i386: Eliminate all TPM related code if CONFIG_TPM is not set
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

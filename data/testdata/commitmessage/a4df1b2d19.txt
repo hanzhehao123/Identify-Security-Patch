@@ -1,0 +1,12 @@
+commit a4df1b2d193d1a265bfc3773703bba7da12446e9
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Wed Mar 10 11:16:27 2021 -0600
+
+    tcg: Tidy split_cross_256mb
+    
+    Return output buffer and size via output pointer arguments,
+    rather than returning size via tcg_ctx->code_gen_buffer_size.
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

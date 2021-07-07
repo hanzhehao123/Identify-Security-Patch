@@ -1,0 +1,173 @@
+diff --git a/fpu/softfloat-parts.c.inc b/fpu/softfloat-parts.c.inc
+index 2eb7bb96b3..b7486f02db 100644
+--- a/fpu/softfloat-parts.c.inc
++++ b/fpu/softfloat-parts.c.inc
+@@ -915,26 +915,3 @@ static void partsN(sint_to_float)(FloatPartsN *p, int64_t a,
+     p->exp = DECOMPOSED_BINARY_POINT - shift + scale;
+     p->frac_hi = f << shift;
+ }
+-
+-/*
+- * Unsigned Integer to float conversions
+- *
+- * Returns the result of converting the unsigned integer `a' to the
+- * floating-point format. The conversion is performed according to the
+- * IEC/IEEE Standard for Binary Floating-Point Arithmetic.
+- */
+-static void partsN(uint_to_float)(FloatPartsN *p, uint64_t a,
+-                                  int scale, float_status *status)
+-{
+-    memset(p, 0, sizeof(*p));
+-
+-    if (a == 0) {
+-        p->cls = float_class_zero;
+-    } else {
+-        int shift = clz64(a);
+-        scale = MIN(MAX(scale, -0x10000), 0x10000);
+-        p->cls = float_class_normal;
+-        p->exp = DECOMPOSED_BINARY_POINT - shift + scale;
+-        p->frac_hi = a << shift;
+-    }
+-}
+diff --git a/fpu/softfloat.c b/fpu/softfloat.c
+index db14bd09aa..6404a2997f 100644
+--- a/fpu/softfloat.c
++++ b/fpu/softfloat.c
+@@ -857,14 +857,6 @@ static void parts128_sint_to_float(FloatParts128 *p, int64_t a,
+ #define parts_sint_to_float(P, I, Z, S) \
+     PARTS_GENERIC_64_128(sint_to_float, P)(P, I, Z, S)
+ 
+-static void parts64_uint_to_float(FloatParts64 *p, uint64_t a,
+-                                  int scale, float_status *s);
+-static void parts128_uint_to_float(FloatParts128 *p, uint64_t a,
+-                                   int scale, float_status *s);
+-
+-#define parts_uint_to_float(P, I, Z, S) \
+-    PARTS_GENERIC_64_128(uint_to_float, P)(P, I, Z, S)
+-
+ /*
+  * Helper functions for softfloat-parts.c.inc, per-size operations.
+  */
+@@ -3110,15 +3102,35 @@ float128 int32_to_float128(int32_t a, float_status *status)
+ }
+ 
+ /*
+- * Unsigned Integer to floating-point conversions
++ * Unsigned Integer to float conversions
++ *
++ * Returns the result of converting the unsigned integer `a' to the
++ * floating-point format. The conversion is performed according to the
++ * IEC/IEEE Standard for Binary Floating-Point Arithmetic.
+  */
+ 
+-float16 uint64_to_float16_scalbn(uint64_t a, int scale, float_status *status)
++static FloatParts64 uint_to_float(uint64_t a, int scale, float_status *status)
+ {
+-    FloatParts64 p;
++    FloatParts64 r = { .sign = false };
++    int shift;
+ 
+-    parts_uint_to_float(&p, a, scale, status);
+-    return float16_round_pack_canonical(&p, status);
++    if (a == 0) {
++        r.cls = float_class_zero;
++    } else {
++        scale = MIN(MAX(scale, -0x10000), 0x10000);
++        shift = clz64(a);
++        r.cls = float_class_normal;
++        r.exp = DECOMPOSED_BINARY_POINT - shift + scale;
++        r.frac = a << shift;
++    }
++
++    return r;
++}
++
++float16 uint64_to_float16_scalbn(uint64_t a, int scale, float_status *status)
++{
++    FloatParts64 pa = uint_to_float(a, scale, status);
++    return float16_round_pack_canonical(&pa, status);
+ }
+ 
+ float16 uint32_to_float16_scalbn(uint32_t a, int scale, float_status *status)
+@@ -3153,10 +3165,8 @@ float16 uint8_to_float16(uint8_t a, float_status *status)
+ 
+ float32 uint64_to_float32_scalbn(uint64_t a, int scale, float_status *status)
+ {
+-    FloatParts64 p;
+-
+-    parts_uint_to_float(&p, a, scale, status);
+-    return float32_round_pack_canonical(&p, status);
++    FloatParts64 pa = uint_to_float(a, scale, status);
++    return float32_round_pack_canonical(&pa, status);
+ }
+ 
+ float32 uint32_to_float32_scalbn(uint32_t a, int scale, float_status *status)
+@@ -3186,10 +3196,8 @@ float32 uint16_to_float32(uint16_t a, float_status *status)
+ 
+ float64 uint64_to_float64_scalbn(uint64_t a, int scale, float_status *status)
+ {
+-    FloatParts64 p;
+-
+-    parts_uint_to_float(&p, a, scale, status);
+-    return float64_round_pack_canonical(&p, status);
++    FloatParts64 pa = uint_to_float(a, scale, status);
++    return float64_round_pack_canonical(&pa, status);
+ }
+ 
+ float64 uint32_to_float64_scalbn(uint32_t a, int scale, float_status *status)
+@@ -3217,12 +3225,15 @@ float64 uint16_to_float64(uint16_t a, float_status *status)
+     return uint64_to_float64_scalbn(a, 0, status);
+ }
+ 
++/*
++ * Returns the result of converting the unsigned integer `a' to the
++ * bfloat16 format.
++ */
++
+ bfloat16 uint64_to_bfloat16_scalbn(uint64_t a, int scale, float_status *status)
+ {
+-    FloatParts64 p;
+-
+-    parts_uint_to_float(&p, a, scale, status);
+-    return bfloat16_round_pack_canonical(&p, status);
++    FloatParts64 pa = uint_to_float(a, scale, status);
++    return bfloat16_round_pack_canonical(&pa, status);
+ }
+ 
+ bfloat16 uint32_to_bfloat16_scalbn(uint32_t a, int scale, float_status *status)
+@@ -3250,14 +3261,6 @@ bfloat16 uint16_to_bfloat16(uint16_t a, float_status *status)
+     return uint64_to_bfloat16_scalbn(a, 0, status);
+ }
+ 
+-float128 uint64_to_float128(uint64_t a, float_status *status)
+-{
+-    FloatParts128 p;
+-
+-    parts_uint_to_float(&p, a, 0, status);
+-    return float128_round_pack_canonical(&p, status);
+-}
+-
+ /* Float Min/Max */
+ /* min() and max() functions. These can't be implemented as
+  * 'compare and pick one input' because that would mishandle
+@@ -4969,6 +4972,20 @@ floatx80 int64_to_floatx80(int64_t a, float_status *status)
+ 
+ }
+ 
++/*----------------------------------------------------------------------------
++| Returns the result of converting the 64-bit unsigned integer `a'
++| to the quadruple-precision floating-point format.  The conversion is performed
++| according to the IEC/IEEE Standard for Binary Floating-Point Arithmetic.
++*----------------------------------------------------------------------------*/
++
++float128 uint64_to_float128(uint64_t a, float_status *status)
++{
++    if (a == 0) {
++        return float128_zero;
++    }
++    return normalizeRoundAndPackFloat128(0, 0x406E, 0, a, status);
++}
++
+ /*----------------------------------------------------------------------------
+ | Returns the result of converting the single-precision floating-point value
+ | `a' to the extended double-precision floating-point format.  The conversion

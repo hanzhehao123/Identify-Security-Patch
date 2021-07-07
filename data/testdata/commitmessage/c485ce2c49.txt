@@ -1,0 +1,14 @@
+commit c485ce2c491a6e5d66da1d1555ecd474b450db98
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 16:09:12 2021 +0100
+
+    target/arm: Enable FPSCR.QC bit for MVE
+    
+    MVE has an FPSCR.QC bit similar to the A-profile Neon one; when MVE
+    is implemented make the bit writeable, both in the generic "load and
+    store FPSCR" helper functions and in the code for handling the NZCVQC
+    sysreg which we had previously left as "TODO when we implement MVE".
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210614151007.4545-3-peter.maydell@linaro.org

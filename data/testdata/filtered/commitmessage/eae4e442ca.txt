@@ -1,0 +1,22 @@
+commit eae4e442caa087b2ef292a5fb6377236fa8423f2
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:16:57 2021 -0400
+
+    python: add MANIFEST.in
+    
+    When creating a source or binary distribution via 'python3 setup.py
+    <sdist|bdist>', the VERSION and PACKAGE.rst files aren't bundled by
+    default. Create a MANIFEST.in file that instructs the build tools to
+    include these so that installation from these files won't fail.
+    
+    This is required by 'tox', as well as by the tooling needed to upload
+    packages to PyPI.
+    
+    Exclude the 'README.rst' file -- that's intended as a guidebook to our
+    source tree, not a file that needs to be distributed.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-14-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

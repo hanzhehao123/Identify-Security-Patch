@@ -1,0 +1,17 @@
+commit 149009bef4b4b4db37b3cf72b41dc2c6e8ca1885
+Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date:   Thu Jun 24 09:20:43 2021 +0200
+
+    block-copy: atomic .cancelled and .finished fields in BlockCopyCallState
+    
+    By adding acquire/release pairs, we ensure that .ret and .error_is_read
+    fields are written by block_copy_dirty_clusters before .finished is true,
+    and that they are read by API user after .finished is true.
+    
+    The atomic here are necessary because the fields are concurrently modified
+    in coroutines, and read outside.
+    
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Message-Id: <20210624072043.180494-6-eesposit@redhat.com>
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>

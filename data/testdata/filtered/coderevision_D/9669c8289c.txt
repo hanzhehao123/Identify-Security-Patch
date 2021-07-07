@@ -1,0 +1,18 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index ae3f04534a..04ca6a25ae 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -251,11 +251,11 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         self.__cli_expr(cmdargs[1:], qmpcmd['arguments'])
+         return qmpcmd
+ 
+-    def _print(self, qmp_message):
++    def _print(self, qmp):
+         indent = None
+         if self._pretty:
+             indent = 4
+-        jsobj = json.dumps(qmp_message, indent=indent, sort_keys=self._pretty)
++        jsobj = json.dumps(qmp, indent=indent, sort_keys=self._pretty)
+         print(str(jsobj))
+ 
+     def _execute_cmd(self, cmdline):

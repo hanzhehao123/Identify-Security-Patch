@@ -1,0 +1,14 @@
+commit 37a54d054f5aac43cb5721c68954b8b76d0db12d
+Author: Volker Rümelin <vr_qemu@t-online.de>
+Date:   Mon May 17 21:46:03 2021 +0200
+
+    audio: move code to audio/audio.c
+    
+    Move the code to generate the pa_context_new() application name
+    argument to a function in audio/audio.c. The new function
+    audio_application_name() will also be used in the jackaudio
+    backend.
+    
+    Signed-off-by: Volker Rümelin <vr_qemu@t-online.de>
+    Message-Id: <20210517194604.2545-3-vr_qemu@t-online.de>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

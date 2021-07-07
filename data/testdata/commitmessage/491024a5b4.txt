@@ -1,0 +1,8 @@
+commit 491024a5b4efcf79ef46ddfd5c02957102d60175
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Tue Feb 23 15:35:45 2021 +0000
+
+    docs: document how to pass secret data to QEMU
+    
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>

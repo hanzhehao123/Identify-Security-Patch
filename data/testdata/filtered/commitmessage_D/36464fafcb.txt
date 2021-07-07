@@ -1,0 +1,14 @@
+commit 36464fafcb34c1599b6cd22e409a3de600974944
+Author: Alexander Graf <agraf@csgraf.de>
+Date:   Thu Jun 3 14:09:33 2021 +0100
+
+    hvf: Make synchronize functions static
+    
+    The hvf accel synchronize functions are only used as input for local
+    callback functions, so we can make them static.
+    
+    Signed-off-by: Alexander Graf <agraf@csgraf.de>
+    Reviewed-by: Sergio Lopez <slp@redhat.com>
+    Message-id: 20210519202253.76782-10-agraf@csgraf.de
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

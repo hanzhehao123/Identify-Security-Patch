@@ -1,0 +1,19 @@
+commit 77ba5d50bad66d56dde93e6f1c0b7a76b58ca290
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:26 2021 +0200
+
+    cpu: Directly use get_paging_enabled() fallback handlers in place
+    
+    No code uses CPUClass::get_paging_enabled() outside of hw/core/cpu.c:
+    
+      $ git grep -F -- '->get_paging_enabled'
+      hw/core/cpu.c:74:    return cc->get_paging_enabled(cpu);
+      hw/core/cpu.c:438:    k->get_paging_enabled = cpu_common_get_paging_enabled;
+      target/i386/cpu.c:7418:    cc->get_paging_enabled = x86_cpu_get_paging_enabled;
+    
+    Check the handler presence in place and remove the common fallback code.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-10-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

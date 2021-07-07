@@ -1,0 +1,13 @@
+commit e5ceadff47ddec1513a56f96d9df246f62c90875
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 24 19:04:53 2021 +0200
+
+    accel/tcg: Keep TranslationBlock headers local to TCG
+    
+    Only the TCG accelerator uses the TranslationBlock API.
+    Move the tb-context.h / tb-hash.h / tb-lookup.h from the
+    global namespace to the TCG one (in accel/tcg).
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Message-Id: <20210524170453.3791436-3-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

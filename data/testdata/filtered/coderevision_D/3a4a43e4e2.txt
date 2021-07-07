@@ -1,0 +1,69 @@
+diff --git a/target/riscv/insn32.decode b/target/riscv/insn32.decode
+index f09f8d5faf..287920ee9b 100644
+--- a/target/riscv/insn32.decode
++++ b/target/riscv/insn32.decode
+@@ -720,7 +720,6 @@ gorcw      0010100 .......... 101 ..... 0111011 @r
+ sh1add_uw  0010000 .......... 010 ..... 0111011 @r
+ sh2add_uw  0010000 .......... 100 ..... 0111011 @r
+ sh3add_uw  0010000 .......... 110 ..... 0111011 @r
+-add_uw     0000100 .......... 000 ..... 0111011 @r
+ 
+ bsetiw     0010100 .......... 001 ..... 0011011 @sh5
+ bclriw     0100100 .......... 001 ..... 0011011 @sh5
+@@ -730,5 +729,3 @@ sroiw      0010000 .......... 101 ..... 0011011 @sh5
+ roriw      0110000 .......... 101 ..... 0011011 @sh5
+ greviw     0110100 .......... 101 ..... 0011011 @sh5
+ gorciw     0010100 .......... 101 ..... 0011011 @sh5
+-
+-slli_uw    00001. ........... 001 ..... 0011011 @sh
+diff --git a/target/riscv/insn_trans/trans_rvb.c.inc b/target/riscv/insn_trans/trans_rvb.c.inc
+index 9e81f6e3de..b27114a068 100644
+--- a/target/riscv/insn_trans/trans_rvb.c.inc
++++ b/target/riscv/insn_trans/trans_rvb.c.inc
+@@ -410,29 +410,3 @@ static bool trans_sh##SHAMT##add_uw(DisasContext *ctx,        \
+ GEN_TRANS_SHADD_UW(1)
+ GEN_TRANS_SHADD_UW(2)
+ GEN_TRANS_SHADD_UW(3)
+-
+-static bool trans_add_uw(DisasContext *ctx, arg_add_uw *a)
+-{
+-    REQUIRE_64BIT(ctx);
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_arith(ctx, a, gen_add_uw);
+-}
+-
+-static bool trans_slli_uw(DisasContext *ctx, arg_slli_uw *a)
+-{
+-    REQUIRE_64BIT(ctx);
+-    REQUIRE_EXT(ctx, RVB);
+-
+-    TCGv source1 = tcg_temp_new();
+-    gen_get_gpr(source1, a->rs1);
+-
+-    if (a->shamt < 32) {
+-        tcg_gen_deposit_z_tl(source1, source1, a->shamt, 32);
+-    } else {
+-        tcg_gen_shli_tl(source1, source1, a->shamt);
+-    }
+-
+-    gen_set_gpr(a->rd, source1);
+-    tcg_temp_free(source1);
+-    return true;
+-}
+diff --git a/target/riscv/translate.c b/target/riscv/translate.c
+index c6e8739614..ae9b5f7a2e 100644
+--- a/target/riscv/translate.c
++++ b/target/riscv/translate.c
+@@ -765,12 +765,6 @@ GEN_SHADD_UW(1)
+ GEN_SHADD_UW(2)
+ GEN_SHADD_UW(3)
+ 
+-static void gen_add_uw(TCGv ret, TCGv arg1, TCGv arg2)
+-{
+-    tcg_gen_ext32u_tl(arg1, arg1);
+-    tcg_gen_add_tl(ret, arg1, arg2);
+-}
+-
+ static bool gen_arith(DisasContext *ctx, arg_r *a,
+                       void(*func)(TCGv, TCGv, TCGv))
+ {

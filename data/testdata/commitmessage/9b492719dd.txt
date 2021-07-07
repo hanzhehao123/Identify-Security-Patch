@@ -1,0 +1,14 @@
+commit 9b492719dd0445c676da6805c84f9a5893583d1c
+Author: Rao, Lei <lei.rao@intel.com>
+Date:   Tue Jun 8 16:23:29 2021 +0800
+
+    Add a function named packet_new_nocopy for COLO.
+    
+    Use the packet_new_nocopy instead of packet_new in the
+    filter-rewriter module. There will be one less memory
+    copy in the processing of each network packet.
+    
+    Signed-off-by: Lei Rao <lei.rao@intel.com>
+    Signed-off-by: Zhang Chen <chen.zhang@intel.com>
+    Reviewed-by: Zhang Chen <chen.zhang@intel.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

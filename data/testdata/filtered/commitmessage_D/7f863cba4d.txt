@@ -1,0 +1,16 @@
+commit 7f863cba4d8d35adacd513cba634dc0dd08d7904
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 10 13:43:18 2021 +0200
+
+    softmmu/memory: Pass ram_flags to memory_region_init_ram_shared_nomigrate()
+    
+    Let's forward ram_flags instead, renaming
+    memory_region_init_ram_shared_nomigrate() into
+    memory_region_init_ram_flags_nomigrate().
+    
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com> for memory backend and machine core
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210510114328.21835-6-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

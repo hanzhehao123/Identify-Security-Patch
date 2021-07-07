@@ -1,0 +1,115 @@
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 5f55404f2f..a77f246569 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -128,6 +128,7 @@ F: docs/devel/decodetree.rst
+ F: include/exec/cpu*.h
+ F: include/exec/exec-all.h
+ F: include/exec/helper*.h
++F: include/exec/tb-hash.h
+ F: include/sysemu/cpus.h
+ F: include/sysemu/tcg.h
+ F: include/hw/core/tcg-cpu-ops.h
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index ad1279d2ed..10e11f27bb 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -29,6 +29,9 @@
+ #include "qemu/compiler.h"
+ #include "qemu/timer.h"
+ #include "qemu/rcu.h"
++#include "exec/tb-hash.h"
++#include "exec/tb-lookup.h"
++#include "exec/tb-context.h"
+ #include "exec/log.h"
+ #include "qemu/main-loop.h"
+ #if defined(TARGET_I386) && !defined(CONFIG_USER_ONLY)
+@@ -38,9 +41,6 @@
+ #include "exec/cpu-all.h"
+ #include "sysemu/cpu-timers.h"
+ #include "sysemu/replay.h"
+-#include "tb-hash.h"
+-#include "tb-lookup.h"
+-#include "tb-context.h"
+ #include "internal.h"
+ 
+ /* -icount align implementation. */
+diff --git a/accel/tcg/cputlb.c b/accel/tcg/cputlb.c
+index f24348e979..2f7088614a 100644
+--- a/accel/tcg/cputlb.c
++++ b/accel/tcg/cputlb.c
+@@ -24,6 +24,7 @@
+ #include "exec/memory.h"
+ #include "exec/cpu_ldst.h"
+ #include "exec/cputlb.h"
++#include "exec/tb-hash.h"
+ #include "exec/memory-internal.h"
+ #include "exec/ram_addr.h"
+ #include "tcg/tcg.h"
+@@ -35,7 +36,6 @@
+ #include "exec/translate-all.h"
+ #include "trace/trace-root.h"
+ #include "trace/mem.h"
+-#include "tb-hash.h"
+ #include "internal.h"
+ #ifdef CONFIG_PLUGIN
+ #include "qemu/plugin-memory.h"
+diff --git a/accel/tcg/tcg-runtime.c b/accel/tcg/tcg-runtime.c
+index 66ac830e2f..49f5de37e8 100644
+--- a/accel/tcg/tcg-runtime.c
++++ b/accel/tcg/tcg-runtime.c
+@@ -30,7 +30,7 @@
+ #include "disas/disas.h"
+ #include "exec/log.h"
+ #include "tcg/tcg.h"
+-#include "tb-lookup.h"
++#include "exec/tb-lookup.h"
+ 
+ /* 32-bit helpers */
+ 
+diff --git a/accel/tcg/translate-all.c b/accel/tcg/translate-all.c
+index 1eefe6ea8d..e9f4de5190 100644
+--- a/accel/tcg/translate-all.c
++++ b/accel/tcg/translate-all.c
+@@ -47,6 +47,8 @@
+ #endif
+ 
+ #include "exec/cputlb.h"
++#include "exec/tb-hash.h"
++#include "exec/tb-context.h"
+ #include "exec/translate-all.h"
+ #include "qemu/bitmap.h"
+ #include "qemu/error-report.h"
+@@ -59,8 +61,6 @@
+ #include "sysemu/tcg.h"
+ #include "qapi/error.h"
+ #include "hw/core/tcg-cpu-ops.h"
+-#include "tb-hash.h"
+-#include "tb-context.h"
+ #include "internal.h"
+ 
+ /* #define DEBUG_TB_INVALIDATE */
+diff --git a/accel/tcg/tb-context.h b/include/exec/tb-context.h
+similarity index 100%
+rename from accel/tcg/tb-context.h
+rename to include/exec/tb-context.h
+diff --git a/accel/tcg/tb-hash.h b/include/exec/tb-hash.h
+similarity index 100%
+rename from accel/tcg/tb-hash.h
+rename to include/exec/tb-hash.h
+diff --git a/accel/tcg/tb-lookup.h b/include/exec/tb-lookup.h
+similarity index 98%
+rename from accel/tcg/tb-lookup.h
+rename to include/exec/tb-lookup.h
+index 9c9e0079da..29d61ceb34 100644
+--- a/accel/tcg/tb-lookup.h
++++ b/include/exec/tb-lookup.h
+@@ -14,7 +14,7 @@
+ #endif
+ 
+ #include "exec/exec-all.h"
+-#include "tb-hash.h"
++#include "exec/tb-hash.h"
+ 
+ /* Might cause an exception, so have a longjmp destination ready */
+ static inline TranslationBlock *tb_lookup(CPUState *cpu, target_ulong pc,

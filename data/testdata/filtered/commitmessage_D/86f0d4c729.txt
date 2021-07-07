@@ -1,0 +1,15 @@
+commit 86f0d4c7290eb2b21ec3eb44956ec245441275db
+Author: Peter Collingbourne <pcc@google.com>
+Date:   Wed Jun 16 12:56:14 2021 -0700
+
+    target/arm: Implement MTE3
+    
+    MTE3 introduces an asymmetric tag checking mode, in which loads are
+    checked synchronously and stores are checked asynchronously. Add
+    support for it.
+    
+    Signed-off-by: Peter Collingbourne <pcc@google.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210616195614.11785-1-pcc@google.com
+    [PMM: Add line to emulation.rst]
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

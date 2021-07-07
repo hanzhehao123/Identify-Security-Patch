@@ -1,0 +1,21 @@
+diff --git a/softmmu/physmem.c b/softmmu/physmem.c
+index 1c8717684a..e1da81ed2f 100644
+--- a/softmmu/physmem.c
++++ b/softmmu/physmem.c
+@@ -904,16 +904,6 @@ void cpu_check_watchpoint(CPUState *cpu, vaddr addr, vaddr len,
+         if (watchpoint_address_matches(wp, addr, len)
+             && (wp->flags & flags)) {
+             if (replay_running_debug()) {
+-                /*
+-                 * replay_breakpoint reads icount.
+-                 * Force recompile to succeed, because icount may
+-                 * be read only at the end of the block.
+-                 */
+-                if (!cpu->can_do_io) {
+-                    /* Force execution of one insn next time.  */
+-                    cpu->cflags_next_tb = 1 | CF_LAST_IO | curr_cflags(cpu);
+-                    cpu_loop_exit_restore(cpu, ra);
+-                }
+                 /*
+                  * Don't process the watchpoints when we are
+                  * in a reverse debugging operation.

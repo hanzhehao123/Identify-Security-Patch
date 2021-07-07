@@ -1,0 +1,10 @@
+commit 860b707bbb1957d710d3469dbdc3b9f72576a7ef
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:19 2021 +0200
+
+    s390x/tcg: Simplify vfll32() handling
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-9-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

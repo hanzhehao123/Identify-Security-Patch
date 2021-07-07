@@ -1,0 +1,92 @@
+diff --git a/python/Pipfile.lock b/python/Pipfile.lock
+index 6e344f5fad..a2cdc1c50e 100644
+--- a/python/Pipfile.lock
++++ b/python/Pipfile.lock
+@@ -30,14 +30,6 @@
+             "markers": "python_version ~= '3.6'",
+             "version": "==2.5.6"
+         },
+-        "avocado-framework": {
+-            "hashes": [
+-                "sha256:42aa7962df98d6b78d4efd9afa2177226dc630f3d83a2a7d5baf7a0a7da7fa1b",
+-                "sha256:d96ae343abf890e1ef3b3a6af5ce49e35f6bded0715770c4acb325bca555c515"
+-            ],
+-            "markers": "python_version >= '3.6'",
+-            "version": "==88.1"
+-        },
+         "flake8": {
+             "hashes": [
+                 "sha256:07528381786f2a6237b061f6e96610a4167b226cb926e2aa2b6b1d78057c576b",
+diff --git a/python/README.rst b/python/README.rst
+index 6bd2c6b354..954870973d 100644
+--- a/python/README.rst
++++ b/python/README.rst
+@@ -37,8 +37,6 @@ Files in this directory
+ -----------------------
+ 
+ - ``qemu/`` Python package source directory.
+-- ``tests/`` Python package tests directory.
+-- ``avocado.cfg`` Configuration for the Avocado test-runner.
+ - ``MANIFEST.in`` is read by python setuptools, it specifies additional files
+   that should be included by a source distribution.
+ - ``PACKAGE.rst`` is used as the README file that is visible on PyPI.org.
+diff --git a/python/avocado.cfg b/python/avocado.cfg
+deleted file mode 100644
+index 10dc6fb605..0000000000
+--- a/python/avocado.cfg
++++ /dev/null
+@@ -1,10 +0,0 @@
+-[simpletests]
+-# Don't show stdout/stderr in the test *summary*
+-status.failure_fields = ['status']
+-
+-[job]
+-# Don't show the full debug.log output; only select stdout/stderr.
+-output.testlogs.logfiles = ['stdout', 'stderr']
+-
+-# Show full stdout/stderr only on tests that FAIL
+-output.testlogs.statuses = ['FAIL']
+diff --git a/python/setup.cfg b/python/setup.cfg
+index fd32519490..39dc135e60 100644
+--- a/python/setup.cfg
++++ b/python/setup.cfg
+@@ -25,7 +25,6 @@ packages =
+ [options.extras_require]
+ # Run `pipenv lock --dev` when changing these requirements.
+ devel =
+-    avocado-framework >= 87.0
+     flake8 >= 3.6.0
+     isort >= 5.1.2
+     mypy >= 0.770
+diff --git a/python/tests/flake8.sh b/python/tests/flake8.sh
+deleted file mode 100755
+index 51e0788462..0000000000
+--- a/python/tests/flake8.sh
++++ /dev/null
+@@ -1,2 +0,0 @@
+-#!/bin/sh -e
+-python3 -m flake8
+diff --git a/python/tests/isort.sh b/python/tests/isort.sh
+deleted file mode 100755
+index 4480405bfb..0000000000
+--- a/python/tests/isort.sh
++++ /dev/null
+@@ -1,2 +0,0 @@
+-#!/bin/sh -e
+-python3 -m isort -c qemu/
+diff --git a/python/tests/mypy.sh b/python/tests/mypy.sh
+deleted file mode 100755
+index 5f980f563b..0000000000
+--- a/python/tests/mypy.sh
++++ /dev/null
+@@ -1,2 +0,0 @@
+-#!/bin/sh -e
+-python3 -m mypy -p qemu
+diff --git a/python/tests/pylint.sh b/python/tests/pylint.sh
+deleted file mode 100755
+index 4b10b34db7..0000000000
+--- a/python/tests/pylint.sh
++++ /dev/null
+@@ -1,2 +0,0 @@
+-#!/bin/sh -e
+-python3 -m pylint qemu/

@@ -1,0 +1,16 @@
+commit 65c725b5204f22987950b4368ab7db67bcc87f54
+Author: Alexander Graf <agraf@csgraf.de>
+Date:   Thu Jun 3 14:09:33 2021 +0100
+
+    hvf: Use cpu_synchronize_state()
+    
+    There is no reason to call the hvf specific hvf_cpu_synchronize_state()
+    when we can just use the generic cpu_synchronize_state() instead. This
+    allows us to have less dependency on internal function definitions and
+    allows us to make hvf_cpu_synchronize_state() static.
+    
+    Signed-off-by: Alexander Graf <agraf@csgraf.de>
+    Reviewed-by: Sergio Lopez <slp@redhat.com>
+    Message-id: 20210519202253.76782-9-agraf@csgraf.de
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

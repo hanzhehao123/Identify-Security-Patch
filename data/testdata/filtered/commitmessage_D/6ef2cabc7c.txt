@@ -1,0 +1,20 @@
+commit 6ef2cabc7c4231207cfbac326853c0242d9c4617
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Wed May 19 11:08:00 2021 +0100
+
+    esp: handle non-DMA transfers from the target one byte at a time
+    
+    The initial implementation of non-DMA transfers was based upon analysis of traces
+    from the MacOS toolbox ROM for handling unaligned reads but missed one key
+    aspect - during a non-DMA transfer from the target, the bus service interrupt
+    should be raised for every single byte received from the bus and not just at either
+    the end of the transfer or when the FIFO is full.
+    
+    Adjust the non-DMA code accordingly so that esp_do_nodma() is called for every byte
+    received from the target. This also includes special handling for managing the change
+    from DATA IN to STATUS phase as this needs to occur when the final byte is read out
+    from the FIFO, and not at the end of the transfer of the last byte into the FIFO.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Message-Id: <20210519100803.10293-3-mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

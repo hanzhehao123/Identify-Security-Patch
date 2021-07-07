@@ -1,0 +1,18 @@
+commit 5e50c6c72bf8575f124ec9397411f4a2ff0d0206
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Wed May 19 15:29:17 2021 +0100
+
+    target/m68k: implement m68k "any instruction" trace mode
+    
+    The m68k trace mode is controlled by the top 2 bits in the SR register. Implement
+    the m68k "any instruction" trace mode where bit T1=1 and bit T0=0 in which the CPU
+    generates an EXCP_TRACE exception (vector 9 or offset 0x24) after executing each
+    instruction.
+    
+    This functionality is used by the NetBSD kernel debugger to allow single-stepping
+    on m68k architectures.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210519142917.16693-5-mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

@@ -1,0 +1,13 @@
+commit fbb11567fba6f452670b87a981d5f25ebece89ec
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Mon Jun 14 21:32:16 2021 +0200
+
+    hw/block/fdc: Replace disabled fprintf() by trace event
+    
+    Reviewed-by: John Snow <jsnow@redhat.com>
+    Acked-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Reviewed-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Acked-by: Paolo Bonzini <pbonzini@redhat.com>
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210614193220.2007159-3-philmd@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

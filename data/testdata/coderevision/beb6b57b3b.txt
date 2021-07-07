@@ -1,0 +1,308 @@
+diff --git a/python/qemu/machine/.flake8 b/python/qemu/.flake8
+similarity index 100%
+rename from python/qemu/machine/.flake8
+rename to python/qemu/.flake8
+diff --git a/python/.isort.cfg b/python/qemu/.isort.cfg
+similarity index 100%
+rename from python/.isort.cfg
+rename to python/qemu/.isort.cfg
+diff --git a/python/qemu/__init__.py b/python/qemu/__init__.py
+new file mode 100644
+index 0000000000..4ca06c34a4
+--- /dev/null
++++ b/python/qemu/__init__.py
+@@ -0,0 +1,11 @@
++# QEMU library
++#
++# Copyright (C) 2015-2016 Red Hat Inc.
++# Copyright (C) 2012 IBM Corp.
++#
++# Authors:
++#  Fam Zheng <famz@redhat.com>
++#
++# This work is licensed under the terms of the GNU GPL, version 2.  See
++# the COPYING file in the top-level directory.
++#
+diff --git a/python/qemu/utils/accel.py b/python/qemu/accel.py
+similarity index 100%
+rename from python/qemu/utils/accel.py
+rename to python/qemu/accel.py
+diff --git a/python/qemu/machine/console_socket.py b/python/qemu/console_socket.py
+similarity index 100%
+rename from python/qemu/machine/console_socket.py
+rename to python/qemu/console_socket.py
+diff --git a/python/qemu/machine/machine.py b/python/qemu/machine.py
+similarity index 98%
+rename from python/qemu/machine/machine.py
+rename to python/qemu/machine.py
+index d33b02d2ce..a8837b36e4 100644
+--- a/python/qemu/machine/machine.py
++++ b/python/qemu/machine.py
+@@ -38,14 +38,8 @@
+     Type,
+ )
+ 
+-from qemu.qmp import (
+-    QEMUMonitorProtocol,
+-    QMPMessage,
+-    QMPReturnValue,
+-    SocketAddrT,
+-)
+-
+-from . import console_socket
++from . import console_socket, qmp
++from .qmp import QMPMessage, QMPReturnValue, SocketAddrT
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -145,7 +139,7 @@ def __init__(self,
+         self._events: List[QMPMessage] = []
+         self._iolog: Optional[str] = None
+         self._qmp_set = True   # Enable QMP monitor by default.
+-        self._qmp_connection: Optional[QEMUMonitorProtocol] = None
++        self._qmp_connection: Optional[qmp.QEMUMonitorProtocol] = None
+         self._qemu_full_args: Tuple[str, ...] = ()
+         self._temp_dir: Optional[str] = None
+         self._launched = False
+@@ -320,7 +314,7 @@ def _pre_launch(self) -> None:
+             if self._remove_monitor_sockfile:
+                 assert isinstance(self._monitor_address, str)
+                 self._remove_files.append(self._monitor_address)
+-            self._qmp_connection = QEMUMonitorProtocol(
++            self._qmp_connection = qmp.QEMUMonitorProtocol(
+                 self._monitor_address,
+                 server=True,
+                 nickname=self._name
+@@ -547,7 +541,7 @@ def set_qmp_monitor(self, enabled: bool = True) -> None:
+         self._qmp_set = enabled
+ 
+     @property
+-    def _qmp(self) -> QEMUMonitorProtocol:
++    def _qmp(self) -> qmp.QEMUMonitorProtocol:
+         if self._qmp_connection is None:
+             raise QEMUMachineError("Attempt to access QMP with no connection")
+         return self._qmp_connection
+diff --git a/python/qemu/machine/__init__.py b/python/qemu/machine/__init__.py
+deleted file mode 100644
+index 98302ea31e..0000000000
+--- a/python/qemu/machine/__init__.py
++++ /dev/null
+@@ -1,33 +0,0 @@
+-"""
+-QEMU development and testing library.
+-
+-This library provides a few high-level classes for driving QEMU from a
+-test suite, not intended for production use.
+-
+-- QEMUMachine: Configure and Boot a QEMU VM
+- - QEMUQtestMachine: VM class, with a qtest socket.
+-
+-- QEMUQtestProtocol: Connect to, send/receive qtest messages.
+-"""
+-
+-# Copyright (C) 2020-2021 John Snow for Red Hat Inc.
+-# Copyright (C) 2015-2016 Red Hat Inc.
+-# Copyright (C) 2012 IBM Corp.
+-#
+-# Authors:
+-#  John Snow <jsnow@redhat.com>
+-#  Fam Zheng <fam@euphon.net>
+-#
+-# This work is licensed under the terms of the GNU GPL, version 2.  See
+-# the COPYING file in the top-level directory.
+-#
+-
+-from .machine import QEMUMachine
+-from .qtest import QEMUQtestMachine, QEMUQtestProtocol
+-
+-
+-__all__ = (
+-    'QEMUMachine',
+-    'QEMUQtestProtocol',
+-    'QEMUQtestMachine',
+-)
+diff --git a/python/qemu/machine/pylintrc b/python/qemu/pylintrc
+similarity index 100%
+rename from python/qemu/machine/pylintrc
+rename to python/qemu/pylintrc
+diff --git a/python/qemu/qmp/__init__.py b/python/qemu/qmp.py
+similarity index 96%
+rename from python/qemu/qmp/__init__.py
+rename to python/qemu/qmp.py
+index 9606248a3d..2cd4d43036 100644
+--- a/python/qemu/qmp/__init__.py
++++ b/python/qemu/qmp.py
+@@ -1,14 +1,4 @@
+-"""
+-QEMU Monitor Protocol (QMP) development library & tooling.
+-
+-This package provides a fairly low-level class for communicating to QMP
+-protocol servers, as implemented by QEMU, the QEMU Guest Agent, and the
+-QEMU Storage Daemon. This library is not intended for production use.
+-
+-`QEMUMonitorProtocol` is the primary class of interest, and all errors
+-raised derive from `QMPError`.
+-"""
+-
++""" QEMU Monitor Protocol Python class """
+ # Copyright (C) 2009, 2010 Red Hat Inc.
+ #
+ # Authors:
+diff --git a/python/qemu/machine/qtest.py b/python/qemu/qtest.py
+similarity index 99%
+rename from python/qemu/machine/qtest.py
+rename to python/qemu/qtest.py
+index e893ca3697..78b97d13cf 100644
+--- a/python/qemu/machine/qtest.py
++++ b/python/qemu/qtest.py
+@@ -26,9 +26,8 @@
+     TextIO,
+ )
+ 
+-from qemu.qmp import SocketAddrT
+-
+ from .machine import QEMUMachine
++from .qmp import SocketAddrT
+ 
+ 
+ class QEMUQtestProtocol:
+diff --git a/python/qemu/utils/__init__.py b/python/qemu/utils.py
+similarity index 66%
+rename from python/qemu/utils/__init__.py
+rename to python/qemu/utils.py
+index 7f1a5138c4..5ed789275e 100644
+--- a/python/qemu/utils/__init__.py
++++ b/python/qemu/utils.py
+@@ -1,14 +1,13 @@
+ """
+-QEMU development and testing utilities
++QEMU utility library
+ 
+-This package provides a small handful of utilities for performing
+-various tasks not directly related to the launching of a VM.
++This offers miscellaneous utility functions, which may not be easily
++distinguishable or numerous to be in their own module.
+ """
+ 
+ # Copyright (C) 2021 Red Hat Inc.
+ #
+ # Authors:
+-#  John Snow <jsnow@redhat.com>
+ #  Cleber Rosa <crosa@redhat.com>
+ #
+ # This work is licensed under the terms of the GNU GPL, version 2.  See
+@@ -18,17 +17,6 @@
+ import re
+ from typing import Optional
+ 
+-# pylint: disable=import-error
+-from .accel import kvm_available, list_accel, tcg_available
+-
+-
+-__all__ = (
+-    'get_info_usernet_hostfwd_port',
+-    'kvm_available',
+-    'list_accel',
+-    'tcg_available',
+-)
+-
+ 
+ def get_info_usernet_hostfwd_port(info_usernet_output: str) -> Optional[int]:
+     """
+diff --git a/tests/acceptance/avocado_qemu/__init__.py b/tests/acceptance/avocado_qemu/__init__.py
+index 93c4b9851f..1062a851b9 100644
+--- a/tests/acceptance/avocado_qemu/__init__.py
++++ b/tests/acceptance/avocado_qemu/__init__.py
+@@ -41,12 +41,11 @@
+ 
+ sys.path.append(os.path.join(SOURCE_DIR, 'python'))
+ 
++from qemu.accel import kvm_available
++from qemu.accel import tcg_available
+ from qemu.machine import QEMUMachine
+-from qemu.utils import (
+-    get_info_usernet_hostfwd_port,
+-    kvm_available,
+-    tcg_available,
+-)
++from qemu.utils import get_info_usernet_hostfwd_port
++
+ 
+ def is_readable_executable_file(path):
+     return os.path.isfile(path) and os.access(path, os.R_OK | os.X_OK)
+diff --git a/tests/acceptance/virtio-gpu.py b/tests/acceptance/virtio-gpu.py
+index e7979343e9..ab18cddbb7 100644
+--- a/tests/acceptance/virtio-gpu.py
++++ b/tests/acceptance/virtio-gpu.py
+@@ -10,7 +10,7 @@
+ from avocado_qemu import exec_command_and_wait_for_pattern
+ from avocado_qemu import is_readable_executable_file
+ 
+-from qemu.utils import kvm_available
++from qemu.accel import kvm_available
+ 
+ import os
+ import socket
+diff --git a/tests/qemu-iotests/300 b/tests/qemu-iotests/300
+index fe94de84ed..b475a92c47 100755
+--- a/tests/qemu-iotests/300
++++ b/tests/qemu-iotests/300
+@@ -28,7 +28,7 @@ import iotests
+ 
+ # Import qemu after iotests.py has amended sys.path
+ # pylint: disable=wrong-import-order
+-from qemu.machine import machine
++import qemu
+ 
+ BlockBitmapMapping = List[Dict[str, object]]
+ 
+@@ -466,7 +466,7 @@ class TestBlockBitmapMappingErrors(TestDirtyBitmapMigration):
+         # the failed migration
+         try:
+             self.vm_b.shutdown()
+-        except machine.AbnormalShutdown:
++        except qemu.machine.AbnormalShutdown:
+             pass
+ 
+     def test_aliased_bitmap_name_too_long(self) -> None:
+diff --git a/tests/qemu-iotests/iotests.py b/tests/qemu-iotests/iotests.py
+index 89663dac06..92681907ed 100644
+--- a/tests/qemu-iotests/iotests.py
++++ b/tests/qemu-iotests/iotests.py
+@@ -38,7 +38,7 @@
+ 
+ # pylint: disable=import-error, wrong-import-position
+ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
+-from qemu.machine import qtest
++from qemu import qtest
+ from qemu.qmp import QMPMessage
+ 
+ # Use this logger for logging messages directly from the iotests module
+diff --git a/tests/vm/aarch64vm.py b/tests/vm/aarch64vm.py
+index b00cce07eb..d70ab843b6 100644
+--- a/tests/vm/aarch64vm.py
++++ b/tests/vm/aarch64vm.py
+@@ -14,7 +14,7 @@
+ import sys
+ import subprocess
+ import basevm
+-from qemu.utils import kvm_available
++from qemu.accel import kvm_available
+ 
+ # This is the config needed for current version of QEMU.
+ # This works for both kvm and tcg.
+diff --git a/tests/vm/basevm.py b/tests/vm/basevm.py
+index 0f2e436ed3..995e642465 100644
+--- a/tests/vm/basevm.py
++++ b/tests/vm/basevm.py
+@@ -19,8 +19,9 @@
+ import time
+ import datetime
+ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
++from qemu.accel import kvm_available
+ from qemu.machine import QEMUMachine
+-from qemu.utils import get_info_usernet_hostfwd_port, kvm_available
++from qemu.utils import get_info_usernet_hostfwd_port
+ import subprocess
+ import hashlib
+ import argparse

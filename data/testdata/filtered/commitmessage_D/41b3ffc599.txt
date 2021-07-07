@@ -1,0 +1,16 @@
+commit 41b3ffc59966c78383e177e1dd38f884e886d960
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 18 15:10:13 2021 +0100
+
+    target/arm/translate-vfp.c: Whitespace fixes
+    
+    In the code for handling VFP system register accesses there is some
+    stray whitespace after a unary '-' operator, and also some incorrect
+    indent in a couple of function prototypes.  We're about to move this
+    code to another file, so fix the code style issues first so
+    checkpatch doesn't complain about the code-movement patch.
+    
+    Cc: qemu-stable@nongnu.org
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210618141019.10671-2-peter.maydell@linaro.org

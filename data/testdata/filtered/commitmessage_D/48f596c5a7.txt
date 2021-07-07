@@ -1,0 +1,13 @@
+commit 48f596c5a711d62f8b0c78b95569b2d8f9ad2704
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Tue May 11 11:39:55 2021 -0400
+
+    netdev: add more commands to preconfig mode
+    
+    Creating and destroying network backend does not require a fully
+    constructed machine.  Allow the related monitor commands to run before
+    machine initialization has concluded.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

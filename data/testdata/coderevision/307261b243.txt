@@ -1,0 +1,165 @@
+diff --git a/block.c b/block.c
+index 33e99d0c9e..ef13076c4c 100644
+--- a/block.c
++++ b/block.c
+@@ -1720,7 +1720,6 @@ static int bdrv_open_common(BlockDriverState *bs, BlockBackend *file,
+     QemuOpts *opts;
+     BlockDriver *drv;
+     Error *local_err = NULL;
+-    bool ro;
+ 
+     assert(bs->file == NULL);
+     assert(options != NULL && bs->options != options);
+@@ -1773,17 +1772,15 @@ static int bdrv_open_common(BlockDriverState *bs, BlockBackend *file,
+ 
+     bs->read_only = !(bs->open_flags & BDRV_O_RDWR);
+ 
+-    ro = bdrv_is_read_only(bs);
+-
+-    if (use_bdrv_whitelist && !bdrv_is_whitelisted(drv, ro)) {
+-        if (!ro && bdrv_is_whitelisted(drv, true)) {
++    if (use_bdrv_whitelist && !bdrv_is_whitelisted(drv, bs->read_only)) {
++        if (!bs->read_only && bdrv_is_whitelisted(drv, true)) {
+             ret = bdrv_apply_auto_read_only(bs, NULL, NULL);
+         } else {
+             ret = -ENOTSUP;
+         }
+         if (ret < 0) {
+             error_setg(errp,
+-                       !ro && bdrv_is_whitelisted(drv, true)
++                       !bs->read_only && bdrv_is_whitelisted(drv, true)
+                        ? "Driver '%s' can only be used for read-only devices"
+                        : "Driver '%s' is not whitelisted",
+                        drv->format_name);
+@@ -1795,7 +1792,7 @@ static int bdrv_open_common(BlockDriverState *bs, BlockBackend *file,
+     assert(qatomic_read(&bs->copy_on_read) == 0);
+ 
+     if (bs->open_flags & BDRV_O_COPY_ON_READ) {
+-        if (!ro) {
++        if (!bs->read_only) {
+             bdrv_enable_copy_on_read(bs);
+         } else {
+             error_setg(errp, "Can't use copy-on-read on read-only device");
+diff --git a/block/block-backend.c b/block/block-backend.c
+index 21b834e9df..de5496af66 100644
+--- a/block/block-backend.c
++++ b/block/block-backend.c
+@@ -2269,7 +2269,7 @@ void blk_update_root_state(BlockBackend *blk)
+     assert(blk->root);
+ 
+     blk->root_state.open_flags    = blk->root->bs->open_flags;
+-    blk->root_state.read_only     = bdrv_is_read_only(blk->root->bs);
++    blk->root_state.read_only     = blk->root->bs->read_only;
+     blk->root_state.detect_zeroes = blk->root->bs->detect_zeroes;
+ }
+ 
+diff --git a/block/commit.c b/block/commit.c
+index b7f0c7c061..b89bb20b75 100644
+--- a/block/commit.c
++++ b/block/commit.c
+@@ -453,7 +453,7 @@ int bdrv_commit(BlockDriverState *bs)
+         return -EBUSY;
+     }
+ 
+-    ro = bdrv_is_read_only(backing_file_bs);
++    ro = backing_file_bs->read_only;
+ 
+     if (ro) {
+         if (bdrv_reopen_set_read_only(backing_file_bs, false, NULL)) {
+diff --git a/block/io.c b/block/io.c
+index 323854d063..1e826ba9e8 100644
+--- a/block/io.c
++++ b/block/io.c
+@@ -1973,7 +1973,7 @@ bdrv_co_write_req_prepare(BdrvChild *child, int64_t offset, int64_t bytes,
+ 
+     bdrv_check_request(offset, bytes, &error_abort);
+ 
+-    if (bdrv_is_read_only(bs)) {
++    if (bs->read_only) {
+         return -EPERM;
+     }
+ 
+@@ -3406,7 +3406,7 @@ int coroutine_fn bdrv_co_truncate(BdrvChild *child, int64_t offset, bool exact,
+     if (new_bytes) {
+         bdrv_make_request_serialising(&req, 1);
+     }
+-    if (bdrv_is_read_only(bs)) {
++    if (bs->read_only) {
+         error_setg(errp, "Image is read-only");
+         ret = -EACCES;
+         goto out;
+diff --git a/block/qapi.c b/block/qapi.c
+index dc69341bfe..943e7b15ad 100644
+--- a/block/qapi.c
++++ b/block/qapi.c
+@@ -59,7 +59,7 @@ BlockDeviceInfo *bdrv_block_device_info(BlockBackend *blk,
+ 
+     info = g_malloc0(sizeof(*info));
+     info->file                   = g_strdup(bs->filename);
+-    info->ro                     = bdrv_is_read_only(bs);
++    info->ro                     = bs->read_only;
+     info->drv                    = g_strdup(bs->drv->format_name);
+     info->encrypted              = bs->encrypted;
+ 
+diff --git a/block/qcow2-snapshot.c b/block/qcow2-snapshot.c
+index 71ddb08c21..2e98c7f4b6 100644
+--- a/block/qcow2-snapshot.c
++++ b/block/qcow2-snapshot.c
+@@ -1026,7 +1026,7 @@ int qcow2_snapshot_load_tmp(BlockDriverState *bs,
+     int new_l1_bytes;
+     int ret;
+ 
+-    assert(bdrv_is_read_only(bs));
++    assert(bs->read_only);
+ 
+     /* Search the snapshot */
+     snapshot_index = find_snapshot_by_id_and_name(bs, snapshot_id, name);
+diff --git a/block/qcow2.c b/block/qcow2.c
+index ee4530cdbd..39b91ef940 100644
+--- a/block/qcow2.c
++++ b/block/qcow2.c
+@@ -1723,7 +1723,8 @@ static int coroutine_fn qcow2_do_open(BlockDriverState *bs, QDict *options,
+ 
+     /* Clear unknown autoclear feature bits */
+     update_header |= s->autoclear_features & ~QCOW2_AUTOCLEAR_MASK;
+-    update_header = update_header && bdrv_is_writable(bs);
++    update_header =
++        update_header && !bs->read_only && !(flags & BDRV_O_INACTIVE);
+     if (update_header) {
+         s->autoclear_features &= QCOW2_AUTOCLEAR_MASK;
+     }
+@@ -1810,7 +1811,7 @@ static int coroutine_fn qcow2_do_open(BlockDriverState *bs, QDict *options,
+     bs->supported_truncate_flags = BDRV_REQ_ZERO_WRITE;
+ 
+     /* Repair image if dirty */
+-    if (!(flags & BDRV_O_CHECK) && bdrv_is_writable(bs) &&
++    if (!(flags & (BDRV_O_CHECK | BDRV_O_INACTIVE)) && !bs->read_only &&
+         (s->incompatible_features & QCOW2_INCOMPAT_DIRTY)) {
+         BdrvCheckResult result = {0};
+ 
+diff --git a/block/snapshot.c b/block/snapshot.c
+index 6702c75e42..e8ae9a28c1 100644
+--- a/block/snapshot.c
++++ b/block/snapshot.c
+@@ -415,7 +415,7 @@ int bdrv_snapshot_load_tmp(BlockDriverState *bs,
+         error_setg(errp, "snapshot_id and name are both NULL");
+         return -EINVAL;
+     }
+-    if (!bdrv_is_read_only(bs)) {
++    if (!bs->read_only) {
+         error_setg(errp, "Device is not readonly");
+         return -EINVAL;
+     }
+diff --git a/block/vhdx-log.c b/block/vhdx-log.c
+index 7672161d95..404fb5f3cb 100644
+--- a/block/vhdx-log.c
++++ b/block/vhdx-log.c
+@@ -801,7 +801,7 @@ int vhdx_parse_log(BlockDriverState *bs, BDRVVHDXState *s, bool *flushed,
+     }
+ 
+     if (logs.valid) {
+-        if (bdrv_is_read_only(bs)) {
++        if (bs->read_only) {
+             bdrv_refresh_filename(bs);
+             ret = -EPERM;
+             error_setg(errp,

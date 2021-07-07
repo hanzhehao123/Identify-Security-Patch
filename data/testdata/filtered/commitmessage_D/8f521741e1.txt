@@ -1,0 +1,30 @@
+commit 8f521741e1280f0957ac1b873292c19219e1fb9a
+Merge: 3ccf6cd0e3 d742d064c1
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 18 16:42:25 2021 +0100
+
+    Merge remote-tracking branch 'remotes/awilliam/tags/vfio-update-20210618.0' into staging
+    
+    VFIO update 2021-06-18
+    
+     * VFIO migration documentation (Tarun Gupta)
+    
+     * Fix SaveVMHandler de-registration (Kunkun Jiang)
+    
+     * Fix vmstate change transition (Kirti Wankhede)
+    
+    # gpg: Signature made Fri 18 Jun 2021 16:20:34 BST
+    # gpg:                using RSA key 42F6C04E540BD1A99E7B8A90239B9B6E3BB08B22
+    # gpg:                issuer "alex.williamson@redhat.com"
+    # gpg: Good signature from "Alex Williamson <alex.williamson@redhat.com>" [full]
+    # gpg:                 aka "Alex Williamson <alex@shazbot.org>" [full]
+    # gpg:                 aka "Alex Williamson <alwillia@redhat.com>" [full]
+    # gpg:                 aka "Alex Williamson <alex.l.williamson@gmail.com>" [full]
+    # Primary key fingerprint: 42F6 C04E 540B D1A9 9E7B  8A90 239B 9B6E 3BB0 8B22
+    
+    * remotes/awilliam/tags/vfio-update-20210618.0:
+      vfio/migration: Correct device state from vmstate change for savevm case
+      vfio: Fix unregister SaveVMHandler in vfio_migration_finalize
+      docs/devel: Add VFIO device migration documentation
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

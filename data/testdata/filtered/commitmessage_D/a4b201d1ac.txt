@@ -1,0 +1,15 @@
+commit a4b201d1ace0d25219491ac3e14930e9539ae762
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Wed May 19 20:54:55 2021 +0200
+
+    gitlab: Replace YAML anchors by extends (acceptance_test_job)
+    
+    'extends' is an alternative to using YAML anchors
+    and is a little more flexible and readable. See:
+    https://docs.gitlab.com/ee/ci/yaml/#extends
+    
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Wainer dos Santos Moschetta <wainersm@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210519185504.2198573-2-f4bug@amsat.org>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

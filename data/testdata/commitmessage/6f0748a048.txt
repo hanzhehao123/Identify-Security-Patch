@@ -1,0 +1,16 @@
+commit 6f0748a048b9a5e2284e4d0f832322f9c832ad5e
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri May 14 13:04:12 2021 +0100
+
+    tests/docker: drop CentOS 7 container
+    
+    It has been over two years since RHEL-8 was released, and thus per the
+    platform build policy, we no longer need to support RHEL-7 as a build
+    target.
+    
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Acked-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+    Message-Id: <20210514120415.1368922-10-berrange@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

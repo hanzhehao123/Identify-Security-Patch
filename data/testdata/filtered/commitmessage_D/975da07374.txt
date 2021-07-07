@@ -1,0 +1,13 @@
+commit 975da073748ecb271d8ba2a7711ff46a8c6d8366
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu May 27 18:40:55 2021 +0300
+
+    block: drop BlockDriverState::read_only
+    
+    This variable is just a cache for !(bs->open_flags & BDRV_O_RDWR),
+    which we have to synchronize everywhere. Let's just drop it and
+    consistently use bdrv_is_read_only().
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210527154056.70294-3-vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

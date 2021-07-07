@@ -1,0 +1,24 @@
+commit 9d0ead63bf6b89ae7170dc4238a1ddc6b8188d14
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:01 2021 -0400
+
+    python/pipenv: Update Pipfile.lock
+    
+    In a previous commit, I added tox to the development requirements of the
+    Python library. I never bothered to add them to the Pipfile, because
+    they aren't needed there. Here, I sync it anyway in its own commit so
+    that when we add new packages later that the diffstats will not
+    confusingly appear to pull in lots of extra packages.
+    
+    Ideally I could tell Pipenv simply not to install these, but it doesn't
+    seem to support that, exactly. The alternative is removing Tox from the
+    development requires, which I'd rather not do.
+    
+    The other alternative is re-specifying all of the dependencies of
+    setup.cfg in the Pipfile, which I'd also rather not do.
+    
+    Picking what feels least-worst here.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210603003719.1321369-2-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

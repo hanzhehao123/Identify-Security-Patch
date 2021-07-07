@@ -1,0 +1,88 @@
+diff --git a/target/ppc/cpu.h b/target/ppc/cpu.h
+index b0934d9be4..27e4661dce 100644
+--- a/target/ppc/cpu.h
++++ b/target/ppc/cpu.h
+@@ -1256,6 +1256,7 @@ DECLARE_OBJ_CHECKERS(PPCVirtualHypervisor, PPCVirtualHypervisorClass,
+ void ppc_cpu_do_interrupt(CPUState *cpu);
+ bool ppc_cpu_exec_interrupt(CPUState *cpu, int int_req);
+ void ppc_cpu_dump_state(CPUState *cpu, FILE *f, int flags);
++void ppc_cpu_dump_statistics(CPUState *cpu, int flags);
+ hwaddr ppc_cpu_get_phys_page_debug(CPUState *cpu, vaddr addr);
+ int ppc_cpu_gdb_read_register(CPUState *cpu, GByteArray *buf, int reg);
+ int ppc_cpu_gdb_read_register_apple(CPUState *cpu, GByteArray *buf, int reg);
+diff --git a/target/ppc/cpu_init.c b/target/ppc/cpu_init.c
+index 74a397ad6c..067feeaec0 100644
+--- a/target/ppc/cpu_init.c
++++ b/target/ppc/cpu_init.c
+@@ -9307,6 +9307,9 @@ static void ppc_cpu_class_init(ObjectClass *oc, void *data)
+     cc->class_by_name = ppc_cpu_class_by_name;
+     cc->has_work = ppc_cpu_has_work;
+     cc->dump_state = ppc_cpu_dump_state;
++#ifdef CONFIG_TCG
++    cc->dump_statistics = ppc_cpu_dump_statistics;
++#endif
+     cc->set_pc = ppc_cpu_set_pc;
+     cc->gdb_read_register = ppc_cpu_gdb_read_register;
+     cc->gdb_write_register = ppc_cpu_gdb_write_register;
+diff --git a/target/ppc/translate.c b/target/ppc/translate.c
+index b494bd8b9c..ea200f9637 100644
+--- a/target/ppc/translate.c
++++ b/target/ppc/translate.c
+@@ -8881,6 +8881,57 @@ int ppc_fixup_cpu(PowerPCCPU *cpu)
+     return 0;
+ }
+ 
++
++void ppc_cpu_dump_statistics(CPUState *cs, int flags)
++{
++#if defined(DO_PPC_STATISTICS)
++    PowerPCCPU *cpu = POWERPC_CPU(cs);
++    opc_handler_t **t1, **t2, **t3, *handler;
++    int op1, op2, op3;
++
++    t1 = cpu->env.opcodes;
++    for (op1 = 0; op1 < 64; op1++) {
++        handler = t1[op1];
++        if (is_indirect_opcode(handler)) {
++            t2 = ind_table(handler);
++            for (op2 = 0; op2 < 32; op2++) {
++                handler = t2[op2];
++                if (is_indirect_opcode(handler)) {
++                    t3 = ind_table(handler);
++                    for (op3 = 0; op3 < 32; op3++) {
++                        handler = t3[op3];
++                        if (handler->count == 0) {
++                            continue;
++                        }
++                        qemu_printf("%02x %02x %02x (%02x %04d) %16s: "
++                                    "%016" PRIx64 " %" PRId64 "\n",
++                                    op1, op2, op3, op1, (op3 << 5) | op2,
++                                    handler->oname,
++                                    handler->count, handler->count);
++                    }
++                } else {
++                    if (handler->count == 0) {
++                        continue;
++                    }
++                    qemu_printf("%02x %02x    (%02x %04d) %16s: "
++                                "%016" PRIx64 " %" PRId64 "\n",
++                                op1, op2, op1, op2, handler->oname,
++                                handler->count, handler->count);
++                }
++            }
++        } else {
++            if (handler->count == 0) {
++                continue;
++            }
++            qemu_printf("%02x       (%02x     ) %16s: %016" PRIx64
++                        " %" PRId64 "\n",
++                        op1, op1, handler->oname,
++                        handler->count, handler->count);
++        }
++    }
++#endif
++}
++
+ static bool decode_legacy(PowerPCCPU *cpu, DisasContext *ctx, uint32_t insn)
+ {
+     opc_handler_t **table, *handler;

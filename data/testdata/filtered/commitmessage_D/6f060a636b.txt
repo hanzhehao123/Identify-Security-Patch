@@ -1,0 +1,12 @@
+commit 6f060a636bf46869e43a28a0f426ddaea16314f9
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:27 2021 +0100
+
+    target/arm: Implement MVE VADDV
+    
+    Implement the MVE VADDV insn, which performs an addition
+    across vector lanes.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-44-peter.maydell@linaro.org

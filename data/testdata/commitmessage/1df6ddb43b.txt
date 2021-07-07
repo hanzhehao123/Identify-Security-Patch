@@ -1,0 +1,13 @@
+commit 1df6ddb43b48eacf5e1c7f63f48b507716150e6f
+Author: Dr. David Alan Gilbert <dgilbert@redhat.com>
+Date:   Wed Apr 21 12:28:32 2021 +0100
+
+    migration: Add cleanup hook for inwards migration
+    
+    Add a cleanup hook for incoming migration that gets called
+    at the end as a way for a transport to allow cleanup.
+    
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Message-Id: <20210421112834.107651-4-dgilbert@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

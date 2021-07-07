@@ -1,0 +1,11 @@
+commit 69acc02a8b341847e38e976ea473d66943d81717
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Thu May 27 12:21:59 2021 -0700
+
+    tcg/tci: Split out tci_qemu_ld, tci_qemu_st
+    
+    We can share this code between 32-bit and 64-bit loads and stores.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

@@ -1,0 +1,15 @@
+commit fd1fd38b863abe4763097e2603762e1c067fa6a2
+Author: Eduardo Habkost <ehabkost@redhat.com>
+Date:   Fri Sep 25 17:10:21 2020 -0400
+
+    i386: Document when features can be added to kvm_default_props
+    
+    It's very easy to mistakenly extend kvm_default_props to include
+    features that require a kernel version that's too recent.  Add a
+    comment warning about that, pointing to the documentation file
+    where the minimum kernel version for KVM is documented.
+    
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>
+    Acked-by: Paolo Bonzini <pbonzini@redhat.com>
+    Message-Id: <20200925211021.4158567-1-ehabkost@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

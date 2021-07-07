@@ -1,0 +1,12 @@
+commit d7107fc00aff819338e1d2683eabcbb2ff4ef61b
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Wed Mar 10 17:47:33 2021 -0600
+
+    util/osdep: Add qemu_mprotect_rw
+    
+    For --enable-tcg-interpreter on Windows, we will need this.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

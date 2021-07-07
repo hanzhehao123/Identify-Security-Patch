@@ -1,0 +1,144 @@
+diff --git a/target/hexagon/macros.h b/target/hexagon/macros.h
+index 2b208f3a21..b726c3b791 100644
+--- a/target/hexagon/macros.h
++++ b/target/hexagon/macros.h
+@@ -239,26 +239,33 @@ static inline void gen_pred_cancel(TCGv pred, int slot_num)
+ #endif
+ 
+ #ifdef QEMU_GENERATE
+-#define fLSBNEW(PVAL)   tcg_gen_andi_tl(LSB, (PVAL), 1)
+-#define fLSBNEW0        tcg_gen_andi_tl(LSB, hex_new_pred_value[0], 1)
+-#define fLSBNEW1        tcg_gen_andi_tl(LSB, hex_new_pred_value[1], 1)
++#define fLSBNEW(PVAL)   tcg_gen_mov_tl(LSB, (PVAL))
++#define fLSBNEW0        tcg_gen_mov_tl(LSB, hex_new_pred_value[0])
++#define fLSBNEW1        tcg_gen_mov_tl(LSB, hex_new_pred_value[1])
+ #else
+-#define fLSBNEW(PVAL)   ((PVAL) & 1)
+-#define fLSBNEW0        (env->new_pred_value[0] & 1)
+-#define fLSBNEW1        (env->new_pred_value[1] & 1)
++#define fLSBNEW(PVAL)   (PVAL)
++#define fLSBNEW0        new_pred_value(env, 0)
++#define fLSBNEW1        new_pred_value(env, 1)
+ #endif
+ 
+ #ifdef QEMU_GENERATE
++static inline void gen_logical_not(TCGv dest, TCGv src)
++{
++    TCGv one = tcg_const_tl(1);
++    TCGv zero = tcg_const_tl(0);
++
++    tcg_gen_movcond_tl(TCG_COND_NE, dest, src, zero, zero, one);
++
++    tcg_temp_free(one);
++    tcg_temp_free(zero);
++}
+ #define fLSBOLDNOT(VAL) \
+     do { \
+         tcg_gen_andi_tl(LSB, (VAL), 1); \
+         tcg_gen_xori_tl(LSB, LSB, 1); \
+     } while (0)
+ #define fLSBNEWNOT(PNUM) \
+-    do { \
+-        tcg_gen_andi_tl(LSB, (PNUM), 1); \
+-        tcg_gen_xori_tl(LSB, LSB, 1); \
+-    } while (0)
++    gen_logical_not(LSB, (PNUM))
+ #else
+ #define fLSBNEWNOT(PNUM) (!fLSBNEW(PNUM))
+ #define fLSBOLDNOT(VAL) (!fLSBOLD(VAL))
+diff --git a/target/hexagon/op_helper.c b/target/hexagon/op_helper.c
+index 459555966d..63dd685658 100644
+--- a/target/hexagon/op_helper.c
++++ b/target/hexagon/op_helper.c
+@@ -128,6 +128,11 @@ void HELPER(debug_start_packet)(CPUHexagonState *env)
+     }
+ }
+ 
++static int32_t new_pred_value(CPUHexagonState *env, int pnum)
++{
++    return env->new_pred_value[pnum];
++}
++
+ /* Checks for bookkeeping errors between disassembly context and runtime */
+ void HELPER(debug_check_store_width)(CPUHexagonState *env, int slot, int check)
+ {
+diff --git a/tests/tcg/hexagon/misc.c b/tests/tcg/hexagon/misc.c
+index 9e139f3e85..17c39198fc 100644
+--- a/tests/tcg/hexagon/misc.c
++++ b/tests/tcg/hexagon/misc.c
+@@ -181,19 +181,6 @@ static inline void S4_storeirifnew_io(void *p, int pred)
+                : "p0", "memory");
+ }
+ 
+-static int L2_ploadrifnew_pi(void *p, int pred)
+-{
+-  int result;
+-  asm volatile("%0 = #31\n\t"
+-               "{\n\t"
+-               "    p0 = cmp.eq(%1, #1)\n\t"
+-               "    if (!p0.new) %0 = memw(%2++#4)\n\t"
+-               "}\n\t"
+-               : "=r"(result) : "r"(pred), "r"(p)
+-               : "p0");
+-  return result;
+-}
+-
+ /*
+  * Test that compound-compare-jump is executed in 2 parts
+  * First we have to do all the compares in the packet and
+@@ -311,24 +298,8 @@ static int auto_and(void)
+     return retval;
+ }
+ 
+-void test_lsbnew(void)
+-{
+-    int result;
+-
+-    asm("r0 = #2\n\t"
+-        "r1 = #5\n\t"
+-        "{\n\t"
+-        "    p0 = r0\n\t"
+-        "    if (p0.new) r1 = #3\n\t"
+-        "}\n\t"
+-        "%0 = r1\n\t"
+-        : "=r"(result) :: "r0", "r1", "p0");
+-    check(result, 5);
+-}
+-
+ int main()
+ {
+-    int res;
+     long long res64;
+     int pred;
+ 
+@@ -423,12 +394,6 @@ int main()
+     S4_storeirifnew_io(&array[8], 1);
+     check(array[9], 9);
+ 
+-    memcpy(array, init, sizeof(array));
+-    res = L2_ploadrifnew_pi(&array[6], 0);
+-    check(res, 6);
+-    res = L2_ploadrifnew_pi(&array[7], 1);
+-    check(res, 31);
+-
+     int x = cmpnd_cmp_jump();
+     check(x, 12);
+ 
+@@ -441,7 +406,7 @@ int main()
+     check((int)pair, 5);
+     check((int)(pair >> 32), 7);
+ 
+-    res = test_clrtnew(1, 7);
++    int res = test_clrtnew(1, 7);
+     check(res, 0);
+     res = test_clrtnew(2, 7);
+     check(res, 7);
+@@ -457,8 +422,6 @@ int main()
+     res = auto_and();
+     check(res, 0);
+ 
+-    test_lsbnew();
+-
+     puts(err ? "FAIL" : "PASS");
+     return err;
+ }

@@ -1,0 +1,11 @@
+commit 6b731a96aa743a4d384197acb4a6038efbb492b4
+Author: Kit Westneat <kit.westneat@gmail.com>
+Date:   Thu Jun 3 14:20:22 2021 +0000
+
+    tests/qtest/virtio-scsi-test: add unmap large LBA with 4k blocks test
+    
+    Add test for issue #345
+    
+    Signed-off-by: Kit Westneat <kit.westneat@gmail.com>
+    Message-Id: <20210603142022.676395-1-kit.westneat@gmail.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

@@ -1,0 +1,47 @@
+commit 49ba51adec7928fe7cf3cb43acbf0b953e5c637e
+Merge: dd2db39d78 6b9c277797
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Wed Jun 2 11:42:22 2021 +0100
+
+    Merge remote-tracking branch 'remotes/jsnow-gitlab/tags/python-pull-request' into staging
+    
+    Pull request
+    
+    V2:
+     - Squashed in fixup for
+       'Python: add utility function for retrieving port redirection'
+     - Rebased on today's upstream
+    
+    CI here:
+    https://gitlab.com/jsnow/qemu/-/pipelines/313202814
+    
+    # gpg: Signature made Wed 02 Jun 2021 00:29:55 BST
+    # gpg:                using RSA key F9B7ABDBBCACDF95BE76CBD07DEF8106AAFC390E
+    # gpg: Good signature from "John Snow (John Huston) <jsnow@redhat.com>" [full]
+    # Primary key fingerprint: FAEB 9711 A12C F475 812F  18F2 88A9 064D 1835 61EB
+    #      Subkey fingerprint: F9B7 ABDB BCAC DF95 BE76  CBD0 7DEF 8106 AAFC 390E
+    
+    * remotes/jsnow-gitlab/tags/python-pull-request: (44 commits)
+      gitlab: add python linters to CI
+      python: add tox support
+      python: add .gitignore
+      python: add Makefile for some common tasks
+      python: add avocado-framework and tests
+      python: add devel package requirements to setuptools
+      python/qemu: add qemu package itself to pipenv
+      python/qemu: add isort to pipenv
+      python: move .isort.cfg into setup.cfg
+      python: add mypy to pipenv
+      python: move mypy.ini into setup.cfg
+      python: Add flake8 to pipenv
+      python: add excluded dirs to flake8 config
+      python: move flake8 config to setup.cfg
+      python: add pylint to pipenv
+      python: move pylintrc into setup.cfg
+      python: add pylint import exceptions
+      python: Add pipenv support
+      python: add MANIFEST.in
+      python: add directory structure README.rst files
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

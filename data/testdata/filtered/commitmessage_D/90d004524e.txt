@@ -1,0 +1,13 @@
+commit 90d004524e31a3efd3352bd1e6a3a312d266cfb0
+Author: Alex Bennée <alex.bennee@linaro.org>
+Date:   Tue May 11 19:47:49 2021 -0500
+
+    tests/fp: Enable more tests
+    
+    Fix the trivial typo in extF80_lt_quiet, and re-enable
+    all of the floatx80 tests that are now fixed.
+    
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-ID: <87bl9iyahr.fsf@linaro.org>
+    [rth: Squash the fix for lt_quiet, and enable that too.]
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

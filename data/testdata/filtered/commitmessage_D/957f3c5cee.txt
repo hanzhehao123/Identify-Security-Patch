@@ -1,0 +1,12 @@
+commit 957f3c5cee0ffd706cfabf4cf0e6b1247615fc59
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:48 2021 -0400
+
+    python: add qmp-shell entry point
+    
+    now 'qmp-shell' should be available from the command line when
+    installing the python package.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-42-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

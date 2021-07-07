@@ -1,0 +1,21 @@
+commit 85ccd962d622475e6281ea98ab69c03de7bc37c1
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 24 14:28:08 2021 +0200
+
+    target/mips: Restrict some system specific declarations to sysemu
+    
+    Commit 043715d1e0f ("target/mips: Update ITU to utilize SAARI
+    and SAAR CP0 registers") declared itc_reconfigure() in public
+    namespace, while it is restricted to system emulation.
+    
+    Similarly commit 5679479b9a1 ("target/mips: Move CP0 helpers
+    to sysemu/cp0.c") restricted cpu_mips_soft_irq() definition to
+    system emulation, but forgot to restrict its declaration.
+    
+    To avoid polluting user-mode emulation with these declarations,
+    restrict them to sysemu. Also restrict the sysemu ITU/ITC/IRQ
+    fields from CPUMIPSState.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210617174323.2900831-6-f4bug@amsat.org>

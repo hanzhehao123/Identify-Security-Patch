@@ -1,0 +1,11 @@
+commit 525ea877b27d933eaac69b32c75b8861779811cf
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sat May 29 20:12:16 2021 +0200
+
+    target/mips: Remove pointless gen_msa()
+    
+    Only trans_MSA() calls gen_msa(), inline it to simplify.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210617174636.2902654-2-f4bug@amsat.org>

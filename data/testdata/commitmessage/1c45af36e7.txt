@@ -1,0 +1,12 @@
+commit 1c45af36e77ca315b33f237786f8a9fda512a8d3
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri May 14 18:20:30 2021 +0100
+
+    docs: document usage of the authorization framework
+    
+    The authorization framework provides a way to control access to network
+    services after a client has been authenticated. This documents how to
+    actually use it.
+    
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>

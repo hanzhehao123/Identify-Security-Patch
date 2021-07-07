@@ -1,0 +1,14 @@
+commit 6debd840c8fedee6a378b05800d3382864e3564d
+Author: Alistair Francis <alistair.francis@wdc.com>
+Date:   Tue May 4 08:34:32 2021 +1000
+
+    docs/system: Move the RISC-V -bios information to removed
+    
+    QEMU 5.1 changed the behaviour of the default boot for the RISC-V virt
+    and sifive_u machines. This patch moves that change from the
+    deprecated.rst file to the removed-features.rst file and the
+    target-riscv.rst.
+    
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>
+    Reviewed-by: Bin Meng <bmeng.cn@gmail.com>
+    Message-id: 4f1c261e7f69045ab8bb8926d85fe1d35e48ea5b.1620081256.git.alistair.francis@wdc.com

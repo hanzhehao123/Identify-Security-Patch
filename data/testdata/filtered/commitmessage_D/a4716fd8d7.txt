@@ -1,0 +1,45 @@
+commit a4716fd8d7c877185652f5f8e25032dc7699d51b
+Merge: 33ba8b0adc d2c1a177b1
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue Jun 8 13:54:23 2021 +0100
+
+    Merge remote-tracking branch 'remotes/alistair/tags/pull-riscv-to-apply-20210608-1' into staging
+    
+    Second RISC-V PR for QEMU 6.1
+    
+     - Update the PLIC and CLINT DT bindings
+     - Improve documentation for RISC-V machines
+     - Support direct kernel boot for microchip_pfsoc
+     - Fix WFI exception behaviour
+     - Improve CSR printing
+     - Initial support for the experimental Bit Manip extension
+    
+    # gpg: Signature made Tue 08 Jun 2021 01:28:27 BST
+    # gpg:                using RSA key F6C4AC46D4934868D3B8CE8F21E10D29DF977054
+    # gpg: Good signature from "Alistair Francis <alistair@alistair23.me>" [full]
+    # Primary key fingerprint: F6C4 AC46 D493 4868 D3B8  CE8F 21E1 0D29 DF97 7054
+    
+    * remotes/alistair/tags/pull-riscv-to-apply-20210608-1: (32 commits)
+      target/riscv: rvb: add b-ext version cpu option
+      target/riscv: rvb: support and turn on B-extension from command line
+      target/riscv: rvb: add/shift with prefix zero-extend
+      target/riscv: rvb: address calculation
+      target/riscv: rvb: generalized or-combine
+      target/riscv: rvb: generalized reverse
+      target/riscv: rvb: rotate (left/right)
+      target/riscv: rvb: shift ones
+      target/riscv: rvb: single-bit instructions
+      target/riscv: add gen_shifti() and gen_shiftiw() helper functions
+      target/riscv: rvb: sign-extend instructions
+      target/riscv: rvb: min/max instructions
+      target/riscv: rvb: pack two words into one register
+      target/riscv: rvb: logic-with-negate
+      target/riscv: rvb: count bits set
+      target/riscv: rvb: count leading/trailing zeros
+      target/riscv: reformat @sh format encoding for B-extension
+      target/riscv: Pass the same value to oprsz and maxsz.
+      target/riscv/pmp: Add assert for ePMP operations
+      target/riscv: Dump CSR mscratch/sscratch/satp
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

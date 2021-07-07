@@ -1,0 +1,8 @@
+commit 752b17693e7af43ba77cee59eb9a1ec6966b3ded
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Sep 5 12:30:17 2020 -0700
+
+    tcg/arm: Implement TCG_TARGET_HAS_mul_vec
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

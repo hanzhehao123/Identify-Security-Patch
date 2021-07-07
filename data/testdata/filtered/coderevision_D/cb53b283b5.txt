@@ -1,0 +1,362 @@
+diff --git a/hw/display/macfb.c b/hw/display/macfb.c
+index ff8bdb846b..d8183b9bbd 100644
+--- a/hw/display/macfb.c
++++ b/hw/display/macfb.c
+@@ -450,6 +450,7 @@ static void macfb_nubus_class_init(ObjectClass *klass, void *data)
+     dc->desc = "Nubus Macintosh framebuffer";
+     dc->reset = macfb_nubus_reset;
+     dc->vmsd = &vmstate_macfb;
++    set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
+     device_class_set_props(dc, macfb_nubus_properties);
+ }
+ 
+diff --git a/hw/gpio/aspeed_gpio.c b/hw/gpio/aspeed_gpio.c
+index 34d8acb0e3..6ae0116be7 100644
+--- a/hw/gpio/aspeed_gpio.c
++++ b/hw/gpio/aspeed_gpio.c
+@@ -10,7 +10,7 @@
+ #include "qemu/host-utils.h"
+ #include "qemu/log.h"
+ #include "hw/gpio/aspeed_gpio.h"
+-#include "include/hw/misc/aspeed_scu.h"
++#include "hw/misc/aspeed_scu.h"
+ #include "qapi/error.h"
+ #include "qapi/visitor.h"
+ #include "hw/irq.h"
+diff --git a/hw/i386/acpi-common.h b/hw/i386/acpi-common.h
+index b12cd73ea5..a68825acf5 100644
+--- a/hw/i386/acpi-common.h
++++ b/hw/i386/acpi-common.h
+@@ -1,9 +1,9 @@
+ #ifndef HW_I386_ACPI_COMMON_H
+ #define HW_I386_ACPI_COMMON_H
+-#include "include/hw/acpi/acpi_dev_interface.h"
+ 
+-#include "include/hw/acpi/bios-linker-loader.h"
+-#include "include/hw/i386/x86.h"
++#include "hw/acpi/acpi_dev_interface.h"
++#include "hw/acpi/bios-linker-loader.h"
++#include "hw/i386/x86.h"
+ 
+ /* Default IOAPIC ID */
+ #define ACPI_BUILD_IOAPIC_ID 0x0
+diff --git a/hw/i386/kvm/apic.c b/hw/i386/kvm/apic.c
+index 52ff490910..1e89ca0899 100644
+--- a/hw/i386/kvm/apic.c
++++ b/hw/i386/kvm/apic.c
+@@ -145,7 +145,7 @@ static void kvm_apic_put(CPUState *cs, run_on_cpu_data data)
+ 
+     ret = kvm_vcpu_ioctl(CPU(s->cpu), KVM_SET_LAPIC, &kapic);
+     if (ret < 0) {
+-        fprintf(stderr, "KVM_SET_LAPIC failed: %s\n", strerror(ret));
++        fprintf(stderr, "KVM_SET_LAPIC failed: %s\n", strerror(-ret));
+         abort();
+     }
+ }
+diff --git a/hw/i386/kvm/clock.c b/hw/i386/kvm/clock.c
+index efbc1e0d12..df70b4a033 100644
+--- a/hw/i386/kvm/clock.c
++++ b/hw/i386/kvm/clock.c
+@@ -105,7 +105,7 @@ static void kvm_update_clock(KVMClockState *s)
+ 
+     ret = kvm_vm_ioctl(kvm_state, KVM_GET_CLOCK, &data);
+     if (ret < 0) {
+-        fprintf(stderr, "KVM_GET_CLOCK failed: %s\n", strerror(ret));
++        fprintf(stderr, "KVM_GET_CLOCK failed: %s\n", strerror(-ret));
+                 abort();
+     }
+     s->clock = data.clock;
+@@ -189,7 +189,7 @@ static void kvmclock_vm_state_change(void *opaque, bool running,
+         data.clock = s->clock;
+         ret = kvm_vm_ioctl(kvm_state, KVM_SET_CLOCK, &data);
+         if (ret < 0) {
+-            fprintf(stderr, "KVM_SET_CLOCK failed: %s\n", strerror(ret));
++            fprintf(stderr, "KVM_SET_CLOCK failed: %s\n", strerror(-ret));
+             abort();
+         }
+ 
+diff --git a/hw/i386/kvm/i8254.c b/hw/i386/kvm/i8254.c
+index c558893961..fa68669e8a 100644
+--- a/hw/i386/kvm/i8254.c
++++ b/hw/i386/kvm/i8254.c
+@@ -104,7 +104,7 @@ static void kvm_pit_get(PITCommonState *pit)
+     if (kvm_has_pit_state2()) {
+         ret = kvm_vm_ioctl(kvm_state, KVM_GET_PIT2, &kpit);
+         if (ret < 0) {
+-            fprintf(stderr, "KVM_GET_PIT2 failed: %s\n", strerror(ret));
++            fprintf(stderr, "KVM_GET_PIT2 failed: %s\n", strerror(-ret));
+             abort();
+         }
+         pit->channels[0].irq_disabled = kpit.flags & KVM_PIT_FLAGS_HPET_LEGACY;
+@@ -115,7 +115,7 @@ static void kvm_pit_get(PITCommonState *pit)
+          */
+         ret = kvm_vm_ioctl(kvm_state, KVM_GET_PIT, &kpit);
+         if (ret < 0) {
+-            fprintf(stderr, "KVM_GET_PIT failed: %s\n", strerror(ret));
++            fprintf(stderr, "KVM_GET_PIT failed: %s\n", strerror(-ret));
+             abort();
+         }
+     }
+@@ -180,7 +180,7 @@ static void kvm_pit_put(PITCommonState *pit)
+     if (ret < 0) {
+         fprintf(stderr, "%s failed: %s\n",
+                 kvm_has_pit_state2() ? "KVM_SET_PIT2" : "KVM_SET_PIT",
+-                strerror(ret));
++                strerror(-ret));
+         abort();
+     }
+ }
+@@ -272,7 +272,7 @@ static void kvm_pit_realizefn(DeviceState *dev, Error **errp)
+     }
+     if (ret < 0) {
+         error_setg(errp, "Create kernel PIC irqchip failed: %s",
+-                   strerror(ret));
++                   strerror(-ret));
+         return;
+     }
+     switch (s->lost_tick_policy) {
+@@ -286,7 +286,7 @@ static void kvm_pit_realizefn(DeviceState *dev, Error **errp)
+             if (ret < 0) {
+                 error_setg(errp,
+                            "Can't disable in-kernel PIT reinjection: %s",
+-                           strerror(ret));
++                           strerror(-ret));
+                 return;
+             }
+         }
+diff --git a/hw/i386/kvm/i8259.c b/hw/i386/kvm/i8259.c
+index 3f8bf69e9c..d61bae4dc3 100644
+--- a/hw/i386/kvm/i8259.c
++++ b/hw/i386/kvm/i8259.c
+@@ -43,7 +43,7 @@ static void kvm_pic_get(PICCommonState *s)
+     chip.chip_id = s->master ? KVM_IRQCHIP_PIC_MASTER : KVM_IRQCHIP_PIC_SLAVE;
+     ret = kvm_vm_ioctl(kvm_state, KVM_GET_IRQCHIP, &chip);
+     if (ret < 0) {
+-        fprintf(stderr, "KVM_GET_IRQCHIP failed: %s\n", strerror(ret));
++        fprintf(stderr, "KVM_GET_IRQCHIP failed: %s\n", strerror(-ret));
+         abort();
+     }
+ 
+@@ -96,7 +96,7 @@ static void kvm_pic_put(PICCommonState *s)
+ 
+     ret = kvm_vm_ioctl(kvm_state, KVM_SET_IRQCHIP, &chip);
+     if (ret < 0) {
+-        fprintf(stderr, "KVM_SET_IRQCHIP failed: %s\n", strerror(ret));
++        fprintf(stderr, "KVM_SET_IRQCHIP failed: %s\n", strerror(-ret));
+         abort();
+     }
+ }
+diff --git a/hw/i386/kvm/ioapic.c b/hw/i386/kvm/ioapic.c
+index 71a563181e..ee7c8ef68b 100644
+--- a/hw/i386/kvm/ioapic.c
++++ b/hw/i386/kvm/ioapic.c
+@@ -62,7 +62,7 @@ static void kvm_ioapic_get(IOAPICCommonState *s)
+     chip.chip_id = KVM_IRQCHIP_IOAPIC;
+     ret = kvm_vm_ioctl(kvm_state, KVM_GET_IRQCHIP, &chip);
+     if (ret < 0) {
+-        fprintf(stderr, "KVM_GET_IRQCHIP failed: %s\n", strerror(ret));
++        fprintf(stderr, "KVM_GET_IRQCHIP failed: %s\n", strerror(-ret));
+         abort();
+     }
+ 
+@@ -95,7 +95,7 @@ static void kvm_ioapic_put(IOAPICCommonState *s)
+ 
+     ret = kvm_vm_ioctl(kvm_state, KVM_SET_IRQCHIP, &chip);
+     if (ret < 0) {
+-        fprintf(stderr, "KVM_SET_IRQCHIP failed: %s\n", strerror(ret));
++        fprintf(stderr, "KVM_SET_IRQCHIP failed: %s\n", strerror(-ret));
+         abort();
+     }
+ }
+diff --git a/hw/intc/ppc-uic.c b/hw/intc/ppc-uic.c
+index 7171de7b35..60013f2dde 100644
+--- a/hw/intc/ppc-uic.c
++++ b/hw/intc/ppc-uic.c
+@@ -23,7 +23,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
+-#include "include/hw/intc/ppc-uic.h"
++#include "hw/intc/ppc-uic.h"
+ #include "hw/irq.h"
+ #include "cpu.h"
+ #include "hw/ppc/ppc.h"
+diff --git a/hw/riscv/sifive_u.c b/hw/riscv/sifive_u.c
+index 89cccd7fd5..698637e8e1 100644
+--- a/hw/riscv/sifive_u.c
++++ b/hw/riscv/sifive_u.c
+@@ -95,9 +95,9 @@ static void create_fdt(SiFiveUState *s, const MemMapEntry *memmap,
+     int cpu;
+     uint32_t *cells;
+     char *nodename;
++    char ethclk_names[] = "pclk\0hclk";
+     uint32_t plic_phandle, prci_phandle, gpio_phandle, phandle = 1;
+     uint32_t hfclk_phandle, rtcclk_phandle, phy_phandle;
+-    static const char * const ethclk_names[2] = { "pclk", "hclk" };
+ 
+     if (ms->dtb) {
+         fdt = s->fdt = load_device_tree(ms->dtb, &s->fdt_size);
+@@ -412,8 +412,8 @@ static void create_fdt(SiFiveUState *s, const MemMapEntry *memmap,
+     qemu_fdt_setprop_cell(fdt, nodename, "interrupts", SIFIVE_U_GEM_IRQ);
+     qemu_fdt_setprop_cells(fdt, nodename, "clocks",
+         prci_phandle, PRCI_CLK_GEMGXLPLL, prci_phandle, PRCI_CLK_GEMGXLPLL);
+-    qemu_fdt_setprop_string_array(fdt, nodename, "clock-names",
+-        (char **)&ethclk_names, ARRAY_SIZE(ethclk_names));
++    qemu_fdt_setprop(fdt, nodename, "clock-names", ethclk_names,
++        sizeof(ethclk_names));
+     qemu_fdt_setprop(fdt, nodename, "local-mac-address",
+         s->soc.gem.conf.macaddr.a, ETH_ALEN);
+     qemu_fdt_setprop_cell(fdt, nodename, "#address-cells", 1);
+diff --git a/hw/virtio/vhost-vdpa.c b/hw/virtio/vhost-vdpa.c
+index 8f2fb9f10b..ee51863d28 100644
+--- a/hw/virtio/vhost-vdpa.c
++++ b/hw/virtio/vhost-vdpa.c
+@@ -18,6 +18,7 @@
+ #include "hw/virtio/vhost-backend.h"
+ #include "hw/virtio/virtio-net.h"
+ #include "hw/virtio/vhost-vdpa.h"
++#include "exec/address-spaces.h"
+ #include "qemu/main-loop.h"
+ #include "cpu.h"
+ #include "trace.h"
+diff --git a/include/exec/memory.h b/include/exec/memory.h
+index c158fd7084..b114f5454b 100644
+--- a/include/exec/memory.h
++++ b/include/exec/memory.h
+@@ -571,7 +571,7 @@ struct MemoryListener {
+      * @log_start:
+      *
+      * Called during an address space update transaction, after
+-     * one of #MemoryListener.region_add(),#MemoryListener.region_del() or
++     * one of #MemoryListener.region_add(), #MemoryListener.region_del() or
+      * #MemoryListener.region_nop(), if dirty memory logging clients have
+      * become active since the last transaction.
+      *
+diff --git a/include/hw/virtio/vhost-vdpa.h b/include/hw/virtio/vhost-vdpa.h
+index 28ca65018e..ae9ee7adb2 100644
+--- a/include/hw/virtio/vhost-vdpa.h
++++ b/include/hw/virtio/vhost-vdpa.h
+@@ -21,5 +21,4 @@ typedef struct vhost_vdpa {
+     struct vhost_dev *dev;
+ } VhostVDPA;
+ 
+-extern AddressSpace address_space_memory;
+ #endif
+diff --git a/include/monitor/monitor.h b/include/monitor/monitor.h
+index af3887bb71..1211d6e6d6 100644
+--- a/include/monitor/monitor.h
++++ b/include/monitor/monitor.h
+@@ -4,7 +4,7 @@
+ #include "block/block.h"
+ #include "qapi/qapi-types-misc.h"
+ #include "qemu/readline.h"
+-#include "include/exec/hwaddr.h"
++#include "exec/hwaddr.h"
+ 
+ typedef struct MonitorHMP MonitorHMP;
+ typedef struct MonitorOptions MonitorOptions;
+diff --git a/linux-user/syscall.c b/linux-user/syscall.c
+index c9f812091c..974dd46c9a 100644
+--- a/linux-user/syscall.c
++++ b/linux-user/syscall.c
+@@ -365,7 +365,7 @@ _syscall5(int, sys_statx, int, dirfd, const char *, pathname, int, flags,
+ _syscall2(int, membarrier, int, cmd, int, flags)
+ #endif
+ 
+-static bitmask_transtbl fcntl_flags_tbl[] = {
++static const bitmask_transtbl fcntl_flags_tbl[] = {
+   { TARGET_O_ACCMODE,   TARGET_O_WRONLY,    O_ACCMODE,   O_WRONLY,    },
+   { TARGET_O_ACCMODE,   TARGET_O_RDWR,      O_ACCMODE,   O_RDWR,      },
+   { TARGET_O_CREAT,     TARGET_O_CREAT,     O_CREAT,     O_CREAT,     },
+@@ -6062,7 +6062,7 @@ static const StructEntry struct_termios_def = {
+     .print = print_termios,
+ };
+ 
+-static bitmask_transtbl mmap_flags_tbl[] = {
++static const bitmask_transtbl mmap_flags_tbl[] = {
+     { TARGET_MAP_SHARED, TARGET_MAP_SHARED, MAP_SHARED, MAP_SHARED },
+     { TARGET_MAP_PRIVATE, TARGET_MAP_PRIVATE, MAP_PRIVATE, MAP_PRIVATE },
+     { TARGET_MAP_FIXED, TARGET_MAP_FIXED, MAP_FIXED, MAP_FIXED },
+diff --git a/scripts/oss-fuzz/reorder_fuzzer_qtest_trace.py b/scripts/oss-fuzz/reorder_fuzzer_qtest_trace.py
+index 890e1def85..b154a25508 100755
+--- a/scripts/oss-fuzz/reorder_fuzzer_qtest_trace.py
++++ b/scripts/oss-fuzz/reorder_fuzzer_qtest_trace.py
+@@ -14,7 +14,7 @@
+         /path/to/crash 2> qtest_log_output
+ scripts/oss-fuzz/reorder_fuzzer_qtest_trace.py qtest_log_output > qtest_trace
+ ./i386-softmmu/qemu-fuzz-i386 -machine q35,accel=qtest \
+-        -qtest stdin < qtest_trace
++        -qtest stdio < qtest_trace
+ 
+ ### Details ###
+ 
+diff --git a/target/hppa/cpu.h b/target/hppa/cpu.h
+index 61178fa6a2..748270bfa3 100644
+--- a/target/hppa/cpu.h
++++ b/target/hppa/cpu.h
+@@ -22,7 +22,6 @@
+ 
+ #include "cpu-qom.h"
+ #include "exec/cpu-defs.h"
+-#include "exec/memory.h"
+ 
+ /* PA-RISC 1.x processors have a strong memory model.  */
+ /* ??? While we do not yet implement PA-RISC 2.0, those processors have
+diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
+index c03a8ae1fe..797eba4434 100644
+--- a/target/mips/tcg/translate.c
++++ b/target/mips/tcg/translate.c
+@@ -12238,7 +12238,7 @@ static void gen_compute_compact_branch(DisasContext *ctx, uint32_t opc,
+     }
+ 
+     if (bcond_compute == 0) {
+-        /* Uncoditional compact branch */
++        /* Unconditional compact branch */
+         switch (opc) {
+         case OPC_JIALC:
+             tcg_gen_movi_tl(cpu_gpr[31], ctx->base.pc_next + 4 + m16_lowbit);
+@@ -19092,7 +19092,7 @@ static void gen_compute_imm_branch(DisasContext *ctx, uint32_t opc,
+     ctx->base.is_jmp = DISAS_NORETURN;
+ 
+     if (cond == TCG_COND_ALWAYS) {
+-        /* Uncoditional compact branch */
++        /* Unconditional compact branch */
+         gen_goto_tb(ctx, 0, ctx->btarget);
+     } else {
+         /* Conditional compact branch */
+@@ -19201,7 +19201,7 @@ static void gen_compute_compact_branch_nm(DisasContext *ctx, uint32_t opc,
+     }
+ 
+     if (bcond_compute == 0) {
+-        /* Uncoditional compact branch */
++        /* Unconditional compact branch */
+         switch (opc) {
+         case OPC_BC:
+             gen_goto_tb(ctx, 0, ctx->btarget);
+diff --git a/target/nios2/translate.c b/target/nios2/translate.c
+index 9824544eb3..399f22d938 100644
+--- a/target/nios2/translate.c
++++ b/target/nios2/translate.c
+@@ -829,7 +829,7 @@ void gen_intermediate_code(CPUState *cs, TranslationBlock *tb, int max_insns)
+     /* Set up instruction counts */
+     num_insns = 0;
+     if (max_insns > 1) {
+-        int page_insns = (TARGET_PAGE_SIZE - (tb->pc & TARGET_PAGE_MASK)) / 4;
++        int page_insns = (TARGET_PAGE_SIZE - (tb->pc & ~TARGET_PAGE_MASK)) / 4;
+         if (max_insns > page_insns) {
+             max_insns = page_insns;
+         }
+diff --git a/target/riscv/cpu.h b/target/riscv/cpu.h
+index 7e879fb9ca..0619b491a4 100644
+--- a/target/riscv/cpu.h
++++ b/target/riscv/cpu.h
+@@ -97,7 +97,9 @@ enum {
+ 
+ typedef struct CPURISCVState CPURISCVState;
+ 
++#if !defined(CONFIG_USER_ONLY)
+ #include "pmp.h"
++#endif
+ 
+ #define RV_VLEN_MAX 256
+ 

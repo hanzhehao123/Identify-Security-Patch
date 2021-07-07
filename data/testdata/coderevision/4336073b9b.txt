@@ -1,0 +1,72 @@
+diff --git a/cpu.c b/cpu.c
+index 6fe4af2797..34a0484bf4 100644
+--- a/cpu.c
++++ b/cpu.c
+@@ -141,8 +141,6 @@ void cpu_exec_realizefn(CPUState *cpu, Error **errp)
+ #endif /* CONFIG_TCG */
+ 
+ #ifdef CONFIG_USER_ONLY
+-    assert(qdev_get_vmsd(DEVICE(cpu)) == NULL ||
+-           qdev_get_vmsd(DEVICE(cpu))->unmigratable);
+     assert(cc->vmsd == NULL);
+ #else
+     if (qdev_get_vmsd(DEVICE(cpu)) == NULL) {
+diff --git a/target/sh4/cpu.c b/target/sh4/cpu.c
+index 35d4251aaf..ac65c88f1f 100644
+--- a/target/sh4/cpu.c
++++ b/target/sh4/cpu.c
+@@ -218,12 +218,10 @@ static void superh_cpu_initfn(Object *obj)
+     env->movcal_backup_tail = &(env->movcal_backup);
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+ static const VMStateDescription vmstate_sh_cpu = {
+     .name = "cpu",
+     .unmigratable = 1,
+ };
+-#endif
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+@@ -259,11 +257,12 @@ static void superh_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_write_register = superh_cpu_gdb_write_register;
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_debug = superh_cpu_get_phys_page_debug;
+-    dc->vmsd = &vmstate_sh_cpu;
+ #endif
+     cc->disas_set_info = superh_cpu_disas_set_info;
+ 
+     cc->gdb_num_core_regs = 59;
++
++    dc->vmsd = &vmstate_sh_cpu;
+     cc->tcg_ops = &superh_tcg_ops;
+ }
+ 
+diff --git a/target/xtensa/cpu.c b/target/xtensa/cpu.c
+index 0267571fbd..210ef80092 100644
+--- a/target/xtensa/cpu.c
++++ b/target/xtensa/cpu.c
+@@ -175,12 +175,10 @@ static void xtensa_cpu_initfn(Object *obj)
+ #endif
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+ static const VMStateDescription vmstate_xtensa_cpu = {
+     .name = "cpu",
+     .unmigratable = 1,
+ };
+-#endif
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+@@ -217,9 +215,9 @@ static void xtensa_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_stop_before_watchpoint = true;
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_debug = xtensa_cpu_get_phys_page_debug;
+-    dc->vmsd = &vmstate_xtensa_cpu;
+ #endif
+     cc->disas_set_info = xtensa_cpu_disas_set_info;
++    dc->vmsd = &vmstate_xtensa_cpu;
+     cc->tcg_ops = &xtensa_tcg_ops;
+ }
+ 

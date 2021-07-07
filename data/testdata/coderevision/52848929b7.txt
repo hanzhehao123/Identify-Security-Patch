@@ -1,0 +1,109 @@
+diff --git a/hw/input/hid.c b/hw/input/hid.c
+index 8aab0521f4..e1d2e46083 100644
+--- a/hw/input/hid.c
++++ b/hw/input/hid.c
+@@ -51,8 +51,8 @@ static const uint8_t hid_usage_keys[0x100] = {
+     0x45, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e,
+     0xe8, 0xe9, 0x71, 0x72, 0x73, 0x00, 0x00, 0x00,
+     0x00, 0x00, 0x00, 0x85, 0x00, 0x00, 0x00, 0x00,
+-    0x88, 0x00, 0x00, 0x87, 0x00, 0x00, 0x00, 0x00,
+-    0x00, 0x8a, 0x00, 0x8b, 0x00, 0x89, 0xe7, 0x65,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x00, 0x00, 0x00, 0x00, 0xe3, 0xe7, 0x65,
+ 
+     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+diff --git a/hw/usb/hcd-xhci-pci.c b/hw/usb/hcd-xhci-pci.c
+index e934b1a5b1..9421734d0f 100644
+--- a/hw/usb/hcd-xhci-pci.c
++++ b/hw/usb/hcd-xhci-pci.c
+@@ -57,7 +57,7 @@ static void xhci_pci_intr_update(XHCIState *xhci, int n, bool enable)
+     }
+ }
+ 
+-static bool xhci_pci_intr_raise(XHCIState *xhci, int n, bool level)
++static void xhci_pci_intr_raise(XHCIState *xhci, int n, bool level)
+ {
+     XHCIPciState *s = container_of(xhci, XHCIPciState, xhci);
+     PCIDevice *pci_dev = PCI_DEVICE(s);
+@@ -67,18 +67,15 @@ static bool xhci_pci_intr_raise(XHCIState *xhci, int n, bool level)
+          msi_enabled(pci_dev))) {
+         pci_set_irq(pci_dev, level);
+     }
+-
+-    if (msix_enabled(pci_dev) && level) {
++    if (msix_enabled(pci_dev)) {
+         msix_notify(pci_dev, n);
+-        return true;
++        return;
+     }
+ 
+-    if (msi_enabled(pci_dev) && level) {
++    if (msi_enabled(pci_dev)) {
+         msi_notify(pci_dev, n);
+-        return true;
++        return;
+     }
+-
+-    return false;
+ }
+ 
+ static void xhci_pci_reset(DeviceState *dev)
+diff --git a/hw/usb/hcd-xhci-sysbus.c b/hw/usb/hcd-xhci-sysbus.c
+index a14e438196..42e2574c82 100644
+--- a/hw/usb/hcd-xhci-sysbus.c
++++ b/hw/usb/hcd-xhci-sysbus.c
+@@ -16,13 +16,11 @@
+ #include "hw/acpi/aml-build.h"
+ #include "hw/irq.h"
+ 
+-static bool xhci_sysbus_intr_raise(XHCIState *xhci, int n, bool level)
++static void xhci_sysbus_intr_raise(XHCIState *xhci, int n, bool level)
+ {
+     XHCISysbusState *s = container_of(xhci, XHCISysbusState, xhci);
+ 
+     qemu_set_irq(s->irq[n], level);
+-
+-    return false;
+ }
+ 
+ void xhci_sysbus_reset(DeviceState *dev)
+diff --git a/hw/usb/hcd-xhci.c b/hw/usb/hcd-xhci.c
+index e01700039b..46212b1e69 100644
+--- a/hw/usb/hcd-xhci.c
++++ b/hw/usb/hcd-xhci.c
+@@ -551,9 +551,7 @@ static void xhci_intr_update(XHCIState *xhci, int v)
+             level = 1;
+         }
+         if (xhci->intr_raise) {
+-            if (xhci->intr_raise(xhci, 0, level)) {
+-                xhci->intr[0].iman &= ~IMAN_IP;
+-            }
++            xhci->intr_raise(xhci, 0, level);
+         }
+     }
+     if (xhci->intr_update) {
+@@ -581,9 +579,7 @@ static void xhci_intr_raise(XHCIState *xhci, int v)
+         return;
+     }
+     if (xhci->intr_raise) {
+-        if (xhci->intr_raise(xhci, v, true)) {
+-            xhci->intr[v].iman &= ~IMAN_IP;
+-        }
++        xhci->intr_raise(xhci, v, true);
+     }
+ }
+ 
+diff --git a/hw/usb/hcd-xhci.h b/hw/usb/hcd-xhci.h
+index 98f598382a..7bba361f3b 100644
+--- a/hw/usb/hcd-xhci.h
++++ b/hw/usb/hcd-xhci.h
+@@ -194,7 +194,7 @@ typedef struct XHCIState {
+     uint32_t flags;
+     uint32_t max_pstreams_mask;
+     void (*intr_update)(XHCIState *s, int n, bool enable);
+-    bool (*intr_raise)(XHCIState *s, int n, bool level);
++    void (*intr_raise)(XHCIState *s, int n, bool level);
+     DeviceState *hostOpaque;
+ 
+     /* Operational Registers */

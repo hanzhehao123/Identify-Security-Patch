@@ -1,0 +1,78 @@
+diff --git a/Makefile b/Makefile
+index 30f19d33bb..4cab10a2a4 100644
+--- a/Makefile
++++ b/Makefile
+@@ -48,11 +48,9 @@ Makefile: .git-submodule-status
+ 
+ .PHONY: git-submodule-update
+ git-submodule-update:
+-ifneq ($(GIT_SUBMODULES_ACTION),ignore)
+ 	$(call quiet-command, \
+ 		(GIT="$(GIT)" "$(SRC_PATH)/scripts/git-submodule.sh" $(GIT_SUBMODULES_ACTION) $(GIT_SUBMODULES)), \
+ 		"GIT","$(GIT_SUBMODULES)")
+-endif
+ 
+ # 0. ensure the build tree is okay
+ 
+diff --git a/configure b/configure
+index cca532bb0c..f32c6f1a26 100755
+--- a/configure
++++ b/configure
+@@ -256,11 +256,11 @@ gdb_bin=$(command -v "gdb-multiarch" || command -v "gdb")
+ if test -e "$source_path/.git"
+ then
+     git_submodules_action="update"
++    git_submodules="ui/keycodemapdb"
+ else
+     git_submodules_action="ignore"
++    git_submodules=""
+ fi
+-
+-git_submodules="ui/keycodemapdb"
+ git="git"
+ 
+ # Don't accept a target_list environment variable.
+@@ -3627,7 +3627,9 @@ fi
+ case "$fdt" in
+   auto | enabled | internal)
+     # Simpler to always update submodule, even if not needed.
+-    git_submodules="${git_submodules} dtc"
++    if test "$git_submodules_action" != "ignore"; then
++      git_submodules="${git_submodules} dtc"
++    fi
+     ;;
+ esac
+ 
+@@ -4349,7 +4351,9 @@ fi
+ case "$capstone" in
+   auto | enabled | internal)
+     # Simpler to always update submodule, even if not needed.
+-    git_submodules="${git_submodules} capstone"
++    if test "$git_submodules_action" != "ignore"; then
++      git_submodules="${git_submodules} capstone"
++    fi
+     ;;
+ esac
+ 
+@@ -5279,7 +5283,9 @@ fi
+ case "$slirp" in
+   auto | enabled | internal)
+     # Simpler to always update submodule, even if not needed.
+-    git_submodules="${git_submodules} slirp"
++    if test "$git_submodules_action" != "ignore"; then
++      git_submodules="${git_submodules} slirp"
++    fi
+     ;;
+ esac
+ 
+@@ -5471,7 +5477,9 @@ if test "$cpu" = "s390x" ; then
+     roms="$roms s390-ccw"
+     # SLOF is required for building the s390-ccw firmware on s390x,
+     # since it is using the libnet code from SLOF for network booting.
+-    git_submodules="${git_submodules} roms/SLOF"
++    if test "$git_submodules_action" != "ignore"; then
++      git_submodules="${git_submodules} roms/SLOF"
++    fi
+   fi
+ fi
+ 

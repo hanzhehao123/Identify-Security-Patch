@@ -1,0 +1,10 @@
+commit fb1fa97c69ca2299158229c78fea68c4036e6c1b
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri May 14 13:04:11 2021 +0100
+
+    tests/vm: convert centos VM recipe to CentOS 8
+    
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+    Message-Id: <20210514120415.1368922-9-berrange@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

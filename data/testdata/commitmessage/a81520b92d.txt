@@ -1,0 +1,12 @@
+commit a81520b92d8a702be110052d253a1f034cf46d8f
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Feb 2 16:29:18 2021 -0800
+
+    tcg/tci: Implement andc, orc, eqv, nand, nor
+    
+    These were already present in tcg-target.c.inc,
+    but not in the interpreter.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

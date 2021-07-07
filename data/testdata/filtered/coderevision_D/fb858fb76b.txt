@@ -1,0 +1,76 @@
+diff --git a/target/hexagon/genptr.c b/target/hexagon/genptr.c
+index 7333299615..fba5ec6012 100644
+--- a/target/hexagon/genptr.c
++++ b/target/hexagon/genptr.c
+@@ -115,7 +115,10 @@ static void gen_log_reg_write_pair(int rnum, TCGv_i64 val)
+ 
+ static inline void gen_log_pred_write(DisasContext *ctx, int pnum, TCGv val)
+ {
++    TCGv zero = tcg_const_tl(0);
+     TCGv base_val = tcg_temp_new();
++    TCGv and_val = tcg_temp_new();
++    TCGv pred_written = tcg_temp_new();
+ 
+     tcg_gen_andi_tl(base_val, val, 0xff);
+ 
+@@ -134,7 +137,10 @@ static inline void gen_log_pred_write(DisasContext *ctx, int pnum, TCGv val)
+     }
+     tcg_gen_ori_tl(hex_pred_written, hex_pred_written, 1 << pnum);
+ 
++    tcg_temp_free(zero);
+     tcg_temp_free(base_val);
++    tcg_temp_free(and_val);
++    tcg_temp_free(pred_written);
+ }
+ 
+ static inline void gen_read_p3_0(TCGv control_reg)
+diff --git a/target/hexagon/translate.c b/target/hexagon/translate.c
+index b23d36adf5..9a37644182 100644
+--- a/target/hexagon/translate.c
++++ b/target/hexagon/translate.c
+@@ -273,6 +273,7 @@ static void gen_reg_writes(DisasContext *ctx)
+ 
+ static void gen_pred_writes(DisasContext *ctx, Packet *pkt)
+ {
++    TCGv zero, control_reg, pval;
+     int i;
+ 
+     /* Early exit if the log is empty */
+@@ -280,6 +281,10 @@ static void gen_pred_writes(DisasContext *ctx, Packet *pkt)
+         return;
+     }
+ 
++    zero = tcg_const_tl(0);
++    control_reg = tcg_temp_new();
++    pval = tcg_temp_new();
++
+     /*
+      * Only endloop instructions will conditionally
+      * write a predicate.  If there are no endloop
+@@ -287,7 +292,6 @@ static void gen_pred_writes(DisasContext *ctx, Packet *pkt)
+      * write of the predicates.
+      */
+     if (pkt->pkt_has_endloop) {
+-        TCGv zero = tcg_const_tl(0);
+         TCGv pred_written = tcg_temp_new();
+         for (i = 0; i < ctx->preg_log_idx; i++) {
+             int pred_num = ctx->preg_log[i];
+@@ -298,7 +302,6 @@ static void gen_pred_writes(DisasContext *ctx, Packet *pkt)
+                                hex_new_pred_value[pred_num],
+                                hex_pred[pred_num]);
+         }
+-        tcg_temp_free(zero);
+         tcg_temp_free(pred_written);
+     } else {
+         for (i = 0; i < ctx->preg_log_idx; i++) {
+@@ -311,6 +314,10 @@ static void gen_pred_writes(DisasContext *ctx, Packet *pkt)
+             }
+         }
+     }
++
++    tcg_temp_free(zero);
++    tcg_temp_free(control_reg);
++    tcg_temp_free(pval);
+ }
+ 
+ static void gen_check_store_width(DisasContext *ctx, int slot_num)

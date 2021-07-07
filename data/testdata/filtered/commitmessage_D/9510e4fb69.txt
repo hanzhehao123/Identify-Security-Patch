@@ -1,0 +1,14 @@
+commit 9510e4fb6967c39871b149676e09bb7ee875bc18
+Author: John Snow <jsnow@redhat.com>
+Date:   Fri Jun 4 11:55:22 2021 -0400
+
+    scripts/qemu-ga-client: apply isort rules
+    
+    Hint:
+    > ln -s scripts/qmp/qemu-ga-client python/qemu/qmp/qemu_ga_client.py
+    > cd python
+    > isort qemu
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210604155532.1499282-2-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

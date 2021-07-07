@@ -1,0 +1,17 @@
+commit 720507ed95023e45620f305767d12cd716e8b8ca
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Mon Jun 14 10:11:26 2021 +0200
+
+    ratelimit: treat zero speed as unlimited
+    
+    Both users of RateLimit, block-copy.c and blockjob.c, treat
+    a speed of zero as unlimited, while RateLimit treats it as
+    "as slow as possible".  The latter is nicer from the code
+    point of view but pretty useless, so disable rate limiting
+    if a speed of zero is provided.
+    
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Message-Id: <20210614081130.22134-2-eesposit@redhat.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>

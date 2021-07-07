@@ -1,0 +1,12 @@
+diff --git a/hw/core/cpu.c b/hw/core/cpu.c
+index 919dc3435a..00330ba07d 100644
+--- a/hw/core/cpu.c
++++ b/hw/core/cpu.c
+@@ -34,6 +34,7 @@
+ #include "hw/qdev-properties.h"
+ #include "trace/trace-root.h"
+ #include "qemu/plugin.h"
++#include "sysemu/hw_accel.h"
+ 
+ CPUState *cpu_by_arch_id(int64_t id)
+ {

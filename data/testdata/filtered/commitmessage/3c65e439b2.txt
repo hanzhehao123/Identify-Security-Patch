@@ -1,0 +1,15 @@
+commit 3c65e439b2724cc70af31a87447a0c7292babac5
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue May 25 14:44:53 2021 +0100
+
+    tests/qtest/bios-tables-test: Check for dup2() failure
+    
+    Coverity notes that we don't check for dup2() failing.  Add some
+    assertions so that if it does ever happen we get some indication.
+    (This is similar to how we handle other "don't expect this syscall to
+    fail" checks in this test code.)
+    
+    Fixes: Coverity CID 1432346
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Stefan Berger <stefanb@linux.ibm.com>
+    Message-id: 20210525134458.6675-2-peter.maydell@linaro.org

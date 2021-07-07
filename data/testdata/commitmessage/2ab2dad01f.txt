@@ -1,0 +1,33 @@
+commit 2ab2dad01f6dc3667c0d53d2b1ba46b511031207
+Merge: 0319ad22bd 96376ab154
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Wed May 26 15:27:20 2021 +0100
+
+    Merge remote-tracking branch 'remotes/kraxel/tags/input-20210526-pull-request' into staging
+    
+    input: a bunch of ps2 fixes.
+    
+    # gpg: Signature made Wed 26 May 2021 15:06:12 BST
+    # gpg:                using RSA key A0328CFFB93A17A79901FE7D4CB6D8EED3E87138
+    # gpg: Good signature from "Gerd Hoffmann (work) <kraxel@redhat.com>" [full]
+    # gpg:                 aka "Gerd Hoffmann <gerd@kraxel.org>" [full]
+    # gpg:                 aka "Gerd Hoffmann (private) <kraxel@gmail.com>" [full]
+    # Primary key fingerprint: A032 8CFF B93A 17A7 9901  FE7D 4CB6 D8EE D3E8 7138
+    
+    * remotes/kraxel/tags/input-20210526-pull-request:
+      hw/input/ps2: Use ps2_raise_irq() instead of open coding it
+      pckbd: clear outport_present in outer pre_load()
+      pckbd: remove duplicated keyboard and mouse defines
+      pckbd: correctly disable PS/2 communication
+      pckbd: add function kbd_pending()
+      pckbd: add controller response queue
+      pckbd: add state variable for interrupt source
+      pckbd: PS/2 keyboard throttle
+      pckbd: don't update OBF flags if KBD_STAT_OBF is set
+      pckbd: split out interrupt line changing code
+      ps2: don't deassert irq twice if queue is empty
+      ps2: don't raise an interrupt if queue is full
+      ps2: fix mouse stream corruption
+      hw/input: expand trace info reported for ps2 device
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

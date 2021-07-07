@@ -1,0 +1,15 @@
+commit 88137f787f374ac4117877bcc8c8af97326a10bd
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 18 15:10:19 2021 +0100
+
+    target/arm: Handle FPU check for FPCXT_NS insns via vfp_access_check_m()
+    
+    Instead of open-coding the "take NOCP exception if FPU disabled,
+    otherwise call gen_preserve_fp_state()" code in the accessors for
+    FPCXT_NS, add an argument to vfp_access_check_m() which tells it to
+    skip the gen_update_fp_context() call, so we can use it for the
+    FPCXT_NS case.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210618141019.10671-8-peter.maydell@linaro.org

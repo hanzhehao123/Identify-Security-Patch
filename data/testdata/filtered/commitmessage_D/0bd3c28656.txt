@@ -1,0 +1,12 @@
+commit 0bd3c286562e363fd5725209c0b475af9b8465d1
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:13 2021 +0200
+
+    s390x/tcg: Fix instruction name for VECTOR FP LOAD (LENGTHENED|ROUNDED)
+    
+    Let's use the correct name.
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-3-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

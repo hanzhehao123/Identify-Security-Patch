@@ -1,0 +1,23 @@
+commit 05d5e12b243df43a8a58568edf6a342806879d98
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 24 09:20:40 2021 +0200
+
+    block-copy: streamline choice of copy_range vs. read/write
+    
+    Put the logic to determine the copy size in a separate function, so
+    that there is a simple state machine for the possible methods of
+    copying data from one BlockDriverState to the other.
+    
+    Use .method instead of .copy_range as in-out argument, and
+    include also .zeroes as an additional copy method.
+    
+    While at it, store the common computation of block_copy_max_transfer
+    into a new field of BlockCopyState, and make sure that we always
+    obey max_transfer; that's more efficient even for the
+    COPY_RANGE_READ_WRITE case.
+    
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Message-Id: <20210624072043.180494-3-eesposit@redhat.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>

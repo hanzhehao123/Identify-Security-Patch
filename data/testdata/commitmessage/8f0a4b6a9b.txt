@@ -1,0 +1,29 @@
+commit 8f0a4b6a9b40e18116a2bb6bbcc00feb8119c792
+Author: Matheus Ferst <matheus.ferst@eldorado.org.br>
+Date:   Tue Jun 1 16:35:28 2021 -0300
+
+    target/ppc: Move cmp/cmpi/cmpl/cmpli to decodetree
+    
+    Additionally, REQUIRE_64BIT when L=1 to match what is specified in The
+    Programming Environments Manual:
+    
+    "For 32-bit implementations, the L field must be cleared, otherwise the
+    instruction form is invalid."
+    
+    Some CPUs are known to deviate from this specification by ignoring the
+    L bit [1]. The stricter behavior, however, can help users that test
+    software with qemu, making it more likely to detect bugs that would
+    otherwise be silent.
+    
+    If deemed necessary, a future patch can adapt this behavior based on
+    the specific CPU model.
+    
+    [1] The 601 manual is the only one I've found that explicitly states
+    that the L bit is ignored, but we also observe this behavior in a 7447A
+    v1.2.
+    
+    Signed-off-by: Matheus Ferst <matheus.ferst@eldorado.org.br>
+    Message-Id: <20210601193528.2533031-15-matheus.ferst@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    [dwg: Corrected whitespace error]
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

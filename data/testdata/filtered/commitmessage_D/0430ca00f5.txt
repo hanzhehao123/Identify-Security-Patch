@@ -1,0 +1,12 @@
+commit 0430ca00f586a7ad27d3f13de3010ac4d6f40bb6
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Mar 9 12:27:05 2021 -0600
+
+    tcg: Split out tcg_region_initial_alloc
+    
+    This has only one user, and currently needs an ifdef,
+    but will make more sense after some code motion.
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

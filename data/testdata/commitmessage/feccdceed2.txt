@@ -1,0 +1,14 @@
+commit feccdceed25302e1e3db744d468304705ee7c4dd
+Author: Joelle van Dyne <j@getutm.app>
+Date:   Mon Mar 15 11:03:39 2021 -0700
+
+    block: check for sys/disk.h
+    
+    Some BSD platforms do not have this header.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Signed-off-by: Joelle van Dyne <j@getutm.app>
+    Message-Id: <20210315180341.31638-3-j@getutm.app>
+    Reviewed-by: Max Reitz <mreitz@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

@@ -1,0 +1,12 @@
+commit 4da79375c2a368bb548266e90e3d600afc05d165
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:21 2021 +0200
+
+    s390x/tcg: Simplify wfc64() handling
+    
+    ... and prepare for 32/128 bit support.
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-11-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

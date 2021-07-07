@@ -1,0 +1,12 @@
+diff --git a/target/i386/tcg/translate.c b/target/i386/tcg/translate.c
+index a7f5c0c8f2..834186bcae 100644
+--- a/target/i386/tcg/translate.c
++++ b/target/i386/tcg/translate.c
+@@ -8091,7 +8091,6 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
+         case 2:
+         case 3:
+         case 4:
+-        case 8:
+             break;
+         default:
+             goto unknown_op;

@@ -1,0 +1,19 @@
+commit 5a2d9929ac1f01a1e8ef2a3f56f69e6069863dad
+Author: Rao, Lei <lei.rao@intel.com>
+Date:   Tue Jun 8 16:23:31 2021 +0800
+
+    Fixed calculation error of pkt->header_size in fill_pkt_tcp_info()
+    
+    The data pointer has skipped vnet_hdr_len in the function of
+    parse_packet_early().So, we can not subtract vnet_hdr_len again
+    when calculating pkt->header_size in fill_pkt_tcp_info(). Otherwise,
+    it will cause network packet comparsion errors and greatly increase
+    the frequency of checkpoints.
+    
+    Signed-off-by: Lei Rao <lei.rao@intel.com>
+    Signed-off-by: Zhang Chen <chen.zhang@intel.com>
+    Reviewed-by: Li Zhijian <lizhijian@fujitsu.com>
+    Reviewed-by: Zhang Chen <chen.zhang@intel.com>
+    Reviewed-by: Lukas Straub <lukasstraub2@web.de>
+    Tested-by: Lukas Straub <lukasstraub2@web.de>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

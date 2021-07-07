@@ -1,0 +1,19 @@
+commit 4fe011d3c188559d8781996a2d91a02f5a957a42
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Wed May 26 17:21:01 2021 -0300
+
+    target/ppc: remove ppc_cpu_dump_statistics
+    
+    This function requires surce code modification to be useful, which means
+    it probably is not used often, and the move to using decodetree means
+    the statistics won't even be collected anymore.
+    
+    Also removed setting dump_statistics in ppc_cpu_realize, since it was
+    only useful when in conjunction with ppc_cpu_dump_statistics.
+    
+    Suggested-by: Richard Henderson<richard.henderson@linaro.org>
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Message-Id: <20210526202104.127910-3-bruno.larsen@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

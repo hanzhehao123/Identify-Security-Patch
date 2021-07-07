@@ -1,0 +1,14 @@
+commit e5b4654907e9d96e1b215fa943e2f62e61676ed6
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sun Feb 7 18:15:04 2021 -0800
+
+    tests/tcg: Increase timeout for TCI
+    
+    The longest test at the moment seems to be a (slower)
+    aarch64 host, for which test-mmap takes 64 seconds.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Acked-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

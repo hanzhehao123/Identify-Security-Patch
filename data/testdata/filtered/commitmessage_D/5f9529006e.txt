@@ -1,0 +1,8 @@
+commit 5f9529006ea37560c97b05661a84472431d25b91
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 21 17:40:25 2020 -0800
+
+    softfloat: Convert integer to floatx80 to FloatParts
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

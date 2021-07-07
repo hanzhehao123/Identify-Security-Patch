@@ -1,0 +1,10 @@
+commit 8daec64be9a5346da17ddba47aadb33617755478
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:15:58 2021 +0200
+
+    target/hppa: Remove unused 'memory.h' header
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517101558.1040191-1-f4bug@amsat.org>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

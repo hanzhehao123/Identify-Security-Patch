@@ -1,0 +1,566 @@
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 636bf2f536..7d9cd29042 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -2707,6 +2707,7 @@ TPM
+ M: Stefan Berger <stefanb@linux.ibm.com>
+ S: Maintained
+ F: tpm.c
++F: stubs/tpm.c
+ F: hw/tpm/*
+ F: include/hw/acpi/tpm.h
+ F: include/sysemu/tpm*
+diff --git a/contrib/vhost-user-gpu/vhost-user-gpu.c b/contrib/vhost-user-gpu/vhost-user-gpu.c
+index 611360e6b4..6dc6a44f4e 100644
+--- a/contrib/vhost-user-gpu/vhost-user-gpu.c
++++ b/contrib/vhost-user-gpu/vhost-user-gpu.c
+@@ -350,8 +350,8 @@ vg_resource_create_2d(VuGpu *g,
+     if (!res->image) {
+         g_critical("%s: resource creation failed %d %d %d",
+                    __func__, c2d.resource_id, c2d.width, c2d.height);
+-        vugbm_buffer_destroy(&res->buffer);
+         g_free(res);
++        vugbm_buffer_destroy(&res->buffer);
+         cmd->error = VIRTIO_GPU_RESP_ERR_OUT_OF_MEMORY;
+         return;
+     }
+diff --git a/hw/acpi/aml-build.c b/hw/acpi/aml-build.c
+index d5103e6d7b..f0035d2b4a 100644
+--- a/hw/acpi/aml-build.c
++++ b/hw/acpi/aml-build.c
+@@ -2044,7 +2044,6 @@ build_hdr:
+                  "FACP", tbl->len - fadt_start, f->rev, oem_id, oem_table_id);
+ }
+ 
+-#ifdef CONFIG_TPM
+ /*
+  * build_tpm2 - Build the TPM2 table as specified in
+  * table 7: TCG Hardware Interface Description Table Format for TPM 2.0
+@@ -2102,7 +2101,6 @@ void build_tpm2(GArray *table_data, BIOSLinker *linker, GArray *tcpalog,
+                  (void *)(table_data->data + tpm2_start),
+                  "TPM2", table_data->len - tpm2_start, 4, oem_id, oem_table_id);
+ }
+-#endif
+ 
+ Aml *build_crs(PCIHostState *host, CrsRangeSet *range_set, uint32_t io_offset,
+                uint32_t mmio32_offset, uint64_t mmio64_offset,
+diff --git a/hw/arm/sysbus-fdt.c b/hw/arm/sysbus-fdt.c
+index 48c5fe9bf1..6b6906f4cf 100644
+--- a/hw/arm/sysbus-fdt.c
++++ b/hw/arm/sysbus-fdt.c
+@@ -437,7 +437,6 @@ static bool vfio_platform_match(SysBusDevice *sbdev,
+ 
+ #endif /* CONFIG_LINUX */
+ 
+-#ifdef CONFIG_TPM
+ /*
+  * add_tpm_tis_fdt_node: Create a DT node for TPM TIS
+  *
+@@ -468,7 +467,6 @@ static int add_tpm_tis_fdt_node(SysBusDevice *sbdev, void *opaque)
+     g_free(nodename);
+     return 0;
+ }
+-#endif
+ 
+ static int no_fdt_node(SysBusDevice *sbdev, void *opaque)
+ {
+@@ -490,9 +488,7 @@ static const BindingEntry bindings[] = {
+     TYPE_BINDING(TYPE_VFIO_AMD_XGBE, add_amd_xgbe_fdt_node),
+     VFIO_PLATFORM_BINDING("amd,xgbe-seattle-v1a", add_amd_xgbe_fdt_node),
+ #endif
+-#ifdef CONFIG_TPM
+     TYPE_BINDING(TYPE_TPM_TIS_SYSBUS, add_tpm_tis_fdt_node),
+-#endif
+     TYPE_BINDING(TYPE_RAMFB_DEVICE, no_fdt_node),
+     TYPE_BINDING("", NULL), /* last element */
+ };
+diff --git a/hw/arm/virt-acpi-build.c b/hw/arm/virt-acpi-build.c
+index f1024843dd..60fe2e65a7 100644
+--- a/hw/arm/virt-acpi-build.c
++++ b/hw/arm/virt-acpi-build.c
+@@ -205,7 +205,6 @@ static void acpi_dsdt_add_gpio(Aml *scope, const MemMapEntry *gpio_memmap,
+     aml_append(scope, dev);
+ }
+ 
+-#ifdef CONFIG_TPM
+ static void acpi_dsdt_add_tpm(Aml *scope, VirtMachineState *vms)
+ {
+     PlatformBusDevice *pbus = PLATFORM_BUS_DEVICE(vms->platform_bus_dev);
+@@ -237,7 +236,6 @@ static void acpi_dsdt_add_tpm(Aml *scope, VirtMachineState *vms)
+     aml_append(dev, aml_name_decl("_CRS", crs));
+     aml_append(scope, dev);
+ }
+-#endif
+ 
+ static void
+ build_iort(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
+@@ -644,9 +642,7 @@ build_dsdt(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
+     }
+ 
+     acpi_dsdt_add_power_button(scope);
+-#ifdef CONFIG_TPM
+     acpi_dsdt_add_tpm(scope, vms);
+-#endif
+ 
+     aml_append(dsdt, scope);
+ 
+@@ -749,13 +745,11 @@ void virt_acpi_build(VirtMachineState *vms, AcpiBuildTables *tables)
+         build_iort(tables_blob, tables->linker, vms);
+     }
+ 
+-#ifdef CONFIG_TPM
+     if (tpm_get_version(tpm_find()) == TPM_VERSION_2_0) {
+         acpi_add_table(table_offsets, tables_blob);
+         build_tpm2(tables_blob, tables->linker, tables->tcpalog, vms->oem_id,
+                    vms->oem_table_id);
+     }
+-#endif
+ 
+     /* XSDT is pointed to by RSDP */
+     xsdt = tables_blob->len;
+diff --git a/hw/arm/virt.c b/hw/arm/virt.c
+index 4b96f06014..8bc3b408fe 100644
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -2599,9 +2599,7 @@ static void virt_machine_class_init(ObjectClass *oc, void *data)
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_VFIO_AMD_XGBE);
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_RAMFB_DEVICE);
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_VFIO_PLATFORM);
+-#ifdef CONFIG_TPM
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_TPM_TIS_SYSBUS);
+-#endif
+     mc->block_default_type = IF_VIRTIO;
+     mc->no_cdrom = 1;
+     mc->pci_allow_0_address = true;
+diff --git a/hw/display/vga.c b/hw/display/vga.c
+index 9d1f66af40..28a90e30d0 100644
+--- a/hw/display/vga.c
++++ b/hw/display/vga.c
+@@ -752,8 +752,7 @@ void vbe_ioport_write_data(void *opaque, uint32_t addr, uint32_t val)
+                 val == VBE_DISPI_ID1 ||
+                 val == VBE_DISPI_ID2 ||
+                 val == VBE_DISPI_ID3 ||
+-                val == VBE_DISPI_ID4 ||
+-                val == VBE_DISPI_ID5) {
++                val == VBE_DISPI_ID4) {
+                 s->vbe_regs[s->vbe_index] = val;
+             }
+             break;
+diff --git a/hw/display/virtio-gpu.c b/hw/display/virtio-gpu.c
+index e183f4ecda..4d549377cb 100644
+--- a/hw/display/virtio-gpu.c
++++ b/hw/display/virtio-gpu.c
+@@ -610,6 +610,12 @@ static void virtio_gpu_do_set_scanout(VirtIOGPU *g,
+     struct virtio_gpu_scanout *scanout;
+     uint8_t *data;
+ 
++    if (scanout_id >= g->parent_obj.conf.max_outputs) {
++        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal scanout id specified %d",
++                      __func__, scanout_id);
++        *error = VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID;
++        return;
++    }
+     scanout = &g->parent_obj.scanout[scanout_id];
+ 
+     if (r->x > fb->width ||
+@@ -688,13 +694,6 @@ static void virtio_gpu_set_scanout(VirtIOGPU *g,
+     trace_virtio_gpu_cmd_set_scanout(ss.scanout_id, ss.resource_id,
+                                      ss.r.width, ss.r.height, ss.r.x, ss.r.y);
+ 
+-    if (ss.scanout_id >= g->parent_obj.conf.max_outputs) {
+-        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal scanout id specified %d",
+-                      __func__, ss.scanout_id);
+-        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID;
+-        return;
+-    }
+-
+     if (ss.resource_id == 0) {
+         virtio_gpu_disable_scanout(g, ss.scanout_id);
+         return;
+@@ -731,13 +730,6 @@ static void virtio_gpu_set_scanout_blob(VirtIOGPU *g,
+                                           ss.r.width, ss.r.height, ss.r.x,
+                                           ss.r.y);
+ 
+-    if (ss.scanout_id >= g->parent_obj.conf.max_outputs) {
+-        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal scanout id specified %d",
+-                      __func__, ss.scanout_id);
+-        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID;
+-        return;
+-    }
+-
+     if (ss.resource_id == 0) {
+         virtio_gpu_disable_scanout(g, ss.scanout_id);
+         return;
+diff --git a/hw/i386/acpi-build.c b/hw/i386/acpi-build.c
+index 796ffc6f5c..80bee00da6 100644
+--- a/hw/i386/acpi-build.c
++++ b/hw/i386/acpi-build.c
+@@ -107,9 +107,7 @@ typedef struct AcpiPmInfo {
+ typedef struct AcpiMiscInfo {
+     bool is_piix4;
+     bool has_hpet;
+-#ifdef CONFIG_TPM
+     TPMVersion tpm_version;
+-#endif
+     const unsigned char *dsdt_code;
+     unsigned dsdt_size;
+     uint16_t pvpanic_port;
+@@ -288,9 +286,7 @@ static void acpi_get_misc_info(AcpiMiscInfo *info)
+     }
+ 
+     info->has_hpet = hpet_find();
+-#ifdef CONFIG_TPM
+     info->tpm_version = tpm_get_version(tpm_find());
+-#endif
+     info->pvpanic_port = pvpanic_port();
+     info->applesmc_io_base = applesmc_port();
+ }
+@@ -1375,9 +1371,7 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+     uint32_t nr_mem = machine->ram_slots;
+     int root_bus_limit = 0xFF;
+     PCIBus *bus = NULL;
+-#ifdef CONFIG_TPM
+     TPMIf *tpm = tpm_find();
+-#endif
+     int i;
+     VMBusBridge *vmbus_bridge = vmbus_bridge_find();
+ 
+@@ -1610,12 +1604,10 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+         }
+     }
+ 
+-#ifdef CONFIG_TPM
+     if (TPM_IS_TIS_ISA(tpm_find())) {
+         aml_append(crs, aml_memory32_fixed(TPM_TIS_ADDR_BASE,
+                    TPM_TIS_ADDR_SIZE, AML_READ_WRITE));
+     }
+-#endif
+     aml_append(scope, aml_name_decl("_CRS", crs));
+ 
+     /* reserve GPE0 block resources */
+@@ -1761,7 +1753,6 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+             /* Scan all PCI buses. Generate tables to support hotplug. */
+             build_append_pci_bus_devices(scope, bus, pm->pcihp_bridge_en);
+ 
+-#ifdef CONFIG_TPM
+             if (TPM_IS_TIS_ISA(tpm)) {
+                 if (misc->tpm_version == TPM_VERSION_2_0) {
+                     dev = aml_device("TPM");
+@@ -1789,13 +1780,11 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+ 
+                 aml_append(scope, dev);
+             }
+-#endif
+ 
+             aml_append(sb_scope, scope);
+         }
+     }
+ 
+-#ifdef CONFIG_TPM
+     if (TPM_IS_CRB(tpm)) {
+         dev = aml_device("TPM");
+         aml_append(dev, aml_name_decl("_HID", aml_string("MSFT0101")));
+@@ -1810,7 +1799,6 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+ 
+         aml_append(sb_scope, dev);
+     }
+-#endif
+ 
+     aml_append(dsdt, sb_scope);
+ 
+@@ -1840,7 +1828,6 @@ build_hpet(GArray *table_data, BIOSLinker *linker, const char *oem_id,
+                  "HPET", sizeof(*hpet), 1, oem_id, oem_table_id);
+ }
+ 
+-#ifdef CONFIG_TPM
+ static void
+ build_tpm_tcpa(GArray *table_data, BIOSLinker *linker, GArray *tcpalog,
+                const char *oem_id, const char *oem_table_id)
+@@ -1867,7 +1854,6 @@ build_tpm_tcpa(GArray *table_data, BIOSLinker *linker, GArray *tcpalog,
+                  (void *)(table_data->data + tcpa_start),
+                  "TCPA", sizeof(*tcpa), 2, oem_id, oem_table_id);
+ }
+-#endif
+ 
+ #define HOLE_640K_START  (640 * KiB)
+ #define HOLE_640K_END   (1 * MiB)
+@@ -2417,7 +2403,6 @@ void acpi_build(AcpiBuildTables *tables, MachineState *machine)
+         build_hpet(tables_blob, tables->linker, x86ms->oem_id,
+                    x86ms->oem_table_id);
+     }
+-#ifdef CONFIG_TPM
+     if (misc.tpm_version != TPM_VERSION_UNSPEC) {
+         if (misc.tpm_version == TPM_VERSION_1_2) {
+             acpi_add_table(table_offsets, tables_blob);
+@@ -2429,7 +2414,6 @@ void acpi_build(AcpiBuildTables *tables, MachineState *machine)
+                        x86ms->oem_id, x86ms->oem_table_id);
+         }
+     }
+-#endif
+     if (pcms->numa_nodes) {
+         acpi_add_table(table_offsets, tables_blob);
+         build_srat(tables_blob, tables->linker, machine);
+@@ -2621,10 +2605,8 @@ void acpi_setup(void)
+     AcpiBuildTables tables;
+     AcpiBuildState *build_state;
+     Object *vmgenid_dev;
+-#ifdef CONFIG_TPM
+     TPMIf *tpm;
+     static FwCfgTPMConfig tpm_config;
+-#endif
+ 
+     if (!x86ms->fw_cfg) {
+         ACPI_BUILD_DPRINTF("No fw cfg. Bailing out.\n");
+@@ -2656,7 +2638,6 @@ void acpi_setup(void)
+         acpi_add_rom_blob(acpi_build_update, build_state,
+                           tables.linker->cmd_blob, ACPI_BUILD_LOADER_FILE);
+ 
+-#ifdef CONFIG_TPM
+     fw_cfg_add_file(x86ms->fw_cfg, ACPI_BUILD_TPMLOG_FILE,
+                     tables.tcpalog->data, acpi_data_len(tables.tcpalog));
+ 
+@@ -2670,7 +2651,6 @@ void acpi_setup(void)
+         fw_cfg_add_file(x86ms->fw_cfg, "etc/tpm/config",
+                         &tpm_config, sizeof tpm_config);
+     }
+-#endif
+ 
+     vmgenid_dev = find_vmgenid_dev();
+     if (vmgenid_dev) {
+diff --git a/include/hw/acpi/tpm.h b/include/hw/acpi/tpm.h
+index 559ba6906c..1a2a57a21f 100644
+--- a/include/hw/acpi/tpm.h
++++ b/include/hw/acpi/tpm.h
+@@ -21,8 +21,6 @@
+ #include "hw/acpi/aml-build.h"
+ #include "sysemu/tpm.h"
+ 
+-#ifdef CONFIG_TPM
+-
+ #define TPM_TIS_ADDR_BASE           0xFED40000
+ #define TPM_TIS_ADDR_SIZE           0x5000
+ 
+@@ -211,6 +209,4 @@ REG32(CRB_DATA_BUFFER, 0x80)
+ 
+ void tpm_build_ppi_acpi(TPMIf *tpm, Aml *dev);
+ 
+-#endif /* CONFIG_TPM */
+-
+ #endif /* HW_ACPI_TPM_H */
+diff --git a/include/sysemu/tpm.h b/include/sysemu/tpm.h
+index 68b2206463..1a85564e47 100644
+--- a/include/sysemu/tpm.h
++++ b/include/sysemu/tpm.h
+@@ -15,8 +15,6 @@
+ #include "qapi/qapi-types-tpm.h"
+ #include "qom/object.h"
+ 
+-#ifdef CONFIG_TPM
+-
+ int tpm_config_parse(QemuOptsList *opts_list, const char *optarg);
+ int tpm_init(void);
+ void tpm_cleanup(void);
+@@ -75,11 +73,4 @@ static inline TPMVersion tpm_get_version(TPMIf *ti)
+     return TPM_IF_GET_CLASS(ti)->get_version(ti);
+ }
+ 
+-#else /* CONFIG_TPM */
+-
+-#define tpm_init()  (0)
+-#define tpm_cleanup()
+-
+-#endif /* CONFIG_TPM */
+-
+ #endif /* QEMU_TPM_H */
+diff --git a/include/sysemu/tpm_backend.h b/include/sysemu/tpm_backend.h
+index 8fd3269c11..6f078f5f48 100644
+--- a/include/sysemu/tpm_backend.h
++++ b/include/sysemu/tpm_backend.h
+@@ -18,8 +18,6 @@
+ #include "sysemu/tpm.h"
+ #include "qapi/error.h"
+ 
+-#ifdef CONFIG_TPM
+-
+ #define TYPE_TPM_BACKEND "tpm-backend"
+ OBJECT_DECLARE_TYPE(TPMBackend, TPMBackendClass,
+                     TPM_BACKEND)
+@@ -211,6 +209,4 @@ TPMInfo *tpm_backend_query_tpm(TPMBackend *s);
+ 
+ TPMBackend *qemu_find_tpm_be(const char *id);
+ 
+-#endif /* CONFIG_TPM */
+-
+-#endif /* TPM_BACKEND_H */
++#endif
+diff --git a/monitor/hmp-cmds.c b/monitor/hmp-cmds.c
+index 0942027208..d10ee14110 100644
+--- a/monitor/hmp-cmds.c
++++ b/monitor/hmp-cmds.c
+@@ -901,7 +901,6 @@ void hmp_info_pci(Monitor *mon, const QDict *qdict)
+ 
+ void hmp_info_tpm(Monitor *mon, const QDict *qdict)
+ {
+-#ifdef CONFIG_TPM
+     TPMInfoList *info_list, *info;
+     Error *err = NULL;
+     unsigned int c = 0;
+@@ -947,9 +946,6 @@ void hmp_info_tpm(Monitor *mon, const QDict *qdict)
+         c++;
+     }
+     qapi_free_TPMInfoList(info_list);
+-#else
+-    monitor_printf(mon, "TPM device not supported\n");
+-#endif /* CONFIG_TPM */
+ }
+ 
+ void hmp_quit(Monitor *mon, const QDict *qdict)
+diff --git a/qapi/tpm.json b/qapi/tpm.json
+index 75590979fd..6a10c9ed8d 100644
+--- a/qapi/tpm.json
++++ b/qapi/tpm.json
+@@ -17,9 +17,7 @@
+ #
+ # Since: 1.5
+ ##
+-{ 'enum': 'TpmModel', 'data': [ 'tpm-tis', 'tpm-crb', 'tpm-spapr' ],
+-  'if': 'defined(CONFIG_TPM)' }
+-
++{ 'enum': 'TpmModel', 'data': [ 'tpm-tis', 'tpm-crb', 'tpm-spapr' ] }
+ ##
+ # @query-tpm-models:
+ #
+@@ -35,8 +33,7 @@
+ # <- { "return": [ "tpm-tis", "tpm-crb", "tpm-spapr" ] }
+ #
+ ##
+-{ 'command': 'query-tpm-models', 'returns': ['TpmModel'],
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'command': 'query-tpm-models', 'returns': ['TpmModel'] }
+ 
+ ##
+ # @TpmType:
+@@ -49,8 +46,7 @@
+ #
+ # Since: 1.5
+ ##
+-{ 'enum': 'TpmType', 'data': [ 'passthrough', 'emulator' ],
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'enum': 'TpmType', 'data': [ 'passthrough', 'emulator' ] }
+ 
+ ##
+ # @query-tpm-types:
+@@ -67,8 +63,7 @@
+ # <- { "return": [ "passthrough", "emulator" ] }
+ #
+ ##
+-{ 'command': 'query-tpm-types', 'returns': ['TpmType'],
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'command': 'query-tpm-types', 'returns': ['TpmType'] }
+ 
+ ##
+ # @TPMPassthroughOptions:
+@@ -84,8 +79,7 @@
+ ##
+ { 'struct': 'TPMPassthroughOptions',
+   'data': { '*path': 'str',
+-            '*cancel-path': 'str' },
+-  'if': 'defined(CONFIG_TPM)' }
++            '*cancel-path': 'str' } }
+ 
+ ##
+ # @TPMEmulatorOptions:
+@@ -96,8 +90,7 @@
+ #
+ # Since: 2.11
+ ##
+-{ 'struct': 'TPMEmulatorOptions', 'data': { 'chardev' : 'str' },
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'struct': 'TPMEmulatorOptions', 'data': { 'chardev' : 'str' } }
+ 
+ ##
+ # @TpmTypeOptions:
+@@ -111,8 +104,7 @@
+ ##
+ { 'union': 'TpmTypeOptions',
+    'data': { 'passthrough' : 'TPMPassthroughOptions',
+-             'emulator': 'TPMEmulatorOptions' },
+-  'if': 'defined(CONFIG_TPM)' }
++             'emulator': 'TPMEmulatorOptions' } }
+ 
+ ##
+ # @TPMInfo:
+@@ -130,8 +122,7 @@
+ { 'struct': 'TPMInfo',
+   'data': {'id': 'str',
+            'model': 'TpmModel',
+-           'options': 'TpmTypeOptions' },
+-  'if': 'defined(CONFIG_TPM)' }
++           'options': 'TpmTypeOptions' } }
+ 
+ ##
+ # @query-tpm:
+@@ -161,5 +152,4 @@
+ #    }
+ #
+ ##
+-{ 'command': 'query-tpm', 'returns': ['TPMInfo'],
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'command': 'query-tpm', 'returns': ['TPMInfo'] }
+diff --git a/stubs/meson.build b/stubs/meson.build
+index d4e9549dc9..65c22c0568 100644
+--- a/stubs/meson.build
++++ b/stubs/meson.build
+@@ -38,6 +38,7 @@ stub_ss.add(files('runstate-check.c'))
+ stub_ss.add(files('sysbus.c'))
+ stub_ss.add(files('target-get-monitor-def.c'))
+ stub_ss.add(files('target-monitor-defs.c'))
++stub_ss.add(files('tpm.c'))
+ stub_ss.add(files('trace-control.c'))
+ stub_ss.add(files('uuid.c'))
+ stub_ss.add(files('vmgenid.c'))
+diff --git a/stubs/tpm.c b/stubs/tpm.c
+new file mode 100644
+index 0000000000..9bded191d9
+--- /dev/null
++++ b/stubs/tpm.c
+@@ -0,0 +1,39 @@
++/*
++ * TPM stubs
++ *
++ * This work is licensed under the terms of the GNU GPL, version 2 or later.
++ * See the COPYING file in the top-level directory.
++ */
++
++#include "qemu/osdep.h"
++#include "qapi/qapi-commands-tpm.h"
++#include "sysemu/tpm.h"
++#include "hw/acpi/tpm.h"
++
++int tpm_init(void)
++{
++    return 0;
++}
++
++void tpm_cleanup(void)
++{
++}
++
++TPMInfoList *qmp_query_tpm(Error **errp)
++{
++    return NULL;
++}
++
++TpmTypeList *qmp_query_tpm_types(Error **errp)
++{
++    return NULL;
++}
++
++TpmModelList *qmp_query_tpm_models(Error **errp)
++{
++    return NULL;
++}
++
++void tpm_build_ppi_acpi(TPMIf *tpm, Aml *dev)
++{
++}

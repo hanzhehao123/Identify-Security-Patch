@@ -1,0 +1,62 @@
+diff --git a/docs/system/vnc-security.rst b/docs/system/vnc-security.rst
+index 4c1769eeb8..830f6acc73 100644
+--- a/docs/system/vnc-security.rst
++++ b/docs/system/vnc-security.rst
+@@ -168,7 +168,7 @@ used is drastically reduced. In fact only the GSSAPI SASL mechanism
+ provides an acceptable level of security by modern standards. Previous
+ versions of QEMU referred to the DIGEST-MD5 mechanism, however, it has
+ multiple serious flaws described in detail in RFC 6331 and thus should
+-never be used any more. The SCRAM-SHA-256 mechanism provides a simple
++never be used any more. The SCRAM-SHA-1 mechanism provides a simple
+ username/password auth facility similar to DIGEST-MD5, but does not
+ support session encryption, so can only be used in combination with TLS.
+ 
+@@ -191,12 +191,11 @@ reasonable configuration is
+ 
+ ::
+ 
+-   mech_list: scram-sha-256
++   mech_list: scram-sha-1
+    sasldb_path: /etc/qemu/passwd.db
+ 
+ The ``saslpasswd2`` program can be used to populate the ``passwd.db``
+-file with accounts. Note that the ``passwd.db`` file stores passwords
+-in clear text.
++file with accounts.
+ 
+ Other SASL configurations will be left as an exercise for the reader.
+ Note that all mechanisms, except GSSAPI, should be combined with use of
+diff --git a/qemu.sasl b/qemu.sasl
+index abdfc686be..fb8a92ba58 100644
+--- a/qemu.sasl
++++ b/qemu.sasl
+@@ -19,15 +19,15 @@ mech_list: gssapi
+ 
+ # If using TLS with VNC, or a UNIX socket only, it is possible to
+ # enable plugins which don't provide session encryption. The
+-# 'scram-sha-256' plugin allows plain username/password authentication
++# 'scram-sha-1' plugin allows plain username/password authentication
+ # to be performed
+ #
+-#mech_list: scram-sha-256
++#mech_list: scram-sha-1
+ 
+ # You can also list many mechanisms at once, and the VNC server will
+ # negotiate which to use by considering the list enabled on the VNC
+ # client.
+-#mech_list: scram-sha-256 gssapi
++#mech_list: scram-sha-1 gssapi
+ 
+ # Some older builds of MIT kerberos on Linux ignore this option &
+ # instead need KRB5_KTNAME env var.
+@@ -38,8 +38,7 @@ mech_list: gssapi
+ # mechanism this can be commented out.
+ keytab: /etc/qemu/krb5.tab
+ 
+-# If using scram-sha-256 for username/passwds, then this is the file
++# If using scram-sha-1 for username/passwds, then this is the file
+ # containing the passwds. Use 'saslpasswd2 -a qemu [username]'
+-# to add entries, and 'sasldblistusers2 -f [sasldb_path]' to browse it.
+-# Note that this file stores passwords in clear text.
++# to add entries, and 'sasldblistusers2 -f [sasldb_path]' to browse it
+ #sasldb_path: /etc/qemu/passwd.db

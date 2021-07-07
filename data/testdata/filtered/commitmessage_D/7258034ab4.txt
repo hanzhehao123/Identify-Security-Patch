@@ -1,0 +1,26 @@
+commit 7258034ab40e6927acbd005feb295eb3acf972bb
+Merge: c8616fc767 5e50c6c72b
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu May 27 19:17:42 2021 +0100
+
+    Merge remote-tracking branch 'remotes/vivier/tags/m68k-for-6.1-pull-request' into staging
+    
+    m68k pull request 20210526
+    
+    implement m68k "any instruction" trace mode
+    
+    # gpg: Signature made Wed 26 May 2021 20:56:58 BST
+    # gpg:                using RSA key CD2F75DDC8E3A4DC2E4F5173F30C38BD3F2FBE3C
+    # gpg:                issuer "laurent@vivier.eu"
+    # gpg: Good signature from "Laurent Vivier <lvivier@redhat.com>" [full]
+    # gpg:                 aka "Laurent Vivier <laurent@vivier.eu>" [full]
+    # gpg:                 aka "Laurent Vivier (Red Hat) <lvivier@redhat.com>" [full]
+    # Primary key fingerprint: CD2F 75DD C8E3 A4DC 2E4F  5173 F30C 38BD 3F2F BE3C
+    
+    * remotes/vivier/tags/m68k-for-6.1-pull-request:
+      target/m68k: implement m68k "any instruction" trace mode
+      target/m68k: introduce gen_singlestep_exception() function
+      target/m68k: call gen_raise_exception() directly if single-stepping in gen_jmp_tb()
+      target/m68k: introduce is_singlestepping() function
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

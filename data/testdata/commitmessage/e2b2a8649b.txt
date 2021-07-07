@@ -1,0 +1,16 @@
+commit e2b2a8649bcd4769f453497b2abffbe44c7f86ad
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 20:07:40 2021 -0700
+
+    target/s390x: Expose load_psw and get_psw_mask to cpu.h
+    
+    Rename to s390_cpu_set_psw and s390_cpu_get_psw_mask at the
+    same time.  Adjust so that they compile for user-only.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: David Hildenbrand <david@redhat.com>
+    Tested-by: jonathan.albrecht <jonathan.albrecht@linux.vnet.ibm.com>
+    Tested-by: <ruixin.bao@ibm.com>
+    Message-Id: <20210615030744.1252385-2-richard.henderson@linaro.org>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

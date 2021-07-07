@@ -1,0 +1,10 @@
+commit 89ccd7dc3fbce4a46679f282b47789e34fc3528a
+Author: Matheus Ferst <matheus.ferst@eldorado.org.br>
+Date:   Tue Jun 1 16:35:25 2021 -0300
+
+    target/ppc: Implement cfuged instruction
+    
+    Signed-off-by: Matheus Ferst <matheus.ferst@eldorado.org.br>
+    Message-Id: <20210601193528.2533031-12-matheus.ferst@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

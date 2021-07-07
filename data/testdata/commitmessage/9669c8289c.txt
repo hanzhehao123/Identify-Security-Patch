@@ -1,0 +1,11 @@
+commit 9669c8289c8f16eb97ac887ab09598925f4712ce
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:13 2021 -0400
+
+    scripts/qmp-shell: remove shadowed variable from _print()
+    
+    Don't use 'qmp' here, which shadows the qmp module.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-7-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

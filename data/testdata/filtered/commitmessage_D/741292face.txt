@@ -1,0 +1,16 @@
+commit 741292face087213b846faed7055ff51b7fee2dd
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 15:03:28 2021 +0100
+
+    docs/system/arm: Document which architecture extensions we emulate
+    
+    These days the Arm architecture has a wide range of fine-grained
+    optional extra architectural features. We implement quite a lot
+    of these but by no means all of them. Document what we do implement,
+    so that users can find out without having to dig through back-issues
+    of our Changelog on the wiki.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-id: 20210617140328.28622-1-peter.maydell@linaro.org
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>

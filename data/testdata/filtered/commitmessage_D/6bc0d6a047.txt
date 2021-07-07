@@ -1,0 +1,10 @@
+commit 6bc0d6a04733cb39d2d2bf3380a857709113242f
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:39 2021 +0200
+
+    cpu: Move CPUClass::get_paging_enabled to SysemuCPUOps
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-23-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

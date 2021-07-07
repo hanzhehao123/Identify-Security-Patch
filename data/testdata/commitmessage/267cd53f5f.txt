@@ -1,0 +1,13 @@
+commit 267cd53f5fbbbf9bdf18c526144ab0bd22ab40f8
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed Jun 16 15:32:04 2021 +0200
+
+    block: try BSD disk size ioctls one after another
+    
+    Try all the possible ioctls for disk size as long as they are
+    supported, to keep the #if ladder simple.
+    
+    Extracted and cleaned up from a patch by Joelle van Dyne and
+    Warner Losh.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

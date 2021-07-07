@@ -1,0 +1,206 @@
+diff --git a/include/qemu/config-file.h b/include/qemu/config-file.h
+index f605423321..0500b3668d 100644
+--- a/include/qemu/config-file.h
++++ b/include/qemu/config-file.h
+@@ -1,8 +1,6 @@
+ #ifndef QEMU_CONFIG_FILE_H
+ #define QEMU_CONFIG_FILE_H
+ 
+-typedef void QEMUConfigCB(const char *group, QDict *qdict, void *opaque, Error **errp);
+-
+ void qemu_load_module_for_opts(const char *group);
+ QemuOptsList *qemu_find_opts(const char *group);
+ QemuOptsList *qemu_find_opts_err(const char *group, Error **errp);
+@@ -16,10 +14,7 @@ void qemu_config_write(FILE *fp);
+ int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname,
+                       Error **errp);
+ 
+-/* A default callback for qemu_read_config_file().  */
+-void qemu_config_do_parse(const char *group, QDict *qdict, void *opaque, Error **errp);
+-
+-int qemu_read_config_file(const char *filename, QEMUConfigCB *f, Error **errp);
++int qemu_read_config_file(const char *filename, Error **errp);
+ 
+ /* Parse QDict options as a replacement for a config file (allowing multiple
+    enumerated (0..(n-1)) configuration "sections") */
+diff --git a/softmmu/vl.c b/softmmu/vl.c
+index 47dfdd704f..6054f6f0b9 100644
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
+@@ -2133,7 +2133,7 @@ static void qemu_read_default_config_file(Error **errp)
+     int ret;
+     g_autofree char *file = get_relocated_path(CONFIG_QEMU_CONFDIR "/qemu.conf");
+ 
+-    ret = qemu_read_config_file(file, qemu_config_do_parse, errp);
++    ret = qemu_read_config_file(file, errp);
+     if (ret < 0) {
+         if (ret == -ENOENT) {
+             error_free(*errp);
+@@ -3399,7 +3399,7 @@ void qemu_init(int argc, char **argv, char **envp)
+                 qemu_plugin_opt_parse(optarg, &plugin_list);
+                 break;
+             case QEMU_OPTION_readconfig:
+-                qemu_read_config_file(optarg, qemu_config_do_parse, &error_fatal);
++                qemu_read_config_file(optarg, &error_fatal);
+                 break;
+             case QEMU_OPTION_spice:
+                 olist = qemu_find_opts_err("spice", NULL);
+diff --git a/util/qemu-config.c b/util/qemu-config.c
+index 374f3bc460..34974c4b47 100644
+--- a/util/qemu-config.c
++++ b/util/qemu-config.c
+@@ -2,7 +2,6 @@
+ #include "block/qdict.h" /* for qdict_extract_subqdict() */
+ #include "qapi/error.h"
+ #include "qapi/qapi-commands-misc.h"
+-#include "qapi/qmp/qerror.h"
+ #include "qapi/qmp/qdict.h"
+ #include "qapi/qmp/qlist.h"
+ #include "qemu/error-report.h"
+@@ -352,19 +351,19 @@ void qemu_config_write(FILE *fp)
+ }
+ 
+ /* Returns number of config groups on success, -errno on error */
+-static int qemu_config_foreach(FILE *fp, QEMUConfigCB *cb, void *opaque,
+-                               const char *fname, Error **errp)
++int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname, Error **errp)
+ {
+-    char line[1024], prev_group[64], group[64], arg[64], value[1024];
++    char line[1024], group[64], id[64], arg[64], value[1024];
+     Location loc;
++    QemuOptsList *list = NULL;
+     Error *local_err = NULL;
+-    QDict *qdict = NULL;
++    QemuOpts *opts = NULL;
+     int res = -EINVAL, lno = 0;
+     int count = 0;
+ 
+     loc_push_none(&loc);
+     while (fgets(line, sizeof(line), fp) != NULL) {
+-        ++lno;
++        loc_set_file(fname, ++lno);
+         if (line[0] == '\n') {
+             /* skip empty lines */
+             continue;
+@@ -373,39 +372,39 @@ static int qemu_config_foreach(FILE *fp, QEMUConfigCB *cb, void *opaque,
+             /* comment */
+             continue;
+         }
+-        if (line[0] == '[') {
+-            QDict *prev = qdict;
+-            if (sscanf(line, "[%63s \"%63[^\"]\"]", group, value) == 2) {
+-                qdict = qdict_new();
+-                qdict_put_str(qdict, "id", value);
+-                count++;
+-            } else if (sscanf(line, "[%63[^]]]", group) == 1) {
+-                qdict = qdict_new();
+-                count++;
++        if (sscanf(line, "[%63s \"%63[^\"]\"]", group, id) == 2) {
++            /* group with id */
++            list = find_list(lists, group, &local_err);
++            if (local_err) {
++                error_propagate(errp, local_err);
++                goto out;
+             }
+-            if (qdict != prev) {
+-                if (prev) {
+-                    cb(prev_group, prev, opaque, &local_err);
+-                    qobject_unref(prev);
+-                    if (local_err) {
+-                        error_propagate(errp, local_err);
+-                        goto out;
+-                    }
+-                }
+-                strcpy(prev_group, group);
+-                continue;
++            opts = qemu_opts_create(list, id, 1, NULL);
++            count++;
++            continue;
++        }
++        if (sscanf(line, "[%63[^]]]", group) == 1) {
++            /* group without id */
++            list = find_list(lists, group, &local_err);
++            if (local_err) {
++                error_propagate(errp, local_err);
++                goto out;
+             }
++            opts = qemu_opts_create(list, NULL, 0, &error_abort);
++            count++;
++            continue;
+         }
+-        loc_set_file(fname, lno);
+         value[0] = '\0';
+         if (sscanf(line, " %63s = \"%1023[^\"]\"", arg, value) == 2 ||
+             sscanf(line, " %63s = \"\"", arg) == 1) {
+             /* arg = value */
+-            if (qdict == NULL) {
++            if (opts == NULL) {
+                 error_setg(errp, "no group defined");
+                 goto out;
+             }
+-            qdict_put_str(qdict, arg, value);
++            if (!qemu_opt_set(opts, arg, value, errp)) {
++                goto out;
++            }
+             continue;
+         }
+         error_setg(errp, "parse error");
+@@ -418,48 +417,11 @@ static int qemu_config_foreach(FILE *fp, QEMUConfigCB *cb, void *opaque,
+     }
+     res = count;
+ out:
+-    if (qdict) {
+-        cb(group, qdict, opaque, errp);
+-        qobject_unref(qdict);
+-    }
+     loc_pop(&loc);
+     return res;
+ }
+ 
+-void qemu_config_do_parse(const char *group, QDict *qdict, void *opaque, Error **errp)
+-{
+-    QemuOptsList **lists = opaque;
+-    const char *id = qdict_get_try_str(qdict, "id");
+-    QemuOptsList *list;
+-    QemuOpts *opts;
+-    const QDictEntry *unrecognized;
+-
+-    list = find_list(lists, group, errp);
+-    if (!list) {
+-        return;
+-    }
+-
+-    opts = qemu_opts_create(list, id, 1, errp);
+-    if (!opts) {
+-        return;
+-    }
+-    if (!qemu_opts_absorb_qdict(opts, qdict, errp)) {
+-        qemu_opts_del(opts);
+-        return;
+-    }
+-    unrecognized = qdict_first(qdict);
+-    if (unrecognized) {
+-        error_setg(errp, QERR_INVALID_PARAMETER, unrecognized->key);
+-        qemu_opts_del(opts);
+-    }
+-}
+-
+-int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname, Error **errp)
+-{
+-    return qemu_config_foreach(fp, qemu_config_do_parse, lists, fname, errp);
+-}
+-
+-int qemu_read_config_file(const char *filename, QEMUConfigCB *cb, Error **errp)
++int qemu_read_config_file(const char *filename, Error **errp)
+ {
+     FILE *f = fopen(filename, "r");
+     int ret;
+@@ -469,7 +431,7 @@ int qemu_read_config_file(const char *filename, QEMUConfigCB *cb, Error **errp)
+         return -errno;
+     }
+ 
+-    ret = qemu_config_foreach(f, cb, vm_config_groups, filename, errp);
++    ret = qemu_config_parse(f, vm_config_groups, filename, errp);
+     fclose(f);
+     return ret;
+ }

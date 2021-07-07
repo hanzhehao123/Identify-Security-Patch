@@ -1,0 +1,140 @@
+diff --git a/target/s390x/helper.h b/target/s390x/helper.h
+index dca436f710..146836126c 100644
+--- a/target/s390x/helper.h
++++ b/target/s390x/helper.h
+@@ -250,12 +250,8 @@ DEF_HELPER_6(gvec_vstrc_cc_rt32, void, ptr, cptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfa32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfa64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfa128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_4(gvec_wfc32, void, cptr, cptr, env, i32)
+-DEF_HELPER_4(gvec_wfk32, void, cptr, cptr, env, i32)
+ DEF_HELPER_4(gvec_wfc64, void, cptr, cptr, env, i32)
+ DEF_HELPER_4(gvec_wfk64, void, cptr, cptr, env, i32)
+-DEF_HELPER_4(gvec_wfc128, void, cptr, cptr, env, i32)
+-DEF_HELPER_4(gvec_wfk128, void, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfce32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_5(gvec_vfce32_cc, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfce64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+diff --git a/target/s390x/translate_vx.c.inc b/target/s390x/translate_vx.c.inc
+index 822a9d0513..6f6ef6b6b8 100644
+--- a/target/s390x/translate_vx.c.inc
++++ b/target/s390x/translate_vx.c.inc
+@@ -2598,41 +2598,19 @@ static DisasJumpType op_wfc(DisasContext *s, DisasOps *o)
+ {
+     const uint8_t fpf = get_field(s, m3);
+     const uint8_t m4 = get_field(s, m4);
+-    gen_helper_gvec_2_ptr *fn = NULL;
+ 
+-    switch (fpf) {
+-    case FPF_SHORT:
+-        if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-            fn = gen_helper_gvec_wfk32;
+-            if (s->fields.op2 == 0xcb) {
+-                fn = gen_helper_gvec_wfc32;
+-            }
+-        }
+-        break;
+-    case FPF_LONG:
+-        fn = gen_helper_gvec_wfk64;
+-        if (s->fields.op2 == 0xcb) {
+-            fn = gen_helper_gvec_wfc64;
+-        }
+-        break;
+-    case FPF_EXT:
+-        if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-            fn = gen_helper_gvec_wfk128;
+-            if (s->fields.op2 == 0xcb) {
+-                fn = gen_helper_gvec_wfc128;
+-            }
+-        }
+-        break;
+-    default:
+-        break;
+-    };
+-
+-    if (!fn || m4) {
++    if (fpf != FPF_LONG || m4) {
+         gen_program_exception(s, PGM_SPECIFICATION);
+         return DISAS_NORETURN;
+     }
+ 
+-    gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2), cpu_env, 0, fn);
++    if (s->fields.op2 == 0xcb) {
++        gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2),
++                       cpu_env, 0, gen_helper_gvec_wfc64);
++    } else {
++        gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2),
++                       cpu_env, 0, gen_helper_gvec_wfk64);
++    }
+     set_cc_static(s);
+     return DISAS_NEXT;
+ }
+diff --git a/target/s390x/vec_fpu_helper.c b/target/s390x/vec_fpu_helper.c
+index fba5261ac4..67dcd8b50a 100644
+--- a/target/s390x/vec_fpu_helper.c
++++ b/target/s390x/vec_fpu_helper.c
+@@ -307,26 +307,6 @@ DEF_GVEC_VOP3(vfs, sub)
+ DEF_GVEC_VOP3(vfd, div)
+ DEF_GVEC_VOP3(vfm, mul)
+ 
+-static int wfc32(const S390Vector *v1, const S390Vector *v2,
+-                 CPUS390XState *env, bool signal, uintptr_t retaddr)
+-{
+-    /* only the zero-indexed elements are compared */
+-    const float32 a = s390_vec_read_float32(v1, 0);
+-    const float32 b = s390_vec_read_float32(v2, 0);
+-    uint8_t vxc, vec_exc = 0;
+-    int cmp;
+-
+-    if (signal) {
+-        cmp = float32_compare(a, b, &env->fpu_status);
+-    } else {
+-        cmp = float32_compare_quiet(a, b, &env->fpu_status);
+-    }
+-    vxc = check_ieee_exc(env, 0, false, &vec_exc);
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
+-
+-    return float_comp_to_cc(env, cmp);
+-}
+-
+ static int wfc64(const S390Vector *v1, const S390Vector *v2,
+                  CPUS390XState *env, bool signal, uintptr_t retaddr)
+ {
+@@ -347,26 +327,6 @@ static int wfc64(const S390Vector *v1, const S390Vector *v2,
+     return float_comp_to_cc(env, cmp);
+ }
+ 
+-static int wfc128(const S390Vector *v1, const S390Vector *v2,
+-                  CPUS390XState *env, bool signal, uintptr_t retaddr)
+-{
+-    /* only the zero-indexed elements are compared */
+-    const float128 a = s390_vec_read_float128(v1);
+-    const float128 b = s390_vec_read_float128(v2);
+-    uint8_t vxc, vec_exc = 0;
+-    int cmp;
+-
+-    if (signal) {
+-        cmp = float128_compare(a, b, &env->fpu_status);
+-    } else {
+-        cmp = float128_compare_quiet(a, b, &env->fpu_status);
+-    }
+-    vxc = check_ieee_exc(env, 0, false, &vec_exc);
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
+-
+-    return float_comp_to_cc(env, cmp);
+-}
+-
+ #define DEF_GVEC_WFC_B(NAME, SIGNAL, BITS)                                     \
+ void HELPER(gvec_##NAME##BITS)(const void *v1, const void *v2,                 \
+                                CPUS390XState *env, uint32_t desc)              \
+@@ -375,9 +335,7 @@ void HELPER(gvec_##NAME##BITS)(const void *v1, const void *v2,                 \
+ }
+ 
+ #define DEF_GVEC_WFC(NAME, SIGNAL)                                             \
+-     DEF_GVEC_WFC_B(NAME, SIGNAL, 32)                                          \
+-     DEF_GVEC_WFC_B(NAME, SIGNAL, 64)                                          \
+-     DEF_GVEC_WFC_B(NAME, SIGNAL, 128)
++     DEF_GVEC_WFC_B(NAME, SIGNAL, 64)
+ 
+ DEF_GVEC_WFC(wfc, false)
+ DEF_GVEC_WFC(wfk, true)

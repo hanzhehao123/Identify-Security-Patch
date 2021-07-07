@@ -1,0 +1,14 @@
+commit 97cf89259e4e0455c3b2742911737de5969dc0de
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:59 2021 +0300
+
+    nbd/client-connection: add option for non-blocking connection attempt
+    
+    We'll need a possibility of non-blocking nbd_co_establish_connection(),
+    so that it returns immediately, and it returns success only if a
+    connections was previously established in background.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-30-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

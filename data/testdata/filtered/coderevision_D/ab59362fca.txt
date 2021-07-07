@@ -1,0 +1,103 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 64c3f9e049..733a54d2e3 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -33,8 +33,6 @@ DEF_HELPER_FLAGS_3(mve_vstrb_h, TCG_CALL_NO_WG, void, env, ptr, i32)
+ DEF_HELPER_FLAGS_3(mve_vstrb_w, TCG_CALL_NO_WG, void, env, ptr, i32)
+ DEF_HELPER_FLAGS_3(mve_vstrh_w, TCG_CALL_NO_WG, void, env, ptr, i32)
+ 
+-DEF_HELPER_FLAGS_3(mve_vdup, TCG_CALL_NO_WG, void, env, ptr, i32)
+-
+ DEF_HELPER_FLAGS_3(mve_vclsb, TCG_CALL_NO_WG, void, env, ptr, ptr)
+ DEF_HELPER_FLAGS_3(mve_vclsh, TCG_CALL_NO_WG, void, env, ptr, ptr)
+ DEF_HELPER_FLAGS_3(mve_vclsw, TCG_CALL_NO_WG, void, env, ptr, ptr)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index 09849917f5..82cc0abcb8 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -21,7 +21,6 @@
+ 
+ %qd 22:1 13:3
+ %qm 5:1 1:3
+-%qn 7:1 17:3
+ 
+ &vldr_vstr rn qd imm p a w size l u
+ &1op qd qm size
+@@ -83,12 +82,3 @@ VABS             1111 1111 1 . 11 .. 01 ... 0 0011 01 . 0 ... 0 @1op
+ VABS_fp          1111 1111 1 . 11 .. 01 ... 0 0111 01 . 0 ... 0 @1op
+ VNEG             1111 1111 1 . 11 .. 01 ... 0 0011 11 . 0 ... 0 @1op
+ VNEG_fp          1111 1111 1 . 11 .. 01 ... 0 0111 11 . 0 ... 0 @1op
+-
+-&vdup qd rt size
+-# Qd is in the fields usually named Qn
+-@vdup            .... .... . . .. ... . rt:4 .... . . . . .... qd=%qn &vdup
+-
+-# B and E bits encode size, which we decode here to the usual size values
+-VDUP             1110 1110 1 1 10 ... 0 .... 1011 . 0 0 1 0000 @vdup size=0
+-VDUP             1110 1110 1 0 10 ... 0 .... 1011 . 0 1 1 0000 @vdup size=1
+-VDUP             1110 1110 1 0 10 ... 0 .... 1011 . 0 0 1 0000 @vdup size=2
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index e17ffdccac..7b662f9e03 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -246,22 +246,6 @@ static void mergemask_sq(int64_t *d, int64_t r, uint16_t mask)
+              uint64_t *: mergemask_uq,          \
+              int64_t *:  mergemask_sq)(D, R, M)
+ 
+-void HELPER(mve_vdup)(CPUARMState *env, void *vd, uint32_t val)
+-{
+-    /*
+-     * The generated code already replicated an 8 or 16 bit constant
+-     * into the 32-bit value, so we only need to write the 32-bit
+-     * value to all elements of the Qreg, allowing for predication.
+-     */
+-    uint32_t *d = vd;
+-    uint16_t mask = mve_element_mask(env);
+-    unsigned e;
+-    for (e = 0; e < 16 / 4; e++, mask >>= 4) {
+-        mergemask(&d[H4(e)], val, mask);
+-    }
+-    mve_advance_vpt(env);
+-}
+-
+ #define DO_1OP(OP, ESIZE, TYPE, FN)                                     \
+     void HELPER(mve_##OP)(CPUARMState *env, void *vd, void *vm)         \
+     {                                                                   \
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index 3714be7f8d..ad2e4af284 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -162,33 +162,6 @@ DO_VLDST_WIDE_NARROW(VLDSTB_H, vldrb_sh, vldrb_uh, vstrb_h)
+ DO_VLDST_WIDE_NARROW(VLDSTB_W, vldrb_sw, vldrb_uw, vstrb_w)
+ DO_VLDST_WIDE_NARROW(VLDSTH_W, vldrh_sw, vldrh_uw, vstrh_w)
+ 
+-static bool trans_VDUP(DisasContext *s, arg_VDUP *a)
+-{
+-    TCGv_ptr qd;
+-    TCGv_i32 rt;
+-
+-    if (!dc_isar_feature(aa32_mve, s) ||
+-        !mve_check_qreg_bank(s, a->qd)) {
+-        return false;
+-    }
+-    if (a->rt == 13 || a->rt == 15) {
+-        /* UNPREDICTABLE; we choose to UNDEF */
+-        return false;
+-    }
+-    if (!mve_eci_check(s) || !vfp_access_check(s)) {
+-        return true;
+-    }
+-
+-    qd = mve_qreg_ptr(a->qd);
+-    rt = load_reg(s, a->rt);
+-    tcg_gen_dup_i32(a->size, rt, rt);
+-    gen_helper_mve_vdup(cpu_env, qd, rt);
+-    tcg_temp_free_ptr(qd);
+-    tcg_temp_free_i32(rt);
+-    mve_update_eci(s);
+-    return true;
+-}
+-
+ static bool do_1op(DisasContext *s, arg_1op *a, MVEGenOneOpFn fn)
+ {
+     TCGv_ptr qd, qm;

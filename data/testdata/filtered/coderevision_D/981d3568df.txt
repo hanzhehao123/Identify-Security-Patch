@@ -1,0 +1,130 @@
+diff --git a/target/riscv/insn_trans/trans_rvi.c.inc b/target/riscv/insn_trans/trans_rvi.c.inc
+index 6e736c9d0d..bd93f634cf 100644
+--- a/target/riscv/insn_trans/trans_rvi.c.inc
++++ b/target/riscv/insn_trans/trans_rvi.c.inc
+@@ -268,17 +268,54 @@ static bool trans_andi(DisasContext *ctx, arg_andi *a)
+ }
+ static bool trans_slli(DisasContext *ctx, arg_slli *a)
+ {
+-    return gen_shifti(ctx, a, tcg_gen_shl_tl);
++    if (a->shamt >= TARGET_LONG_BITS) {
++        return false;
++    }
++
++    if (a->rd != 0) {
++        TCGv t = tcg_temp_new();
++        gen_get_gpr(t, a->rs1);
++
++        tcg_gen_shli_tl(t, t, a->shamt);
++
++        gen_set_gpr(a->rd, t);
++        tcg_temp_free(t);
++    } /* NOP otherwise */
++    return true;
+ }
+ 
+ static bool trans_srli(DisasContext *ctx, arg_srli *a)
+ {
+-    return gen_shifti(ctx, a, tcg_gen_shr_tl);
++    if (a->shamt >= TARGET_LONG_BITS) {
++        return false;
++    }
++
++    if (a->rd != 0) {
++        TCGv t = tcg_temp_new();
++        gen_get_gpr(t, a->rs1);
++
++        tcg_gen_shri_tl(t, t, a->shamt);
++        gen_set_gpr(a->rd, t);
++        tcg_temp_free(t);
++    } /* NOP otherwise */
++    return true;
+ }
+ 
+ static bool trans_srai(DisasContext *ctx, arg_srai *a)
+ {
+-    return gen_shifti(ctx, a, tcg_gen_sar_tl);
++    if (a->shamt >= TARGET_LONG_BITS) {
++        return false;
++    }
++
++    if (a->rd != 0) {
++        TCGv t = tcg_temp_new();
++        gen_get_gpr(t, a->rs1);
++
++        tcg_gen_sari_tl(t, t, a->shamt);
++        gen_set_gpr(a->rd, t);
++        tcg_temp_free(t);
++    } /* NOP otherwise */
++    return true;
+ }
+ 
+ static bool trans_add(DisasContext *ctx, arg_add *a)
+@@ -340,7 +377,16 @@ static bool trans_addiw(DisasContext *ctx, arg_addiw *a)
+ static bool trans_slliw(DisasContext *ctx, arg_slliw *a)
+ {
+     REQUIRE_64BIT(ctx);
+-    return gen_shiftiw(ctx, a, tcg_gen_shl_tl);
++    TCGv source1;
++    source1 = tcg_temp_new();
++    gen_get_gpr(source1, a->rs1);
++
++    tcg_gen_shli_tl(source1, source1, a->shamt);
++    tcg_gen_ext32s_tl(source1, source1);
++    gen_set_gpr(a->rd, source1);
++
++    tcg_temp_free(source1);
++    return true;
+ }
+ 
+ static bool trans_srliw(DisasContext *ctx, arg_srliw *a)
+diff --git a/target/riscv/translate.c b/target/riscv/translate.c
+index 292cf09932..5f1a3c694f 100644
+--- a/target/riscv/translate.c
++++ b/target/riscv/translate.c
+@@ -652,45 +652,6 @@ static uint32_t opcode_at(DisasContextBase *dcbase, target_ulong pc)
+     return cpu_ldl_code(env, pc);
+ }
+ 
+-static bool gen_shifti(DisasContext *ctx, arg_shift *a,
+-                       void(*func)(TCGv, TCGv, TCGv))
+-{
+-    if (a->shamt >= TARGET_LONG_BITS) {
+-        return false;
+-    }
+-
+-    TCGv source1 = tcg_temp_new();
+-    TCGv source2 = tcg_temp_new();
+-
+-    gen_get_gpr(source1, a->rs1);
+-
+-    tcg_gen_movi_tl(source2, a->shamt);
+-    (*func)(source1, source1, source2);
+-
+-    gen_set_gpr(a->rd, source1);
+-    tcg_temp_free(source1);
+-    tcg_temp_free(source2);
+-    return true;
+-}
+-
+-static bool gen_shiftiw(DisasContext *ctx, arg_shift *a,
+-                        void(*func)(TCGv, TCGv, TCGv))
+-{
+-    TCGv source1 = tcg_temp_new();
+-    TCGv source2 = tcg_temp_new();
+-
+-    gen_get_gpr(source1, a->rs1);
+-    tcg_gen_movi_tl(source2, a->shamt);
+-
+-    (*func)(source1, source1, source2);
+-    tcg_gen_ext32s_tl(source1, source1);
+-
+-    gen_set_gpr(a->rd, source1);
+-    tcg_temp_free(source1);
+-    tcg_temp_free(source2);
+-    return true;
+-}
+-
+ static void gen_ctz(TCGv ret, TCGv arg1)
+ {
+     tcg_gen_ctzi_tl(ret, arg1, TARGET_LONG_BITS);

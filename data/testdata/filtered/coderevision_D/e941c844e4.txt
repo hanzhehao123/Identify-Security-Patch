@@ -1,0 +1,26 @@
+diff --git a/python/mypy.ini b/python/mypy.ini
+new file mode 100644
+index 0000000000..1a581c5f1e
+--- /dev/null
++++ b/python/mypy.ini
+@@ -0,0 +1,4 @@
++[mypy]
++strict = True
++python_version = 3.6
++warn_unused_configs = True
+diff --git a/python/setup.cfg b/python/setup.cfg
+index bd88b44ad8..9aeab2bb0d 100644
+--- a/python/setup.cfg
++++ b/python/setup.cfg
+@@ -27,11 +27,6 @@ extend-ignore = E722  # Prefer pylint's bare-except checks to flake8's
+ exclude = __pycache__,
+           .venv,
+ 
+-[mypy]
+-strict = True
+-python_version = 3.6
+-warn_unused_configs = True
+-
+ [pylint.messages control]
+ # Disable the message, report, category or checker with the given id(s). You
+ # can either give multiple identifiers separated by comma (,) or put this

@@ -1,0 +1,25 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index 73694035b2..847d34890f 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -78,17 +78,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
+ from qemu import qmp
+ 
+ 
+-class QMPCompleter:
+-    # NB: Python 3.9+ will probably allow us to subclass list[str] directly,
+-    # but pylint as of today does not know that List[str] is simply 'list'.
+-    def __init__(self) -> None:
+-        self._matches: List[str] = []
+-
+-    def append(self, value: str) -> None:
+-        return self._matches.append(value)
+-
+-    def complete(self, text: str, state: int) -> Optional[str]:
+-        for cmd in self._matches:
++class QMPCompleter(list):
++    def complete(self, text, state):
++        for cmd in self:
+             if cmd.startswith(text):
+                 if state == 0:
+                     return cmd

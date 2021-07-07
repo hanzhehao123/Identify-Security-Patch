@@ -1,0 +1,18 @@
+commit 41787552de447733debe0616b716a0aa138242c7
+Author: Willian Rampazzo <willianr@redhat.com>
+Date:   Thu May 20 17:47:47 2021 -0300
+
+    acceptance tests: bump Avocado version to 88.1
+    
+    Besides some internal changes, new features, and bug fixes, on the QEMU side,
+    this version fixes the following message seen when running the acceptance
+    tests: "Error running method "pre_tests" of plugin "fetchasset": 'bytes'
+    object has no attribute 'encode'".
+    
+    The release notes are available at
+    https://avocado-framework.readthedocs.io/en/latest/releases/88_0.html.
+    
+    Signed-off-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210520204747.210764-2-willianr@redhat.com>
+    Acked-by: Cleber Rosa <crosa@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>

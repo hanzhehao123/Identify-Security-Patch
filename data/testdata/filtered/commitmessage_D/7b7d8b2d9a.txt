@@ -1,0 +1,13 @@
+commit 7b7d8b2d9a7fd68de821f96267e224c1a6256af1
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Jan 30 14:24:25 2021 -0800
+
+    tcg/tci: Use ffi for calls
+    
+    This requires adjusting where arguments are stored.
+    Place them on the stack at left-aligned positions.
+    Adjust the stack frame to be at entirely positive offsets.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

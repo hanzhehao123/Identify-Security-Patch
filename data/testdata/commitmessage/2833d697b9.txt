@@ -1,0 +1,15 @@
+commit 2833d697b9a418e2b9735e38ad4b33ae86f84739
+Author: Volker Rümelin <vr_qemu@t-online.de>
+Date:   Mon May 17 21:46:04 2021 +0200
+
+    jackaudio: avoid that the client name contains the word (NULL)
+    
+    Currently with jackaudio client name and qemu guest name unset,
+    the JACK client names are out-(NULL) and in-(NULL). These names
+    are user visible in the patch bay. Replace the function call to
+    qemu_get_vm_name() with a call to audio_application_name() which
+    replaces NULL with "qemu" to have more descriptive names.
+    
+    Signed-off-by: Volker Rümelin <vr_qemu@t-online.de>
+    Message-Id: <20210517194604.2545-4-vr_qemu@t-online.de>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

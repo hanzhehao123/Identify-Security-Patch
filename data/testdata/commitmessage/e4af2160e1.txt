@@ -1,0 +1,12 @@
+commit e4af2160e17ab48f49b6c18cf39de8562b390768
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sun May 2 16:57:26 2021 -0700
+
+    gitlab: Rename ACCEL_CONFIGURE_OPTS to EXTRA_CONFIGURE_OPTS
+    
+    Suggested-by: Thomas Huth <thuth@redhat.com>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210502235727.1979457-26-richard.henderson@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>

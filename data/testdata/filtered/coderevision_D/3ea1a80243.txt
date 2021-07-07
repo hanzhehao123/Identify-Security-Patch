@@ -1,0 +1,200 @@
+diff --git a/linux-headers/linux/kvm.h b/linux-headers/linux/kvm.h
+index 897f831374..020b62a619 100644
+--- a/linux-headers/linux/kvm.h
++++ b/linux-headers/linux/kvm.h
+@@ -1591,8 +1591,6 @@ enum sev_cmd_id {
+ 	KVM_SEV_DBG_ENCRYPT,
+ 	/* Guest certificates commands */
+ 	KVM_SEV_CERT_EXPORT,
+-	/* Attestation report */
+-	KVM_SEV_GET_ATTESTATION_REPORT,
+ 
+ 	KVM_SEV_NR_MAX,
+ };
+@@ -1645,12 +1643,6 @@ struct kvm_sev_dbg {
+ 	__u32 len;
+ };
+ 
+-struct kvm_sev_attestation_report {
+-	__u8 mnonce[16];
+-	__u64 uaddr;
+-	__u32 len;
+-};
+-
+ #define KVM_DEV_ASSIGN_ENABLE_IOMMU	(1 << 0)
+ #define KVM_DEV_ASSIGN_PCI_2_3		(1 << 1)
+ #define KVM_DEV_ASSIGN_MASK_INTX	(1 << 2)
+diff --git a/qapi/misc-target.json b/qapi/misc-target.json
+index 5573dcf8f0..6200c671be 100644
+--- a/qapi/misc-target.json
++++ b/qapi/misc-target.json
+@@ -285,41 +285,3 @@
+ ##
+ { 'command': 'query-gic-capabilities', 'returns': ['GICCapability'],
+   'if': 'defined(TARGET_ARM)' }
+-
+-
+-##
+-# @SevAttestationReport:
+-#
+-# The struct describes attestation report for a Secure Encrypted Virtualization
+-# feature.
+-#
+-# @data:  guest attestation report (base64 encoded)
+-#
+-#
+-# Since: 6.1
+-##
+-{ 'struct': 'SevAttestationReport',
+-  'data': { 'data': 'str'},
+-  'if': 'defined(TARGET_I386)' }
+-
+-##
+-# @query-sev-attestation-report:
+-#
+-# This command is used to get the SEV attestation report, and is supported on AMD
+-# X86 platforms only.
+-#
+-# @mnonce: a random 16 bytes value encoded in base64 (it will be included in report)
+-#
+-# Returns: SevAttestationReport objects.
+-#
+-# Since: 6.1
+-#
+-# Example:
+-#
+-# -> { "execute" : "query-sev-attestation-report", "arguments": { "mnonce": "aaaaaaa" } }
+-# <- { "return" : { "data": "aaaaaaaabbbddddd"} }
+-#
+-##
+-{ 'command': 'query-sev-attestation-report', 'data': { 'mnonce': 'str' },
+-  'returns': 'SevAttestationReport',
+-  'if': 'defined(TARGET_I386)' }
+diff --git a/target/i386/monitor.c b/target/i386/monitor.c
+index 119211f0b0..5994408bee 100644
+--- a/target/i386/monitor.c
++++ b/target/i386/monitor.c
+@@ -757,9 +757,3 @@ void qmp_sev_inject_launch_secret(const char *packet_hdr,
+ 
+     sev_inject_launch_secret(packet_hdr, secret, gpa, errp);
+ }
+-
+-SevAttestationReport *
+-qmp_query_sev_attestation_report(const char *mnonce, Error **errp)
+-{
+-    return sev_get_attestation_report(mnonce, errp);
+-}
+diff --git a/target/i386/sev-stub.c b/target/i386/sev-stub.c
+index 0227cb5177..0207f1c5aa 100644
+--- a/target/i386/sev-stub.c
++++ b/target/i386/sev-stub.c
+@@ -74,10 +74,3 @@ int sev_es_save_reset_vector(void *flash_ptr, uint64_t flash_size)
+ {
+     abort();
+ }
+-
+-SevAttestationReport *
+-sev_get_attestation_report(const char *mnonce, Error **errp)
+-{
+-    error_setg(errp, "SEV is not available in this QEMU");
+-    return NULL;
+-}
+diff --git a/target/i386/sev.c b/target/i386/sev.c
+index 1a88f12703..41f7800b5f 100644
+--- a/target/i386/sev.c
++++ b/target/i386/sev.c
+@@ -492,73 +492,6 @@ out:
+     return cap;
+ }
+ 
+-SevAttestationReport *
+-sev_get_attestation_report(const char *mnonce, Error **errp)
+-{
+-    struct kvm_sev_attestation_report input = {};
+-    SevAttestationReport *report = NULL;
+-    SevGuestState *sev = sev_guest;
+-    guchar *data;
+-    guchar *buf;
+-    gsize len;
+-    int err = 0, ret;
+-
+-    if (!sev_enabled()) {
+-        error_setg(errp, "SEV is not enabled");
+-        return NULL;
+-    }
+-
+-    /* lets decode the mnonce string */
+-    buf = g_base64_decode(mnonce, &len);
+-    if (!buf) {
+-        error_setg(errp, "SEV: failed to decode mnonce input");
+-        return NULL;
+-    }
+-
+-    /* verify the input mnonce length */
+-    if (len != sizeof(input.mnonce)) {
+-        error_setg(errp, "SEV: mnonce must be %zu bytes (got %" G_GSIZE_FORMAT ")",
+-                sizeof(input.mnonce), len);
+-        g_free(buf);
+-        return NULL;
+-    }
+-
+-    /* Query the report length */
+-    ret = sev_ioctl(sev->sev_fd, KVM_SEV_GET_ATTESTATION_REPORT,
+-            &input, &err);
+-    if (ret < 0) {
+-        if (err != SEV_RET_INVALID_LEN) {
+-            error_setg(errp, "failed to query the attestation report length "
+-                    "ret=%d fw_err=%d (%s)", ret, err, fw_error_to_str(err));
+-            g_free(buf);
+-            return NULL;
+-        }
+-    }
+-
+-    data = g_malloc(input.len);
+-    input.uaddr = (unsigned long)data;
+-    memcpy(input.mnonce, buf, sizeof(input.mnonce));
+-
+-    /* Query the report */
+-    ret = sev_ioctl(sev->sev_fd, KVM_SEV_GET_ATTESTATION_REPORT,
+-            &input, &err);
+-    if (ret) {
+-        error_setg_errno(errp, errno, "Failed to get attestation report"
+-                " ret=%d fw_err=%d (%s)", ret, err, fw_error_to_str(err));
+-        goto e_free_data;
+-    }
+-
+-    report = g_new0(SevAttestationReport, 1);
+-    report->data = g_base64_encode(data, input.len);
+-
+-    trace_kvm_sev_attestation_report(mnonce, report->data);
+-
+-e_free_data:
+-    g_free(data);
+-    g_free(buf);
+-    return report;
+-}
+-
+ static int
+ sev_read_file_base64(const char *filename, guchar **data, gsize *len)
+ {
+diff --git a/target/i386/sev_i386.h b/target/i386/sev_i386.h
+index ae6d840478..ae221d4c72 100644
+--- a/target/i386/sev_i386.h
++++ b/target/i386/sev_i386.h
+@@ -35,7 +35,5 @@ extern uint32_t sev_get_cbit_position(void);
+ extern uint32_t sev_get_reduced_phys_bits(void);
+ extern char *sev_get_launch_measurement(void);
+ extern SevCapability *sev_get_capabilities(Error **errp);
+-extern SevAttestationReport *
+-sev_get_attestation_report(const char *mnonce, Error **errp);
+ 
+ #endif
+diff --git a/target/i386/trace-events b/target/i386/trace-events
+index 8d6437404d..a22ab24e21 100644
+--- a/target/i386/trace-events
++++ b/target/i386/trace-events
+@@ -10,4 +10,3 @@ kvm_sev_launch_update_data(void *addr, uint64_t len) "addr %p len 0x%" PRIx64
+ kvm_sev_launch_measurement(const char *value) "data %s"
+ kvm_sev_launch_finish(void) ""
+ kvm_sev_launch_secret(uint64_t hpa, uint64_t hva, uint64_t secret, int len) "hpa 0x%" PRIx64 " hva 0x%" PRIx64 " data 0x%" PRIx64 " len %d"
+-kvm_sev_attestation_report(const char *mnonce, const char *data) "mnonce %s data %s"

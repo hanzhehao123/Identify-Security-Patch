@@ -1,0 +1,15 @@
+commit 7cda2149521f25b7caedd464f2e35104d9990315
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu May 20 16:28:40 2021 +0100
+
+    target/arm: Allow board models to specify initial NS VTOR
+    
+    Currently we allow board models to specify the initial value of the
+    Secure VTOR register, using an init-svtor property on the TYPE_ARMV7M
+    object which is plumbed through to the CPU.  Allow board models to
+    also specify the initial value of the Non-secure VTOR via a similar
+    init-nsvtor property.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210520152840.24453-10-peter.maydell@linaro.org

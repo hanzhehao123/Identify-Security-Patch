@@ -1,0 +1,15 @@
+commit 7afa08cd8fd2e5016658c39f6eb327e92edf0612
+Author: Hyman Huang(黄勇) <huangy81@chinatelecom.cn>
+Date:   Mon Jun 7 09:11:34 2021 +0800
+
+    migration/dirtyrate: make sample page count configurable
+    
+    introduce optional sample-pages argument in calc-dirty-rate,
+    making sample page count per GB configurable so that more
+    accurate dirtyrate can be calculated.
+    
+    Signed-off-by: Hyman Huang(黄勇) <huangy81@chinatelecom.cn>
+    Message-Id: <3103453a3b2796f929269c99a6ad81a9a7f1f405.1623027729.git.huangy81@chinatelecom.cn>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+      Wrapped a couple of long lines

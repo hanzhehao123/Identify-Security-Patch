@@ -1,0 +1,31 @@
+commit 3c8de38c8515a300b7842d95893b9e95caaa0ad6
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:17:14 2021 -0400
+
+    python: add tox support
+    
+    This is intended to be a manually run, non-CI script.
+    
+    Use tox to test the linters against all python versions from 3.6 to
+    3.10. This will only work if you actually have those versions installed
+    locally, but Fedora makes this easy:
+    
+    > sudo dnf install python3.6 python3.7 python3.8 python3.9 python3.10
+    
+    Unlike the pipenv tests (make venv-check), this pulls "whichever"
+    versions of the python packages, so they are unpinned and may break as
+    time goes on. In the case that breakages are found, setup.cfg should be
+    amended accordingly to avoid the bad dependant versions, or the code
+    should be amended to work around the issue.
+    
+    With confidence that the tests pass on 3.6 through 3.10 inclusive, add
+    the appropriate classifiers to setup.cfg to indicate which versions we
+    claim to support.
+    
+    Tox 3.18.0 or above is required to use the 'allowlist_externals' option.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Tested-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-31-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

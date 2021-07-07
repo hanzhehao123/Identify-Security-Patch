@@ -1,0 +1,151 @@
+diff --git a/hw/core/machine.c b/hw/core/machine.c
+index 5a9c97ccc5..1016ec9e1c 100644
+--- a/hw/core/machine.c
++++ b/hw/core/machine.c
+@@ -739,7 +739,7 @@ void machine_set_cpu_numa_node(MachineState *machine,
+     }
+ }
+ 
+-static void smp_parse(MachineState *ms, QemuOpts *opts, Error **errp)
++static void smp_parse(MachineState *ms, QemuOpts *opts)
+ {
+     unsigned cpus    = qemu_opt_get_number(opts, "cpus", 0);
+     unsigned sockets = qemu_opt_get_number(opts, "sockets", 0);
+@@ -766,28 +766,28 @@ static void smp_parse(MachineState *ms, QemuOpts *opts, Error **errp)
+         threads = cpus / (cores * sockets);
+         threads = threads > 0 ? threads : 1;
+     } else if (sockets * cores * threads < cpus) {
+-        error_setg(errp, "cpu topology: "
+-                   "sockets (%u) * cores (%u) * threads (%u) < "
+-                   "smp_cpus (%u)",
+-                   sockets, cores, threads, cpus);
+-        return;
++        error_report("cpu topology: "
++                        "sockets (%u) * cores (%u) * threads (%u) < "
++                        "smp_cpus (%u)",
++                        sockets, cores, threads, cpus);
++        exit(1);
+     }
+ 
+     ms->smp.max_cpus =
+             qemu_opt_get_number(opts, "maxcpus", cpus);
+ 
+     if (ms->smp.max_cpus < cpus) {
+-        error_setg(errp, "maxcpus must be equal to or greater than smp");
+-        return;
++        error_report("maxcpus must be equal to or greater than smp");
++        exit(1);
+     }
+ 
+     if (sockets * cores * threads != ms->smp.max_cpus) {
+-        error_setg(errp, "Invalid CPU topology: "
+-                   "sockets (%u) * cores (%u) * threads (%u) "
+-                   "!= maxcpus (%u)",
+-                   sockets, cores, threads,
+-                   ms->smp.max_cpus);
+-        return;
++        error_report("Invalid CPU topology: "
++                        "sockets (%u) * cores (%u) * threads (%u) "
++                        "!= maxcpus (%u)",
++                        sockets, cores, threads,
++                        ms->smp.max_cpus);
++        exit(1);
+     }
+ 
+     ms->smp.cpus = cpus;
+@@ -1126,13 +1126,9 @@ MemoryRegion *machine_consume_memdev(MachineState *machine,
+ bool machine_smp_parse(MachineState *ms, QemuOpts *opts, Error **errp)
+ {
+     MachineClass *mc = MACHINE_GET_CLASS(ms);
+-    ERRP_GUARD();
+ 
+     if (opts) {
+-        mc->smp_parse(ms, opts, errp);
+-        if (*errp) {
+-            return false;
+-        }
++        mc->smp_parse(ms, opts);
+     }
+ 
+     /* sanity-check smp_cpus and max_cpus against mc */
+diff --git a/hw/i386/pc.c b/hw/i386/pc.c
+index cce275dcb1..e206ac85f3 100644
+--- a/hw/i386/pc.c
++++ b/hw/i386/pc.c
+@@ -710,7 +710,7 @@ void pc_acpi_smi_interrupt(void *opaque, int irq, int level)
+  * This function is very similar to smp_parse()
+  * in hw/core/machine.c but includes CPU die support.
+  */
+-static void pc_smp_parse(MachineState *ms, QemuOpts *opts, Error **errp)
++void pc_smp_parse(MachineState *ms, QemuOpts *opts)
+ {
+     unsigned cpus    = qemu_opt_get_number(opts, "cpus", 0);
+     unsigned sockets = qemu_opt_get_number(opts, "sockets", 0);
+@@ -738,28 +738,28 @@ static void pc_smp_parse(MachineState *ms, QemuOpts *opts, Error **errp)
+         threads = cpus / (cores * dies * sockets);
+         threads = threads > 0 ? threads : 1;
+     } else if (sockets * dies * cores * threads < cpus) {
+-        error_setg(errp, "cpu topology: "
+-                   "sockets (%u) * dies (%u) * cores (%u) * threads (%u) < "
+-                   "smp_cpus (%u)",
+-                   sockets, dies, cores, threads, cpus);
+-        return;
++        error_report("cpu topology: "
++                        "sockets (%u) * dies (%u) * cores (%u) * threads (%u) < "
++                        "smp_cpus (%u)",
++                        sockets, dies, cores, threads, cpus);
++        exit(1);
+     }
+ 
+     ms->smp.max_cpus =
+             qemu_opt_get_number(opts, "maxcpus", cpus);
+ 
+     if (ms->smp.max_cpus < cpus) {
+-        error_setg(errp, "maxcpus must be equal to or greater than smp");
+-        return;
++        error_report("maxcpus must be equal to or greater than smp");
++        exit(1);
+     }
+ 
+     if (sockets * dies * cores * threads != ms->smp.max_cpus) {
+-        error_setg(errp, "Invalid CPU topology deprecated: "
+-                   "sockets (%u) * dies (%u) * cores (%u) * threads (%u) "
+-                   "!= maxcpus (%u)",
+-                   sockets, dies, cores, threads,
+-                   ms->smp.max_cpus);
+-        return;
++        error_report("Invalid CPU topology deprecated: "
++                        "sockets (%u) * dies (%u) * cores (%u) * threads (%u) "
++                        "!= maxcpus (%u)",
++                        sockets, dies, cores, threads,
++                        ms->smp.max_cpus);
++        exit(1);
+     }
+ 
+     ms->smp.cpus = cpus;
+diff --git a/include/hw/boards.h b/include/hw/boards.h
+index 0483d6af86..87ae5cc300 100644
+--- a/include/hw/boards.h
++++ b/include/hw/boards.h
+@@ -210,7 +210,7 @@ struct MachineClass {
+     void (*reset)(MachineState *state);
+     void (*wakeup)(MachineState *state);
+     int (*kvm_type)(MachineState *machine, const char *arg);
+-    void (*smp_parse)(MachineState *ms, QemuOpts *opts, Error **errp);
++    void (*smp_parse)(MachineState *ms, QemuOpts *opts);
+ 
+     BlockInterfaceType block_default_type;
+     int units_per_default_bus;
+diff --git a/include/hw/i386/pc.h b/include/hw/i386/pc.h
+index 87294f2632..4c2ca6d36a 100644
+--- a/include/hw/i386/pc.h
++++ b/include/hw/i386/pc.h
+@@ -138,6 +138,8 @@ extern int fd_bootchk;
+ 
+ void pc_acpi_smi_interrupt(void *opaque, int irq, int level);
+ 
++void pc_smp_parse(MachineState *ms, QemuOpts *opts);
++
+ void pc_guest_info_init(PCMachineState *pcms);
+ 
+ #define PCI_HOST_PROP_PCI_HOLE_START   "pci-hole-start"

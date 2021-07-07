@@ -1,0 +1,10 @@
+commit d84451d38e9a36ff08af9b1424ecca51ba45e3ac
+Author: Dmitry Voronetskiy <vda1999@yandex.ru>
+Date:   Wed May 19 14:35:28 2021 +0300
+
+    i386/kvm: The value passed to strerror should be positive
+    
+    Signed-off-by: Dmitry Voronetskiy <vda1999@yandex.ru>
+    Reviewed-by: Markus Armbruster <armbru@redhat.com>
+    Message-Id: <20210519113528.12474-1-davoronetskiy@gmail.com>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

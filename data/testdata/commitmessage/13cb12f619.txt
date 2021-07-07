@@ -1,0 +1,20 @@
+commit 13cb12f61923bd8c24af8b6e6326c911e970ecf8
+Author: Stefano Garzarella <sgarzare@redhat.com>
+Date:   Mon May 17 17:17:02 2021 +0200
+
+    docs: fix references to docs/devel/s390-dasd-ipl.rst
+    
+    Commit cc3d15a5ea ("docs: rstfy s390 dasd ipl documentation")
+    converted docs/devel/s390-dasd-ipl.txt to docs/devel/s390-dasd-ipl.rst.
+    
+    We still have several references to the old file, so let's fix them
+    with the following command:
+    
+      sed -i s/s390-dasd-ipl.txt/s390-dasd-ipl.rst/ \
+          $(git grep -l docs/devel/s390-dasd-ipl.txt)
+    
+    Signed-off-by: Stefano Garzarella <sgarzare@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Acked-by: Cornelia Huck <cohuck@redhat.com>
+    Message-Id: <20210517151702.109066-6-sgarzare@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

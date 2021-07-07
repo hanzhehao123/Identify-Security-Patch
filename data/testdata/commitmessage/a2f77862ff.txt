@@ -1,0 +1,21 @@
+commit a2f77862ffa56b5b0aa9e96fa73620ff751460d5
+Author: Peter Xu <peterx@redhat.com>
+Date:   Thu May 6 12:05:41 2021 -0400
+
+    KVM: Use a big lock to replace per-kml slots_lock
+    
+    Per-kml slots_lock will bring some trouble if we want to take all slots_lock of
+    all the KMLs, especially when we're in a context that we could have taken some
+    of the KML slots_lock, then we even need to figure out what we've taken and
+    what we need to take.
+    
+    Make this simple by merging all KML slots_lock into a single slots lock.
+    
+    Per-kml slots_lock isn't anything that helpful anyway - so far only x86 has two
+    address spaces (so, two slots_locks).  All the rest archs will be having one
+    address space always, which means there's actually one slots_lock so it will be
+    the same as before.
+    
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Message-Id: <20210506160549.130416-3-peterx@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

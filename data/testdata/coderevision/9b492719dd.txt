@@ -1,0 +1,67 @@
+diff --git a/net/colo.c b/net/colo.c
+index 3a3e6e89a0..ef00609848 100644
+--- a/net/colo.c
++++ b/net/colo.c
+@@ -157,28 +157,19 @@ void connection_destroy(void *opaque)
+ 
+ Packet *packet_new(const void *data, int size, int vnet_hdr_len)
+ {
+-    Packet *pkt = g_slice_new0(Packet);
++    Packet *pkt = g_slice_new(Packet);
+ 
+     pkt->data = g_memdup(data, size);
+     pkt->size = size;
+     pkt->creation_ms = qemu_clock_get_ms(QEMU_CLOCK_HOST);
+     pkt->vnet_hdr_len = vnet_hdr_len;
+-
+-    return pkt;
+-}
+-
+-/*
+- * packet_new_nocopy will not copy data, so the caller can't release
+- * the data. And it will be released in packet_destroy.
+- */
+-Packet *packet_new_nocopy(void *data, int size, int vnet_hdr_len)
+-{
+-    Packet *pkt = g_slice_new0(Packet);
+-
+-    pkt->data = data;
+-    pkt->size = size;
+-    pkt->creation_ms = qemu_clock_get_ms(QEMU_CLOCK_HOST);
+-    pkt->vnet_hdr_len = vnet_hdr_len;
++    pkt->tcp_seq = 0;
++    pkt->tcp_ack = 0;
++    pkt->seq_end = 0;
++    pkt->header_size = 0;
++    pkt->payload_size = 0;
++    pkt->offset = 0;
++    pkt->flags = 0;
+ 
+     return pkt;
+ }
+diff --git a/net/colo.h b/net/colo.h
+index d91cd245c4..573ab91785 100644
+--- a/net/colo.h
++++ b/net/colo.h
+@@ -101,7 +101,6 @@ bool connection_has_tracked(GHashTable *connection_track_table,
+                             ConnectionKey *key);
+ void connection_hashtable_reset(GHashTable *connection_track_table);
+ Packet *packet_new(const void *data, int size, int vnet_hdr_len);
+-Packet *packet_new_nocopy(void *data, int size, int vnet_hdr_len);
+ void packet_destroy(void *opaque, void *user_data);
+ void packet_destroy_partial(void *opaque, void *user_data);
+ 
+diff --git a/net/filter-rewriter.c b/net/filter-rewriter.c
+index cb3a96cde1..10fe3939b1 100644
+--- a/net/filter-rewriter.c
++++ b/net/filter-rewriter.c
+@@ -270,7 +270,8 @@ static ssize_t colo_rewriter_receive_iov(NetFilterState *nf,
+         vnet_hdr_len = nf->netdev->vnet_hdr_len;
+     }
+ 
+-    pkt = packet_new_nocopy(buf, size, vnet_hdr_len);
++    pkt = packet_new(buf, size, vnet_hdr_len);
++    g_free(buf);
+ 
+     /*
+      * if we get tcp packet

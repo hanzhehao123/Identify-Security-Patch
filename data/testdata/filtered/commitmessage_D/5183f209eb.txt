@@ -1,0 +1,22 @@
+commit 5183f209eb3730a61adaf5ccfa1a30c807891971
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Thu May 27 12:24:25 2021 -0700
+
+    Revert "tcg/tci: Use exec/cpu_ldst.h interfaces"
+    
+    This reverts commit dc09f047eddec8f4a1991c4f5f4a428d7aa3f2c0.
+    
+    For tcg, tracepoints are expanded inline in tcg opcodes.
+    Using a helper which generates a second tracepoint is incorrect.
+    
+    For system mode, the extraction and re-packing of MemOp and mmu_idx
+    lost the alignment information from MemOp.  So we were no longer
+    raising alignment exceptions for !TARGET_ALIGNED_ONLY guests.
+    This can be seen in tests/tcg/xtensa/test_load_store.S.
+    
+    For user mode, we must update to the new signature of g2h() so that
+    the revert compiles.  We can leave set_helper_retaddr for later.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

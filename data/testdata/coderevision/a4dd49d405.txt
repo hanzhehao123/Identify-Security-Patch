@@ -1,0 +1,39 @@
+diff --git a/python/Pipfile b/python/Pipfile
+index dbe96f71c4..79c74dd8db 100644
+--- a/python/Pipfile
++++ b/python/Pipfile
+@@ -10,7 +10,6 @@ mypy = ">=0.770"
+ pylint = ">=2.8.0"
+ 
+ [packages]
+-qemu = {editable = true,path = "."}
+ 
+ [requires]
+ python_version = "3.6"
+diff --git a/python/Pipfile.lock b/python/Pipfile.lock
+index f0bf576c31..57a5befb10 100644
+--- a/python/Pipfile.lock
++++ b/python/Pipfile.lock
+@@ -1,7 +1,7 @@
+ {
+     "_meta": {
+         "hash": {
+-            "sha256": "7c74cc4c2db3a75c954a6686411cda6fd60e464620bb6d5f1ed9a54be61db4cc"
++            "sha256": "8173290ad57aab0b722c9b4f109519de4e0dd7cd1bad1e16806b78bb169bce08"
+         },
+         "pipfile-spec": 6,
+         "requires": {
+@@ -15,12 +15,7 @@
+             }
+         ]
+     },
+-    "default": {
+-        "qemu": {
+-            "editable": true,
+-            "path": "."
+-        }
+-    },
++    "default": {},
+     "develop": {
+         "astroid": {
+             "hashes": [

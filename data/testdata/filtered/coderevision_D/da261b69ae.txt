@@ -1,0 +1,25 @@
+diff --git a/block.c b/block.c
+index 3c0c3964ec..94cb7b6637 100644
+--- a/block.c
++++ b/block.c
+@@ -2026,7 +2026,11 @@ bool bdrv_is_writable(BlockDriverState *bs)
+ 
+ static char *bdrv_child_user_desc(BdrvChild *c)
+ {
+-    return c->klass->get_parent_desc(c);
++    if (c->klass->get_parent_desc) {
++        return c->klass->get_parent_desc(c);
++    }
++
++    return g_strdup("another user");
+ }
+ 
+ static bool bdrv_a_allow_b(BdrvChild *a, BdrvChild *b, Error **errp)
+@@ -2768,7 +2772,6 @@ static int bdrv_attach_child_common(BlockDriverState *child_bs,
+ 
+     assert(child);
+     assert(*child == NULL);
+-    assert(child_class->get_parent_desc);
+ 
+     new_child = g_new(BdrvChild, 1);
+     *new_child = (BdrvChild) {

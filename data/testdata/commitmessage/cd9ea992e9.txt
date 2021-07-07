@@ -1,0 +1,12 @@
+commit cd9ea992e99b231f8065d66ae19a643673f70eed
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Wed Mar 10 17:01:46 2021 -0600
+
+    tcg: Sink qemu_madvise call to common code
+    
+    Move the call out of the N versions of alloc_code_gen_buffer
+    and into tcg_region_init.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

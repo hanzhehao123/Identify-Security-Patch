@@ -1,0 +1,14 @@
+commit 1c9638667b7068539dc5783c9428d588b14162ea
+Author: Stefan Weil <sw@weilnetz.de>
+Date:   Fri Jun 11 12:58:46 2021 +0200
+
+    util/oslib-win32: Fix fatal assertion in qemu_try_memalign
+    
+    The function is called with alignment == 0 which caused an assertion.
+    Use the code from oslib-posix.c to fix that regression.
+    
+    Fixes: ed6f53f9ca9
+    Signed-off-by: Stefan Weil <sw@weilnetz.de>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210611105846.347954-1-sw@weilnetz.de>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

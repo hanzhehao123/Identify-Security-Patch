@@ -1,0 +1,31 @@
+commit 050cee12315536aba18a73c8dea21116a9c90ffa
+Merge: e0da9171e0 7c4ab60f18
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 25 12:00:16 2021 +0100
+
+    Merge remote-tracking branch 'remotes/stsquad/tags/pull-testing-updates-250621-1' into staging
+    
+    A few miscellaneous fixes
+    
+      - tweak tcg/kvm based GIC tests
+      - add header to MTTCG docs
+      - cleanup checkpatch handling
+      - GitLab feature and bug request templates
+      - symbol resolution helper for plugin API
+      - skip hppa/s390x signals test until fixes arrive
+    
+    # gpg: Signature made Fri 25 Jun 2021 10:10:57 BST
+    # gpg:                using RSA key 6685AE99E75167BCAFC8DF35FBD0DB095A9E2A44
+    # gpg: Good signature from "Alex Bennée (Master Work Key) <alex.bennee@linaro.org>" [full]
+    # Primary key fingerprint: 6685 AE99 E751 67BC AFC8  DF35 FBD0 DB09 5A9E 2A44
+    
+    * remotes/stsquad/tags/pull-testing-updates-250621-1:
+      plugins/api: expose symbol lookup to plugins
+      tests/tcg: skip the signals test for hppa/s390x for now
+      GitLab: Add "Feature Request" issue template.
+      GitLab: Add "Bug" issue reporting template
+      scripts/checkpatch: roll diff tweaking into checkpatch itself
+      docs/devel: Add a single top-level header to MTTCG's doc
+      tests/acceptance: tweak the tcg/kvm tests for virt
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

@@ -1,0 +1,15 @@
+commit 42eb6dfcf135068aa6873e6e9f5f8afa77858914
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Mar 13 13:36:51 2021 -0600
+
+    tcg: Move tcg_init_ctx and tcg_ctx from accel/tcg/
+    
+    These variables belong to the jit side, not the user side.
+    
+    Since tcg_init_ctx is no longer used outside of tcg/, move
+    the declaration to tcg-internal.h.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Suggested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

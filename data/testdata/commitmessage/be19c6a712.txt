@@ -1,0 +1,11 @@
+commit be19c6a7126e5a463b3ef1ea23b985f6dc627a7a
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:39 2021 -0400
+
+    scripts/qmp-shell: use logging to show warnings
+    
+    A perfect candidate is non-fatal shell history messages.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-33-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

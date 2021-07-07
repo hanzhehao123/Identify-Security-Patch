@@ -1,0 +1,69 @@
+diff --git a/target/ppc/insn32.decode b/target/ppc/insn32.decode
+index 93e5d44d9e..77edf407ab 100644
+--- a/target/ppc/insn32.decode
++++ b/target/ppc/insn32.decode
+@@ -23,10 +23,6 @@
+ %ds_si          2:s14  !function=times_4
+ @DS             ...... rt:5 ra:5 .............. ..      &D si=%ds_si
+ 
+-&DX             rt d
+-%dx_d           6:s10 16:5 0:1
+-@DX             ...... rt:5  ..... .......... ..... .   &DX d=%dx_d
+-
+ &VX             vrt vra vrb
+ @VX             ...... vrt:5 vra:5 vrb:5 .......... .   &VX
+ 
+@@ -94,8 +90,6 @@ STDUX           011111 ..... ..... ..... 0010110101 -   @X
+ ADDI            001110 ..... ..... ................     @D
+ ADDIS           001111 ..... ..... ................     @D
+ 
+-ADDPCIS         010011 ..... ..... .......... 00010 .   @DX
+-
+ ## Fixed-Point Logical Instructions
+ 
+ CFUGED          011111 ..... ..... ..... 0011011100 -   @X
+diff --git a/target/ppc/translate.c b/target/ppc/translate.c
+index 35d8831d44..ed5515f8e2 100644
+--- a/target/ppc/translate.c
++++ b/target/ppc/translate.c
+@@ -1779,6 +1779,14 @@ static void gen_addic_(DisasContext *ctx)
+     gen_op_addic(ctx, 1);
+ }
+ 
++/* addpcis */
++static void gen_addpcis(DisasContext *ctx)
++{
++    target_long d = DX(ctx->opcode);
++
++    tcg_gen_movi_tl(cpu_gpr[rD(ctx->opcode)], ctx->base.pc_next + (d << 16));
++}
++
+ static inline void gen_op_arith_divw(DisasContext *ctx, TCGv ret, TCGv arg1,
+                                      TCGv arg2, int sign, int compute_ov)
+ {
+@@ -7651,6 +7659,7 @@ GEN_HANDLER_E(cmprb, 0x1F, 0x00, 0x06, 0x00400001, PPC_NONE, PPC2_ISA300),
+ GEN_HANDLER(isel, 0x1F, 0x0F, 0xFF, 0x00000001, PPC_ISEL),
+ GEN_HANDLER(addic, 0x0C, 0xFF, 0xFF, 0x00000000, PPC_INTEGER),
+ GEN_HANDLER2(addic_, "addic.", 0x0D, 0xFF, 0xFF, 0x00000000, PPC_INTEGER),
++GEN_HANDLER_E(addpcis, 0x13, 0x2, 0xFF, 0x00000000, PPC_NONE, PPC2_ISA300),
+ GEN_HANDLER(mulhw, 0x1F, 0x0B, 0x02, 0x00000400, PPC_INTEGER),
+ GEN_HANDLER(mulhwu, 0x1F, 0x0B, 0x00, 0x00000400, PPC_INTEGER),
+ GEN_HANDLER(mullw, 0x1F, 0x0B, 0x07, 0x00000000, PPC_INTEGER),
+diff --git a/target/ppc/translate/fixedpoint-impl.c.inc b/target/ppc/translate/fixedpoint-impl.c.inc
+index 2713366791..50933a3b9d 100644
+--- a/target/ppc/translate/fixedpoint-impl.c.inc
++++ b/target/ppc/translate/fixedpoint-impl.c.inc
+@@ -194,13 +194,6 @@ static bool trans_ADDIS(DisasContext *ctx, arg_D *a)
+     return trans_ADDI(ctx, a);
+ }
+ 
+-static bool trans_ADDPCIS(DisasContext *ctx, arg_DX *a)
+-{
+-    REQUIRE_INSNS_FLAGS2(ctx, ISA300);
+-    tcg_gen_movi_tl(cpu_gpr[a->rt], ctx->base.pc_next + (a->d << 16));
+-    return true;
+-}
+-
+ static bool trans_INVALID(DisasContext *ctx, arg_INVALID *a)
+ {
+     gen_invalid(ctx);

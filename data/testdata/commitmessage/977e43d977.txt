@@ -1,0 +1,10 @@
+commit 977e43d977c0b64a1b582cb4cc1c5711b5bc01a7
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:20 2021 +0200
+
+    s390x/tcg: Simplify vflr64() handling
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-10-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

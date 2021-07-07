@@ -1,0 +1,53 @@
+diff --git a/hw/core/cpu-common.c b/hw/core/cpu-common.c
+index 2aa6b8cffc..5913ffe22b 100644
+--- a/hw/core/cpu-common.c
++++ b/hw/core/cpu-common.c
+@@ -66,6 +66,18 @@ CPUState *cpu_create(const char *typename)
+     return cpu;
+ }
+ 
++bool cpu_paging_enabled(const CPUState *cpu)
++{
++    CPUClass *cc = CPU_GET_CLASS(cpu);
++
++    return cc->get_paging_enabled(cpu);
++}
++
++static bool cpu_common_get_paging_enabled(const CPUState *cpu)
++{
++    return false;
++}
++
+ void cpu_get_memory_mapping(CPUState *cpu, MemoryMappingList *list,
+                             Error **errp)
+ {
+@@ -304,6 +316,7 @@ static void cpu_class_init(ObjectClass *klass, void *data)
+     k->parse_features = cpu_common_parse_features;
+     k->get_arch_id = cpu_common_get_arch_id;
+     k->has_work = cpu_common_has_work;
++    k->get_paging_enabled = cpu_common_get_paging_enabled;
+     k->get_memory_mapping = cpu_common_get_memory_mapping;
+     k->gdb_read_register = cpu_common_gdb_read_register;
+     k->gdb_write_register = cpu_common_gdb_write_register;
+diff --git a/hw/core/cpu-sysemu.c b/hw/core/cpu-sysemu.c
+index 931ba46354..7f3a357494 100644
+--- a/hw/core/cpu-sysemu.c
++++ b/hw/core/cpu-sysemu.c
+@@ -22,17 +22,6 @@
+ #include "qapi/error.h"
+ #include "hw/core/cpu.h"
+ 
+-bool cpu_paging_enabled(const CPUState *cpu)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-
+-    if (cc->get_paging_enabled) {
+-        return cc->get_paging_enabled(cpu);
+-    }
+-
+-    return false;
+-}
+-
+ hwaddr cpu_get_phys_page_attrs_debug(CPUState *cpu, vaddr addr,
+                                      MemTxAttrs *attrs)
+ {

@@ -1,0 +1,14 @@
+commit 0e2d61cf29833f8984e7421a74eb0a4f921f92b5
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Mar 9 23:06:32 2021 -0600
+
+    tcg: Introduce tcg_max_ctxs
+    
+    Finish the divorce of tcg/ from hw/, and do not take
+    the max cpu value from MachineState; just remember what
+    we were passed in tcg_init.
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

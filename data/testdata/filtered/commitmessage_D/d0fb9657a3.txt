@@ -1,0 +1,18 @@
+commit d0fb9657a33dd3d1db1b492c4dcc7c778e40e5c0
+Author: Stefano Garzarella <sgarzare@redhat.com>
+Date:   Mon May 17 17:16:58 2021 +0200
+
+    docs: fix references to docs/devel/tracing.rst
+    
+    Commit e50caf4a5c ("tracing: convert documentation to rST")
+    converted docs/devel/tracing.txt to docs/devel/tracing.rst.
+    
+    We still have several references to the old file, so let's fix them
+    with the following command:
+    
+      sed -i s/tracing.txt/tracing.rst/ $(git grep -l docs/devel/tracing.txt)
+    
+    Signed-off-by: Stefano Garzarella <sgarzare@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210517151702.109066-2-sgarzare@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

@@ -1,0 +1,23 @@
+commit 5529b02da2dcd1ef6bc6cd42d4fbfb537fe2276f
+Author: Lukas Straub <lukasstraub2@web.de>
+Date:   Tue May 18 13:42:14 2021 +0200
+
+    block/quorum: Provide .bdrv_co_flush instead of .bdrv_co_flush_to_disk
+    
+    The quorum block driver uses a custom flush callback to handle the
+    case when some children return io errors. In that case it still
+    returns success if enough children are healthy.
+    However, it provides it as the .bdrv_co_flush_to_disk callback, not
+    as .bdrv_co_flush. This causes the block layer to do it's own
+    generic flushing for the children instead, which doesn't handle
+    errors properly.
+    
+    Fix this by providing .bdrv_co_flush instead of
+    .bdrv_co_flush_to_disk so the block layer uses the custom flush
+    callback.
+    
+    Signed-off-by: Lukas Straub <lukasstraub2@web.de>
+    Reported-by: Minghao Yuan <meeho@qq.com>
+    Message-Id: <20210518134214.11ccf05f@gecko.fritz.box>
+    Tested-by: Zhang Chen <chen.zhang@intel.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

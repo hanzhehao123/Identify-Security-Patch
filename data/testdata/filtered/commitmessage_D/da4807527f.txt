@@ -1,0 +1,15 @@
+commit da4807527f3bda115606b4647fdc2f87928d0f15
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:34 2021 +0200
+
+    s390x/tcg: Implement VECTOR FP (MAXIMUM|MINIMUM)
+    
+    For IEEE functions, we can reuse the softfloat implementations. For the
+    other functions, implement it generically for 32bit/64bit/128bit -
+    carefully taking care of all weird special cases according to the tables
+    defined in the PoP.
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-24-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

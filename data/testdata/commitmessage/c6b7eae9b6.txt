@@ -1,0 +1,14 @@
+commit c6b7eae9b6743f017067ece3830dd8563b2350a9
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:07 2021 -0400
+
+    scripts/qom-fuse: apply isort rules
+    
+    Hint: you can use symlinks to create qom_fuse.py in python/qemu/qmp/ and
+    point to scripts/qom-fuse to apply the standard linting rules to this
+    script.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210603003719.1321369-8-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

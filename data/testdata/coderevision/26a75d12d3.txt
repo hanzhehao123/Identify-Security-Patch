@@ -1,0 +1,169 @@
+diff --git a/tcg/aarch64/tcg-target.h b/tcg/aarch64/tcg-target.h
+index ef55f7c185..5ec30dba25 100644
+--- a/tcg/aarch64/tcg-target.h
++++ b/tcg/aarch64/tcg-target.h
+@@ -15,7 +15,6 @@
+ 
+ #define TCG_TARGET_INSN_UNIT_SIZE  4
+ #define TCG_TARGET_TLB_DISPLACEMENT_BITS 24
+-#define MAX_CODE_GEN_BUFFER_SIZE  (2 * GiB)
+ #undef TCG_TARGET_STACK_GROWSUP
+ 
+ typedef enum {
+diff --git a/tcg/arm/tcg-target.h b/tcg/arm/tcg-target.h
+index 57fd0c0c74..d6222ba2db 100644
+--- a/tcg/arm/tcg-target.h
++++ b/tcg/arm/tcg-target.h
+@@ -60,7 +60,6 @@ extern int arm_arch;
+ #undef TCG_TARGET_STACK_GROWSUP
+ #define TCG_TARGET_INSN_UNIT_SIZE 4
+ #define TCG_TARGET_TLB_DISPLACEMENT_BITS 16
+-#define MAX_CODE_GEN_BUFFER_SIZE  UINT32_MAX
+ 
+ typedef enum {
+     TCG_REG_R0 = 0,
+diff --git a/tcg/i386/tcg-target.h b/tcg/i386/tcg-target.h
+index ac10066c3e..b693d3692d 100644
+--- a/tcg/i386/tcg-target.h
++++ b/tcg/i386/tcg-target.h
+@@ -31,11 +31,9 @@
+ #ifdef __x86_64__
+ # define TCG_TARGET_REG_BITS  64
+ # define TCG_TARGET_NB_REGS   32
+-# define MAX_CODE_GEN_BUFFER_SIZE  (2 * GiB)
+ #else
+ # define TCG_TARGET_REG_BITS  32
+ # define TCG_TARGET_NB_REGS   24
+-# define MAX_CODE_GEN_BUFFER_SIZE  UINT32_MAX
+ #endif
+ 
+ typedef enum {
+diff --git a/tcg/mips/tcg-target.h b/tcg/mips/tcg-target.h
+index e81e824cab..c2c32fb38f 100644
+--- a/tcg/mips/tcg-target.h
++++ b/tcg/mips/tcg-target.h
+@@ -39,12 +39,6 @@
+ #define TCG_TARGET_TLB_DISPLACEMENT_BITS 16
+ #define TCG_TARGET_NB_REGS 32
+ 
+-/*
+- * We have a 256MB branch region, but leave room to make sure the
+- * main executable is also within that region.
+- */
+-#define MAX_CODE_GEN_BUFFER_SIZE  (128 * MiB)
+-
+ typedef enum {
+     TCG_REG_ZERO = 0,
+     TCG_REG_AT,
+diff --git a/tcg/ppc/tcg-target.h b/tcg/ppc/tcg-target.h
+index c13ed5640a..d1339afc66 100644
+--- a/tcg/ppc/tcg-target.h
++++ b/tcg/ppc/tcg-target.h
+@@ -27,10 +27,8 @@
+ 
+ #ifdef _ARCH_PPC64
+ # define TCG_TARGET_REG_BITS  64
+-# define MAX_CODE_GEN_BUFFER_SIZE  (2 * GiB)
+ #else
+ # define TCG_TARGET_REG_BITS  32
+-# define MAX_CODE_GEN_BUFFER_SIZE  (32 * MiB)
+ #endif
+ 
+ #define TCG_TARGET_NB_REGS 64
+diff --git a/tcg/region.c b/tcg/region.c
+index 13087aa0c9..57069a38ff 100644
+--- a/tcg/region.c
++++ b/tcg/region.c
+@@ -401,14 +401,37 @@ static size_t tcg_n_regions(unsigned max_cpus)
+ /*
+  * Minimum size of the code gen buffer.  This number is randomly chosen,
+  * but not so small that we can't have a fair number of TB's live.
+- *
+- * Maximum size, MAX_CODE_GEN_BUFFER_SIZE, is defined in tcg-target.h.
+- * Unless otherwise indicated, this is constrained by the range of
+- * direct branches on the host cpu, as used by the TCG implementation
+- * of goto_tb.
+  */
+ #define MIN_CODE_GEN_BUFFER_SIZE     (1 * MiB)
+ 
++/*
++ * Maximum size of the code gen buffer we'd like to use.  Unless otherwise
++ * indicated, this is constrained by the range of direct branches on the
++ * host cpu, as used by the TCG implementation of goto_tb.
++ */
++#if defined(__x86_64__)
++# define MAX_CODE_GEN_BUFFER_SIZE  (2 * GiB)
++#elif defined(__sparc__)
++# define MAX_CODE_GEN_BUFFER_SIZE  (2 * GiB)
++#elif defined(__powerpc64__)
++# define MAX_CODE_GEN_BUFFER_SIZE  (2 * GiB)
++#elif defined(__powerpc__)
++# define MAX_CODE_GEN_BUFFER_SIZE  (32 * MiB)
++#elif defined(__aarch64__)
++# define MAX_CODE_GEN_BUFFER_SIZE  (2 * GiB)
++#elif defined(__s390x__)
++  /* We have a +- 4GB range on the branches; leave some slop.  */
++# define MAX_CODE_GEN_BUFFER_SIZE  (3 * GiB)
++#elif defined(__mips__)
++  /*
++   * We have a 256MB branch region, but leave room to make sure the
++   * main executable is also within that region.
++   */
++# define MAX_CODE_GEN_BUFFER_SIZE  (128 * MiB)
++#else
++# define MAX_CODE_GEN_BUFFER_SIZE  ((size_t)-1)
++#endif
++
+ #if TCG_TARGET_REG_BITS == 32
+ #define DEFAULT_CODE_GEN_BUFFER_SIZE_1 (32 * MiB)
+ #ifdef CONFIG_USER_ONLY
+diff --git a/tcg/riscv/tcg-target.h b/tcg/riscv/tcg-target.h
+index 87ea94666b..727c8df418 100644
+--- a/tcg/riscv/tcg-target.h
++++ b/tcg/riscv/tcg-target.h
+@@ -34,7 +34,6 @@
+ #define TCG_TARGET_INSN_UNIT_SIZE 4
+ #define TCG_TARGET_TLB_DISPLACEMENT_BITS 20
+ #define TCG_TARGET_NB_REGS 32
+-#define MAX_CODE_GEN_BUFFER_SIZE  ((size_t)-1)
+ 
+ typedef enum {
+     TCG_REG_ZERO,
+diff --git a/tcg/s390/tcg-target.h b/tcg/s390/tcg-target.h
+index b04b72b7eb..641464eea4 100644
+--- a/tcg/s390/tcg-target.h
++++ b/tcg/s390/tcg-target.h
+@@ -28,9 +28,6 @@
+ #define TCG_TARGET_INSN_UNIT_SIZE 2
+ #define TCG_TARGET_TLB_DISPLACEMENT_BITS 19
+ 
+-/* We have a +- 4GB range on the branches; leave some slop.  */
+-#define MAX_CODE_GEN_BUFFER_SIZE  (3 * GiB)
+-
+ typedef enum TCGReg {
+     TCG_REG_R0 = 0,
+     TCG_REG_R1,
+diff --git a/tcg/sparc/tcg-target.h b/tcg/sparc/tcg-target.h
+index 86bb9a2d39..f66f5d07dc 100644
+--- a/tcg/sparc/tcg-target.h
++++ b/tcg/sparc/tcg-target.h
+@@ -30,7 +30,6 @@
+ #define TCG_TARGET_INSN_UNIT_SIZE 4
+ #define TCG_TARGET_TLB_DISPLACEMENT_BITS 32
+ #define TCG_TARGET_NB_REGS 32
+-#define MAX_CODE_GEN_BUFFER_SIZE  (2 * GiB)
+ 
+ typedef enum {
+     TCG_REG_G0 = 0,
+diff --git a/tcg/tci/tcg-target.h b/tcg/tci/tcg-target.h
+index d0b5f3fa64..52af6d8bc5 100644
+--- a/tcg/tci/tcg-target.h
++++ b/tcg/tci/tcg-target.h
+@@ -43,7 +43,6 @@
+ #define TCG_TARGET_INTERPRETER 1
+ #define TCG_TARGET_INSN_UNIT_SIZE 1
+ #define TCG_TARGET_TLB_DISPLACEMENT_BITS 32
+-#define MAX_CODE_GEN_BUFFER_SIZE  ((size_t)-1)
+ 
+ #if UINTPTR_MAX == UINT32_MAX
+ # define TCG_TARGET_REG_BITS 32

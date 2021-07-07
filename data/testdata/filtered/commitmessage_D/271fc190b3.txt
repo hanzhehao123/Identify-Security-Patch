@@ -1,0 +1,24 @@
+commit 271fc190b309a47dc76cbe995e12d1bc6350f7ad
+Merge: 687f9f7834 9362984f56
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 28 14:22:04 2021 +0100
+
+    Merge remote-tracking branch 'remotes/jsnow-gitlab/tags/floppy-pull-request' into staging
+    
+    FDC Pull request
+    
+    # gpg: Signature made Fri 25 Jun 2021 13:54:17 BST
+    # gpg:                using RSA key F9B7ABDBBCACDF95BE76CBD07DEF8106AAFC390E
+    # gpg: Good signature from "John Snow (John Huston) <jsnow@redhat.com>" [full]
+    # Primary key fingerprint: FAEB 9711 A12C F475 812F  18F2 88A9 064D 1835 61EB
+    #      Subkey fingerprint: F9B7 ABDB BCAC DF95 BE76  CBD0 7DEF 8106 AAFC 390E
+    
+    * remotes/jsnow-gitlab/tags/floppy-pull-request:
+      hw/block/fdc: Add description to floppy controllers
+      hw/block/fdc: Extract SysBus floppy controllers to fdc-sysbus.c
+      hw/block/fdc: Extract ISA floppy controllers to fdc-isa.c
+      hw/block/fdc: Declare shared prototypes in fdc-internal.h
+      hw/block/fdc: Replace disabled fprintf() by trace event
+      hw/isa/Kconfig: Fix missing dependency ISA_SUPERIO -> FDC
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

@@ -1,0 +1,10 @@
+commit 213de8a2fb12f6962ded0240c900f728a72f8217
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Thu Mar 4 18:15:20 2021 +0000
+
+    sasl: remove comment about obsolete kerberos versions
+    
+    This is not relevant to any OS distro that QEMU currently targets.
+    
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>

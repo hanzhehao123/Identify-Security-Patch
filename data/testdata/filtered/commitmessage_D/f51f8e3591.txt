@@ -1,0 +1,13 @@
+commit f51f8e3591393f7f274e1435ac22188e2dafdfe8
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 16:31:43 2021 -0700
+
+    configure: Remove probe for _Static_assert
+    
+    _Static_assert is part of C11, which is now required.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210614233143.1221879-9-richard.henderson@linaro.org>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

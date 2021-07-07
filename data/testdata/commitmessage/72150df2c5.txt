@@ -1,0 +1,11 @@
+commit 72150df2c5654870d5468bc4477783497b910816
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 3 12:28:49 2021 +0200
+
+    meson: remove preadv from summary
+    
+    Meson is more verbose than the configure script; the outcome of the preadv test
+    can be found in its output and it is not worth including it again in the summary.
+    
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

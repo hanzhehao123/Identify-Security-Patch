@@ -1,0 +1,17 @@
+commit adad0b3ae8446acef0670efaa1e835ba37fca4bc
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 10 13:43:14 2021 +0200
+
+    util/mmap-alloc: Factor out calculation of the pagesize for the guard page
+    
+    Let's factor out calculating the size of the guard page and rename the
+    variable to make it clearer that this pagesize only applies to the
+    guard page.
+    
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    Acked-by: Murilo Opsfelder Araujo <muriloo@linux.ibm.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com> for memory backend and machine core
+    Cc: Igor Kotrasinski <i.kotrasinsk@partner.samsung.com>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210510114328.21835-2-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

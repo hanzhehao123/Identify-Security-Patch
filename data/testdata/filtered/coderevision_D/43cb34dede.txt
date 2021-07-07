@@ -1,0 +1,122 @@
+diff --git a/block/nbd.c b/block/nbd.c
+index 411435c155..9f193d130b 100644
+--- a/block/nbd.c
++++ b/block/nbd.c
+@@ -360,6 +360,7 @@ static coroutine_fn void nbd_reconnect_attempt(BDRVNBDState *s)
+ {
+     int ret;
+     AioContext *aio_context = bdrv_get_aio_context(s->bs);
++    QIOChannelSocket *sioc;
+ 
+     if (!nbd_client_connecting(s)) {
+         return;
+@@ -398,12 +399,20 @@ static coroutine_fn void nbd_reconnect_attempt(BDRVNBDState *s)
+         s->ioc = NULL;
+     }
+ 
+-    s->ioc = nbd_co_establish_connection(s->conn, &s->info, NULL);
+-    if (!s->ioc) {
++    sioc = nbd_co_establish_connection(s->conn, &s->info, &s->ioc, NULL);
++    if (!sioc) {
+         ret = -ECONNREFUSED;
+         goto out;
+     }
+ 
++    if (s->ioc) {
++        /* sioc is referenced by s->ioc */
++        object_unref(OBJECT(sioc));
++    } else {
++        s->ioc = QIO_CHANNEL(sioc);
++    }
++    sioc = NULL;
++
+     qio_channel_set_blocking(QIO_CHANNEL(s->ioc), false, NULL);
+     qio_channel_attach_aio_context(QIO_CHANNEL(s->ioc), aio_context);
+ 
+diff --git a/include/block/nbd.h b/include/block/nbd.h
+index 10c8a0bcca..5bb54d831c 100644
+--- a/include/block/nbd.h
++++ b/include/block/nbd.h
+@@ -418,9 +418,9 @@ NBDClientConnection *nbd_client_connection_new(const SocketAddress *saddr,
+                                                QCryptoTLSCreds *tlscreds);
+ void nbd_client_connection_release(NBDClientConnection *conn);
+ 
+-QIOChannel *coroutine_fn
++QIOChannelSocket *coroutine_fn
+ nbd_co_establish_connection(NBDClientConnection *conn, NBDExportInfo *info,
+-                            Error **errp);
++                            QIOChannel **ioc, Error **errp);
+ 
+ void coroutine_fn nbd_co_establish_connection_cancel(NBDClientConnection *conn);
+ 
+diff --git a/nbd/client-connection.c b/nbd/client-connection.c
+index 955edafb7c..883f9cf158 100644
+--- a/nbd/client-connection.c
++++ b/nbd/client-connection.c
+@@ -272,14 +272,15 @@ void nbd_client_connection_release(NBDClientConnection *conn)
+  * nbd_receive_export_list() would be zero (see description of NBDExportInfo in
+  * include/block/nbd.h).
+  */
+-QIOChannel *coroutine_fn
++QIOChannelSocket *coroutine_fn
+ nbd_co_establish_connection(NBDClientConnection *conn, NBDExportInfo *info,
+-                            Error **errp)
++                            QIOChannel **ioc, Error **errp)
+ {
+     QemuThread thread;
+ 
+     if (conn->do_negotiation) {
+         assert(info);
++        assert(ioc);
+     }
+ 
+     WITH_QEMU_LOCK_GUARD(&conn->mutex) {
+@@ -293,19 +294,10 @@ nbd_co_establish_connection(NBDClientConnection *conn, NBDExportInfo *info,
+             if (conn->sioc) {
+                 /* Previous attempt finally succeeded in background */
+                 if (conn->do_negotiation) {
++                    *ioc = g_steal_pointer(&conn->ioc);
+                     memcpy(info, &conn->updated_info, sizeof(*info));
+-                    if (conn->ioc) {
+-                        /* TLS channel now has own reference to parent */
+-                        object_unref(OBJECT(conn->sioc));
+-                        conn->sioc = NULL;
+-
+-                        return g_steal_pointer(&conn->ioc);
+-                    }
+                 }
+-
+-                assert(!conn->ioc);
+-
+-                return QIO_CHANNEL(g_steal_pointer(&conn->sioc));
++                return g_steal_pointer(&conn->sioc);
+             }
+ 
+             conn->running = true;
+@@ -337,23 +329,11 @@ nbd_co_establish_connection(NBDClientConnection *conn, NBDExportInfo *info,
+         } else {
+             error_propagate(errp, conn->err);
+             conn->err = NULL;
+-            if (!conn->sioc) {
+-                return NULL;
+-            }
+-            if (conn->do_negotiation) {
++            if (conn->sioc && conn->do_negotiation) {
++                *ioc = g_steal_pointer(&conn->ioc);
+                 memcpy(info, &conn->updated_info, sizeof(*info));
+-                if (conn->ioc) {
+-                    /* TLS channel now has own reference to parent */
+-                    object_unref(OBJECT(conn->sioc));
+-                    conn->sioc = NULL;
+-
+-                    return g_steal_pointer(&conn->ioc);
+-                }
+             }
+-
+-            assert(!conn->ioc);
+-
+-            return QIO_CHANNEL(g_steal_pointer(&conn->sioc));
++            return g_steal_pointer(&conn->sioc);
+         }
+     }
+ 

@@ -1,0 +1,79 @@
+diff --git a/hw/net/imx_fec.c b/hw/net/imx_fec.c
+index 9c7035bc94..f03450c028 100644
+--- a/hw/net/imx_fec.c
++++ b/hw/net/imx_fec.c
+@@ -283,8 +283,9 @@ static uint32_t imx_phy_read(IMXFECState *s, int reg)
+     uint32_t phy = reg / 32;
+ 
+     if (phy != s->phy_num) {
+-        trace_imx_phy_read_num(phy, s->phy_num);
+-        return 0xffff;
++        qemu_log_mask(LOG_GUEST_ERROR, "[%s.phy]%s: Bad phy num %u\n",
++                      TYPE_IMX_FEC, __func__, phy);
++        return 0;
+     }
+ 
+     reg %= 32;
+@@ -344,7 +345,8 @@ static void imx_phy_write(IMXFECState *s, int reg, uint32_t val)
+     uint32_t phy = reg / 32;
+ 
+     if (phy != s->phy_num) {
+-        trace_imx_phy_write_num(phy, s->phy_num);
++        qemu_log_mask(LOG_GUEST_ERROR, "[%s.phy]%s: Bad phy num %u\n",
++                      TYPE_IMX_FEC, __func__, phy);
+         return;
+     }
+ 
+diff --git a/hw/net/trace-events b/hw/net/trace-events
+index 1704bb0664..314e21fa99 100644
+--- a/hw/net/trace-events
++++ b/hw/net/trace-events
+@@ -402,9 +402,7 @@ i82596_channel_attention(void *s) "%p: Received CHANNEL ATTENTION"
+ 
+ # imx_fec.c
+ imx_phy_read(uint32_t val, int phy, int reg) "0x%04"PRIx32" <= phy[%d].reg[%d]"
+-imx_phy_read_num(int phy, int configured) "read request from unconfigured phy %d (configured %d)"
+ imx_phy_write(uint32_t val, int phy, int reg) "0x%04"PRIx32" => phy[%d].reg[%d]"
+-imx_phy_write_num(int phy, int configured) "write request to unconfigured phy %d (configured %d)"
+ imx_phy_update_link(const char *s) "%s"
+ imx_phy_reset(void) ""
+ imx_fec_read_bd(uint64_t addr, int flags, int len, int data) "tx_bd 0x%"PRIx64" flags 0x%04x len %d data 0x%08x"
+diff --git a/hw/net/virtio-net.c b/hw/net/virtio-net.c
+index 05bd50d3f6..6b7e8dd04e 100644
+--- a/hw/net/virtio-net.c
++++ b/hw/net/virtio-net.c
+@@ -3373,7 +3373,6 @@ static void virtio_net_device_unrealize(DeviceState *dev)
+ 
+     if (n->failover) {
+         device_listener_unregister(&n->primary_listener);
+-        remove_migration_state_change_notifier(&n->migration_state);
+     }
+ 
+     max_queues = n->multiqueue ? n->max_queues : 1;
+diff --git a/net/tap-bsd.c b/net/tap-bsd.c
+index 59dfcdfae0..77aaf674b1 100644
+--- a/net/tap-bsd.c
++++ b/net/tap-bsd.c
+@@ -35,6 +35,10 @@
+ #include <net/if_tap.h>
+ #endif
+ 
++#if defined(__OpenBSD__)
++#include <sys/param.h>
++#endif
++
+ #ifndef __FreeBSD__
+ int tap_open(char *ifname, int ifname_size, int *vnet_hdr,
+              int vnet_hdr_required, int mq_required, Error **errp)
+@@ -55,7 +59,11 @@ int tap_open(char *ifname, int ifname_size, int *vnet_hdr,
+         if (*ifname) {
+             snprintf(dname, sizeof dname, "/dev/%s", ifname);
+         } else {
++#if defined(__OpenBSD__) && OpenBSD < 201605
++            snprintf(dname, sizeof dname, "/dev/tun%d", i);
++#else
+             snprintf(dname, sizeof dname, "/dev/tap%d", i);
++#endif
+         }
+         TFR(fd = open(dname, O_RDWR));
+         if (fd >= 0) {

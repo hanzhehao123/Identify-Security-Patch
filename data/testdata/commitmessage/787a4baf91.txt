@@ -1,0 +1,17 @@
+commit 787a4baf91fa2ff36b901c0b31ea73f3f0739415
+Author: Alistair Francis <alistair.francis@wdc.com>
+Date:   Fri May 21 06:55:53 2021 +0800
+
+    target/riscv/pmp: Add assert for ePMP operations
+    
+    Although we construct epmp_operation in such a way that it can only be
+    between 0 and 15 Coverity complains that we don't handle the other
+    possible cases. To fix Coverity and make it easier for humans to read
+    add a default case to the switch statement that calls
+    g_assert_not_reached().
+    
+    Fixes: CID 1453108
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>
+    Reviewed-by: Bin Meng <bmeng.cn@gmail.com>
+    Reviewed-by: LIU Zhiwei <zhiwei_liu@c-sky.com>
+    Message-id: ec5f225928eec448278c82fcb1f6805ee61dde82.1621550996.git.alistair.francis@wdc.com

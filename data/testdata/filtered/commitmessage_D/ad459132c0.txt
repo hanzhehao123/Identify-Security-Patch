@@ -1,0 +1,12 @@
+commit ad459132c088dc9b33e86b8ad87f96742e4de4bf
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:25 2021 -0400
+
+    scripts/qmp-shell: Add pretty attribute to HMP shell
+    
+    It's less useful, but it makes the initialization methods LSP
+    consistent, which quiets a mypy complaint.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-19-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

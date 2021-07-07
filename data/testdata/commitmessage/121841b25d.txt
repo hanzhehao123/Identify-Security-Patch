@@ -1,0 +1,17 @@
+commit 121841b25d72d13f8cad554363138c360f1250ea
+Author: Li Qiang <liq3ea@163.com>
+Date:   Sat May 15 20:03:56 2021 -0700
+
+    vhost-user-gpu: fix memory disclosure in virgl_cmd_get_capset_info (CVE-2021-3545)
+    
+    Otherwise some of the 'resp' will be leaked to guest.
+    
+    Fixes: CVE-2021-3545
+    Reported-by: Li Qiang <liq3ea@163.com>
+    virtio-gpu fix: 42a8dadc74 ("virtio-gpu: fix information leak
+    in getting capset info dispatch")
+    
+    Signed-off-by: Li Qiang <liq3ea@163.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Message-Id: <20210516030403.107723-2-liq3ea@163.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

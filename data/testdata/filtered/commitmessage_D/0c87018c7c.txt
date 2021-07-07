@@ -1,0 +1,12 @@
+commit 0c87018c7c171a8fe0ed44b9aa931b364eec85f7
+Author: Fabiano Rosas <farosas@linux.ibm.com>
+Date:   Tue Jun 1 18:46:46 2021 -0300
+
+    target/ppc: powerpc_excp: Remove dump_syscall_vectored
+    
+    This function is identical to dump_syscall, so use the latter for
+    system call vectored as well.
+    
+    Signed-off-by: Fabiano Rosas <farosas@linux.ibm.com>
+    Message-Id: <20210601214649.785647-3-farosas@linux.ibm.com>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

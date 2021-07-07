@@ -1,0 +1,12 @@
+commit 37c954a1b96a65d836705a6e530eeab58cc9d964
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 14 14:48:31 2020 -0800
+
+    softfloat: Move uint_to_float to softfloat-parts.c.inc
+    
+    Rename to parts$N_uint_to_float.
+    Reimplement uint64_to_float128 with FloatParts128.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: David Hildenbrand <david@redhat.com>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

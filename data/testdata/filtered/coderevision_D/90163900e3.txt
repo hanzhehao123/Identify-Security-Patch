@@ -1,0 +1,96 @@
+diff --git a/tcg/optimize.c b/tcg/optimize.c
+index 211a4209a0..37c902283e 100644
+--- a/tcg/optimize.c
++++ b/tcg/optimize.c
+@@ -25,7 +25,6 @@
+ 
+ #include "qemu/osdep.h"
+ #include "tcg/tcg-op.h"
+-#include "tcg-internal.h"
+ 
+ #define CASE_OP_32_64(x)                        \
+         glue(glue(case INDEX_op_, x), _i32):    \
+@@ -1482,7 +1481,7 @@ void tcg_optimize(TCGContext *s)
+             break;
+ 
+         case INDEX_op_call:
+-            if (!(tcg_call_flags(op)
++            if (!(op->args[nb_oargs + nb_iargs + 1]
+                   & (TCG_CALL_NO_READ_GLOBALS | TCG_CALL_NO_WRITE_GLOBALS))) {
+                 for (i = 0; i < nb_globals; i++) {
+                     if (test_bit(i, temps_used.l)) {
+diff --git a/tcg/tcg-internal.h b/tcg/tcg-internal.h
+index 0796407c13..181f86507a 100644
+--- a/tcg/tcg-internal.h
++++ b/tcg/tcg-internal.h
+@@ -37,9 +37,4 @@ bool tcg_region_alloc(TCGContext *s);
+ void tcg_region_initial_alloc(TCGContext *s);
+ void tcg_region_prologue_set(TCGContext *s);
+ 
+-static inline unsigned tcg_call_flags(TCGOp *op)
+-{
+-    return op->args[TCGOP_CALLO(op) + TCGOP_CALLI(op) + 1];
+-}
+-
+ #endif /* TCG_INTERNAL_H */
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index 51c1f61828..3d6e6b260c 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -1766,9 +1766,9 @@ static void tcg_dump_ops(TCGContext *s, bool have_prefs)
+             nb_cargs = def->nb_cargs;
+ 
+             /* function name, flags, out args */
+-            col += qemu_log(" %s %s,$0x%x,$%d", def->name,
++            col += qemu_log(" %s %s,$0x%" TCG_PRIlx ",$%d", def->name,
+                             tcg_find_helper(s, op->args[nb_oargs + nb_iargs]),
+-                            tcg_call_flags(op), nb_oargs);
++                            op->args[nb_oargs + nb_iargs + 1], nb_oargs);
+             for (i = 0; i < nb_oargs; i++) {
+                 col += qemu_log(",%s", tcg_get_arg_str(s, buf, sizeof(buf),
+                                                        op->args[i]));
+@@ -2155,6 +2155,7 @@ static void reachable_code_pass(TCGContext *s)
+     QTAILQ_FOREACH_SAFE(op, &s->ops, link, op_next) {
+         bool remove = dead;
+         TCGLabel *label;
++        int call_flags;
+ 
+         switch (op->opc) {
+         case INDEX_op_set_label:
+@@ -2199,7 +2200,8 @@ static void reachable_code_pass(TCGContext *s)
+ 
+         case INDEX_op_call:
+             /* Notice noreturn helper calls, raising exceptions.  */
+-            if (tcg_call_flags(op) & TCG_CALL_NO_RETURN) {
++            call_flags = op->args[TCGOP_CALLO(op) + TCGOP_CALLI(op) + 1];
++            if (call_flags & TCG_CALL_NO_RETURN) {
+                 dead = true;
+             }
+             break;
+@@ -2400,7 +2402,7 @@ static void liveness_pass_1(TCGContext *s)
+ 
+                 nb_oargs = TCGOP_CALLO(op);
+                 nb_iargs = TCGOP_CALLI(op);
+-                call_flags = tcg_call_flags(op);
++                call_flags = op->args[nb_oargs + nb_iargs + 1];
+ 
+                 /* pure functions can be removed if their result is unused */
+                 if (call_flags & TCG_CALL_NO_SIDE_EFFECTS) {
+@@ -2715,7 +2717,7 @@ static bool liveness_pass_2(TCGContext *s)
+         if (opc == INDEX_op_call) {
+             nb_oargs = TCGOP_CALLO(op);
+             nb_iargs = TCGOP_CALLI(op);
+-            call_flags = tcg_call_flags(op);
++            call_flags = op->args[nb_oargs + nb_iargs + 1];
+         } else {
+             nb_iargs = def->nb_iargs;
+             nb_oargs = def->nb_oargs;
+@@ -3797,7 +3799,7 @@ static void tcg_reg_alloc_call(TCGContext *s, TCGOp *op)
+     TCGRegSet allocated_regs;
+ 
+     func_addr = (tcg_insn_unit *)(intptr_t)op->args[nb_oargs + nb_iargs];
+-    flags = tcg_call_flags(op);
++    flags = op->args[nb_oargs + nb_iargs + 1];
+ 
+     nb_regs = ARRAY_SIZE(tcg_target_call_iarg_regs);
+     if (nb_regs > nb_iargs) {

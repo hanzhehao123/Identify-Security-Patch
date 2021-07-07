@@ -1,0 +1,19 @@
+commit a5a8d98c8537f022a14bdc70eff12e296431b80f
+Author: Taylor Simpson <tsimpson@quicinc.com>
+Date:   Tue Jun 1 18:19:42 2021 -0500
+
+    Hexagon (target/hexagon) fix l2fetch instructions
+    
+    Y4_l2fetch == l2fetch(Rs32, Rt32)
+    Y5_l2fetch == l2fetch(Rs32, Rtt32)
+    
+    The semantics for these instructions are present, but the encodings
+    are missing.
+    
+    Note that these are treated as nops in qemu, so we add overrides.
+    
+    Test case added to tests/tcg/hexagon/misc.c
+    
+    Signed-off-by: Taylor Simpson <tsimpson@quicinc.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <1622589584-22571-3-git-send-email-tsimpson@quicinc.com>

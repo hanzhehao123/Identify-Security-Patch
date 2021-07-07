@@ -1,0 +1,14 @@
+commit a722701dd364b82dc115e94a29d767949f796000
+Author: Changbin Du <changbin.du@gmail.com>
+Date:   Wed May 19 23:57:38 2021 +0800
+
+    target/riscv: Dump CSR mscratch/sscratch/satp
+    
+    This dumps the CSR mscratch/sscratch/satp and meanwhile aligns
+    the output of CSR mtval/stval.
+    
+    Signed-off-by: Changbin Du <changbin.du@gmail.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Reviewed-by: Bin Meng <bmeng.cn@gmail.com>
+    Message-id: 20210519155738.20486-1-changbin.du@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

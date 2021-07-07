@@ -1,0 +1,21 @@
+commit 5ec4f1d348e164355ff0e50486d537973e517e19
+Author: Jason Thorpe <thorpej@me.com>
+Date:   Wed Jun 16 07:15:38 2021 -0700
+
+    hw/alpha: Provide a PCI-ISA bridge device node
+    
+    - Move initialization of the ISA bus from typhoon_init() to clipper_init();
+      this apsect of device topology is really associated with the individual
+      model, not the core logic chipset.  typhoon_init() now returns the IRQ
+      to use for the output of the ISA PIC.
+    
+    - In clipper_init(), instantiate an i82378 instance, and connect its
+      PIC output to the ISA IRQ input provided by typhoon_init().  Remove
+      the explicit instantiations of i8254 and i82374, as these devices
+      are subsumed by the i82378.
+    
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Jason Thorpe <thorpej@me.com>
+    Message-Id: <20210616141538.25436-1-thorpej@me.com>
+    [rth: Remove direct dependencies on i82374, i8254, i8259.]
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

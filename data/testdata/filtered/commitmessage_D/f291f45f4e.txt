@@ -1,0 +1,14 @@
+commit f291f45f4ef445ccc1aaf7b5bc595dab17d89e8d
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 7 15:38:12 2021 -0700
+
+    softfloat: Fix tp init in float32_exp2
+    
+    Typo in the conversion to FloatParts64.
+    
+    Fixes: 572c4d862ff2
+    Fixes: Coverity CID 1457457
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-Id: <20210607223812.110596-1-richard.henderson@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

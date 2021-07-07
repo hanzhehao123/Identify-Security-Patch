@@ -1,0 +1,47 @@
+commit bf7942e406cb5e96d2490909d2cb31c7625b087b
+Merge: b733163e05 c626710fc7
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue Jun 22 14:36:58 2021 +0100
+
+    Merge remote-tracking branch 'remotes/cohuck-gitlab/tags/s390x-20210621' into staging
+    
+    s390x update:
+    - tcg: implement the vector enhancements facility and bump the
+      'qemu' cpu model to a stripped-down z14 GA2
+    - fix psw.mask handling in signals
+    - fix vfio-ccw sense data handling
+    
+    # gpg: Signature made Mon 21 Jun 2021 10:53:00 BST
+    # gpg:                using RSA key C3D0D66DC3624FF6A8C018CEDECF6B93C6F02FAF
+    # gpg:                issuer "cohuck@redhat.com"
+    # gpg: Good signature from "Cornelia Huck <conny@cornelia-huck.de>" [unknown]
+    # gpg:                 aka "Cornelia Huck <huckc@linux.vnet.ibm.com>" [full]
+    # gpg:                 aka "Cornelia Huck <cornelia.huck@de.ibm.com>" [full]
+    # gpg:                 aka "Cornelia Huck <cohuck@kernel.org>" [unknown]
+    # gpg:                 aka "Cornelia Huck <cohuck@redhat.com>" [unknown]
+    # Primary key fingerprint: C3D0 D66D C362 4FF6 A8C0  18CE DECF 6B93 C6F0 2FAF
+    
+    * remotes/cohuck-gitlab/tags/s390x-20210621: (37 commits)
+      s390x/css: Add passthrough IRB
+      s390x/css: Refactor IRB construction
+      s390x/css: Split out the IRB sense data
+      s390x/css: Introduce an ESW struct
+      linux-user/s390x: Save and restore psw.mask properly
+      target/s390x: Use s390_cpu_{set_psw, get_psw_mask} in gdbstub
+      target/s390x: Improve s390_cpu_dump_state vs cc_op
+      target/s390x: Do not modify cpu state in s390_cpu_get_psw_mask
+      target/s390x: Expose load_psw and get_psw_mask to cpu.h
+      configure: Check whether we can compile the s390-ccw bios with -msoft-float
+      s390x/cpumodel: Bump up QEMU model to a stripped-down IBM z14 GA2
+      s390x/tcg: We support Vector enhancements facility
+      linux-user: elf: s390x: Prepare for Vector enhancements facility
+      s390x/tcg: Implement VECTOR FP (MAXIMUM|MINIMUM)
+      s390x/tcg: Implement VECTOR FP NEGATIVE MULTIPLY AND (ADD|SUBTRACT)
+      s390x/tcg: Implement 32/128 bit for VECTOR FP MULTIPLY AND (ADD|SUBTRACT)
+      s390x/tcg: Implement 32/128 bit for VECTOR FP TEST DATA CLASS IMMEDIATE
+      s390x/tcg: Implement 32/128 bit for VECTOR FP PERFORM SIGN OPERATION
+      s390x/tcg: Implement 128 bit for VECTOR FP LOAD ROUNDED
+      s390x/tcg: Implement 64 bit for VECTOR FP LOAD LENGTHENED
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

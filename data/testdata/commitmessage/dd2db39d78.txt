@@ -1,0 +1,54 @@
+commit dd2db39d78431ab5a0b78777afaab3d61e94533e
+Merge: 52848929b7 d47b85502b
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue Jun 1 21:23:26 2021 +0100
+
+    Merge remote-tracking branch 'remotes/ehabkost-gl/tags/x86-next-pull-request' into staging
+    
+    x86 queue, 2021-06-01
+    
+    Features:
+    * Add CPU model versions supporting 'xsaves' (Vitaly Kuznetsov)
+    * Support AVX512 ZMM regs dump (Robert Hoo)
+    
+    Bug fixes:
+    * Use better matching family/model/stepping for generic CPUs
+      (Daniel P. Berrangé)
+    
+    Cleanups:
+    * Hyper-V feature initialization cleanup (Vitaly Kuznetsov)
+    * SEV firmware error list touchups (Connor Kuehl)
+    * Constify CPUCaches and X86CPUDefinition (Philippe Mathieu-Daudé)
+    * Document when features can be added to kvm_default_props
+      (Eduardo Habkost)
+    
+    # gpg: Signature made Tue 01 Jun 2021 19:08:33 BST
+    # gpg:                using RSA key 5A322FD5ABC4D3DBACCFD1AA2807936F984DC5A6
+    # gpg:                issuer "ehabkost@redhat.com"
+    # gpg: Good signature from "Eduardo Habkost <ehabkost@redhat.com>" [full]
+    # Primary key fingerprint: 5A32 2FD5 ABC4 D3DB ACCF  D1AA 2807 936F 984D C5A6
+    
+    * remotes/ehabkost-gl/tags/x86-next-pull-request: (24 commits)
+      sev: add missing firmware error conditions
+      sev: use explicit indices for mapping firmware error codes to strings
+      target/i386/sev: add support to query the attestation report
+      i386: use global kvm_state in hyperv_enabled() check
+      i386: prefer system KVM_GET_SUPPORTED_HV_CPUID ioctl over vCPU's one
+      i386: adjust the expected KVM_GET_SUPPORTED_HV_CPUID array size
+      i386: switch hyperv_expand_features() to using error_setg()
+      i386: move eVMCS enablement to hyperv_init_vcpu()
+      i386: split hyperv_handle_properties() into hyperv_expand_features()/hyperv_fill_cpuids()
+      i386: introduce hv_cpuid_cache
+      i386: drop FEAT_HYPERV feature leaves
+      i386: introduce hv_cpuid_get_host()
+      i386: introduce hyperv_feature_supported()
+      i386: stop using env->features[] for filling Hyper-V CPUIDs
+      i386: always fill Hyper-V CPUID feature leaves from X86CPU data
+      i386: invert hyperv_spinlock_attempts setting logic with hv_passthrough
+      i386: keep hyperv_vendor string up-to-date
+      i386: use better matching family/model/stepping for 'max' CPU
+      i386: use better matching family/model/stepping for 'qemu64' CPU
+      i386/cpu_dump: support AVX512 ZMM regs dump
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

@@ -1,0 +1,308 @@
+diff --git a/block/meson.build b/block/meson.build
+index ef1ba3d973..01861e1545 100644
+--- a/block/meson.build
++++ b/block/meson.build
+@@ -13,7 +13,6 @@ block_ss.add(files(
+   'commit.c',
+   'copy-on-read.c',
+   'preallocate.c',
+-  'progress_meter.c',
+   'create.c',
+   'crypto.c',
+   'dirty-bitmap.c',
+diff --git a/block/progress_meter.c b/block/progress_meter.c
+deleted file mode 100644
+index aa2e60248c..0000000000
+--- a/block/progress_meter.c
++++ /dev/null
+@@ -1,64 +0,0 @@
+-/*
+- * Helper functionality for some process progress tracking.
+- *
+- * Copyright (c) 2011 IBM Corp.
+- * Copyright (c) 2012, 2018 Red Hat, Inc.
+- * Copyright (c) 2020 Virtuozzo International GmbH
+- *
+- * Permission is hereby granted, free of charge, to any person obtaining a copy
+- * of this software and associated documentation files (the "Software"), to deal
+- * in the Software without restriction, including without limitation the rights
+- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+- * copies of the Software, and to permit persons to whom the Software is
+- * furnished to do so, subject to the following conditions:
+- *
+- * The above copyright notice and this permission notice shall be included in
+- * all copies or substantial portions of the Software.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+- * THE SOFTWARE.
+- */
+-#include "qemu/osdep.h"
+-#include "qemu/progress_meter.h"
+-
+-void progress_init(ProgressMeter *pm)
+-{
+-    qemu_mutex_init(&pm->lock);
+-}
+-
+-void progress_destroy(ProgressMeter *pm)
+-{
+-    qemu_mutex_destroy(&pm->lock);
+-}
+-
+-void progress_get_snapshot(ProgressMeter *pm, uint64_t *current,
+-                           uint64_t *total)
+-{
+-    QEMU_LOCK_GUARD(&pm->lock);
+-
+-    *current = pm->current;
+-    *total = pm->total;
+-}
+-
+-void progress_work_done(ProgressMeter *pm, uint64_t done)
+-{
+-    QEMU_LOCK_GUARD(&pm->lock);
+-    pm->current += done;
+-}
+-
+-void progress_set_remaining(ProgressMeter *pm, uint64_t remaining)
+-{
+-    QEMU_LOCK_GUARD(&pm->lock);
+-    pm->total = pm->current + remaining;
+-}
+-
+-void progress_increase_remaining(ProgressMeter *pm, uint64_t delta)
+-{
+-    QEMU_LOCK_GUARD(&pm->lock);
+-    pm->total += delta;
+-}
+diff --git a/blockjob.c b/blockjob.c
+index 4bad1408cb..22e5bb9b1f 100644
+--- a/blockjob.c
++++ b/blockjob.c
+@@ -306,23 +306,18 @@ int64_t block_job_ratelimit_get_delay(BlockJob *job, uint64_t n)
+ BlockJobInfo *block_job_query(BlockJob *job, Error **errp)
+ {
+     BlockJobInfo *info;
+-    uint64_t progress_current, progress_total;
+ 
+     if (block_job_is_internal(job)) {
+         error_setg(errp, "Cannot query QEMU internal jobs");
+         return NULL;
+     }
+-
+-    progress_get_snapshot(&job->job.progress, &progress_current,
+-                          &progress_total);
+-
+     info = g_new0(BlockJobInfo, 1);
+     info->type      = g_strdup(job_type_str(&job->job));
+     info->device    = g_strdup(job->job.id);
+     info->busy      = qatomic_read(&job->job.busy);
+     info->paused    = job->job.pause_count > 0;
+-    info->offset    = progress_current;
+-    info->len       = progress_total;
++    info->offset    = job->job.progress.current;
++    info->len       = job->job.progress.total;
+     info->speed     = job->speed;
+     info->io_status = job->iostatus;
+     info->ready     = job_is_ready(&job->job),
+@@ -349,19 +344,15 @@ static void block_job_iostatus_set_err(BlockJob *job, int error)
+ static void block_job_event_cancelled(Notifier *n, void *opaque)
+ {
+     BlockJob *job = opaque;
+-    uint64_t progress_current, progress_total;
+ 
+     if (block_job_is_internal(job)) {
+         return;
+     }
+ 
+-    progress_get_snapshot(&job->job.progress, &progress_current,
+-                          &progress_total);
+-
+     qapi_event_send_block_job_cancelled(job_type(&job->job),
+                                         job->job.id,
+-                                        progress_total,
+-                                        progress_current,
++                                        job->job.progress.total,
++                                        job->job.progress.current,
+                                         job->speed);
+ }
+ 
+@@ -369,7 +360,6 @@ static void block_job_event_completed(Notifier *n, void *opaque)
+ {
+     BlockJob *job = opaque;
+     const char *msg = NULL;
+-    uint64_t progress_current, progress_total;
+ 
+     if (block_job_is_internal(job)) {
+         return;
+@@ -379,13 +369,10 @@ static void block_job_event_completed(Notifier *n, void *opaque)
+         msg = error_get_pretty(job->job.err);
+     }
+ 
+-    progress_get_snapshot(&job->job.progress, &progress_current,
+-                          &progress_total);
+-
+     qapi_event_send_block_job_completed(job_type(&job->job),
+                                         job->job.id,
+-                                        progress_total,
+-                                        progress_current,
++                                        job->job.progress.total,
++                                        job->job.progress.current,
+                                         job->speed,
+                                         !!msg,
+                                         msg);
+@@ -406,19 +393,15 @@ static void block_job_event_pending(Notifier *n, void *opaque)
+ static void block_job_event_ready(Notifier *n, void *opaque)
+ {
+     BlockJob *job = opaque;
+-    uint64_t progress_current, progress_total;
+ 
+     if (block_job_is_internal(job)) {
+         return;
+     }
+ 
+-    progress_get_snapshot(&job->job.progress, &progress_current,
+-                          &progress_total);
+-
+     qapi_event_send_block_job_ready(job_type(&job->job),
+                                     job->job.id,
+-                                    progress_total,
+-                                    progress_current,
++                                    job->job.progress.total,
++                                    job->job.progress.current,
+                                     job->speed);
+ }
+ 
+diff --git a/include/qemu/progress_meter.h b/include/qemu/progress_meter.h
+index dadf822bbf..9a23ff071c 100644
+--- a/include/qemu/progress_meter.h
++++ b/include/qemu/progress_meter.h
+@@ -27,8 +27,6 @@
+ #ifndef QEMU_PROGRESS_METER_H
+ #define QEMU_PROGRESS_METER_H
+ 
+-#include "qemu/lockable.h"
+-
+ typedef struct ProgressMeter {
+     /**
+      * Current progress. The unit is arbitrary as long as the ratio between
+@@ -39,24 +37,22 @@ typedef struct ProgressMeter {
+ 
+     /** Estimated current value at the completion of the process */
+     uint64_t total;
+-
+-    QemuMutex lock; /* protects concurrent access to above fields */
+ } ProgressMeter;
+ 
+-void progress_init(ProgressMeter *pm);
+-void progress_destroy(ProgressMeter *pm);
+-
+-/* Get a snapshot of internal current and total values  */
+-void progress_get_snapshot(ProgressMeter *pm, uint64_t *current,
+-                           uint64_t *total);
+-
+-/* Increases the amount of work done so far by @done */
+-void progress_work_done(ProgressMeter *pm, uint64_t done);
+-
+-/* Sets how much work has to be done to complete to @remaining */
+-void progress_set_remaining(ProgressMeter *pm, uint64_t remaining);
+-
+-/* Increases the total work to do by @delta */
+-void progress_increase_remaining(ProgressMeter *pm, uint64_t delta);
++static inline void progress_work_done(ProgressMeter *pm, uint64_t done)
++{
++    pm->current += done;
++}
++
++static inline void progress_set_remaining(ProgressMeter *pm, uint64_t remaining)
++{
++    pm->total = pm->current + remaining;
++}
++
++static inline void progress_increase_remaining(ProgressMeter *pm,
++                                               uint64_t delta)
++{
++    pm->total += delta;
++}
+ 
+ #endif /* QEMU_PROGRESS_METER_H */
+diff --git a/job-qmp.c b/job-qmp.c
+index 829a28aa70..34c4da094f 100644
+--- a/job-qmp.c
++++ b/job-qmp.c
+@@ -144,20 +144,16 @@ void qmp_job_dismiss(const char *id, Error **errp)
+ static JobInfo *job_query_single(Job *job, Error **errp)
+ {
+     JobInfo *info;
+-    uint64_t progress_current;
+-    uint64_t progress_total;
+ 
+     assert(!job_is_internal(job));
+-    progress_get_snapshot(&job->progress, &progress_current,
+-                          &progress_total);
+ 
+     info = g_new(JobInfo, 1);
+     *info = (JobInfo) {
+         .id                 = g_strdup(job->id),
+         .type               = job_type(job),
+         .status             = job->status,
+-        .current_progress   = progress_current,
+-        .total_progress     = progress_total,
++        .current_progress   = job->progress.current,
++        .total_progress     = job->progress.total,
+         .has_error          = !!job->err,
+         .error              = job->err ? \
+                               g_strdup(error_get_pretty(job->err)) : NULL,
+diff --git a/job.c b/job.c
+index e7a5d28854..8775c1803b 100644
+--- a/job.c
++++ b/job.c
+@@ -339,8 +339,6 @@ void *job_create(const char *job_id, const JobDriver *driver, JobTxn *txn,
+     job->cb            = cb;
+     job->opaque        = opaque;
+ 
+-    progress_init(&job->progress);
+-
+     notifier_list_init(&job->on_finalize_cancelled);
+     notifier_list_init(&job->on_finalize_completed);
+     notifier_list_init(&job->on_pending);
+@@ -384,7 +382,6 @@ void job_unref(Job *job)
+ 
+         QLIST_REMOVE(job, job_list);
+ 
+-        progress_destroy(&job->progress);
+         error_free(job->err);
+         g_free(job->id);
+         g_free(job);
+diff --git a/qemu-img.c b/qemu-img.c
+index 7956a89965..a5993682aa 100644
+--- a/qemu-img.c
++++ b/qemu-img.c
+@@ -900,7 +900,6 @@ static void common_block_job_cb(void *opaque, int ret)
+ 
+ static void run_block_job(BlockJob *job, Error **errp)
+ {
+-    uint64_t progress_current, progress_total;
+     AioContext *aio_context = blk_get_aio_context(job->blk);
+     int ret = 0;
+ 
+@@ -909,11 +908,9 @@ static void run_block_job(BlockJob *job, Error **errp)
+     do {
+         float progress = 0.0f;
+         aio_poll(aio_context, true);
+-
+-        progress_get_snapshot(&job->job.progress, &progress_current,
+-                              &progress_total);
+-        if (progress_total) {
+-            progress = (float)progress_current / progress_total * 100.f;
++        if (job->job.progress.total) {
++            progress = (float)job->job.progress.current /
++                       job->job.progress.total * 100.f;
+         }
+         qemu_progress_print(progress, 0);
+     } while (!job_is_ready(&job->job) && !job_is_completed(&job->job));

@@ -1,0 +1,9 @@
+commit 7e3e20d89129614f4a7b2451fe321cc6ccca3b76
+Author: Akihiko Odaki <akihiko.odaki@gmail.com>
+Date:   Wed Jun 16 23:19:54 2021 +0900
+
+    ui/cocoa: Add clipboard support
+    
+    Signed-off-by: Akihiko Odaki <akihiko.odaki@gmail.com>
+    Message-Id: <20210616141954.54291-1-akihiko.odaki@gmail.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

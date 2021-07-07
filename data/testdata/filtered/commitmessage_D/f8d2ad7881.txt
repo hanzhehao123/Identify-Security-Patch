@@ -1,0 +1,17 @@
+commit f8d2ad7881cde73508f9adeb28c7e033b0903ca8
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Tue Jun 1 10:52:13 2021 +0300
+
+    block: document child argument of bdrv_attach_child_common()
+    
+    The logic around **child is not obvious: this reference is used not
+    only to return resulting child, but also to rollback NULL value on
+    transaction abort.
+    
+    So, let's add documentation and some assertions.
+    
+    While being here, drop extra declaration of bdrv_attach_child_noperm().
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210601075218.79249-2-vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

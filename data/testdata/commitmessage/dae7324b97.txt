@@ -1,0 +1,11 @@
+commit dae7324b97ebe2c4012f299f0b6ec48ac8c1e74d
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Tue May 11 12:18:06 2021 +0200
+
+    target/mips: Constify host_to_mips_errno[]
+    
+    Keep host_to_mips_errno[] in .rodata by marking the array const.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210617174323.2900831-9-f4bug@amsat.org>

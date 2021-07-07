@@ -1,0 +1,14 @@
+commit 1c861885894d840235954060050d240259f5340b
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue May 25 14:44:58 2021 +0100
+
+    tests/unit/test-vmstate: Assert that dup() and mkstemp() succeed
+    
+    Coverity complains that we don't check for failures from dup()
+    and mkstemp(); add asserts that these syscalls succeeded.
+    
+    Fixes: Coverity CID 1432516, 1432574
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Stefan Berger <stefanb@linux.ibm.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210525134458.6675-7-peter.maydell@linaro.org

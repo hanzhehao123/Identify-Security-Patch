@@ -1,0 +1,35 @@
+commit 6229659ec83e979545194c296dd1afc5cd7b7310
+Author: Patrick Venture <venture@google.com>
+Date:   Tue Jun 8 13:25:21 2021 -0700
+
+    hw/arm: gsj add pca9548
+    
+    Tested: Quanta-gsj firmware booted.
+    
+    i2c /dev entries driver
+    I2C init bus 1 freq 100000
+    I2C init bus 2 freq 100000
+    I2C init bus 3 freq 100000
+    I2C init bus 4 freq 100000
+    I2C init bus 8 freq 100000
+    I2C init bus 9 freq 100000
+    at24 9-0055: 8192 byte 24c64 EEPROM, writable, 1 bytes/write
+    I2C init bus 10 freq 100000
+    at24 10-0055: 8192 byte 24c64 EEPROM, writable, 1 bytes/write
+    I2C init bus 12 freq 100000
+    I2C init bus 15 freq 100000
+    i2c i2c-15: Added multiplexed i2c bus 16
+    i2c i2c-15: Added multiplexed i2c bus 17
+    i2c i2c-15: Added multiplexed i2c bus 18
+    i2c i2c-15: Added multiplexed i2c bus 19
+    i2c i2c-15: Added multiplexed i2c bus 20
+    i2c i2c-15: Added multiplexed i2c bus 21
+    i2c i2c-15: Added multiplexed i2c bus 22
+    i2c i2c-15: Added multiplexed i2c bus 23
+    pca954x 15-0075: registered 8 multiplexed busses for I2C switch pca9548
+    
+    Signed-off-by: Patrick Venture <venture@google.com>
+    Reviewed-by: Hao Wu <wuhaotsh@google.com>
+    Reviewed-by: Joel Stanley <joel@jms.id.au>
+    Message-id: 20210608202522.2677850-3-venture@google.com
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

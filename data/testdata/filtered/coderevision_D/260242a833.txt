@@ -1,0 +1,61 @@
+diff --git a/block/block-backend.c b/block/block-backend.c
+index d1a33a2c8e..21b834e9df 100644
+--- a/block/block-backend.c
++++ b/block/block-backend.c
+@@ -1852,7 +1852,7 @@ bool blk_supports_write_perm(BlockBackend *blk)
+     if (bs) {
+         return !bdrv_is_read_only(bs);
+     } else {
+-        return blk->root_state.open_flags & BDRV_O_RDWR;
++        return !blk->root_state.read_only;
+     }
+ }
+ 
+@@ -2269,6 +2269,7 @@ void blk_update_root_state(BlockBackend *blk)
+     assert(blk->root);
+ 
+     blk->root_state.open_flags    = blk->root->bs->open_flags;
++    blk->root_state.read_only     = bdrv_is_read_only(blk->root->bs);
+     blk->root_state.detect_zeroes = blk->root->bs->detect_zeroes;
+ }
+ 
+@@ -2287,7 +2288,12 @@ bool blk_get_detect_zeroes_from_root_state(BlockBackend *blk)
+  */
+ int blk_get_open_flags_from_root_state(BlockBackend *blk)
+ {
+-    return blk->root_state.open_flags;
++    int bs_flags;
++
++    bs_flags = blk->root_state.read_only ? 0 : BDRV_O_RDWR;
++    bs_flags |= blk->root_state.open_flags & ~BDRV_O_RDWR;
++
++    return bs_flags;
+ }
+ 
+ BlockBackendRootState *blk_get_root_state(BlockBackend *blk)
+diff --git a/blockdev.c b/blockdev.c
+index f08192deda..834c2304a1 100644
+--- a/blockdev.c
++++ b/blockdev.c
+@@ -583,7 +583,8 @@ static BlockBackend *blockdev_init(const char *file, QDict *bs_opts,
+ 
+         blk = blk_new(qemu_get_aio_context(), 0, BLK_PERM_ALL);
+         blk_rs = blk_get_root_state(blk);
+-        blk_rs->open_flags    = bdrv_flags | (read_only ? 0 : BDRV_O_RDWR);
++        blk_rs->open_flags    = bdrv_flags;
++        blk_rs->read_only     = read_only;
+         blk_rs->detect_zeroes = detect_zeroes;
+ 
+         qobject_unref(bs_opts);
+diff --git a/include/block/block_int.h b/include/block/block_int.h
+index 057d88b1fc..09661a134b 100644
+--- a/include/block/block_int.h
++++ b/include/block/block_int.h
+@@ -1007,6 +1007,7 @@ struct BlockDriverState {
+ 
+ struct BlockBackendRootState {
+     int open_flags;
++    bool read_only;
+     BlockdevDetectZeroesOptions detect_zeroes;
+ };
+ 

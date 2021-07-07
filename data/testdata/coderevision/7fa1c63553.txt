@@ -1,0 +1,35 @@
+diff --git a/block/meson.build b/block/meson.build
+index 01861e1545..9e3388f633 100644
+--- a/block/meson.build
++++ b/block/meson.build
+@@ -73,7 +73,7 @@ modsrc = []
+ foreach m : [
+   [curl, 'curl', files('curl.c')],
+   [glusterfs, 'gluster', files('gluster.c')],
+-  [libiscsi, 'iscsi', [files('iscsi.c'), libm]],
++  [libiscsi, 'iscsi', files('iscsi.c')],
+   [libnfs, 'nfs', files('nfs.c')],
+   [libssh, 'ssh', files('ssh.c')],
+   [rbd, 'rbd', files('rbd.c')],
+diff --git a/meson.build b/meson.build
+index 913cf2a41a..a45f1a844f 100644
+--- a/meson.build
++++ b/meson.build
+@@ -163,7 +163,7 @@ if targetos != 'linux' and get_option('multiprocess').enabled()
+ endif
+ multiprocess_allowed = targetos == 'linux' and not get_option('multiprocess').disabled()
+ 
+-libm = cc.find_library('m', required: false)
++m = cc.find_library('m', required: false)
+ util = cc.find_library('util', required: false)
+ winmm = []
+ socket = []
+@@ -1899,7 +1899,7 @@ util_ss.add_all(trace_ss)
+ util_ss = util_ss.apply(config_all, strict: false)
+ libqemuutil = static_library('qemuutil',
+                              sources: util_ss.sources() + stub_ss.sources() + genh,
+-                             dependencies: [util_ss.dependencies(), libm, glib, socket, malloc, pixman])
++                             dependencies: [util_ss.dependencies(), m, glib, socket, malloc, pixman])
+ qemuutil = declare_dependency(link_with: libqemuutil,
+                               sources: genh + version_res)
+ 

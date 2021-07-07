@@ -1,0 +1,18 @@
+commit c348458f357784629c36a6eb1493c0c0c33b74e7
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Wed May 19 11:08:03 2021 +0100
+
+    esp: correctly accumulate extended messages for PDMA
+    
+    Commit 799d90d818 "esp: transition to message out phase after SATN and stop
+    command" added logic to correctly handle extended messages for DMA requests
+    but not for PDMA requests.
+    
+    Apply the same logic in esp_do_dma() to do_dma_pdma_cb() so that extended
+    messages terminated with a PDMA request are accumulated correctly. This allows
+    the ESP device to respond correctly to the SDTR negotiation initiated by the
+    NetBSD ESP driver without causing errors and timeouts on boot.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Message-Id: <20210519100803.10293-6-mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

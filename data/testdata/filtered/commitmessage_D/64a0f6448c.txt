@@ -1,0 +1,13 @@
+commit 64a0f6448c6b4454c35e5a73e8be7dee0f852ba5
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Jun 1 16:35:16 2021 -0300
+
+    target/ppc: Move page crossing check to ppc_tr_translate_insn
+    
+    With prefixed instructions, the number of instructions
+    remaining until the page crossing is no longer constant.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Matheus Ferst <matheus.ferst@eldorado.org.br>
+    Message-Id: <20210601193528.2533031-3-matheus.ferst@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

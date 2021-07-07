@@ -1,0 +1,15 @@
+commit ca683d4a2fece0e6bf58f065baa1e23226c1ac06
+Author: John Snow <jsnow@redhat.com>
+Date:   Fri Jun 4 11:55:29 2021 -0400
+
+    scripts/qemu-ga-client: add mypy type hints
+    
+    This script is in slightly rough shape, but it still works. A lot of
+    care went into its initial development. In good faith, I'm updating it
+    to the latest Python coding standards. If there is in interest in this
+    script, though, I'll be asking for a contributor to take care of it
+    further.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210604155532.1499282-9-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

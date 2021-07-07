@@ -1,0 +1,14 @@
+commit f538adeccf4554e6402fe661a0a51bcc8d6bd227
+Author: Tom Lendacky <thomas.lendacky@amd.com>
+Date:   Fri Apr 23 15:08:17 2021 -0500
+
+    doc: Fix some mistakes in the SEV documentation
+    
+    Fix some spelling and grammar mistakes in the amd-memory-encryption.txt
+    file. No new information added.
+    
+    Signed-off-by: Tom Lendacky <thomas.lendacky@amd.com>
+    Reviewed-by: Laszlo Ersek <lersek@redhat.com>
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Message-Id: <a7c5ee6c056d840f46028f4a817c16a9862bdd9e.1619208498.git.thomas.lendacky@amd.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

@@ -1,0 +1,18 @@
+commit 507b6a500c2f0f6cf6182aa69efac4c20eb3e97b
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:15:45 2021 +0100
+
+    target/arm: Implement MVE VLDR/VSTR (non-widening forms)
+    
+    Implement the forms of the MVE VLDR and VSTR insns which perform
+    non-widening loads of bytes, halfwords or words from memory into
+    vector elements of the same width (encodings T5, T6, T7).
+    
+    (At the moment we know for MVE and M-profile in general that
+    vfp_access_check() can never return false, but we include the
+    conventional return-true-on-failure check for consistency
+    with non-M-profile translation code.)
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-2-peter.maydell@linaro.org

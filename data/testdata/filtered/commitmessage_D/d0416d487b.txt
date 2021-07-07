@@ -1,0 +1,14 @@
+commit d0416d487bd561526486c2e43910ea9494855e16
+Author: Jason Wang <jasowang@redhat.com>
+Date:   Thu Apr 15 15:33:56 2021 +0800
+
+    vhost-vdpa: map virtqueue notification area if possible
+    
+    This patch implements the vq notification mapping support for
+    vhost-vDPA. This is simply done by using mmap()/munmap() for the
+    vhost-vDPA fd during device start/stop. For the device without
+    notification mapping support, we fall back to eventfd based
+    notification gracefully.
+    
+    Reviewed-by: Si-Wei Liu <si-wei.liu@oracle.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

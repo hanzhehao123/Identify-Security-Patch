@@ -1,0 +1,454 @@
+diff --git a/migration/rdma.c b/migration/rdma.c
+index 00eac34232..1cdb4561f3 100644
+--- a/migration/rdma.c
++++ b/migration/rdma.c
+@@ -36,6 +36,7 @@
+ #include <rdma/rdma_cma.h>
+ #include "trace.h"
+ #include "qom/object.h"
++#include <poll.h>
+ 
+ /*
+  * Print and error on both the Monitor and the Log file.
+@@ -316,6 +317,7 @@ typedef struct RDMALocalBlocks {
+ typedef struct RDMAContext {
+     char *host;
+     int port;
++    char *host_port;
+ 
+     RDMAWorkRequestData wr_data[RDMA_WRID_MAX];
+ 
+@@ -987,10 +989,12 @@ static int qemu_rdma_resolve_host(RDMAContext *rdma, Error **errp)
+         }
+     }
+ 
++    rdma_freeaddrinfo(res);
+     ERROR(errp, "could not resolve address %s", rdma->host);
+     goto err_resolve_get_addr;
+ 
+ route:
++    rdma_freeaddrinfo(res);
+     qemu_rdma_dump_gid("source_resolve_addr", rdma->cm_id);
+ 
+     ret = rdma_get_cm_event(rdma->channel, &cm_event);
+@@ -2390,7 +2394,9 @@ static void qemu_rdma_cleanup(RDMAContext *rdma)
+         rdma->channel = NULL;
+     }
+     g_free(rdma->host);
++    g_free(rdma->host_port);
+     rdma->host = NULL;
++    rdma->host_port = NULL;
+ }
+ 
+ 
+@@ -2455,7 +2461,36 @@ err_rdma_source_init:
+     return -1;
+ }
+ 
+-static int qemu_rdma_connect(RDMAContext *rdma, Error **errp)
++static int qemu_get_cm_event_timeout(RDMAContext *rdma,
++                                     struct rdma_cm_event **cm_event,
++                                     long msec, Error **errp)
++{
++    int ret;
++    struct pollfd poll_fd = {
++                                .fd = rdma->channel->fd,
++                                .events = POLLIN,
++                                .revents = 0
++                            };
++
++    do {
++        ret = poll(&poll_fd, 1, msec);
++    } while (ret < 0 && errno == EINTR);
++
++    if (ret == 0) {
++        ERROR(errp, "poll cm event timeout");
++        return -1;
++    } else if (ret < 0) {
++        ERROR(errp, "failed to poll cm event, errno=%i", errno);
++        return -1;
++    } else if (poll_fd.revents & POLLIN) {
++        return rdma_get_cm_event(rdma->channel, cm_event);
++    } else {
++        ERROR(errp, "no POLLIN event, revent=%x", poll_fd.revents);
++        return -1;
++    }
++}
++
++static int qemu_rdma_connect(RDMAContext *rdma, Error **errp, bool return_path)
+ {
+     RDMACapabilities cap = {
+                                 .version = RDMA_CONTROL_VERSION_CURRENT,
+@@ -2493,11 +2528,14 @@ static int qemu_rdma_connect(RDMAContext *rdma, Error **errp)
+         goto err_rdma_source_connect;
+     }
+ 
+-    ret = rdma_get_cm_event(rdma->channel, &cm_event);
++    if (return_path) {
++        ret = qemu_get_cm_event_timeout(rdma, &cm_event, 5000, errp);
++    } else {
++        ret = rdma_get_cm_event(rdma->channel, &cm_event);
++    }
+     if (ret) {
+         perror("rdma_get_cm_event after rdma_connect");
+         ERROR(errp, "connecting to destination!");
+-        rdma_ack_cm_event(cm_event);
+         goto err_rdma_source_connect;
+     }
+ 
+@@ -2594,6 +2632,7 @@ static int qemu_rdma_dest_init(RDMAContext *rdma, Error **errp)
+         break;
+     }
+ 
++    rdma_freeaddrinfo(res);
+     if (!e) {
+         ERROR(errp, "Error: could not rdma_bind_addr!");
+         goto err_dest_init_bind_addr;
+@@ -2646,6 +2685,7 @@ static void *qemu_rdma_data_init(const char *host_port, Error **errp)
+         if (!inet_parse(addr, host_port, NULL)) {
+             rdma->port = atoi(addr->port);
+             rdma->host = g_strdup(addr->host);
++            rdma->host_port = g_strdup(host_port);
+         } else {
+             ERROR(errp, "bad RDMA migration address '%s'", host_port);
+             g_free(rdma);
+@@ -3274,6 +3314,7 @@ static int qemu_rdma_accept(RDMAContext *rdma)
+                                             .private_data = &cap,
+                                             .private_data_len = sizeof(cap),
+                                          };
++    RDMAContext *rdma_return_path = NULL;
+     struct rdma_cm_event *cm_event;
+     struct ibv_context *verbs;
+     int ret = -EINVAL;
+@@ -3289,6 +3330,20 @@ static int qemu_rdma_accept(RDMAContext *rdma)
+         goto err_rdma_dest_wait;
+     }
+ 
++    /*
++     * initialize the RDMAContext for return path for postcopy after first
++     * connection request reached.
++     */
++    if (migrate_postcopy() && !rdma->is_return_path) {
++        rdma_return_path = qemu_rdma_data_init(rdma->host_port, NULL);
++        if (rdma_return_path == NULL) {
++            rdma_ack_cm_event(cm_event);
++            goto err_rdma_dest_wait;
++        }
++
++        qemu_rdma_return_path_dest_init(rdma_return_path, rdma);
++    }
++
+     memcpy(&cap, cm_event->param.conn.private_data, sizeof(cap));
+ 
+     network_to_caps(&cap);
+@@ -3404,6 +3459,7 @@ static int qemu_rdma_accept(RDMAContext *rdma)
+ err_rdma_dest_wait:
+     rdma->error_state = ret;
+     qemu_rdma_cleanup(rdma);
++    g_free(rdma_return_path);
+     return ret;
+ }
+ 
+@@ -4041,29 +4097,22 @@ void rdma_start_incoming_migration(const char *host_port, Error **errp)
+ 
+     if (ret) {
+         ERROR(errp, "listening on socket!");
+-        goto err;
++        goto cleanup_rdma;
+     }
+ 
+     trace_rdma_start_incoming_migration_after_rdma_listen();
+ 
+-    /* initialize the RDMAContext for return path */
+-    if (migrate_postcopy()) {
+-        rdma_return_path = qemu_rdma_data_init(host_port, &local_err);
+-
+-        if (rdma_return_path == NULL) {
+-            goto err;
+-        }
+-
+-        qemu_rdma_return_path_dest_init(rdma_return_path, rdma);
+-    }
+-
+     qemu_set_fd_handler(rdma->channel->fd, rdma_accept_incoming_migration,
+                         NULL, (void *)(intptr_t)rdma);
+     return;
++
++cleanup_rdma:
++    qemu_rdma_cleanup(rdma);
+ err:
+     error_propagate(errp, local_err);
+     if (rdma) {
+         g_free(rdma->host);
++        g_free(rdma->host_port);
+     }
+     g_free(rdma);
+     g_free(rdma_return_path);
+@@ -4096,7 +4145,7 @@ void rdma_start_outgoing_migration(void *opaque,
+     }
+ 
+     trace_rdma_start_outgoing_migration_after_rdma_source_init();
+-    ret = qemu_rdma_connect(rdma, errp);
++    ret = qemu_rdma_connect(rdma, errp, false);
+ 
+     if (ret) {
+         goto err;
+@@ -4117,7 +4166,7 @@ void rdma_start_outgoing_migration(void *opaque,
+             goto return_path_err;
+         }
+ 
+-        ret = qemu_rdma_connect(rdma_return_path, errp);
++        ret = qemu_rdma_connect(rdma_return_path, errp, true);
+ 
+         if (ret) {
+             goto return_path_err;
+diff --git a/monitor/hmp-cmds.c b/monitor/hmp-cmds.c
+index d9bef63373..d10ee14110 100644
+--- a/monitor/hmp-cmds.c
++++ b/monitor/hmp-cmds.c
+@@ -1133,7 +1133,7 @@ void hmp_loadvm(Monitor *mon, const QDict *qdict)
+ 
+     vm_stop(RUN_STATE_RESTORE_VM);
+ 
+-    if (!load_snapshot(name, NULL, false, NULL, &err) && saved_vm_running) {
++    if (load_snapshot(name, NULL, false, NULL, &err) && saved_vm_running) {
+         vm_start();
+     }
+     hmp_handle_error(mon, err);
+diff --git a/target/m68k/translate.c b/target/m68k/translate.c
+index c774f2e8f0..200018ae6a 100644
+--- a/target/m68k/translate.c
++++ b/target/m68k/translate.c
+@@ -194,17 +194,6 @@ static void do_writebacks(DisasContext *s)
+     }
+ }
+ 
+-static bool is_singlestepping(DisasContext *s)
+-{
+-    /*
+-     * Return true if we are singlestepping either because of QEMU gdbstub
+-     * singlestep. This does not include the command line '-singlestep' mode
+-     * which is rather misnamed as it only means "one instruction per TB" and
+-     * doesn't affect the code we generate.
+-     */
+-    return s->base.singlestep_enabled;
+-}
+-
+ /* is_jmp field values */
+ #define DISAS_JUMP      DISAS_TARGET_0 /* only pc was modified dynamically */
+ #define DISAS_EXIT      DISAS_TARGET_1 /* cpu state was modified dynamically */
+@@ -1517,7 +1506,7 @@ static inline bool use_goto_tb(DisasContext *s, uint32_t dest)
+ /* Generate a jump to an immediate address.  */
+ static void gen_jmp_tb(DisasContext *s, int n, uint32_t dest)
+ {
+-    if (unlikely(is_singlestepping(s))) {
++    if (unlikely(s->base.singlestep_enabled)) {
+         gen_exception(s, dest, EXCP_DEBUG);
+     } else if (use_goto_tb(s, dest)) {
+         tcg_gen_goto_tb(n);
+@@ -6256,7 +6245,7 @@ static void m68k_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
+         break;
+     case DISAS_TOO_MANY:
+         update_cc_op(dc);
+-        if (is_singlestepping(dc)) {
++        if (dc->base.singlestep_enabled) {
+             tcg_gen_movi_i32(QREG_PC, dc->pc);
+             gen_raise_exception(EXCP_DEBUG);
+         } else {
+@@ -6265,7 +6254,7 @@ static void m68k_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
+         break;
+     case DISAS_JUMP:
+         /* We updated CC_OP and PC in gen_jmp/gen_jmp_im.  */
+-        if (is_singlestepping(dc)) {
++        if (dc->base.singlestep_enabled) {
+             gen_raise_exception(EXCP_DEBUG);
+         } else {
+             tcg_gen_lookup_and_goto_ptr();
+@@ -6276,7 +6265,7 @@ static void m68k_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
+          * We updated CC_OP and PC in gen_exit_tb, but also modified
+          * other state that may require returning to the main loop.
+          */
+-        if (is_singlestepping(dc)) {
++        if (dc->base.singlestep_enabled) {
+             gen_raise_exception(EXCP_DEBUG);
+         } else {
+             tcg_gen_exit_tb(NULL, 0);
+diff --git a/tools/virtiofsd/buffer.c b/tools/virtiofsd/buffer.c
+index 874f01c488..b5f04be356 100644
+--- a/tools/virtiofsd/buffer.c
++++ b/tools/virtiofsd/buffer.c
+@@ -37,7 +37,7 @@ static ssize_t fuse_buf_writev(struct fuse_buf *out_buf,
+     struct iovec *iov;
+     int fd = out_buf->fd;
+ 
+-    iov = calloc(iovcnt, sizeof(struct iovec));
++    iov = g_try_new0(struct iovec, iovcnt);
+     if (!iov) {
+         return -ENOMEM;
+     }
+@@ -61,7 +61,7 @@ static ssize_t fuse_buf_writev(struct fuse_buf *out_buf,
+         res = -errno;
+     }
+ 
+-    free(iov);
++    g_free(iov);
+     return res;
+ }
+ 
+diff --git a/tools/virtiofsd/fuse_opt.c b/tools/virtiofsd/fuse_opt.c
+index f0ab8d22f4..9d371448e9 100644
+--- a/tools/virtiofsd/fuse_opt.c
++++ b/tools/virtiofsd/fuse_opt.c
+@@ -272,7 +272,7 @@ static int process_opt_sep_arg(struct fuse_opt_context *ctx,
+     }
+ 
+     param = ctx->argv[ctx->argctr];
+-    newarg = malloc(sep + strlen(param) + 1);
++    newarg = g_try_malloc(sep + strlen(param) + 1);
+     if (!newarg) {
+         return alloc_failed();
+     }
+@@ -280,7 +280,7 @@ static int process_opt_sep_arg(struct fuse_opt_context *ctx,
+     memcpy(newarg, arg, sep);
+     strcpy(newarg + sep, param);
+     res = process_opt(ctx, opt, sep, newarg, iso);
+-    free(newarg);
++    g_free(newarg);
+ 
+     return res;
+ }
+diff --git a/tools/virtiofsd/fuse_virtio.c b/tools/virtiofsd/fuse_virtio.c
+index 9efdbd8ffd..fa4aff9b0e 100644
+--- a/tools/virtiofsd/fuse_virtio.c
++++ b/tools/virtiofsd/fuse_virtio.c
+@@ -366,14 +366,12 @@ int virtio_send_data_iov(struct fuse_session *se, struct fuse_chan *ch,
+     if (in_len < sizeof(struct fuse_out_header)) {
+         fuse_log(FUSE_LOG_ERR, "%s: elem %d too short for out_header\n",
+                  __func__, elem->index);
+-        ret = E2BIG;
+-        goto err;
++        return E2BIG;
+     }
+     if (in_len < tosend_len) {
+         fuse_log(FUSE_LOG_ERR, "%s: elem %d too small for data len %zd\n",
+                  __func__, elem->index, tosend_len);
+-        ret = E2BIG;
+-        goto err;
++        return E2BIG;
+     }
+ 
+     /* TODO: Limit to 'len' */
+@@ -389,68 +387,46 @@ int virtio_send_data_iov(struct fuse_session *se, struct fuse_chan *ch,
+     memcpy(in_sg_cpy, in_sg, sizeof(struct iovec) * in_num);
+     /* These get updated as we skip */
+     struct iovec *in_sg_ptr = in_sg_cpy;
+-    int in_sg_cpy_count = in_num;
++    unsigned int in_sg_cpy_count = in_num;
+ 
+     /* skip over parts of in_sg that contained the header iov */
+-    size_t skip_size = iov_len;
++    iov_discard_front(&in_sg_ptr, &in_sg_cpy_count, iov_len);
+ 
+-    size_t in_sg_left = 0;
+     do {
+-        while (skip_size != 0 && in_sg_cpy_count) {
+-            if (skip_size >= in_sg_ptr[0].iov_len) {
+-                skip_size -= in_sg_ptr[0].iov_len;
+-                in_sg_ptr++;
+-                in_sg_cpy_count--;
+-            } else {
+-                in_sg_ptr[0].iov_len -= skip_size;
+-                in_sg_ptr[0].iov_base += skip_size;
+-                break;
+-            }
+-        }
++        fuse_log(FUSE_LOG_DEBUG, "%s: in_sg_cpy_count=%d len remaining=%zd\n",
++                 __func__, in_sg_cpy_count, len);
+ 
+-        int i;
+-        for (i = 0, in_sg_left = 0; i < in_sg_cpy_count; i++) {
+-            in_sg_left += in_sg_ptr[i].iov_len;
+-        }
+-        fuse_log(FUSE_LOG_DEBUG,
+-                 "%s: after skip skip_size=%zd in_sg_cpy_count=%d "
+-                 "in_sg_left=%zd\n",
+-                 __func__, skip_size, in_sg_cpy_count, in_sg_left);
+         ret = preadv(buf->buf[0].fd, in_sg_ptr, in_sg_cpy_count,
+                      buf->buf[0].pos);
+ 
+         if (ret == -1) {
+             ret = errno;
++            if (ret == EINTR) {
++                continue;
++            }
+             fuse_log(FUSE_LOG_DEBUG, "%s: preadv failed (%m) len=%zd\n",
+                      __func__, len);
+-            goto err;
++            return ret;
+         }
+-        fuse_log(FUSE_LOG_DEBUG, "%s: preadv ret=%d len=%zd\n", __func__,
+-                 ret, len);
+-        if (ret < len && ret) {
+-            fuse_log(FUSE_LOG_DEBUG, "%s: ret < len\n", __func__);
+-            /* Skip over this much next time around */
+-            skip_size = ret;
+-            buf->buf[0].pos += ret;
+-            len -= ret;
+ 
+-            /* Lets do another read */
+-            continue;
+-        }
+         if (!ret) {
+             /* EOF case? */
+-            fuse_log(FUSE_LOG_DEBUG, "%s: !ret in_sg_left=%zd\n", __func__,
+-                     in_sg_left);
++            fuse_log(FUSE_LOG_DEBUG, "%s: !ret len remaining=%zd\n", __func__,
++                     len);
+             break;
+         }
+-        if (ret != len) {
+-            fuse_log(FUSE_LOG_DEBUG, "%s: ret!=len\n", __func__);
+-            ret = EIO;
+-            goto err;
+-        }
+-        in_sg_left -= ret;
++        fuse_log(FUSE_LOG_DEBUG, "%s: preadv ret=%d len=%zd\n", __func__,
++                 ret, len);
++
+         len -= ret;
+-    } while (in_sg_left);
++        /* Short read. Retry reading remaining bytes */
++        if (len) {
++            fuse_log(FUSE_LOG_DEBUG, "%s: ret < len\n", __func__);
++            /* Skip over this much next time around */
++            iov_discard_front(&in_sg_ptr, &in_sg_cpy_count, ret);
++            buf->buf[0].pos += ret;
++        }
++    } while (len);
+ 
+     /* Need to fix out->len on EOF */
+     if (len) {
+@@ -460,21 +436,14 @@ int virtio_send_data_iov(struct fuse_session *se, struct fuse_chan *ch,
+         out_sg->len = tosend_len;
+     }
+ 
+-    ret = 0;
+-
+     vu_dispatch_rdlock(qi->virtio_dev);
+     pthread_mutex_lock(&qi->vq_lock);
+     vu_queue_push(dev, q, elem, tosend_len);
+     vu_queue_notify(dev, q);
+     pthread_mutex_unlock(&qi->vq_lock);
+     vu_dispatch_unlock(qi->virtio_dev);
+-
+-err:
+-    if (ret == 0) {
+-        req->reply_sent = true;
+-    }
+-
+-    return ret;
++    req->reply_sent = true;
++    return 0;
+ }
+ 
+ static __thread bool clone_fs_called;

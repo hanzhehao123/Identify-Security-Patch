@@ -1,0 +1,12 @@
+commit baa94c0d333b5eccd68450625e0c3960e85d1913
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sun Jan 31 23:26:14 2021 -1000
+
+    tcg/tci: Reserve r13 for a temporary
+    
+    We're about to adjust the offset range on host memory ops,
+    and the format of branches.  Both will require a temporary.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

@@ -1,0 +1,43 @@
+commit 3bf0844f3be77b24cc8f56fc8df9ff199f8324cb
+Author: Greg Kurz <groug@kaod.org>
+Date:   Fri May 21 18:07:35 2021 +0200
+
+    spapr: Don't hijack current_machine->boot_order
+    
+    QEMU 6.0 moved all the -boot variables to the machine. Especially, the
+    removal of the boot_order static changed the handling of '-boot once'
+    from:
+    
+        if (boot_once) {
+            qemu_boot_set(boot_once, &error_fatal);
+            qemu_register_reset(restore_boot_order, g_strdup(boot_order));
+        }
+    
+    to
+    
+        if (current_machine->boot_once) {
+            qemu_boot_set(current_machine->boot_once, &error_fatal);
+            qemu_register_reset(restore_boot_order,
+                                g_strdup(current_machine->boot_order));
+        }
+    
+    This means that we now register as subsequent boot order a copy
+    of current_machine->boot_once that was just set with the previous
+    call to qemu_boot_set(), i.e. we never transition away from the
+    once boot order.
+    
+    It is certainly fragile^Wwrong for the spapr code to hijack a
+    field of the base machine type object like that. The boot order
+    rework simply turned this software boundary violation into an
+    actual bug.
+    
+    Have the spapr code to handle that with its own field in
+    SpaprMachineState. Also kfree() the initial boot device
+    string when "once" was used.
+    
+    Fixes: 4b7acd2ac821 ("vl: clean up -boot variables")
+    Resolves: https://bugzilla.redhat.com/show_bug.cgi?id=1960119
+    Cc: pbonzini@redhat.com
+    Signed-off-by: Greg Kurz <groug@kaod.org>
+    Message-Id: <20210521160735.1901914-1-groug@kaod.org>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

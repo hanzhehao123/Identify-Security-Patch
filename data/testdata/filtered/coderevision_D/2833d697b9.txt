@@ -1,0 +1,21 @@
+diff --git a/audio/jackaudio.c b/audio/jackaudio.c
+index e7de6d5433..3031c4e29b 100644
+--- a/audio/jackaudio.c
++++ b/audio/jackaudio.c
+@@ -26,6 +26,7 @@
+ #include "qemu/module.h"
+ #include "qemu/atomic.h"
+ #include "qemu/main-loop.h"
++#include "qemu-common.h"
+ #include "audio.h"
+ 
+ #define AUDIO_CAP "jack"
+@@ -411,7 +412,7 @@ static int qjack_client_init(QJackClient *c)
+ 
+     snprintf(client_name, sizeof(client_name), "%s-%s",
+         c->out ? "out" : "in",
+-        c->opt->client_name ? c->opt->client_name : audio_application_name());
++        c->opt->client_name ? c->opt->client_name : qemu_get_vm_name());
+ 
+     if (c->opt->exact_name) {
+         options |= JackUseExactName;

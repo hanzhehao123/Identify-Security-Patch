@@ -1,0 +1,13 @@
+commit bd35f2ceac5e933f8eb168866e8899a36e32317d
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Mar 9 11:45:19 2021 -0600
+
+    tcg: Remove error return from tcg_region_initial_alloc__locked
+    
+    All callers immediately assert on error, so move the assert
+    into the function itself.
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

@@ -1,0 +1,11 @@
+commit 8ae5719cd4d315dba688efbfa092dd063be6f81c
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 21 18:02:23 2020 -0800
+
+    softfloat: Convert floatx80 float conversions to FloatParts
+    
+    This is the last use of commonNaNT and all of the routines
+    that use it, so remove all of them for Werror.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

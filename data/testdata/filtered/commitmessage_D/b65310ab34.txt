@@ -1,0 +1,14 @@
+commit b65310ab34cbada47a5570c94d6f8f5efd39d171
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Fri Jun 4 14:09:15 2021 +0200
+
+    vnc: avoid deprecation warnings for SASL on OS X
+    
+    Apple has deprecated sasl.h functions in OS X 10.11.  Therefore,
+    all files that use SASL API need to disable -Wdeprecated-declarations.
+    Remove the only use that is outside vnc-auth-sasl.c and add the
+    relevant #pragma GCC diagnostic there.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Message-Id: <20210604120915.286195-1-pbonzini@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

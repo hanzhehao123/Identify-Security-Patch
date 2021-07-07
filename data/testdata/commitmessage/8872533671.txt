@@ -1,0 +1,18 @@
+commit 88725336717ab93a194bd1b100179b6a96983988
+Author: Taylor Simpson <tsimpson@quicinc.com>
+Date:   Tue Jun 1 18:19:43 2021 -0500
+
+    Hexagon (target/hexagon) cleanup gen_store_conditional[48] functions
+    
+    Previously the store-conditional code was writing to hex_pred[prednum].
+    Then, the fGEN_TCG override was reading from there to the destination
+    variable so that the packet commit logic would handle it properly.
+    
+    The correct implementation is to write to the destination variable
+    and don't have the extra read in the override.
+    
+    Remove the unused arguments from gen_store_conditional[48]
+    
+    Signed-off-by: Taylor Simpson <tsimpson@quicinc.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <1622589584-22571-4-git-send-email-tsimpson@quicinc.com>

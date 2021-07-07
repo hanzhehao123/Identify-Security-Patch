@@ -1,0 +1,60 @@
+commit d94e0bc9ef7848f69550a80e7be6d4de68856e46
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 10 13:43:22 2021 +0200
+
+    util/mmap-alloc: Support RAM_NORESERVE via MAP_NORESERVE under Linux
+    
+    Let's support RAM_NORESERVE via MAP_NORESERVE on Linux. The flag has no
+    effect on most shared mappings - except for hugetlbfs and anonymous memory.
+    
+    Linux man page:
+      "MAP_NORESERVE: Do not reserve swap space for this mapping. When swap
+      space is reserved, one has the guarantee that it is possible to modify
+      the mapping. When swap space is not reserved one might get SIGSEGV
+      upon a write if no physical memory is available. See also the discussion
+      of the file /proc/sys/vm/overcommit_memory in proc(5). In kernels before
+      2.6, this flag had effect only for private writable mappings."
+    
+    Note that the "guarantee" part is wrong with memory overcommit in Linux.
+    
+    Also, in Linux hugetlbfs is treated differently - we configure reservation
+    of huge pages from the pool, not reservation of swap space (huge pages
+    cannot be swapped).
+    
+    The rough behavior is [1]:
+    a) !Hugetlbfs:
+    
+      1) Without MAP_NORESERVE *or* with memory overcommit under Linux
+         disabled ("/proc/sys/vm/overcommit_memory == 2"), the following
+         accounting/reservation happens:
+          For a file backed map
+           SHARED or READ-only - 0 cost (the file is the map not swap)
+           PRIVATE WRITABLE - size of mapping per instance
+    
+          For an anonymous or /dev/zero map
+           SHARED   - size of mapping
+           PRIVATE READ-only - 0 cost (but of little use)
+           PRIVATE WRITABLE - size of mapping per instance
+    
+      2) With MAP_NORESERVE, no accounting/reservation happens.
+    
+    b) Hugetlbfs:
+    
+      1) Without MAP_NORESERVE, huge pages are reserved.
+    
+      2) With MAP_NORESERVE, no huge pages are reserved.
+    
+    Note: With "/proc/sys/vm/overcommit_memory == 0", we were already able
+    to configure it for !hugetlbfs globally; this toggle now allows
+    configuring it more fine-grained, not for the whole system.
+    
+    The target use case is virtio-mem, which dynamically exposes memory
+    inside a large, sparse memory area to the VM.
+    
+    [1] https://www.kernel.org/doc/Documentation/vm/overcommit-accounting
+    
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com> for memory backend and machine core
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210510114328.21835-10-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

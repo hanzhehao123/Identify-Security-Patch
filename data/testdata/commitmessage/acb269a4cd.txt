@@ -1,0 +1,10 @@
+commit acb269a4cdeeafb027c350348f3137916e580746
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:25 2021 +0200
+
+    s390x/tcg: Implement 32/128 bit for VECTOR (LOAD FP INTEGER|FP SQUARE ROOT)
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-15-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

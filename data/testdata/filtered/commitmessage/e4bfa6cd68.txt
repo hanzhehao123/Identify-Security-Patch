@@ -1,0 +1,43 @@
+commit e4bfa6cd68e0b19f42c0c4ef26c024d39ebab044
+Merge: 8f521741e1 bbfb7c2f35
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Sun Jun 20 21:20:13 2021 +0100
+
+    Merge remote-tracking branch 'remotes/ericb/tags/pull-nbd-2021-06-15-v2' into staging
+    
+    nbd patches for 2021-06-15
+    
+    - bug fixes in coroutine aio context handling
+    - rework NBD client connection logic to perform more work in coroutine
+    
+    # gpg: Signature made Fri 18 Jun 2021 18:29:39 BST
+    # gpg:                using RSA key 71C2CC22B1C4602927D2F3AAA7A16B4A2527436A
+    # gpg: Good signature from "Eric Blake <eblake@redhat.com>" [full]
+    # gpg:                 aka "Eric Blake (Free Software Programmer) <ebb9@byu.net>" [full]
+    # gpg:                 aka "[jpeg image of size 6874]" [full]
+    # Primary key fingerprint: 71C2 CC22 B1C4 6029 27D2  F3AA A7A1 6B4A 2527 436A
+    
+    * remotes/ericb/tags/pull-nbd-2021-06-15-v2: (34 commits)
+      block/nbd: safer transition to receiving request
+      block/nbd: add nbd_client_connected() helper
+      block/nbd: reuse nbd_co_do_establish_connection() in nbd_open()
+      nbd/client-connection: add option for non-blocking connection attempt
+      block/nbd: split nbd_co_do_establish_connection out of nbd_reconnect_attempt
+      block-coroutine-wrapper: allow non bdrv_ prefix
+      nbd/client-connection: return only one io channel
+      block/nbd: drop BDRVNBDState::sioc
+      block/nbd: don't touch s->sioc in nbd_teardown_connection()
+      block/nbd: use negotiation of NBDClientConnection
+      block/nbd: split nbd_handle_updated_info out of nbd_client_handshake()
+      nbd/client-connection: shutdown connection on release
+      nbd/client-connection: implement connection retry
+      nbd/client-connection: add possibility of negotiation
+      nbd/client-connection: use QEMU_LOCK_GUARD
+      nbd: move connection code from block/nbd to nbd/client-connection
+      block/nbd: introduce nbd_client_connection_release()
+      block/nbd: introduce nbd_client_connection_new()
+      block/nbd: rename NBDConnectThread to NBDClientConnection
+      block/nbd: make nbd_co_establish_connection_cancel() bs-independent
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

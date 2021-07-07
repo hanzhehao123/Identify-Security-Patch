@@ -1,0 +1,15 @@
+commit fb3c0334dedc09994359b213df303440a8ee6edd
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Wed May 19 20:54:57 2021 +0200
+
+    gitlab: Extract container job template to container-template.yml
+    
+    Extract the container job template to a new file
+    (container-template.yml) to be able to reuse it
+    without having to run all the jobs included, which
+    are mainly useful for mainstream CI.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210519185504.2198573-4-f4bug@amsat.org>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

@@ -1,0 +1,21 @@
+commit 0599a046acf1b625e97cef0aa702b5d86528c642
+Author: Eric Farman <farman@linux.ibm.com>
+Date:   Fri Jun 18 01:25:36 2021 +0200
+
+    s390x/css: Refactor IRB construction
+    
+    Currently, all subchannel types have "sense data" copied into
+    the IRB.ECW space, and a couple flags enabled in the IRB.SCSW
+    and IRB.ESW. But for passthrough (vfio-ccw) subchannels,
+    this data isn't populated in the first place, so enabling
+    those flags leads to unexpected behavior if the guest tries to
+    process the sense data (zeros) in the IRB.ECW.
+    
+    Let's add a subchannel callback that builds these portions of
+    the IRB, and move the existing code into a routine for those
+    virtual subchannels. The passthrough subchannels will be able
+    to piggy-back onto this later.
+    
+    Signed-off-by: Eric Farman <farman@linux.ibm.com>
+    Message-Id: <20210617232537.1337506-4-farman@linux.ibm.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

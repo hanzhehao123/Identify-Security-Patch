@@ -1,0 +1,115 @@
+diff --git a/qapi/ui.json b/qapi/ui.json
+index fd9677d48e..90b44c5c5c 100644
+--- a/qapi/ui.json
++++ b/qapi/ui.json
+@@ -1130,16 +1130,9 @@
+ #
+ ##
+ { 'enum'    : 'DisplayType',
+-  'data'    : [
+-    { 'name': 'default' },
+-    { 'name': 'none' },
+-    { 'name': 'gtk', 'if': 'defined(CONFIG_GTK)' },
+-    { 'name': 'sdl', 'if': 'defined(CONFIG_SDL)' },
+-    { 'name': 'egl-headless',
+-              'if': 'defined(CONFIG_OPENGL) && defined(CONFIG_GBM)' },
+-    { 'name': 'curses', 'if': 'defined(CONFIG_CURSES)' },
+-    { 'name': 'cocoa', 'if': 'defined(CONFIG_COCOA)' },
+-    { 'name': 'spice-app', 'if': 'defined(CONFIG_SPICE)'} ] }
++  'data'    : [ 'default', 'none', 'gtk', 'sdl',
++                'egl-headless', 'curses', 'cocoa',
++                'spice-app'] }
+ 
+ ##
+ # @DisplayOptions:
+@@ -1163,13 +1156,9 @@
+                 '*show-cursor'   : 'bool',
+                 '*gl'            : 'DisplayGLMode' },
+   'discriminator' : 'type',
+-  'data'    : {
+-      'gtk': { 'type': 'DisplayGTK', 'if': 'defined(CONFIG_GTK)' },
+-      'curses': { 'type': 'DisplayCurses', 'if': 'defined(CONFIG_CURSES)' },
+-      'egl-headless': { 'type': 'DisplayEGLHeadless',
+-                        'if': 'defined(CONFIG_OPENGL) && defined(CONFIG_GBM)' }
+-  }
+-}
++  'data'    : { 'gtk'            : 'DisplayGTK',
++                'curses'         : 'DisplayCurses',
++                'egl-headless'   : 'DisplayEGLHeadless'} }
+ 
+ ##
+ # @query-display-options:
+diff --git a/softmmu/vl.c b/softmmu/vl.c
+index d99e2cbdbf..feb4d201f3 100644
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
+@@ -1068,7 +1068,6 @@ static void parse_display(const char *p)
+          *     Not clear yet what happens to them long-term.  Should
+          *     replaced by something better or deprecated and dropped.
+          */
+-#if defined(CONFIG_SDL)
+         dpy.type = DISPLAY_TYPE_SDL;
+         while (*opts) {
+             const char *nextopt;
+@@ -1132,10 +1131,6 @@ static void parse_display(const char *p)
+             }
+             opts = nextopt;
+         }
+-#else
+-        error_report("SDL display supported is not available in this binary");
+-        exit(1);
+-#endif
+     } else if (strstart(p, "vnc", &opts)) {
+         /*
+          * vnc isn't a (local) DisplayType but a protocol for remote
+@@ -1872,22 +1867,13 @@ static void qemu_apply_machine_options(void)
+ static void qemu_create_early_backends(void)
+ {
+     MachineClass *machine_class = MACHINE_GET_CLASS(current_machine);
+-#if defined(CONFIG_SDL)
+-    const bool use_sdl = (dpy.type == DISPLAY_TYPE_SDL);
+-#else
+-    const bool use_sdl = false;
+-#endif
+-#if defined(CONFIG_GTK)
+-    const bool use_gtk = (dpy.type == DISPLAY_TYPE_GTK);
+-#else
+-    const bool use_gtk = false;
+-#endif
+ 
+-    if ((alt_grab || ctrl_grab) && !use_sdl) {
++    if ((alt_grab || ctrl_grab) && dpy.type != DISPLAY_TYPE_SDL) {
+         error_report("-alt-grab and -ctrl-grab are only valid "
+                      "for SDL, ignoring option");
+     }
+-    if (dpy.has_window_close && !use_gtk && !use_sdl) {
++    if (dpy.has_window_close &&
++        (dpy.type != DISPLAY_TYPE_GTK && dpy.type != DISPLAY_TYPE_SDL)) {
+         error_report("-no-quit is only valid for GTK and SDL, "
+                      "ignoring option");
+     }
+diff --git a/ui/console.c b/ui/console.c
+index 1103b65314..2de5f4105b 100644
+--- a/ui/console.c
++++ b/ui/console.c
+@@ -2370,19 +2370,13 @@ void qemu_display_register(QemuDisplay *ui)
+ bool qemu_display_find_default(DisplayOptions *opts)
+ {
+     static DisplayType prio[] = {
+-#if defined(CONFIG_GTK)
+         DISPLAY_TYPE_GTK,
+-#endif
+-#if defined(CONFIG_SDL)
+         DISPLAY_TYPE_SDL,
+-#endif
+-#if defined(CONFIG_COCOA)
+         DISPLAY_TYPE_COCOA
+-#endif
+     };
+     int i;
+ 
+-    for (i = 0; i < (int)ARRAY_SIZE(prio); i++) {
++    for (i = 0; i < ARRAY_SIZE(prio); i++) {
+         if (dpys[prio[i]] == NULL) {
+             ui_module_load_one(DisplayType_str(prio[i]));
+         }

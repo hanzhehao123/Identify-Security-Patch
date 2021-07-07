@@ -1,0 +1,12 @@
+commit 0cf1a52d289d69461df0d984aa50ec61f8a21c30
+Author: John Snow <jsnow@redhat.com>
+Date:   Fri Jun 4 11:55:25 2021 -0400
+
+    scripts/qemu-ga-client: replace deprecated optparse with argparse
+    
+    optparse isn't supported anymore, it's from the python2 days. Replace it
+    with the mostly similar argparse.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210604155532.1499282-5-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

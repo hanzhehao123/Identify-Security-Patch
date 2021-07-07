@@ -1,0 +1,11 @@
+commit 9a3ee36609da355a5a9c86512e5003ce6a9a2239
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Fri Mar 19 13:01:32 2021 -0600
+
+    accel/tcg/plugin-gen: Drop inline markers
+    
+    Let the compiler decide on inlining.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

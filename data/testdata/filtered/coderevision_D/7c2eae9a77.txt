@@ -1,0 +1,35 @@
+diff --git a/net/filter-mirror.c b/net/filter-mirror.c
+index f20240cc9f..f8e65007c0 100644
+--- a/net/filter-mirror.c
++++ b/net/filter-mirror.c
+@@ -88,7 +88,7 @@ static int filter_send(MirrorState *s,
+         goto err;
+     }
+ 
+-    return size;
++    return 0;
+ 
+ err:
+     return ret < 0 ? ret : -EIO;
+@@ -159,7 +159,7 @@ static ssize_t filter_mirror_receive_iov(NetFilterState *nf,
+     int ret;
+ 
+     ret = filter_send(s, iov, iovcnt);
+-    if (ret < 0) {
++    if (ret) {
+         error_report("filter mirror send failed(%s)", strerror(-ret));
+     }
+ 
+@@ -182,10 +182,10 @@ static ssize_t filter_redirector_receive_iov(NetFilterState *nf,
+ 
+     if (qemu_chr_fe_backend_connected(&s->chr_out)) {
+         ret = filter_send(s, iov, iovcnt);
+-        if (ret < 0) {
++        if (ret) {
+             error_report("filter redirector send failed(%s)", strerror(-ret));
+         }
+-        return ret;
++        return iov_size(iov, iovcnt);
+     } else {
+         return 0;
+     }

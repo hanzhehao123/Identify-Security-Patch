@@ -1,0 +1,13 @@
+commit e6de9ce90a67960a6477da5a5c69c19ce390ed1d
+Author: John Snow <jsnow@redhat.com>
+Date:   Fri Jun 4 11:55:24 2021 -0400
+
+    scripts/qemu-ga-client: Fix exception handling
+    
+    Fixes: 50d189c
+    
+    These error classes aren't available anymore. Fix the bitrot.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210604155532.1499282-4-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

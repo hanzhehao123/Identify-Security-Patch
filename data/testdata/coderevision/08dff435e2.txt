@@ -1,0 +1,295 @@
+diff --git a/accel/tcg/atomic_template.h b/accel/tcg/atomic_template.h
+index afa8a9daf3..0ff7f913e1 100644
+--- a/accel/tcg/atomic_template.h
++++ b/accel/tcg/atomic_template.h
+@@ -74,7 +74,7 @@ ABI_TYPE ATOMIC_NAME(cmpxchg)(CPUArchState *env, target_ulong addr,
+                               ABI_TYPE cmpv, ABI_TYPE newv EXTRA_ARGS)
+ {
+     ATOMIC_MMU_DECLS;
+-    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP_RW;
++    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP;
+     DATA_TYPE ret;
+     uint16_t info = trace_mem_build_info(SHIFT, false, 0, false,
+                                          ATOMIC_MMU_IDX);
+@@ -95,7 +95,7 @@ ABI_TYPE ATOMIC_NAME(cmpxchg)(CPUArchState *env, target_ulong addr,
+ ABI_TYPE ATOMIC_NAME(ld)(CPUArchState *env, target_ulong addr EXTRA_ARGS)
+ {
+     ATOMIC_MMU_DECLS;
+-    DATA_TYPE val, *haddr = ATOMIC_MMU_LOOKUP_R;
++    DATA_TYPE val, *haddr = ATOMIC_MMU_LOOKUP;
+     uint16_t info = trace_mem_build_info(SHIFT, false, 0, false,
+                                          ATOMIC_MMU_IDX);
+ 
+@@ -110,7 +110,7 @@ void ATOMIC_NAME(st)(CPUArchState *env, target_ulong addr,
+                      ABI_TYPE val EXTRA_ARGS)
+ {
+     ATOMIC_MMU_DECLS;
+-    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP_W;
++    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP;
+     uint16_t info = trace_mem_build_info(SHIFT, false, 0, true,
+                                          ATOMIC_MMU_IDX);
+ 
+@@ -125,7 +125,7 @@ ABI_TYPE ATOMIC_NAME(xchg)(CPUArchState *env, target_ulong addr,
+                            ABI_TYPE val EXTRA_ARGS)
+ {
+     ATOMIC_MMU_DECLS;
+-    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP_RW;
++    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP;
+     DATA_TYPE ret;
+     uint16_t info = trace_mem_build_info(SHIFT, false, 0, false,
+                                          ATOMIC_MMU_IDX);
+@@ -142,7 +142,7 @@ ABI_TYPE ATOMIC_NAME(X)(CPUArchState *env, target_ulong addr,       \
+                         ABI_TYPE val EXTRA_ARGS)                    \
+ {                                                                   \
+     ATOMIC_MMU_DECLS;                                               \
+-    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP_RW;                        \
++    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP;                           \
+     DATA_TYPE ret;                                                  \
+     uint16_t info = trace_mem_build_info(SHIFT, false, 0, false,    \
+                                          ATOMIC_MMU_IDX);           \
+@@ -176,7 +176,7 @@ ABI_TYPE ATOMIC_NAME(X)(CPUArchState *env, target_ulong addr,       \
+                         ABI_TYPE xval EXTRA_ARGS)                   \
+ {                                                                   \
+     ATOMIC_MMU_DECLS;                                               \
+-    XDATA_TYPE *haddr = ATOMIC_MMU_LOOKUP_RW;                       \
++    XDATA_TYPE *haddr = ATOMIC_MMU_LOOKUP;                          \
+     XDATA_TYPE cmp, old, new, val = xval;                           \
+     uint16_t info = trace_mem_build_info(SHIFT, false, 0, false,    \
+                                          ATOMIC_MMU_IDX);           \
+@@ -221,7 +221,7 @@ ABI_TYPE ATOMIC_NAME(cmpxchg)(CPUArchState *env, target_ulong addr,
+                               ABI_TYPE cmpv, ABI_TYPE newv EXTRA_ARGS)
+ {
+     ATOMIC_MMU_DECLS;
+-    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP_RW;
++    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP;
+     DATA_TYPE ret;
+     uint16_t info = trace_mem_build_info(SHIFT, false, MO_BSWAP, false,
+                                          ATOMIC_MMU_IDX);
+@@ -242,7 +242,7 @@ ABI_TYPE ATOMIC_NAME(cmpxchg)(CPUArchState *env, target_ulong addr,
+ ABI_TYPE ATOMIC_NAME(ld)(CPUArchState *env, target_ulong addr EXTRA_ARGS)
+ {
+     ATOMIC_MMU_DECLS;
+-    DATA_TYPE val, *haddr = ATOMIC_MMU_LOOKUP_R;
++    DATA_TYPE val, *haddr = ATOMIC_MMU_LOOKUP;
+     uint16_t info = trace_mem_build_info(SHIFT, false, MO_BSWAP, false,
+                                          ATOMIC_MMU_IDX);
+ 
+@@ -257,7 +257,7 @@ void ATOMIC_NAME(st)(CPUArchState *env, target_ulong addr,
+                      ABI_TYPE val EXTRA_ARGS)
+ {
+     ATOMIC_MMU_DECLS;
+-    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP_W;
++    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP;
+     uint16_t info = trace_mem_build_info(SHIFT, false, MO_BSWAP, true,
+                                          ATOMIC_MMU_IDX);
+ 
+@@ -274,7 +274,7 @@ ABI_TYPE ATOMIC_NAME(xchg)(CPUArchState *env, target_ulong addr,
+                            ABI_TYPE val EXTRA_ARGS)
+ {
+     ATOMIC_MMU_DECLS;
+-    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP_RW;
++    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP;
+     ABI_TYPE ret;
+     uint16_t info = trace_mem_build_info(SHIFT, false, MO_BSWAP, false,
+                                          ATOMIC_MMU_IDX);
+@@ -291,7 +291,7 @@ ABI_TYPE ATOMIC_NAME(X)(CPUArchState *env, target_ulong addr,       \
+                         ABI_TYPE val EXTRA_ARGS)                    \
+ {                                                                   \
+     ATOMIC_MMU_DECLS;                                               \
+-    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP_RW;                        \
++    DATA_TYPE *haddr = ATOMIC_MMU_LOOKUP;                           \
+     DATA_TYPE ret;                                                  \
+     uint16_t info = trace_mem_build_info(SHIFT, false, MO_BSWAP,    \
+                                          false, ATOMIC_MMU_IDX);    \
+@@ -323,7 +323,7 @@ ABI_TYPE ATOMIC_NAME(X)(CPUArchState *env, target_ulong addr,       \
+                         ABI_TYPE xval EXTRA_ARGS)                   \
+ {                                                                   \
+     ATOMIC_MMU_DECLS;                                               \
+-    XDATA_TYPE *haddr = ATOMIC_MMU_LOOKUP_RW;                       \
++    XDATA_TYPE *haddr = ATOMIC_MMU_LOOKUP;                          \
+     XDATA_TYPE ldo, ldn, old, new, val = xval;                      \
+     uint16_t info = trace_mem_build_info(SHIFT, false, MO_BSWAP,    \
+                                          false, ATOMIC_MMU_IDX);    \
+diff --git a/accel/tcg/cputlb.c b/accel/tcg/cputlb.c
+index b6d5fc6326..f24348e979 100644
+--- a/accel/tcg/cputlb.c
++++ b/accel/tcg/cputlb.c
+@@ -1742,22 +1742,18 @@ bool tlb_plugin_lookup(CPUState *cpu, target_ulong addr, int mmu_idx,
+ 
+ #endif
+ 
+-/*
+- * Probe for an atomic operation.  Do not allow unaligned operations,
+- * or io operations to proceed.  Return the host address.
+- *
+- * @prot may be PAGE_READ, PAGE_WRITE, or PAGE_READ|PAGE_WRITE.
+- */
++/* Probe for a read-modify-write atomic operation.  Do not allow unaligned
++ * operations, or io operations to proceed.  Return the host address.  */
+ static void *atomic_mmu_lookup(CPUArchState *env, target_ulong addr,
+-                               TCGMemOpIdx oi, int size, int prot,
+-                               uintptr_t retaddr)
++                               TCGMemOpIdx oi, uintptr_t retaddr)
+ {
+     size_t mmu_idx = get_mmuidx(oi);
++    uintptr_t index = tlb_index(env, mmu_idx, addr);
++    CPUTLBEntry *tlbe = tlb_entry(env, mmu_idx, addr);
++    target_ulong tlb_addr = tlb_addr_write(tlbe);
+     MemOp mop = get_memop(oi);
+     int a_bits = get_alignment_bits(mop);
+-    uintptr_t index;
+-    CPUTLBEntry *tlbe;
+-    target_ulong tlb_addr;
++    int s_bits = mop & MO_SIZE;
+     void *hostaddr;
+ 
+     /* Adjust the given return address.  */
+@@ -1771,7 +1767,7 @@ static void *atomic_mmu_lookup(CPUArchState *env, target_ulong addr,
+     }
+ 
+     /* Enforce qemu required alignment.  */
+-    if (unlikely(addr & (size - 1))) {
++    if (unlikely(addr & ((1 << s_bits) - 1))) {
+         /* We get here if guest alignment was not requested,
+            or was not enforced by cpu_unaligned_access above.
+            We might widen the access and emulate, but for now
+@@ -1779,45 +1775,15 @@ static void *atomic_mmu_lookup(CPUArchState *env, target_ulong addr,
+         goto stop_the_world;
+     }
+ 
+-    index = tlb_index(env, mmu_idx, addr);
+-    tlbe = tlb_entry(env, mmu_idx, addr);
+-
+     /* Check TLB entry and enforce page permissions.  */
+-    if (prot & PAGE_WRITE) {
+-        tlb_addr = tlb_addr_write(tlbe);
+-        if (!tlb_hit(tlb_addr, addr)) {
+-            if (!VICTIM_TLB_HIT(addr_write, addr)) {
+-                tlb_fill(env_cpu(env), addr, size,
+-                         MMU_DATA_STORE, mmu_idx, retaddr);
+-                index = tlb_index(env, mmu_idx, addr);
+-                tlbe = tlb_entry(env, mmu_idx, addr);
+-            }
+-            tlb_addr = tlb_addr_write(tlbe) & ~TLB_INVALID_MASK;
+-        }
+-
+-        /* Let the guest notice RMW on a write-only page.  */
+-        if ((prot & PAGE_READ) &&
+-            unlikely(tlbe->addr_read != (tlb_addr & ~TLB_NOTDIRTY))) {
+-            tlb_fill(env_cpu(env), addr, size,
+-                     MMU_DATA_LOAD, mmu_idx, retaddr);
+-            /*
+-             * Since we don't support reads and writes to different addresses,
+-             * and we do have the proper page loaded for write, this shouldn't
+-             * ever return.  But just in case, handle via stop-the-world.
+-             */
+-            goto stop_the_world;
+-        }
+-    } else /* if (prot & PAGE_READ) */ {
+-        tlb_addr = tlbe->addr_read;
+-        if (!tlb_hit(tlb_addr, addr)) {
+-            if (!VICTIM_TLB_HIT(addr_write, addr)) {
+-                tlb_fill(env_cpu(env), addr, size,
+-                         MMU_DATA_LOAD, mmu_idx, retaddr);
+-                index = tlb_index(env, mmu_idx, addr);
+-                tlbe = tlb_entry(env, mmu_idx, addr);
+-            }
+-            tlb_addr = tlbe->addr_read & ~TLB_INVALID_MASK;
++    if (!tlb_hit(tlb_addr, addr)) {
++        if (!VICTIM_TLB_HIT(addr_write, addr)) {
++            tlb_fill(env_cpu(env), addr, 1 << s_bits, MMU_DATA_STORE,
++                     mmu_idx, retaddr);
++            index = tlb_index(env, mmu_idx, addr);
++            tlbe = tlb_entry(env, mmu_idx, addr);
+         }
++        tlb_addr = tlb_addr_write(tlbe) & ~TLB_INVALID_MASK;
+     }
+ 
+     /* Notice an IO access or a needs-MMU-lookup access */
+@@ -1827,10 +1793,20 @@ static void *atomic_mmu_lookup(CPUArchState *env, target_ulong addr,
+         goto stop_the_world;
+     }
+ 
++    /* Let the guest notice RMW on a write-only page.  */
++    if (unlikely(tlbe->addr_read != (tlb_addr & ~TLB_NOTDIRTY))) {
++        tlb_fill(env_cpu(env), addr, 1 << s_bits, MMU_DATA_LOAD,
++                 mmu_idx, retaddr);
++        /* Since we don't support reads and writes to different addresses,
++           and we do have the proper page loaded for write, this shouldn't
++           ever return.  But just in case, handle via stop-the-world.  */
++        goto stop_the_world;
++    }
++
+     hostaddr = (void *)((uintptr_t)addr + tlbe->addend);
+ 
+     if (unlikely(tlb_addr & TLB_NOTDIRTY)) {
+-        notdirty_write(env_cpu(env), addr, size,
++        notdirty_write(env_cpu(env), addr, 1 << s_bits,
+                        &env_tlb(env)->d[mmu_idx].iotlb[index], retaddr);
+     }
+ 
+@@ -2693,12 +2669,7 @@ void cpu_stq_le_data(CPUArchState *env, target_ulong ptr, uint64_t val)
+ #define ATOMIC_NAME(X) \
+     HELPER(glue(glue(glue(atomic_ ## X, SUFFIX), END), _mmu))
+ #define ATOMIC_MMU_DECLS
+-#define ATOMIC_MMU_LOOKUP_RW \
+-    atomic_mmu_lookup(env, addr, oi, DATA_SIZE, PAGE_READ | PAGE_WRITE, retaddr)
+-#define ATOMIC_MMU_LOOKUP_R \
+-    atomic_mmu_lookup(env, addr, oi, DATA_SIZE, PAGE_READ, retaddr)
+-#define ATOMIC_MMU_LOOKUP_W \
+-    atomic_mmu_lookup(env, addr, oi, DATA_SIZE, PAGE_WRITE, retaddr)
++#define ATOMIC_MMU_LOOKUP atomic_mmu_lookup(env, addr, oi, retaddr)
+ #define ATOMIC_MMU_CLEANUP
+ #define ATOMIC_MMU_IDX   get_mmuidx(oi)
+ 
+@@ -2727,18 +2698,10 @@ void cpu_stq_le_data(CPUArchState *env, target_ulong ptr, uint64_t val)
+ 
+ #undef EXTRA_ARGS
+ #undef ATOMIC_NAME
+-#undef ATOMIC_MMU_LOOKUP_RW
+-#undef ATOMIC_MMU_LOOKUP_R
+-#undef ATOMIC_MMU_LOOKUP_W
+-
++#undef ATOMIC_MMU_LOOKUP
+ #define EXTRA_ARGS         , TCGMemOpIdx oi
+ #define ATOMIC_NAME(X)     HELPER(glue(glue(atomic_ ## X, SUFFIX), END))
+-#define ATOMIC_MMU_LOOKUP_RW \
+-    atomic_mmu_lookup(env, addr, oi, DATA_SIZE, PAGE_READ | PAGE_WRITE, GETPC())
+-#define ATOMIC_MMU_LOOKUP_R \
+-    atomic_mmu_lookup(env, addr, oi, DATA_SIZE, PAGE_READ, GETPC())
+-#define ATOMIC_MMU_LOOKUP_W \
+-    atomic_mmu_lookup(env, addr, oi, DATA_SIZE, PAGE_WRITE, GETPC())
++#define ATOMIC_MMU_LOOKUP  atomic_mmu_lookup(env, addr, oi, GETPC())
+ 
+ #define DATA_SIZE 1
+ #include "atomic_template.h"
+diff --git a/accel/tcg/user-exec.c b/accel/tcg/user-exec.c
+index e67b1617b5..fb2d43e6a9 100644
+--- a/accel/tcg/user-exec.c
++++ b/accel/tcg/user-exec.c
+@@ -1220,9 +1220,7 @@ static void *atomic_mmu_lookup(CPUArchState *env, target_ulong addr,
+ 
+ /* Macro to call the above, with local variables from the use context.  */
+ #define ATOMIC_MMU_DECLS do {} while (0)
+-#define ATOMIC_MMU_LOOKUP_RW  atomic_mmu_lookup(env, addr, DATA_SIZE, GETPC())
+-#define ATOMIC_MMU_LOOKUP_R   ATOMIC_MMU_LOOKUP_RW
+-#define ATOMIC_MMU_LOOKUP_W   ATOMIC_MMU_LOOKUP_RW
++#define ATOMIC_MMU_LOOKUP  atomic_mmu_lookup(env, addr, DATA_SIZE, GETPC())
+ #define ATOMIC_MMU_CLEANUP do { clear_helper_retaddr(); } while (0)
+ #define ATOMIC_MMU_IDX MMU_USER_IDX
+ 
+@@ -1252,12 +1250,12 @@ static void *atomic_mmu_lookup(CPUArchState *env, target_ulong addr,
+ 
+ #undef EXTRA_ARGS
+ #undef ATOMIC_NAME
+-#undef ATOMIC_MMU_LOOKUP_RW
++#undef ATOMIC_MMU_LOOKUP
+ 
+ #define EXTRA_ARGS     , TCGMemOpIdx oi, uintptr_t retaddr
+ #define ATOMIC_NAME(X) \
+     HELPER(glue(glue(glue(atomic_ ## X, SUFFIX), END), _mmu))
+-#define ATOMIC_MMU_LOOKUP_RW  atomic_mmu_lookup(env, addr, DATA_SIZE, retaddr)
++#define ATOMIC_MMU_LOOKUP  atomic_mmu_lookup(env, addr, DATA_SIZE, retaddr)
+ 
+ #define DATA_SIZE 16
+ #include "atomic_template.h"

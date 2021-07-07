@@ -1,0 +1,12 @@
+commit 9d87e59585784cbc6a3307a00d1493268e0daead
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Fri Mar 19 14:28:17 2021 -0600
+
+    accel/tcg: Add tcg call flags to plugins helpers
+    
+    As noted by qemu-plugins.h, plugins can neither read nor write
+    guest registers.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

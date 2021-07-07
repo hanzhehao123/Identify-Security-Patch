@@ -1,0 +1,21 @@
+commit b31ff389315f2745cecc0f42cca7f4383b1a2a0d
+Author: Vivek Goyal <vgoyal@redhat.com>
+Date:   Tue May 18 17:35:33 2021 -0400
+
+    virtiofsd: Get rid of unreachable code in read
+    
+    pvreadv() can return following.
+    
+    - error
+    - 0 in case of EOF
+    - short read
+    
+    We seem to handle all the cases already. We are retrying read in case
+    of short read. So another check for short read seems like dead code.
+    Get rid of it.
+    
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Signed-off-by: Vivek Goyal <vgoyal@redhat.com>
+    Message-Id: <20210518213538.693422-3-vgoyal@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

@@ -1,0 +1,20 @@
+commit cfe58455f3b79810375cb4ef560071c1ecff6dea
+Author: Alexander Graf <agraf@csgraf.de>
+Date:   Thu Jun 3 14:09:32 2021 +0100
+
+    hvf: Split out common code on vcpu init and destroy
+    
+    Until now, Hypervisor.framework has only been available on x86_64 systems.
+    With Apple Silicon shipping now, it extends its reach to aarch64. To
+    prepare for support for multiple architectures, let's start moving common
+    code out into its own accel directory.
+    
+    This patch splits the vcpu init and destroy functions into a generic and
+    an architecture specific portion. This also allows us to move the generic
+    functions into the generic hvf code, removing exported functions.
+    
+    Signed-off-by: Alexander Graf <agraf@csgraf.de>
+    Reviewed-by: Sergio Lopez <slp@redhat.com>
+    Message-id: 20210519202253.76782-8-agraf@csgraf.de
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

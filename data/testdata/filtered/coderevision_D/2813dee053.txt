@@ -1,0 +1,18 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index 8d84467b53..ea6a87e0b3 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -83,10 +83,10 @@ class QMPCompleter(list):
+     def complete(self, text, state):
+         for cmd in self:
+             if cmd.startswith(text):
+-                if state == 0:
++                if not state:
+                     return cmd
+-                state -= 1
+-        return None
++                else:
++                    state -= 1
+ 
+ 
+ class QMPShellError(Exception):

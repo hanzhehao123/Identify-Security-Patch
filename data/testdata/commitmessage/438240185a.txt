@@ -1,0 +1,12 @@
+commit 438240185a9456747b19a29290018316271a3762
+Author: Kito Cheng <kito.cheng@sifive.com>
+Date:   Thu May 6 00:06:03 2021 +0800
+
+    target/riscv: rvb: count leading/trailing zeros
+    
+    Signed-off-by: Kito Cheng <kito.cheng@sifive.com>
+    Signed-off-by: Frank Chang <frank.chang@sifive.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210505160620.15723-3-frank.chang@sifive.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

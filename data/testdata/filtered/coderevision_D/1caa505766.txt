@@ -1,0 +1,28 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index 3b86ef7d88..cfcefb95f9 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -292,11 +292,10 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         version = self._greeting['QMP']['version']['qemu']
+         print("Connected to QEMU {major}.{minor}.{micro}\n".format(**version))
+ 
+-    @property
+-    def prompt(self):
++    def get_prompt(self):
+         if self._transmode:
+-            return 'TRANS> '
+-        return '(QEMU) '
++            return "TRANS> "
++        return "(QEMU) "
+ 
+     def read_exec_command(self, prompt):
+         """
+@@ -436,7 +435,7 @@ def main():
+         die(f"Couldn't connect to {args.qmp_server}: {err!s}")
+ 
+     qemu.show_banner()
+-    while qemu.read_exec_command(qemu.prompt):
++    while qemu.read_exec_command(qemu.get_prompt()):
+         pass
+     qemu.close()
+ 

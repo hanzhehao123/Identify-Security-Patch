@@ -1,0 +1,17 @@
+commit a0eae17a59fcbcdc96af2ea2a6767d758ff4a916
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:16:50 2021 -0400
+
+    python/machine: disable warning for Popen in _launch()
+    
+    We handle this resource rather meticulously in
+    shutdown/kill/wait/__exit__ et al, through the laborious mechanisms in
+    _do_shutdown().
+    
+    Quiet this pylint warning here.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-7-jsnow@redhat.com
+    Message-id: 20210517184808.3562549-7-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

@@ -1,0 +1,18 @@
+commit 54914114aff5008b58d3cf01bf9e2274144875ca
+Author: Cleber Rosa <crosa@redhat.com>
+Date:   Mon Apr 12 00:46:38 2021 -0400
+
+    Acceptance Tests: add port redirection for ssh by default
+    
+    For users of the LinuxTest class, let's set up the VM with the port
+    redirection for SSH, instead of requiring each test to set the same
+    arguments.
+    
+    It also sets the network device, by default, to virtio-net.
+    
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Reviewed-by: Eric Auger <eric.auger@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210412044644.55083-6-crosa@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>

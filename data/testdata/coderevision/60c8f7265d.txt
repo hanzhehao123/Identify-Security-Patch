@@ -1,0 +1,52 @@
+diff --git a/fpu/softfloat-parts.c.inc b/fpu/softfloat-parts.c.inc
+index 7f69da1d8f..a897a5a743 100644
+--- a/fpu/softfloat-parts.c.inc
++++ b/fpu/softfloat-parts.c.inc
+@@ -176,12 +176,13 @@ static void partsN(uncanon)(FloatPartsN *p, float_status *s,
+         g_assert_not_reached();
+     }
+ 
+-    overflow_norm = false;
+     switch (s->float_rounding_mode) {
+     case float_round_nearest_even:
++        overflow_norm = false;
+         inc = ((p->frac_lo & roundeven_mask) != frac_lsbm1 ? frac_lsbm1 : 0);
+         break;
+     case float_round_ties_away:
++        overflow_norm = false;
+         inc = frac_lsbm1;
+         break;
+     case float_round_to_zero:
+@@ -198,8 +199,6 @@ static void partsN(uncanon)(FloatPartsN *p, float_status *s,
+         break;
+     case float_round_to_odd:
+         overflow_norm = true;
+-        /* fall through */
+-    case float_round_to_odd_inf:
+         inc = p->frac_lo & frac_lsb ? 0 : round_mask;
+         break;
+     default:
+@@ -260,7 +259,6 @@ static void partsN(uncanon)(FloatPartsN *p, float_status *s,
+                        ? frac_lsbm1 : 0);
+                 break;
+             case float_round_to_odd:
+-            case float_round_to_odd_inf:
+                 inc = p->frac_lo & frac_lsb ? 0 : round_mask;
+                 break;
+             default:
+diff --git a/include/fpu/softfloat-types.h b/include/fpu/softfloat-types.h
+index 3b757c3d6a..8a3f20fae9 100644
+--- a/include/fpu/softfloat-types.h
++++ b/include/fpu/softfloat-types.h
+@@ -134,10 +134,8 @@ typedef enum __attribute__((__packed__)) {
+     float_round_up           = 2,
+     float_round_to_zero      = 3,
+     float_round_ties_away    = 4,
+-    /* Not an IEEE rounding mode: round to closest odd, overflow to max */
++    /* Not an IEEE rounding mode: round to the closest odd mantissa value */
+     float_round_to_odd       = 5,
+-    /* Not an IEEE rounding mode: round to closest odd, overflow to inf */
+-    float_round_to_odd_inf   = 6,
+ } FloatRoundMode;
+ 
+ /*

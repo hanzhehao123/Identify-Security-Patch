@@ -1,0 +1,94 @@
+commit 39df2c6d57b9eaa30d37a34b5a20cbc0474725c0
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Mon May 24 13:12:57 2021 +0300
+
+    block/vvfat: fix vvfat_child_perm crash
+    
+    It's wrong to rely on s->qcow in vvfat_child_perm, as on permission
+    update during bdrv_open_child() call this field is not set yet.
+    
+    Still prior to aa5a04c7db27eea6b36de32f241b155f0d9ce34d, it didn't
+    crash, as bdrv_open_child passed NULL as child to bdrv_child_perm(),
+    and NULL was equal to NULL in assertion (still, it was bad guarantee
+    for child being s->qcow, not backing :).
+    
+    Since aa5a04c7db27eea6b36de32f241b155f0d9ce34d
+    "add bdrv_attach_child_noperm" bdrv_refresh_perms called on parent node
+    when attaching child, and new correct child pointer is passed to
+    .bdrv_child_perm. Still, s->qcow is NULL at the moment. Let's rely only
+    on role instead.
+    
+    Without that fix,
+    ./build/qemu-system-x86_64 -usb -device usb-storage,drive=fat16 \
+        -drive \
+        file=fat:rw:fat-type=16:"<path of a host folder>",id=fat16,format=raw,if=none
+    
+    crashes:
+    (gdb) bt
+    0  raise () at /lib64/libc.so.6
+    1  abort () at /lib64/libc.so.6
+    2  _nl_load_domain.cold () at /lib64/libc.so.6
+    3  annobin_assert.c_end () at /lib64/libc.so.6
+    4  vvfat_child_perm (bs=0x559186f3d690, c=0x559186f1ed20, role=3,
+                         reopen_queue=0x0, perm=0, shared=31,
+                         nperm=0x7ffe56f28298, nshared=0x7ffe56f282a0) at
+        ../block/vvfat.c:3214
+    5  bdrv_child_perm (bs=0x559186f3d690, child_bs=0x559186f60190,
+                        c=0x559186f1ed20, role=3, reopen_queue=0x0,
+                        parent_perm=0, parent_shared=31,
+                        nperm=0x7ffe56f28298, nshared=0x7ffe56f282a0)
+        at ../block.c:2094
+    6  bdrv_node_refresh_perm (bs=0x559186f3d690, q=0x0,
+                               tran=0x559186f65850, errp=0x7ffe56f28530) at
+        ../block.c:2336
+    7  bdrv_list_refresh_perms (list=0x559186db5b90 = {...}, q=0x0,
+                                tran=0x559186f65850, errp=0x7ffe56f28530)
+        at ../block.c:2358
+    8  bdrv_refresh_perms (bs=0x559186f3d690, errp=0x7ffe56f28530) at
+        ../block.c:2419
+    9  bdrv_attach_child
+        (parent_bs=0x559186f3d690, child_bs=0x559186f60190,
+         child_name=0x559184d83e3d "write-target",
+         child_class=0x5591852f3b00 <child_vvfat_qcow>, child_role=3,
+         errp=0x7ffe56f28530) at ../block.c:2959
+    10 bdrv_open_child
+        (filename=0x559186f5cb80 "/var/tmp/vl.7WYmFU",
+         options=0x559186f66c20, bdref_key=0x559184d83e3d "write-target",
+         parent=0x559186f3d690, child_class=0x5591852f3b00
+         <child_vvfat_qcow>, child_role=3, allow_none=false,
+         errp=0x7ffe56f28530) at ../block.c:3351
+    11 enable_write_target (bs=0x559186f3d690, errp=0x7ffe56f28530) at
+        ../block/vvfat.c:3177
+    12 vvfat_open (bs=0x559186f3d690, options=0x559186f42db0, flags=155650,
+                   errp=0x7ffe56f28530) at ../block/vvfat.c:1236
+    13 bdrv_open_driver (bs=0x559186f3d690, drv=0x5591853d97e0
+                         <bdrv_vvfat>, node_name=0x0,
+                         options=0x559186f42db0, open_flags=155650,
+                         errp=0x7ffe56f28640) at ../block.c:1557
+    14 bdrv_open_common (bs=0x559186f3d690, file=0x0,
+                         options=0x559186f42db0, errp=0x7ffe56f28640) at
+        ../block.c:1833
+    ...
+    
+    (gdb) fr 4
+     #4  vvfat_child_perm (bs=0x559186f3d690, c=0x559186f1ed20, role=3,
+                          reopen_queue=0x0, perm=0, shared=31,
+                          nperm=0x7ffe56f28298, nshared=0x7ffe56f282a0) at
+        ../block/vvfat.c:3214
+    3214        assert(c == s->qcow || (role & BDRV_CHILD_COW));
+    (gdb) p role
+     $1 = 3   # BDRV_CHILD_DATA | BDRV_CHILD_METADATA
+    (gdb) p *c
+     $2 = {bs = 0x559186f60190, name = 0x559186f669d0 "write-target", klass
+         = 0x5591852f3b00 <child_vvfat_qcow>, role = 3, opaque =
+             0x559186f3d690, perm = 3, shared_perm = 4, frozen = false,
+             parent_quiesce_counter = 0, next = {le_next = 0x0, le_prev =
+                 0x559186f41818}, next_parent = {le_next = 0x0, le_prev =
+                     0x559186f64320}}
+    (gdb) p s->qcow
+     $3 = (BdrvChild *) 0x0
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210524101257.119377-3-vsementsov@virtuozzo.com>
+    Tested-by: John Arbuckle <programmingkidx@gmail.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

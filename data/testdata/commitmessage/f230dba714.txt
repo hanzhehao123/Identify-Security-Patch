@@ -1,0 +1,20 @@
+commit f230dba714e7777098ede5758d62b21922e7ec2f
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Tue May 25 06:46:56 2021 +0200
+
+    gitlab: Keep Avocado reports during 1 week
+    
+    Sometimes pull requests are merged during the week-end, triggering
+    a CI pipeline. Currently if such pipeline fails, the Avocado reports
+    are available for 2 days. For the reviewers working on the project
+    during office hours, the reports are already discarded when they
+    want to look at them. Increase this time to 1 week, which should
+    give reviewers enough time.
+    
+    Only keep the reports on failure, which is the only case we'll
+    look at them.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210525082556.4011380-8-f4bug@amsat.org>

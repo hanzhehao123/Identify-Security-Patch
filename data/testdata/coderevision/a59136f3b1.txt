@@ -1,0 +1,68 @@
+diff --git a/migration/multifd.c b/migration/multifd.c
+index ab41590e71..2e8f001bc0 100644
+--- a/migration/multifd.c
++++ b/migration/multifd.c
+@@ -1166,11 +1166,6 @@ bool multifd_recv_all_channels_created(void)
+         return true;
+     }
+ 
+-    if (!multifd_recv_state) {
+-        /* Called before any connections created */
+-        return false;
+-    }
+-
+     return thread_count == qatomic_read(&multifd_recv_state->count);
+ }
+ 
+diff --git a/migration/socket.c b/migration/socket.c
+index 05705a32d8..6016642e04 100644
+--- a/migration/socket.c
++++ b/migration/socket.c
+@@ -126,31 +126,22 @@ static void socket_accept_incoming_migration(QIONetListener *listener,
+ {
+     trace_migration_socket_incoming_accepted();
+ 
+-    if (migration_has_all_channels()) {
+-        error_report("%s: Extra incoming migration connection; ignoring",
+-                     __func__);
+-        return;
+-    }
+-
+     qio_channel_set_name(QIO_CHANNEL(cioc), "migration-socket-incoming");
+     migration_channel_process_incoming(QIO_CHANNEL(cioc));
+-}
+ 
+-static void
+-socket_incoming_migration_end(void *opaque)
+-{
+-    QIONetListener *listener = opaque;
+-
+-    qio_net_listener_disconnect(listener);
+-    object_unref(OBJECT(listener));
++    if (migration_has_all_channels()) {
++        /* Close listening socket as its no longer needed */
++        qio_net_listener_disconnect(listener);
++        object_unref(OBJECT(listener));
++    }
+ }
+ 
++
+ static void
+ socket_start_incoming_migration_internal(SocketAddress *saddr,
+                                          Error **errp)
+ {
+     QIONetListener *listener = qio_net_listener_new();
+-    MigrationIncomingState *mis = migration_incoming_get_current();
+     size_t i;
+     int num = 1;
+ 
+@@ -165,9 +156,6 @@ socket_start_incoming_migration_internal(SocketAddress *saddr,
+         return;
+     }
+ 
+-    mis->transport_data = listener;
+-    mis->transport_cleanup = socket_incoming_migration_end;
+-
+     qio_net_listener_set_client_func_full(listener,
+                                           socket_accept_incoming_migration,
+                                           NULL, NULL,

@@ -1,0 +1,15 @@
+commit 7df6a1ffdbdcaf98fa57747dc79216ac089e6215
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu May 20 16:28:32 2021 +0100
+
+    target/arm: Add isar feature check functions for MVE
+    
+    Add the isar feature check functions we will need for v8.1M MVE:
+     * a check for MVE present: this corresponds to the pseudocode's
+       CheckDecodeFaults(ExtType_Mve)
+     * a check for the optional floating-point part of MVE: this
+       corresponds to CheckDecodeFaults(ExtType_MveFp)
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210520152840.24453-2-peter.maydell@linaro.org

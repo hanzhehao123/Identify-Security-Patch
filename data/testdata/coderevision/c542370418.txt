@@ -1,0 +1,50 @@
+diff --git a/include/qemu/sockets.h b/include/qemu/sockets.h
+index 0c34bf2398..7d1f813576 100644
+--- a/include/qemu/sockets.h
++++ b/include/qemu/sockets.h
+@@ -111,15 +111,4 @@ SocketAddress *socket_remote_address(int fd, Error **errp);
+  */
+ SocketAddress *socket_address_flatten(SocketAddressLegacy *addr);
+ 
+-/**
+- * socket_address_parse_named_fd:
+- *
+- * Modify @addr, replacing a named fd by its corresponding number.
+- * Needed for callers that plan to pass @addr to a context where the
+- * current monitor is not available.
+- *
+- * Return 0 on success.
+- */
+-int socket_address_parse_named_fd(SocketAddress *addr, Error **errp);
+-
+ #endif /* QEMU_SOCKETS_H */
+diff --git a/util/qemu-sockets.c b/util/qemu-sockets.c
+index 080a240b74..c415c342c1 100644
+--- a/util/qemu-sockets.c
++++ b/util/qemu-sockets.c
+@@ -1164,25 +1164,6 @@ static int socket_get_fd(const char *fdstr, Error **errp)
+     return fd;
+ }
+ 
+-int socket_address_parse_named_fd(SocketAddress *addr, Error **errp)
+-{
+-    int fd;
+-
+-    if (addr->type != SOCKET_ADDRESS_TYPE_FD) {
+-        return 0;
+-    }
+-
+-    fd = socket_get_fd(addr->u.fd.str, errp);
+-    if (fd < 0) {
+-        return fd;
+-    }
+-
+-    g_free(addr->u.fd.str);
+-    addr->u.fd.str = g_strdup_printf("%d", fd);
+-
+-    return 0;
+-}
+-
+ int socket_connect(SocketAddress *addr, Error **errp)
+ {
+     int fd;

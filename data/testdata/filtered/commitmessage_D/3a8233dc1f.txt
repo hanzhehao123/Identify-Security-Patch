@@ -1,0 +1,18 @@
+commit 3a8233dc1fe2fb5d0b51c9ae895e27b96a6d830e
+Author: Jason Thorpe <thorpej@me.com>
+Date:   Sun Jun 13 14:15:47 2021 -0700
+
+    hw/alpha: Set minimum PCI device ID to 1 to match Clipper IRQ mappings
+    
+    Since we are emulating a Clipper device topology, we need to set the
+    minimum PCI device ID to 1, as there is no IRQ mapping for a device
+    at ID 0 (see sys_dp264.c:clipper_map_irq()).
+    
+    - Add a 'devfn_min' argument to typhoon_init().  Pass that argument
+      along to pci_register_root_bus().
+    - In clipper_init(), pass PCI_DEVFN(1, 0) as the minimum PCI device
+      ID/function.
+    
+    Signed-off-by: Jason Thorpe <thorpej@me.com>
+    Message-Id: <20210613211549.18094-3-thorpej@me.com>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

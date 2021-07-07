@@ -1,0 +1,13 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index 413dd4d2de..18bf49bb26 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -452,7 +452,7 @@ def main():
+         die('Didn\'t get QMP greeting message')
+     except qmp.QMPCapabilitiesError:
+         die('Could not negotiate capabilities')
+-    except OSError:
++    except qemu.error:
+         die('Could not connect to %s' % addr)
+ 
+     qemu.show_banner()

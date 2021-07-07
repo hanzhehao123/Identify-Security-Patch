@@ -1,0 +1,86 @@
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index e189e2de64..a3dbdb72a5 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -168,7 +168,3 @@ VHADD_U_scalar   1111 1110 0 . .. ... 0 ... 0 1111 . 100 .... @2scalar
+ VHSUB_S_scalar   1110 1110 0 . .. ... 0 ... 1 1111 . 100 .... @2scalar
+ VHSUB_U_scalar   1111 1110 0 . .. ... 0 ... 1 1111 . 100 .... @2scalar
+ VBRSR            1111 1110 0 . .. ... 1 ... 1 1110 . 110 .... @2scalar
+-
+-# Predicate operations
+-%mask_22_13      22:1 13:3
+-VPST             1111 1110 0 . 11 000 1 ... 0 1111 0100 1101 mask=%mask_22_13
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index 7c4c06e434..6320064a08 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -90,19 +90,6 @@ static void mve_update_eci(DisasContext *s)
+     }
+ }
+ 
+-static void mve_update_and_store_eci(DisasContext *s)
+-{
+-    /*
+-     * For insns which don't call a helper function that will call
+-     * mve_advance_vpt(), this version updates s->eci and also stores
+-     * it out to the CPUState field.
+-     */
+-    if (s->eci) {
+-        mve_update_eci(s);
+-        store_cpu_field(tcg_constant_i32(s->eci << 4), condexec_bits);
+-    }
+-}
+-
+ static bool mve_skip_first_beat(DisasContext *s)
+ {
+     /* Return true if PSR.ECI says we must skip the first beat of this insn */
+@@ -561,49 +548,3 @@ static bool trans_VRMLSLDAVH(DisasContext *s, arg_vmlaldav *a)
+     };
+     return do_long_dual_acc(s, a, fns[a->x]);
+ }
+-
+-static bool trans_VPST(DisasContext *s, arg_VPST *a)
+-{
+-    TCGv_i32 vpr;
+-
+-    /* mask == 0 is a "related encoding" */
+-    if (!dc_isar_feature(aa32_mve, s) || !a->mask) {
+-        return false;
+-    }
+-    if (!mve_eci_check(s) || !vfp_access_check(s)) {
+-        return true;
+-    }
+-    /*
+-     * Set the VPR mask fields. We take advantage of MASK01 and MASK23
+-     * being adjacent fields in the register.
+-     *
+-     * This insn is not predicated, but it is subject to beat-wise
+-     * execution, and the mask is updated on the odd-numbered beats.
+-     * So if PSR.ECI says we should skip beat 1, we mustn't update the
+-     * 01 mask field.
+-     */
+-    vpr = load_cpu_field(v7m.vpr);
+-    switch (s->eci) {
+-    case ECI_NONE:
+-    case ECI_A0:
+-        /* Update both 01 and 23 fields */
+-        tcg_gen_deposit_i32(vpr, vpr,
+-                            tcg_constant_i32(a->mask | (a->mask << 4)),
+-                            R_V7M_VPR_MASK01_SHIFT,
+-                            R_V7M_VPR_MASK01_LENGTH + R_V7M_VPR_MASK23_LENGTH);
+-        break;
+-    case ECI_A0A1:
+-    case ECI_A0A1A2:
+-    case ECI_A0A1A2B0:
+-        /* Update only the 23 mask field */
+-        tcg_gen_deposit_i32(vpr, vpr,
+-                            tcg_constant_i32(a->mask),
+-                            R_V7M_VPR_MASK23_SHIFT, R_V7M_VPR_MASK23_LENGTH);
+-        break;
+-    default:
+-        g_assert_not_reached();
+-    }
+-    store_cpu_field(vpr, v7m.vpr);
+-    mve_update_and_store_eci(s);
+-    return true;
+-}

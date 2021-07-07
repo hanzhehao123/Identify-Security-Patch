@@ -1,0 +1,16 @@
+commit 29c3d213f4ad69688638330728cff1a8769d7415
+Author: Brad Smith <brad@comstyle.com>
+Date:   Thu Apr 1 13:34:00 2021 -0400
+
+    oslib-posix: Remove OpenBSD workaround for fcntl("/dev/null", F_SETFL, O_NONBLOCK) failure
+    
+    OpenBSD prior to 6.3 required a workaround to utilize fcntl(F_SETFL) on memory
+    devices.
+    
+    Since modern verions of OpenBSD that are only officialy supported and buildable
+    on do not have this issue I am garbage collecting this workaround.
+    
+    Signed-off-by: Brad Smith <brad@comstyle.com>
+    
+    Message-Id: <YGYECGXQhdamEJgC@humpty.home.comstyle.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

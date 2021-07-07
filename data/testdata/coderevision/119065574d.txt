@@ -1,0 +1,295 @@
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index 9f09a60fbd..e4328de8d4 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -156,7 +156,7 @@ struct CPUClass {
+     const struct SysemuCPUOps *sysemu_ops;
+ 
+     /* when TCG is not available, this pointer is NULL */
+-    const struct TCGCPUOps *tcg_ops;
++    struct TCGCPUOps *tcg_ops;
+ 
+     /*
+      * if not NULL, this is called in order for the CPUClass to initialize
+diff --git a/target/alpha/cpu.c b/target/alpha/cpu.c
+index 4871ad0c0a..7687d5a09a 100644
+--- a/target/alpha/cpu.c
++++ b/target/alpha/cpu.c
+@@ -216,7 +216,7 @@ static const struct SysemuCPUOps alpha_sysemu_ops = {
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps alpha_tcg_ops = {
++static struct TCGCPUOps alpha_tcg_ops = {
+     .initialize = alpha_translate_init,
+     .cpu_exec_interrupt = alpha_cpu_exec_interrupt,
+     .tlb_fill = alpha_cpu_tlb_fill,
+diff --git a/target/arm/cpu.c b/target/arm/cpu.c
+index ad65b60b04..2d9b32ec92 100644
+--- a/target/arm/cpu.c
++++ b/target/arm/cpu.c
+@@ -1958,7 +1958,7 @@ static const struct SysemuCPUOps arm_sysemu_ops = {
+ #endif
+ 
+ #ifdef CONFIG_TCG
+-static const struct TCGCPUOps arm_tcg_ops = {
++static struct TCGCPUOps arm_tcg_ops = {
+     .initialize = arm_translate_init,
+     .synchronize_from_tb = arm_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = arm_cpu_exec_interrupt,
+diff --git a/target/arm/cpu_tcg.c b/target/arm/cpu_tcg.c
+index 2e0e508f0e..d3458335ed 100644
+--- a/target/arm/cpu_tcg.c
++++ b/target/arm/cpu_tcg.c
+@@ -898,7 +898,7 @@ static void pxa270c5_initfn(Object *obj)
+ }
+ 
+ #ifdef CONFIG_TCG
+-static const struct TCGCPUOps arm_v7m_tcg_ops = {
++static struct TCGCPUOps arm_v7m_tcg_ops = {
+     .initialize = arm_translate_init,
+     .synchronize_from_tb = arm_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = arm_v7m_cpu_exec_interrupt,
+diff --git a/target/avr/cpu.c b/target/avr/cpu.c
+index 57e3fab4a0..7551bca3a6 100644
+--- a/target/avr/cpu.c
++++ b/target/avr/cpu.c
+@@ -192,7 +192,7 @@ static const struct SysemuCPUOps avr_sysemu_ops = {
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps avr_tcg_ops = {
++static struct TCGCPUOps avr_tcg_ops = {
+     .initialize = avr_cpu_tcg_init,
+     .synchronize_from_tb = avr_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = avr_cpu_exec_interrupt,
+diff --git a/target/cris/cpu.c b/target/cris/cpu.c
+index 70932b1f8c..9cb4f817b4 100644
+--- a/target/cris/cpu.c
++++ b/target/cris/cpu.c
+@@ -203,7 +203,7 @@ static const struct SysemuCPUOps cris_sysemu_ops = {
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps crisv10_tcg_ops = {
++static struct TCGCPUOps crisv10_tcg_ops = {
+     .initialize = cris_initialize_crisv10_tcg,
+     .cpu_exec_interrupt = cris_cpu_exec_interrupt,
+     .tlb_fill = cris_cpu_tlb_fill,
+@@ -213,7 +213,7 @@ static const struct TCGCPUOps crisv10_tcg_ops = {
+ #endif /* !CONFIG_USER_ONLY */
+ };
+ 
+-static const struct TCGCPUOps crisv32_tcg_ops = {
++static struct TCGCPUOps crisv32_tcg_ops = {
+     .initialize = cris_initialize_tcg,
+     .cpu_exec_interrupt = cris_cpu_exec_interrupt,
+     .tlb_fill = cris_cpu_tlb_fill,
+diff --git a/target/hexagon/cpu.c b/target/hexagon/cpu.c
+index 3338365c16..ebe60a6e15 100644
+--- a/target/hexagon/cpu.c
++++ b/target/hexagon/cpu.c
+@@ -269,7 +269,7 @@ static bool hexagon_tlb_fill(CPUState *cs, vaddr address, int size,
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps hexagon_tcg_ops = {
++static struct TCGCPUOps hexagon_tcg_ops = {
+     .initialize = hexagon_translate_init,
+     .synchronize_from_tb = hexagon_cpu_synchronize_from_tb,
+     .tlb_fill = hexagon_tlb_fill,
+diff --git a/target/hppa/cpu.c b/target/hppa/cpu.c
+index 2eace4ee12..4018e3ad90 100644
+--- a/target/hppa/cpu.c
++++ b/target/hppa/cpu.c
+@@ -141,7 +141,7 @@ static const struct SysemuCPUOps hppa_sysemu_ops = {
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps hppa_tcg_ops = {
++static struct TCGCPUOps hppa_tcg_ops = {
+     .initialize = hppa_translate_init,
+     .synchronize_from_tb = hppa_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = hppa_cpu_exec_interrupt,
+diff --git a/target/i386/tcg/tcg-cpu.c b/target/i386/tcg/tcg-cpu.c
+index 014ebea2f6..ba39531aa5 100644
+--- a/target/i386/tcg/tcg-cpu.c
++++ b/target/i386/tcg/tcg-cpu.c
+@@ -56,7 +56,7 @@ static void x86_cpu_synchronize_from_tb(CPUState *cs,
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps x86_tcg_ops = {
++static struct TCGCPUOps x86_tcg_ops = {
+     .initialize = tcg_x86_init,
+     .synchronize_from_tb = x86_cpu_synchronize_from_tb,
+     .cpu_exec_enter = x86_cpu_exec_enter,
+diff --git a/target/m68k/cpu.c b/target/m68k/cpu.c
+index 72de6e9726..4238775d5e 100644
+--- a/target/m68k/cpu.c
++++ b/target/m68k/cpu.c
+@@ -513,7 +513,7 @@ static const struct SysemuCPUOps m68k_sysemu_ops = {
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps m68k_tcg_ops = {
++static struct TCGCPUOps m68k_tcg_ops = {
+     .initialize = m68k_tcg_init,
+     .cpu_exec_interrupt = m68k_cpu_exec_interrupt,
+     .tlb_fill = m68k_cpu_tlb_fill,
+diff --git a/target/microblaze/cpu.c b/target/microblaze/cpu.c
+index 72d8f2a0da..8f88f2afb9 100644
+--- a/target/microblaze/cpu.c
++++ b/target/microblaze/cpu.c
+@@ -362,7 +362,7 @@ static const struct SysemuCPUOps mb_sysemu_ops = {
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps mb_tcg_ops = {
++static struct TCGCPUOps mb_tcg_ops = {
+     .initialize = mb_tcg_init,
+     .synchronize_from_tb = mb_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = mb_cpu_exec_interrupt,
+diff --git a/target/mips/cpu.c b/target/mips/cpu.c
+index 96236abc00..7275f64eab 100644
+--- a/target/mips/cpu.c
++++ b/target/mips/cpu.c
+@@ -536,7 +536,7 @@ static const struct SysemuCPUOps mips_sysemu_ops = {
+  * NB: cannot be const, as some elements are changed for specific
+  * mips hardware (see hw/mips/jazz.c).
+  */
+-static const struct TCGCPUOps mips_tcg_ops = {
++static struct TCGCPUOps mips_tcg_ops = {
+     .initialize = mips_tcg_init,
+     .synchronize_from_tb = mips_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = mips_cpu_exec_interrupt,
+diff --git a/target/nios2/cpu.c b/target/nios2/cpu.c
+index 5e37defef8..afcd776746 100644
+--- a/target/nios2/cpu.c
++++ b/target/nios2/cpu.c
+@@ -217,7 +217,7 @@ static const struct SysemuCPUOps nios2_sysemu_ops = {
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps nios2_tcg_ops = {
++static struct TCGCPUOps nios2_tcg_ops = {
+     .initialize = nios2_tcg_init,
+     .cpu_exec_interrupt = nios2_cpu_exec_interrupt,
+     .tlb_fill = nios2_cpu_tlb_fill,
+diff --git a/target/openrisc/cpu.c b/target/openrisc/cpu.c
+index bd34e429ec..d8e80b81a2 100644
+--- a/target/openrisc/cpu.c
++++ b/target/openrisc/cpu.c
+@@ -184,7 +184,7 @@ static const struct SysemuCPUOps openrisc_sysemu_ops = {
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps openrisc_tcg_ops = {
++static struct TCGCPUOps openrisc_tcg_ops = {
+     .initialize = openrisc_translate_init,
+     .cpu_exec_interrupt = openrisc_cpu_exec_interrupt,
+     .tlb_fill = openrisc_cpu_tlb_fill,
+diff --git a/target/ppc/cpu_init.c b/target/ppc/cpu_init.c
+index 7bdb443114..1afa29e338 100644
+--- a/target/ppc/cpu_init.c
++++ b/target/ppc/cpu_init.c
+@@ -9278,7 +9278,7 @@ static const struct SysemuCPUOps ppc_sysemu_ops = {
+ #ifdef CONFIG_TCG
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps ppc_tcg_ops = {
++static struct TCGCPUOps ppc_tcg_ops = {
+   .initialize = ppc_translate_init,
+   .cpu_exec_interrupt = ppc_cpu_exec_interrupt,
+   .tlb_fill = ppc_cpu_tlb_fill,
+diff --git a/target/riscv/cpu.c b/target/riscv/cpu.c
+index 1f1cef1d6a..9775d8ca5c 100644
+--- a/target/riscv/cpu.c
++++ b/target/riscv/cpu.c
+@@ -609,7 +609,7 @@ static const struct SysemuCPUOps riscv_sysemu_ops = {
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps riscv_tcg_ops = {
++static struct TCGCPUOps riscv_tcg_ops = {
+     .initialize = riscv_translate_init,
+     .synchronize_from_tb = riscv_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = riscv_cpu_exec_interrupt,
+diff --git a/target/rx/cpu.c b/target/rx/cpu.c
+index 96cc96e514..e575669ad1 100644
+--- a/target/rx/cpu.c
++++ b/target/rx/cpu.c
+@@ -183,7 +183,7 @@ static const struct SysemuCPUOps rx_sysemu_ops = {
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps rx_tcg_ops = {
++static struct TCGCPUOps rx_tcg_ops = {
+     .initialize = rx_translate_init,
+     .synchronize_from_tb = rx_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = rx_cpu_exec_interrupt,
+diff --git a/target/s390x/cpu.c b/target/s390x/cpu.c
+index 890f382a36..bd5070c783 100644
+--- a/target/s390x/cpu.c
++++ b/target/s390x/cpu.c
+@@ -490,7 +490,7 @@ static const struct SysemuCPUOps s390_sysemu_ops = {
+ #ifdef CONFIG_TCG
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps s390_tcg_ops = {
++static struct TCGCPUOps s390_tcg_ops = {
+     .initialize = s390x_translate_init,
+     .tlb_fill = s390_cpu_tlb_fill,
+ 
+diff --git a/target/sh4/cpu.c b/target/sh4/cpu.c
+index 8326922942..1d5a715631 100644
+--- a/target/sh4/cpu.c
++++ b/target/sh4/cpu.c
+@@ -233,7 +233,7 @@ static const struct SysemuCPUOps sh4_sysemu_ops = {
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps superh_tcg_ops = {
++static struct TCGCPUOps superh_tcg_ops = {
+     .initialize = sh4_translate_init,
+     .synchronize_from_tb = superh_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = superh_cpu_exec_interrupt,
+diff --git a/target/sparc/cpu.c b/target/sparc/cpu.c
+index da6b30ec74..ff950fb307 100644
+--- a/target/sparc/cpu.c
++++ b/target/sparc/cpu.c
+@@ -860,7 +860,7 @@ static const struct SysemuCPUOps sparc_sysemu_ops = {
+ #ifdef CONFIG_TCG
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps sparc_tcg_ops = {
++static struct TCGCPUOps sparc_tcg_ops = {
+     .initialize = sparc_tcg_init,
+     .synchronize_from_tb = sparc_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = sparc_cpu_exec_interrupt,
+diff --git a/target/tricore/cpu.c b/target/tricore/cpu.c
+index b95682b7f0..ff17d1cecd 100644
+--- a/target/tricore/cpu.c
++++ b/target/tricore/cpu.c
+@@ -150,7 +150,7 @@ static const struct SysemuCPUOps tricore_sysemu_ops = {
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps tricore_tcg_ops = {
++static struct TCGCPUOps tricore_tcg_ops = {
+     .initialize = tricore_tcg_init,
+     .synchronize_from_tb = tricore_cpu_synchronize_from_tb,
+     .tlb_fill = tricore_cpu_tlb_fill,
+diff --git a/target/xtensa/cpu.c b/target/xtensa/cpu.c
+index 58ec3a0862..da4dbecdf1 100644
+--- a/target/xtensa/cpu.c
++++ b/target/xtensa/cpu.c
+@@ -190,7 +190,7 @@ static const struct SysemuCPUOps xtensa_sysemu_ops = {
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps xtensa_tcg_ops = {
++static struct TCGCPUOps xtensa_tcg_ops = {
+     .initialize = xtensa_translate_init,
+     .cpu_exec_interrupt = xtensa_cpu_exec_interrupt,
+     .tlb_fill = xtensa_cpu_tlb_fill,

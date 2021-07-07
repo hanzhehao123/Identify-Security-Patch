@@ -1,0 +1,45 @@
+commit 8e6dad2028d01b7f9ec76cf3b83457fab57fa1eb
+Merge: 8c345b3e6a b317006a3f
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Wed Jun 2 19:34:03 2021 +0100
+
+    Merge remote-tracking branch 'remotes/kevin/tags/for-upstream' into staging
+    
+    Block layer patches
+    
+    - NBD server: Fix crashes related to switching between AioContexts
+    - file-posix: Workaround for discard/write_zeroes on buggy filesystems
+    - Follow-up fixes for the reopen vs. permission changes
+    - quorum: Fix error handling for flush
+    - block-copy: Refactor copy_range handling
+    - docs: Describe how to use 'null-co' block driver
+    
+    # gpg: Signature made Wed 02 Jun 2021 14:44:15 BST
+    # gpg:                using RSA key DC3DEB159A9AF95D3D7456FE7F09B272C88F2FD6
+    # gpg:                issuer "kwolf@redhat.com"
+    # gpg: Good signature from "Kevin Wolf <kwolf@redhat.com>" [full]
+    # Primary key fingerprint: DC3D EB15 9A9A F95D 3D74  56FE 7F09 B272 C88F 2FD6
+    
+    * remotes/kevin/tags/for-upstream:
+      docs/secure-coding-practices: Describe how to use 'null-co' block driver
+      block-copy: refactor copy_range handling
+      block-copy: fix block_copy_task_entry() progress update
+      nbd/server: Use drained block ops to quiesce the server
+      block-backend: add drained_poll
+      block: improve permission conflict error message
+      block: simplify bdrv_child_user_desc()
+      block/vvfat: inherit child_vvfat_qcow from child_of_bds
+      block: improve bdrv_child_get_parent_desc()
+      block-backend: improve blk_root_get_parent_desc()
+      block: document child argument of bdrv_attach_child_common()
+      block/file-posix: Try other fallbacks after invalid FALLOC_FL_ZERO_RANGE
+      block/file-posix: Fix problem with fallocate(PUNCH_HOLE) on GPFS
+      block: drop BlockBackendRootState::read_only
+      block: drop BlockDriverState::read_only
+      block: consistently use bdrv_is_read_only()
+      block/vvfat: fix vvfat_child_perm crash
+      block/vvfat: child_vvfat_qcow: add .get_parent_aio_context, fix crash
+      qemu-io-cmds: assert that we don't have .perm requested in no-blk case
+      block/quorum: Provide .bdrv_co_flush instead of .bdrv_co_flush_to_disk
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

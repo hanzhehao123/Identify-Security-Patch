@@ -1,0 +1,16 @@
+commit 90a76c6316cfe6416fc33814a838fb3928f746ee
+Author: Alexandre Iooss <erdnaxe@crans.org>
+Date:   Mon Jun 21 09:56:25 2021 +0200
+
+    docs/system: arm: Add nRF boards description
+    
+    This adds the target guide for BBC Micro:bit.
+    
+    Information is taken from https://wiki.qemu.org/Features/MicroBit
+    and from hw/arm/nrf51_soc.c.
+    
+    Signed-off-by: Alexandre Iooss <erdnaxe@crans.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Joel Stanley <joel@jms.id.au>
+    Message-id: 20210621075625.540471-1-erdnaxe@crans.org
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

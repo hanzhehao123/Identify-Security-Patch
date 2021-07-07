@@ -1,0 +1,15 @@
+commit 95a078ea3e4863c0d516cf19ebcb5130bc760f49
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:55 2021 +0300
+
+    block/nbd: drop BDRVNBDState::sioc
+    
+    Currently sioc pointer is used just to pass from socket-connection to
+    nbd negotiation. Drop the field, and use local variables instead. With
+    next commit we'll update nbd/client-connection.c to behave
+    appropriately (return only top-most ioc, not two channels).
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-26-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

@@ -1,0 +1,92 @@
+diff --git a/block/nbd.c b/block/nbd.c
+index 5cfb749e08..5e7e238b47 100644
+--- a/block/nbd.c
++++ b/block/nbd.c
+@@ -122,20 +122,15 @@ static void nbd_clear_bdrvstate(BlockDriverState *bs)
+     s->x_dirty_bitmap = NULL;
+ }
+ 
+-static bool nbd_client_connected(BDRVNBDState *s)
+-{
+-    return qatomic_load_acquire(&s->state) == NBD_CLIENT_CONNECTED;
+-}
+-
+ static void nbd_channel_error(BDRVNBDState *s, int ret)
+ {
+     if (ret == -EIO) {
+-        if (nbd_client_connected(s)) {
++        if (qatomic_load_acquire(&s->state) == NBD_CLIENT_CONNECTED) {
+             s->state = s->reconnect_delay ? NBD_CLIENT_CONNECTING_WAIT :
+                                             NBD_CLIENT_CONNECTING_NOWAIT;
+         }
+     } else {
+-        if (nbd_client_connected(s)) {
++        if (qatomic_load_acquire(&s->state) == NBD_CLIENT_CONNECTED) {
+             qio_channel_shutdown(s->ioc, QIO_CHANNEL_SHUTDOWN_BOTH, NULL);
+         }
+         s->state = NBD_CLIENT_QUIT;
+@@ -233,7 +228,7 @@ static void nbd_client_attach_aio_context(BlockDriverState *bs,
+      * s->connection_co is either yielded from nbd_receive_reply or from
+      * nbd_co_reconnect_loop()
+      */
+-    if (nbd_client_connected(s)) {
++    if (qatomic_load_acquire(&s->state) == NBD_CLIENT_CONNECTED) {
+         qio_channel_attach_aio_context(QIO_CHANNEL(s->ioc), new_context);
+     }
+ 
+@@ -504,7 +499,7 @@ static coroutine_fn void nbd_connection_entry(void *opaque)
+             nbd_co_reconnect_loop(s);
+         }
+ 
+-        if (!nbd_client_connected(s)) {
++        if (qatomic_load_acquire(&s->state) != NBD_CLIENT_CONNECTED) {
+             continue;
+         }
+ 
+@@ -583,7 +578,7 @@ static int nbd_co_send_request(BlockDriverState *bs,
+         qemu_co_queue_wait(&s->free_sema, &s->send_mutex);
+     }
+ 
+-    if (!nbd_client_connected(s)) {
++    if (qatomic_load_acquire(&s->state) != NBD_CLIENT_CONNECTED) {
+         rc = -EIO;
+         goto err;
+     }
+@@ -610,7 +605,8 @@ static int nbd_co_send_request(BlockDriverState *bs,
+     if (qiov) {
+         qio_channel_set_cork(s->ioc, true);
+         rc = nbd_send_request(s->ioc, request);
+-        if (nbd_client_connected(s) && rc >= 0) {
++        if (qatomic_load_acquire(&s->state) == NBD_CLIENT_CONNECTED &&
++            rc >= 0) {
+             if (qio_channel_writev_all(s->ioc, qiov->iov, qiov->niov,
+                                        NULL) < 0) {
+                 rc = -EIO;
+@@ -935,7 +931,7 @@ static coroutine_fn int nbd_co_do_receive_one_chunk(
+     s->requests[i].receiving = true;
+     qemu_coroutine_yield();
+     s->requests[i].receiving = false;
+-    if (!nbd_client_connected(s)) {
++    if (qatomic_load_acquire(&s->state) != NBD_CLIENT_CONNECTED) {
+         error_setg(errp, "Connection closed");
+         return -EIO;
+     }
+@@ -1094,7 +1090,7 @@ static bool nbd_reply_chunk_iter_receive(BDRVNBDState *s,
+     NBDReply local_reply;
+     NBDStructuredReplyChunk *chunk;
+     Error *local_err = NULL;
+-    if (!nbd_client_connected(s)) {
++    if (qatomic_load_acquire(&s->state) != NBD_CLIENT_CONNECTED) {
+         error_setg(&local_err, "Connection closed");
+         nbd_iter_channel_error(iter, -EIO, &local_err);
+         goto break_loop;
+@@ -1119,7 +1115,8 @@ static bool nbd_reply_chunk_iter_receive(BDRVNBDState *s,
+     }
+ 
+     /* Do not execute the body of NBD_FOREACH_REPLY_CHUNK for simple reply. */
+-    if (nbd_reply_is_simple(reply) || !nbd_client_connected(s)) {
++    if (nbd_reply_is_simple(reply) ||
++        qatomic_load_acquire(&s->state) != NBD_CLIENT_CONNECTED) {
+         goto break_loop;
+     }
+ 

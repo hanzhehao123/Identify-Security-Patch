@@ -1,0 +1,11 @@
+diff --git a/tests/requirements.txt b/tests/requirements.txt
+index a21b59b443..91f3a343b9 100644
+--- a/tests/requirements.txt
++++ b/tests/requirements.txt
+@@ -1,5 +1,5 @@
+ # Add Python module requirements, one per line, to be installed
+ # in the tests/venv Python virtual environment. For more info,
+ # refer to: https://pip.pypa.io/en/stable/user_guide/#id1
+-avocado-framework==88.1
++avocado-framework==85.0
+ pycdlib==1.11.0

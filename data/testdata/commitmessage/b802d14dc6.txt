@@ -1,0 +1,14 @@
+commit b802d14dc6f3fba988baa9804af8f4cf837c6886
+Author: Kit Westneat <kit.westneat@gmail.com>
+Date:   Fri May 21 14:28:29 2021 +0000
+
+    hw/scsi: Fix sector translation bug in scsi_unmap_complete_noio
+    
+    check_lba_range expects sectors to be expressed in original qdev blocksize, but
+    scsi_unmap_complete_noio was translating them to 512 block sizes, which was
+    causing sense errors in the larger LBAs in devices using a 4k block size.
+    
+    Resolves: https://gitlab.com/qemu-project/qemu/-/issues/345
+    Signed-off-by: Kit Westneat <kit.westneat@gmail.com>
+    Message-Id: <20210521142829.326217-1-kit.westneat@gmail.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

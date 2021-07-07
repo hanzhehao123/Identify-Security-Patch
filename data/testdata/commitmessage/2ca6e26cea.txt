@@ -1,0 +1,24 @@
+commit 2ca6e26cea73fa1d270f73392e8b87f3e67e6a2b
+Author: Cleber Rosa <crosa@redhat.com>
+Date:   Thu Feb 11 17:01:42 2021 -0500
+
+    Python: expose QEMUMachine's temporary directory
+    
+    Each instance of qemu.machine.QEMUMachine currently has a "test
+    directory", which may not have any relation to a "test", and it's
+    really a temporary directory.
+    
+    Users instantiating the QEMUMachine class will be able to set the
+    location of the directory that will *contain* the QEMUMachine unique
+    temporary directory, so that parameter name has been changed from
+    test_dir to base_temp_dir.
+    
+    A property has been added to allow users to access it without using
+    private attributes, and with that, the directory is created on first
+    use of the property.
+    
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Message-Id: <20210211220146.2525771-3-crosa@redhat.com>
+    Reviewed-by: Wainer dos Santos Moschetta <wainersm@redhat.com>
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>

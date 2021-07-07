@@ -1,0 +1,24 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index f354549bf2..ae3f04534a 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -97,8 +97,7 @@ class FuzzyJSON(ast.NodeTransformer):
+     '''This extension of ast.NodeTransformer filters literal "true/false/null"
+     values in an AST and replaces them by proper "True/False/None" values that
+     Python can properly evaluate.'''
+-    @classmethod
+-    def visit_Name(cls, node):
++    def visit_Name(self, node):
+         if node.id == 'true':
+             node.id = 'True'
+         if node.id == 'false':
+@@ -153,8 +152,7 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         except Exception as e:
+             print("Failed to save history file '%s'; %s" % (self._histfile, e))
+ 
+-    @classmethod
+-    def __parse_value(cls, val):
++    def __parse_value(self, val):
+         try:
+             return int(val)
+         except ValueError:

@@ -1,0 +1,8 @@
+commit aa5e19ccbdc0ded5403504820e381eac30db9345
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 21 18:27:24 2020 -0800
+
+    softfloat: Convert floatx80_sqrt to FloatParts
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

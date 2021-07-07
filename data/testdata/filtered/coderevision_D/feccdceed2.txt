@@ -1,0 +1,25 @@
+diff --git a/block.c b/block.c
+index 1d37f133a8..3f456892d0 100644
+--- a/block.c
++++ b/block.c
+@@ -54,7 +54,7 @@
+ #ifdef CONFIG_BSD
+ #include <sys/ioctl.h>
+ #include <sys/queue.h>
+-#if defined(HAVE_SYS_DISK_H)
++#ifndef __DragonFly__
+ #include <sys/disk.h>
+ #endif
+ #endif
+diff --git a/meson.build b/meson.build
+index 144456426c..6419d4ee41 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1251,7 +1251,6 @@ config_host_data.set('HAVE_SYS_IOCCOM_H', cc.has_header('sys/ioccom.h'))
+ config_host_data.set('HAVE_SYS_KCOV_H', cc.has_header('sys/kcov.h'))
+ config_host_data.set('HAVE_SYSTEM_FUNCTION', cc.has_function('system', prefix: '#include <stdlib.h>'))
+ config_host_data.set('HAVE_HOST_BLOCK_DEVICE', have_host_block_device)
+-config_host_data.set('HAVE_SYS_DISK_H', cc.has_header('sys/disk.h'))
+ 
+ config_host_data.set('CONFIG_PREADV', cc.has_function('preadv', prefix: '#include <sys/uio.h>'))
+ 

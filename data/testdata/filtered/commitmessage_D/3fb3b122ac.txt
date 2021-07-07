@@ -1,0 +1,18 @@
+commit 3fb3b122ac061859c20cdb14567313f137dbc152
+Author: Cornelia Huck <cohuck@redhat.com>
+Date:   Wed Jun 2 14:50:50 2021 +0200
+
+    s390x/kvm: remove unused gs handling
+    
+    With commit 0280b3eb7c05 ("s390x/kvm: use cpu model for gscb on
+    compat machines"), we removed any calls to kvm_s390_get_gs()
+    in favour of a different mechanism.
+    
+    Let's remove the unused kvm_s390_get_gs(), and with it the now
+    unneeded cap_gs as well.
+    
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>
+    Reviewed-by: Christian Borntraeger <borntraeger@de.ibm.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210602125050.492500-1-cohuck@redhat.com>

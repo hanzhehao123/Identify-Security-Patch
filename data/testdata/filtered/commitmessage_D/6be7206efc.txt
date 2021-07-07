@@ -1,0 +1,17 @@
+commit 6be7206efc394b0232912e7055c7298ec2b0352d
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:47 2021 -0400
+
+    scripts/qmp-shell: move to python/qemu/qmp/qmp_shell.py
+    
+    The script will be unavailable for a commit or two, which will help
+    preserve development history attached to the new file. A forwarder will
+    be added shortly afterwards.
+    
+    With qmp_shell in the python qemu.qmp package, now it is fully type
+    checked, linted, etc. via the Python CI. It will be quite a bit harder
+    to accidentally break it again in the future.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-41-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

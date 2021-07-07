@@ -1,0 +1,13 @@
+commit 5d0204b82ade0ea0630d6add894954135ee54ab1
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sun May 16 09:52:52 2021 -0500
+
+    softfloat: Use hard-float for {u}int64_to_float{32,64}
+    
+    For the normal case of no additional scaling, this reduces the
+    profile contribution of int64_to_float64 to the testcase in the
+    linked issue from 0.81% to 0.04%.
+    
+    Resolves: https://gitlab.com/qemu-project/qemu/-/issues/134
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

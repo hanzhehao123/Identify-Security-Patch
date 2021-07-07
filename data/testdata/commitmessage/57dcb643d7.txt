@@ -1,0 +1,17 @@
+commit 57dcb643d79731b08a863444d6591d22552bc2e5
+Author: Pavel Dovgalyuk <pavel.dovgalyuk@ispras.ru>
+Date:   Tue May 11 12:11:43 2021 +0300
+
+    replay: fix watchpoint processing for reverse debugging
+    
+    This patch enables reverse debugging with watchpoints.
+    Reverse continue scans the execution to find the breakpoints
+    and watchpoints that should fire. It uses helper function
+    replay_breakpoint() for that. But this function needs to access
+    icount, which can't be correct in the middle of TB.
+    Therefore, in case of watchpoint, we have to retranslate the block
+    to allow this access.
+    
+    Signed-off-by: Pavel Dovgalyuk <Pavel.Dovgalyuk@ispras.ru>
+    Message-Id: <162072430303.827403.7379783546934958566.stgit@pasha-ThinkPad-X280>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

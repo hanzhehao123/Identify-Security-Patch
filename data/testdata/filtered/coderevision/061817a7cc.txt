@@ -1,0 +1,394 @@
+diff --git a/target/i386/cpu-sysemu.c b/target/i386/cpu-sysemu.c
+index 1078e3d157..6477584313 100644
+--- a/target/i386/cpu-sysemu.c
++++ b/target/i386/cpu-sysemu.c
+@@ -312,7 +312,7 @@ GuestPanicInformation *x86_cpu_get_crash_info(CPUState *cs)
+     CPUX86State *env = &cpu->env;
+     GuestPanicInformation *panic_info = NULL;
+ 
+-    if (hyperv_feat_enabled(cpu, HYPERV_FEAT_CRASH)) {
++    if (env->features[FEAT_HYPERV_EDX] & HV_GUEST_CRASH_MSR_AVAILABLE) {
+         panic_info = g_malloc0(sizeof(GuestPanicInformation));
+ 
+         panic_info->type = GUEST_PANIC_INFORMATION_TYPE_HYPER_V;
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index e0ba36cc23..48dabc5238 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -776,6 +776,94 @@ FeatureWordInfo feature_word_info[FEATURE_WORDS] = {
+          */
+         .no_autoenable_flags = ~0U,
+     },
++    /*
++     * .feat_names are commented out for Hyper-V enlightenments because we
++     * don't want to have two different ways for enabling them on QEMU command
++     * line. Some features (e.g. "hyperv_time", "hyperv_vapic", ...) require
++     * enabling several feature bits simultaneously, exposing these bits
++     * individually may just confuse guests.
++     */
++    [FEAT_HYPERV_EAX] = {
++        .type = CPUID_FEATURE_WORD,
++        .feat_names = {
++            NULL /* hv_msr_vp_runtime_access */, NULL /* hv_msr_time_refcount_access */,
++            NULL /* hv_msr_synic_access */, NULL /* hv_msr_stimer_access */,
++            NULL /* hv_msr_apic_access */, NULL /* hv_msr_hypercall_access */,
++            NULL /* hv_vpindex_access */, NULL /* hv_msr_reset_access */,
++            NULL /* hv_msr_stats_access */, NULL /* hv_reftsc_access */,
++            NULL /* hv_msr_idle_access */, NULL /* hv_msr_frequency_access */,
++            NULL /* hv_msr_debug_access */, NULL /* hv_msr_reenlightenment_access */,
++            NULL, NULL,
++            NULL, NULL, NULL, NULL,
++            NULL, NULL, NULL, NULL,
++            NULL, NULL, NULL, NULL,
++            NULL, NULL, NULL, NULL,
++        },
++        .cpuid = { .eax = 0x40000003, .reg = R_EAX, },
++    },
++    [FEAT_HYPERV_EBX] = {
++        .type = CPUID_FEATURE_WORD,
++        .feat_names = {
++            NULL /* hv_create_partitions */, NULL /* hv_access_partition_id */,
++            NULL /* hv_access_memory_pool */, NULL /* hv_adjust_message_buffers */,
++            NULL /* hv_post_messages */, NULL /* hv_signal_events */,
++            NULL /* hv_create_port */, NULL /* hv_connect_port */,
++            NULL /* hv_access_stats */, NULL, NULL, NULL /* hv_debugging */,
++            NULL /* hv_cpu_power_management */, NULL /* hv_configure_profiler */,
++            NULL, NULL,
++            NULL, NULL, NULL, NULL,
++            NULL, NULL, NULL, NULL,
++            NULL, NULL, NULL, NULL,
++            NULL, NULL, NULL, NULL,
++        },
++        .cpuid = { .eax = 0x40000003, .reg = R_EBX, },
++    },
++    [FEAT_HYPERV_EDX] = {
++        .type = CPUID_FEATURE_WORD,
++        .feat_names = {
++            NULL /* hv_mwait */, NULL /* hv_guest_debugging */,
++            NULL /* hv_perf_monitor */, NULL /* hv_cpu_dynamic_part */,
++            NULL /* hv_hypercall_params_xmm */, NULL /* hv_guest_idle_state */,
++            NULL, NULL,
++            NULL, NULL, NULL /* hv_guest_crash_msr */, NULL,
++            NULL, NULL, NULL, NULL,
++            NULL, NULL, NULL, NULL,
++            NULL, NULL, NULL, NULL,
++            NULL, NULL, NULL, NULL,
++            NULL, NULL, NULL, NULL,
++        },
++        .cpuid = { .eax = 0x40000003, .reg = R_EDX, },
++    },
++    [FEAT_HV_RECOMM_EAX] = {
++        .type = CPUID_FEATURE_WORD,
++        .feat_names = {
++            NULL /* hv_recommend_pv_as_switch */,
++            NULL /* hv_recommend_pv_tlbflush_local */,
++            NULL /* hv_recommend_pv_tlbflush_remote */,
++            NULL /* hv_recommend_msr_apic_access */,
++            NULL /* hv_recommend_msr_reset */,
++            NULL /* hv_recommend_relaxed_timing */,
++            NULL /* hv_recommend_dma_remapping */,
++            NULL /* hv_recommend_int_remapping */,
++            NULL /* hv_recommend_x2apic_msrs */,
++            NULL /* hv_recommend_autoeoi_deprecation */,
++            NULL /* hv_recommend_pv_ipi */,
++            NULL /* hv_recommend_ex_hypercalls */,
++            NULL /* hv_hypervisor_is_nested */,
++            NULL /* hv_recommend_int_mbec */,
++            NULL /* hv_recommend_evmcs */,
++            NULL,
++            NULL, NULL, NULL, NULL,
++            NULL, NULL, NULL, NULL,
++            NULL, NULL, NULL, NULL,
++            NULL, NULL, NULL, NULL,
++        },
++        .cpuid = { .eax = 0x40000004, .reg = R_EAX, },
++    },
++    [FEAT_HV_NESTED_EAX] = {
++        .type = CPUID_FEATURE_WORD,
++        .cpuid = { .eax = 0x4000000A, .reg = R_EAX, },
++    },
+     [FEAT_SVM] = {
+         .type = CPUID_FEATURE_WORD,
+         .feat_names = {
+diff --git a/target/i386/cpu.h b/target/i386/cpu.h
+index ac3abea97c..681f11607f 100644
+--- a/target/i386/cpu.h
++++ b/target/i386/cpu.h
+@@ -531,6 +531,11 @@ typedef enum FeatureWord {
+     FEAT_C000_0001_EDX, /* CPUID[C000_0001].EDX */
+     FEAT_KVM,           /* CPUID[4000_0001].EAX (KVM_CPUID_FEATURES) */
+     FEAT_KVM_HINTS,     /* CPUID[4000_0001].EDX */
++    FEAT_HYPERV_EAX,    /* CPUID[4000_0003].EAX */
++    FEAT_HYPERV_EBX,    /* CPUID[4000_0003].EBX */
++    FEAT_HYPERV_EDX,    /* CPUID[4000_0003].EDX */
++    FEAT_HV_RECOMM_EAX, /* CPUID[4000_0004].EAX */
++    FEAT_HV_NESTED_EAX, /* CPUID[4000_000A].EAX */
+     FEAT_SVM,           /* CPUID[8000_000A].EDX */
+     FEAT_XSAVE,         /* CPUID[EAX=0xd,ECX=1].EAX */
+     FEAT_6_EAX,         /* CPUID[6].EAX */
+diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
+index 6d6afd83e3..018f19c3a3 100644
+--- a/target/i386/kvm/kvm.c
++++ b/target/i386/kvm/kvm.c
+@@ -801,8 +801,7 @@ static bool tsc_is_stable_and_known(CPUX86State *env)
+ static struct {
+     const char *desc;
+     struct {
+-        uint32_t func;
+-        int reg;
++        uint32_t fw;
+         uint32_t bits;
+     } flags[2];
+     uint64_t dependencies;
+@@ -810,25 +809,25 @@ static struct {
+     [HYPERV_FEAT_RELAXED] = {
+         .desc = "relaxed timing (hv-relaxed)",
+         .flags = {
+-            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
++            {.fw = FEAT_HYPERV_EAX,
+              .bits = HV_HYPERCALL_AVAILABLE},
+-            {.func = HV_CPUID_ENLIGHTMENT_INFO, .reg = R_EAX,
++            {.fw = FEAT_HV_RECOMM_EAX,
+              .bits = HV_RELAXED_TIMING_RECOMMENDED}
+         }
+     },
+     [HYPERV_FEAT_VAPIC] = {
+         .desc = "virtual APIC (hv-vapic)",
+         .flags = {
+-            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
++            {.fw = FEAT_HYPERV_EAX,
+              .bits = HV_HYPERCALL_AVAILABLE | HV_APIC_ACCESS_AVAILABLE},
+-            {.func = HV_CPUID_ENLIGHTMENT_INFO, .reg = R_EAX,
++            {.fw = FEAT_HV_RECOMM_EAX,
+              .bits = HV_APIC_ACCESS_RECOMMENDED}
+         }
+     },
+     [HYPERV_FEAT_TIME] = {
+         .desc = "clocksources (hv-time)",
+         .flags = {
+-            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
++            {.fw = FEAT_HYPERV_EAX,
+              .bits = HV_HYPERCALL_AVAILABLE | HV_TIME_REF_COUNT_AVAILABLE |
+              HV_REFERENCE_TSC_AVAILABLE}
+         }
+@@ -836,42 +835,42 @@ static struct {
+     [HYPERV_FEAT_CRASH] = {
+         .desc = "crash MSRs (hv-crash)",
+         .flags = {
+-            {.func = HV_CPUID_FEATURES, .reg = R_EDX,
++            {.fw = FEAT_HYPERV_EDX,
+              .bits = HV_GUEST_CRASH_MSR_AVAILABLE}
+         }
+     },
+     [HYPERV_FEAT_RESET] = {
+         .desc = "reset MSR (hv-reset)",
+         .flags = {
+-            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
++            {.fw = FEAT_HYPERV_EAX,
+              .bits = HV_RESET_AVAILABLE}
+         }
+     },
+     [HYPERV_FEAT_VPINDEX] = {
+         .desc = "VP_INDEX MSR (hv-vpindex)",
+         .flags = {
+-            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
++            {.fw = FEAT_HYPERV_EAX,
+              .bits = HV_VP_INDEX_AVAILABLE}
+         }
+     },
+     [HYPERV_FEAT_RUNTIME] = {
+         .desc = "VP_RUNTIME MSR (hv-runtime)",
+         .flags = {
+-            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
++            {.fw = FEAT_HYPERV_EAX,
+              .bits = HV_VP_RUNTIME_AVAILABLE}
+         }
+     },
+     [HYPERV_FEAT_SYNIC] = {
+         .desc = "synthetic interrupt controller (hv-synic)",
+         .flags = {
+-            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
++            {.fw = FEAT_HYPERV_EAX,
+              .bits = HV_SYNIC_AVAILABLE}
+         }
+     },
+     [HYPERV_FEAT_STIMER] = {
+         .desc = "synthetic timers (hv-stimer)",
+         .flags = {
+-            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
++            {.fw = FEAT_HYPERV_EAX,
+              .bits = HV_SYNTIMERS_AVAILABLE}
+         },
+         .dependencies = BIT(HYPERV_FEAT_SYNIC) | BIT(HYPERV_FEAT_TIME)
+@@ -879,23 +878,23 @@ static struct {
+     [HYPERV_FEAT_FREQUENCIES] = {
+         .desc = "frequency MSRs (hv-frequencies)",
+         .flags = {
+-            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
++            {.fw = FEAT_HYPERV_EAX,
+              .bits = HV_ACCESS_FREQUENCY_MSRS},
+-            {.func = HV_CPUID_FEATURES, .reg = R_EDX,
++            {.fw = FEAT_HYPERV_EDX,
+              .bits = HV_FREQUENCY_MSRS_AVAILABLE}
+         }
+     },
+     [HYPERV_FEAT_REENLIGHTENMENT] = {
+         .desc = "reenlightenment MSRs (hv-reenlightenment)",
+         .flags = {
+-            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
++            {.fw = FEAT_HYPERV_EAX,
+              .bits = HV_ACCESS_REENLIGHTENMENTS_CONTROL}
+         }
+     },
+     [HYPERV_FEAT_TLBFLUSH] = {
+         .desc = "paravirtualized TLB flush (hv-tlbflush)",
+         .flags = {
+-            {.func = HV_CPUID_ENLIGHTMENT_INFO, .reg = R_EAX,
++            {.fw = FEAT_HV_RECOMM_EAX,
+              .bits = HV_REMOTE_TLB_FLUSH_RECOMMENDED |
+              HV_EX_PROCESSOR_MASKS_RECOMMENDED}
+         },
+@@ -904,7 +903,7 @@ static struct {
+     [HYPERV_FEAT_EVMCS] = {
+         .desc = "enlightened VMCS (hv-evmcs)",
+         .flags = {
+-            {.func = HV_CPUID_ENLIGHTMENT_INFO, .reg = R_EAX,
++            {.fw = FEAT_HV_RECOMM_EAX,
+              .bits = HV_ENLIGHTENED_VMCS_RECOMMENDED}
+         },
+         .dependencies = BIT(HYPERV_FEAT_VAPIC)
+@@ -912,7 +911,7 @@ static struct {
+     [HYPERV_FEAT_IPI] = {
+         .desc = "paravirtualized IPI (hv-ipi)",
+         .flags = {
+-            {.func = HV_CPUID_ENLIGHTMENT_INFO, .reg = R_EAX,
++            {.fw = FEAT_HV_RECOMM_EAX,
+              .bits = HV_CLUSTER_IPI_RECOMMENDED |
+              HV_EX_PROCESSOR_MASKS_RECOMMENDED}
+         },
+@@ -921,7 +920,7 @@ static struct {
+     [HYPERV_FEAT_STIMER_DIRECT] = {
+         .desc = "direct mode synthetic timers (hv-stimer-direct)",
+         .flags = {
+-            {.func = HV_CPUID_FEATURES, .reg = R_EDX,
++            {.fw = FEAT_HYPERV_EDX,
+              .bits = HV_STIMER_DIRECT_MODE_AVAILABLE}
+         },
+         .dependencies = BIT(HYPERV_FEAT_STIMER)
+@@ -1067,6 +1066,48 @@ static struct kvm_cpuid2 *get_supported_hv_cpuid_legacy(CPUState *cs)
+     return cpuid;
+ }
+ 
++static int hv_cpuid_get_fw(struct kvm_cpuid2 *cpuid, int fw, uint32_t *r)
++{
++    struct kvm_cpuid_entry2 *entry;
++    uint32_t func;
++    int reg;
++
++    switch (fw) {
++    case FEAT_HYPERV_EAX:
++        reg = R_EAX;
++        func = HV_CPUID_FEATURES;
++        break;
++    case FEAT_HYPERV_EDX:
++        reg = R_EDX;
++        func = HV_CPUID_FEATURES;
++        break;
++    case FEAT_HV_RECOMM_EAX:
++        reg = R_EAX;
++        func = HV_CPUID_ENLIGHTMENT_INFO;
++        break;
++    default:
++        return -EINVAL;
++    }
++
++    entry = cpuid_find_entry(cpuid, func, 0);
++    if (!entry) {
++        return -ENOENT;
++    }
++
++    switch (reg) {
++    case R_EAX:
++        *r = entry->eax;
++        break;
++    case R_EDX:
++        *r = entry->edx;
++        break;
++    default:
++        return -EINVAL;
++    }
++
++    return 0;
++}
++
+ static uint32_t hv_cpuid_get_host(struct kvm_cpuid2 *cpuid, uint32_t func,
+                                   int reg)
+ {
+@@ -1082,20 +1123,18 @@ static uint32_t hv_cpuid_get_host(struct kvm_cpuid2 *cpuid, uint32_t func,
+ 
+ static bool hyperv_feature_supported(struct kvm_cpuid2 *cpuid, int feature)
+ {
+-    uint32_t func, bits;
+-    int i, reg;
++    uint32_t r, fw, bits;
++    int i;
+ 
+     for (i = 0; i < ARRAY_SIZE(kvm_hyperv_properties[feature].flags); i++) {
+-
+-        func = kvm_hyperv_properties[feature].flags[i].func;
+-        reg = kvm_hyperv_properties[feature].flags[i].reg;
++        fw = kvm_hyperv_properties[feature].flags[i].fw;
+         bits = kvm_hyperv_properties[feature].flags[i].bits;
+ 
+-        if (!func) {
++        if (!fw) {
+             continue;
+         }
+ 
+-        if ((hv_cpuid_get_host(cpuid, func, reg) & bits) != bits) {
++        if (hv_cpuid_get_fw(cpuid, fw, &r) || (r & bits) != bits) {
+             return false;
+         }
+     }
+@@ -1145,7 +1184,7 @@ static int hv_cpuid_check_and_set(CPUState *cs, struct kvm_cpuid2 *cpuid,
+     return 0;
+ }
+ 
+-static uint32_t hv_build_cpuid_leaf(CPUState *cs, uint32_t func, int reg)
++static uint32_t hv_build_cpuid_leaf(CPUState *cs, uint32_t fw)
+ {
+     X86CPU *cpu = X86_CPU(cs);
+     uint32_t r = 0;
+@@ -1157,10 +1196,7 @@ static uint32_t hv_build_cpuid_leaf(CPUState *cs, uint32_t func, int reg)
+         }
+ 
+         for (j = 0; j < ARRAY_SIZE(kvm_hyperv_properties[i].flags); j++) {
+-            if (kvm_hyperv_properties[i].flags[j].func != func) {
+-                continue;
+-            }
+-            if (kvm_hyperv_properties[i].flags[j].reg != reg) {
++            if (kvm_hyperv_properties[i].flags[j].fw != fw) {
+                 continue;
+             }
+ 
+@@ -1312,16 +1348,16 @@ static int hyperv_handle_properties(CPUState *cs,
+ 
+     c = &cpuid_ent[cpuid_i++];
+     c->function = HV_CPUID_FEATURES;
+-    c->eax = hv_build_cpuid_leaf(cs, HV_CPUID_FEATURES, R_EAX);
+-    c->ebx = hv_build_cpuid_leaf(cs, HV_CPUID_FEATURES, R_EBX);
+-    c->edx = hv_build_cpuid_leaf(cs, HV_CPUID_FEATURES, R_EDX);
++    c->eax = hv_build_cpuid_leaf(cs, FEAT_HYPERV_EAX);
++    c->ebx = hv_build_cpuid_leaf(cs, FEAT_HYPERV_EBX);
++    c->edx = hv_build_cpuid_leaf(cs, FEAT_HYPERV_EDX);
+ 
+     /* Not exposed by KVM but needed to make CPU hotplug in Windows work */
+     c->edx |= HV_CPU_DYNAMIC_PARTITIONING_AVAILABLE;
+ 
+     c = &cpuid_ent[cpuid_i++];
+     c->function = HV_CPUID_ENLIGHTMENT_INFO;
+-    c->eax = hv_build_cpuid_leaf(cs, HV_CPUID_ENLIGHTMENT_INFO, R_EAX);
++    c->eax = hv_build_cpuid_leaf(cs, FEAT_HV_RECOMM_EAX);
+     c->ebx = cpu->hyperv_spinlock_attempts;
+ 
+     if (cpu->hyperv_no_nonarch_cs == ON_OFF_AUTO_ON) {

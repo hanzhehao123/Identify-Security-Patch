@@ -1,0 +1,1788 @@
+diff --git a/hw/i386/pc.c b/hw/i386/pc.c
+index 8cfaf216e7..c6d8d0d84d 100644
+--- a/hw/i386/pc.c
++++ b/hw/i386/pc.c
+@@ -94,7 +94,11 @@
+ #include "trace.h"
+ #include CONFIG_DEVICES
+ 
+-GlobalProperty pc_compat_6_0[] = {};
++GlobalProperty pc_compat_6_0[] = {
++    { "qemu64" "-" TYPE_X86_CPU, "family", "6" },
++    { "qemu64" "-" TYPE_X86_CPU, "model", "6" },
++    { "qemu64" "-" TYPE_X86_CPU, "stepping", "3" },
++};
+ const size_t pc_compat_6_0_len = G_N_ELEMENTS(pc_compat_6_0);
+ 
+ GlobalProperty pc_compat_5_2[] = {
+diff --git a/linux-headers/linux/kvm.h b/linux-headers/linux/kvm.h
+index 020b62a619..897f831374 100644
+--- a/linux-headers/linux/kvm.h
++++ b/linux-headers/linux/kvm.h
+@@ -1591,6 +1591,8 @@ enum sev_cmd_id {
+ 	KVM_SEV_DBG_ENCRYPT,
+ 	/* Guest certificates commands */
+ 	KVM_SEV_CERT_EXPORT,
++	/* Attestation report */
++	KVM_SEV_GET_ATTESTATION_REPORT,
+ 
+ 	KVM_SEV_NR_MAX,
+ };
+@@ -1643,6 +1645,12 @@ struct kvm_sev_dbg {
+ 	__u32 len;
+ };
+ 
++struct kvm_sev_attestation_report {
++	__u8 mnonce[16];
++	__u64 uaddr;
++	__u32 len;
++};
++
+ #define KVM_DEV_ASSIGN_ENABLE_IOMMU	(1 << 0)
+ #define KVM_DEV_ASSIGN_PCI_2_3		(1 << 1)
+ #define KVM_DEV_ASSIGN_MASK_INTX	(1 << 2)
+diff --git a/python/qemu/machine.py b/python/qemu/machine.py
+index b379fcbe72..6e44bda337 100644
+--- a/python/qemu/machine.py
++++ b/python/qemu/machine.py
+@@ -84,7 +84,7 @@ def __init__(self,
+                  args: Sequence[str] = (),
+                  wrapper: Sequence[str] = (),
+                  name: Optional[str] = None,
+-                 base_temp_dir: str = "/var/tmp",
++                 test_dir: str = "/var/tmp",
+                  monitor_address: Optional[SocketAddrT] = None,
+                  socket_scm_helper: Optional[str] = None,
+                  sock_dir: Optional[str] = None,
+@@ -97,10 +97,10 @@ def __init__(self,
+         @param args: list of extra arguments
+         @param wrapper: list of arguments used as prefix to qemu binary
+         @param name: prefix for socket and log file names (default: qemu-PID)
+-        @param base_temp_dir: default location where temporary files are created
++        @param test_dir: where to create socket and log file
+         @param monitor_address: address for QMP monitor
+         @param socket_scm_helper: helper program, required for send_fd_scm()
+-        @param sock_dir: where to create socket (defaults to base_temp_dir)
++        @param sock_dir: where to create socket (overrides test_dir for sock)
+         @param drain_console: (optional) True to drain console socket to buffer
+         @param console_log: (optional) path to console log file
+         @note: Qemu process is not started until launch() is used.
+@@ -112,8 +112,8 @@ def __init__(self,
+         self._wrapper = wrapper
+ 
+         self._name = name or "qemu-%d" % os.getpid()
+-        self._base_temp_dir = base_temp_dir
+-        self._sock_dir = sock_dir or self._base_temp_dir
++        self._test_dir = test_dir
++        self._sock_dir = sock_dir or self._test_dir
+         self._socket_scm_helper = socket_scm_helper
+ 
+         if monitor_address is not None:
+@@ -303,7 +303,9 @@ def _base_args(self) -> List[str]:
+         return args
+ 
+     def _pre_launch(self) -> None:
+-        self._qemu_log_path = os.path.join(self.temp_dir, self._name + ".log")
++        self._temp_dir = tempfile.mkdtemp(prefix="qemu-machine-",
++                                          dir=self._test_dir)
++        self._qemu_log_path = os.path.join(self._temp_dir, self._name + ".log")
+         self._qemu_log_file = open(self._qemu_log_path, 'wb')
+ 
+         if self._console_set:
+@@ -742,13 +744,3 @@ def console_socket(self) -> socket.socket:
+                 file=self._console_log_path,
+                 drain=self._drain_console)
+         return self._console_socket
+-
+-    @property
+-    def temp_dir(self) -> str:
+-        """
+-        Returns a temporary directory to be used for this machine
+-        """
+-        if self._temp_dir is None:
+-            self._temp_dir = tempfile.mkdtemp(prefix="qemu-machine-",
+-                                              dir=self._base_temp_dir)
+-        return self._temp_dir
+diff --git a/python/qemu/qtest.py b/python/qemu/qtest.py
+index 78b97d13cf..39a0cf62fe 100644
+--- a/python/qemu/qtest.py
++++ b/python/qemu/qtest.py
+@@ -112,14 +112,14 @@ def __init__(self,
+                  binary: str,
+                  args: Sequence[str] = (),
+                  name: Optional[str] = None,
+-                 base_temp_dir: str = "/var/tmp",
++                 test_dir: str = "/var/tmp",
+                  socket_scm_helper: Optional[str] = None,
+                  sock_dir: Optional[str] = None):
+         if name is None:
+             name = "qemu-%d" % os.getpid()
+         if sock_dir is None:
+-            sock_dir = base_temp_dir
+-        super().__init__(binary, args, name=name, base_temp_dir=base_temp_dir,
++            sock_dir = test_dir
++        super().__init__(binary, args, name=name, test_dir=test_dir,
+                          socket_scm_helper=socket_scm_helper,
+                          sock_dir=sock_dir)
+         self._qtest: Optional[QEMUQtestProtocol] = None
+diff --git a/qapi/misc-target.json b/qapi/misc-target.json
+index 6200c671be..5573dcf8f0 100644
+--- a/qapi/misc-target.json
++++ b/qapi/misc-target.json
+@@ -285,3 +285,41 @@
+ ##
+ { 'command': 'query-gic-capabilities', 'returns': ['GICCapability'],
+   'if': 'defined(TARGET_ARM)' }
++
++
++##
++# @SevAttestationReport:
++#
++# The struct describes attestation report for a Secure Encrypted Virtualization
++# feature.
++#
++# @data:  guest attestation report (base64 encoded)
++#
++#
++# Since: 6.1
++##
++{ 'struct': 'SevAttestationReport',
++  'data': { 'data': 'str'},
++  'if': 'defined(TARGET_I386)' }
++
++##
++# @query-sev-attestation-report:
++#
++# This command is used to get the SEV attestation report, and is supported on AMD
++# X86 platforms only.
++#
++# @mnonce: a random 16 bytes value encoded in base64 (it will be included in report)
++#
++# Returns: SevAttestationReport objects.
++#
++# Since: 6.1
++#
++# Example:
++#
++# -> { "execute" : "query-sev-attestation-report", "arguments": { "mnonce": "aaaaaaa" } }
++# <- { "return" : { "data": "aaaaaaaabbbddddd"} }
++#
++##
++{ 'command': 'query-sev-attestation-report', 'data': { 'mnonce': 'str' },
++  'returns': 'SevAttestationReport',
++  'if': 'defined(TARGET_I386)' }
+diff --git a/target/i386/cpu-dump.c b/target/i386/cpu-dump.c
+index aac21f1f60..02b635a52c 100644
+--- a/target/i386/cpu-dump.c
++++ b/target/i386/cpu-dump.c
+@@ -478,6 +478,11 @@ void x86_cpu_dump_state(CPUState *cs, FILE *f, int flags)
+     qemu_fprintf(f, "EFER=%016" PRIx64 "\n", env->efer);
+     if (flags & CPU_DUMP_FPU) {
+         int fptag;
++        const uint64_t avx512_mask = XSTATE_OPMASK_MASK | \
++                                     XSTATE_ZMM_Hi256_MASK | \
++                                     XSTATE_Hi16_ZMM_MASK | \
++                                     XSTATE_YMM_MASK | XSTATE_SSE_MASK,
++                       avx_mask = XSTATE_YMM_MASK | XSTATE_SSE_MASK;
+         fptag = 0;
+         for(i = 0; i < 8; i++) {
+             fptag |= ((!env->fptags[i]) << i);
+@@ -499,21 +504,49 @@ void x86_cpu_dump_state(CPUState *cs, FILE *f, int flags)
+             else
+                 qemu_fprintf(f, " ");
+         }
+-        if (env->hflags & HF_CS64_MASK)
+-            nb = 16;
+-        else
+-            nb = 8;
+-        for(i=0;i<nb;i++) {
+-            qemu_fprintf(f, "XMM%02d=%08x%08x%08x%08x",
+-                         i,
+-                         env->xmm_regs[i].ZMM_L(3),
+-                         env->xmm_regs[i].ZMM_L(2),
+-                         env->xmm_regs[i].ZMM_L(1),
+-                         env->xmm_regs[i].ZMM_L(0));
+-            if ((i & 1) == 1)
+-                qemu_fprintf(f, "\n");
+-            else
+-                qemu_fprintf(f, " ");
++
++        if ((env->xcr0 & avx512_mask) == avx512_mask) {
++            /* XSAVE enabled AVX512 */
++            for (i = 0; i < NB_OPMASK_REGS; i++) {
++                qemu_fprintf(f, "Opmask%02d=%016"PRIx64"%s", i,
++                             env->opmask_regs[i], ((i & 3) == 3) ? "\n" : " ");
++            }
++
++            nb = (env->hflags & HF_CS64_MASK) ? 32 : 8;
++            for (i = 0; i < nb; i++) {
++                qemu_fprintf(f, "ZMM%02d=%016"PRIx64" %016"PRIx64" %016"PRIx64
++                             " %016"PRIx64" %016"PRIx64" %016"PRIx64
++                             " %016"PRIx64" %016"PRIx64"\n",
++                             i,
++                             env->xmm_regs[i].ZMM_Q(7),
++                             env->xmm_regs[i].ZMM_Q(6),
++                             env->xmm_regs[i].ZMM_Q(5),
++                             env->xmm_regs[i].ZMM_Q(4),
++                             env->xmm_regs[i].ZMM_Q(3),
++                             env->xmm_regs[i].ZMM_Q(2),
++                             env->xmm_regs[i].ZMM_Q(1),
++                             env->xmm_regs[i].ZMM_Q(0));
++            }
++        } else if ((env->xcr0 & avx_mask)  == avx_mask) {
++            /* XSAVE enabled AVX */
++            nb = env->hflags & HF_CS64_MASK ? 16 : 8;
++            for (i = 0; i < nb; i++) {
++                qemu_fprintf(f, "YMM%02d=%016"PRIx64" %016"PRIx64" %016"PRIx64
++                             " %016"PRIx64"\n", i,
++                             env->xmm_regs[i].ZMM_Q(3),
++                             env->xmm_regs[i].ZMM_Q(2),
++                             env->xmm_regs[i].ZMM_Q(1),
++                             env->xmm_regs[i].ZMM_Q(0));
++            }
++        } else { /* SSE and below cases */
++            nb = env->hflags & HF_CS64_MASK ? 16 : 8;
++            for (i = 0; i < nb; i++) {
++                qemu_fprintf(f, "XMM%02d=%016"PRIx64" %016"PRIx64"%s",
++                             i,
++                             env->xmm_regs[i].ZMM_Q(1),
++                             env->xmm_regs[i].ZMM_Q(0),
++                             (i & 1) ? "\n" : " ");
++            }
+         }
+     }
+     if (flags & CPU_DUMP_CODE) {
+diff --git a/target/i386/cpu-sysemu.c b/target/i386/cpu-sysemu.c
+index 6477584313..1078e3d157 100644
+--- a/target/i386/cpu-sysemu.c
++++ b/target/i386/cpu-sysemu.c
+@@ -312,7 +312,7 @@ GuestPanicInformation *x86_cpu_get_crash_info(CPUState *cs)
+     CPUX86State *env = &cpu->env;
+     GuestPanicInformation *panic_info = NULL;
+ 
+-    if (env->features[FEAT_HYPERV_EDX] & HV_GUEST_CRASH_MSR_AVAILABLE) {
++    if (hyperv_feat_enabled(cpu, HYPERV_FEAT_CRASH)) {
+         panic_info = g_malloc0(sizeof(GuestPanicInformation));
+ 
+         panic_info->type = GUEST_PANIC_INFORMATION_TYPE_HYPER_V;
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index b4349119f8..e0ba36cc23 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -776,94 +776,6 @@ FeatureWordInfo feature_word_info[FEATURE_WORDS] = {
+          */
+         .no_autoenable_flags = ~0U,
+     },
+-    /*
+-     * .feat_names are commented out for Hyper-V enlightenments because we
+-     * don't want to have two different ways for enabling them on QEMU command
+-     * line. Some features (e.g. "hyperv_time", "hyperv_vapic", ...) require
+-     * enabling several feature bits simultaneously, exposing these bits
+-     * individually may just confuse guests.
+-     */
+-    [FEAT_HYPERV_EAX] = {
+-        .type = CPUID_FEATURE_WORD,
+-        .feat_names = {
+-            NULL /* hv_msr_vp_runtime_access */, NULL /* hv_msr_time_refcount_access */,
+-            NULL /* hv_msr_synic_access */, NULL /* hv_msr_stimer_access */,
+-            NULL /* hv_msr_apic_access */, NULL /* hv_msr_hypercall_access */,
+-            NULL /* hv_vpindex_access */, NULL /* hv_msr_reset_access */,
+-            NULL /* hv_msr_stats_access */, NULL /* hv_reftsc_access */,
+-            NULL /* hv_msr_idle_access */, NULL /* hv_msr_frequency_access */,
+-            NULL /* hv_msr_debug_access */, NULL /* hv_msr_reenlightenment_access */,
+-            NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-        },
+-        .cpuid = { .eax = 0x40000003, .reg = R_EAX, },
+-    },
+-    [FEAT_HYPERV_EBX] = {
+-        .type = CPUID_FEATURE_WORD,
+-        .feat_names = {
+-            NULL /* hv_create_partitions */, NULL /* hv_access_partition_id */,
+-            NULL /* hv_access_memory_pool */, NULL /* hv_adjust_message_buffers */,
+-            NULL /* hv_post_messages */, NULL /* hv_signal_events */,
+-            NULL /* hv_create_port */, NULL /* hv_connect_port */,
+-            NULL /* hv_access_stats */, NULL, NULL, NULL /* hv_debugging */,
+-            NULL /* hv_cpu_power_management */, NULL /* hv_configure_profiler */,
+-            NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-        },
+-        .cpuid = { .eax = 0x40000003, .reg = R_EBX, },
+-    },
+-    [FEAT_HYPERV_EDX] = {
+-        .type = CPUID_FEATURE_WORD,
+-        .feat_names = {
+-            NULL /* hv_mwait */, NULL /* hv_guest_debugging */,
+-            NULL /* hv_perf_monitor */, NULL /* hv_cpu_dynamic_part */,
+-            NULL /* hv_hypercall_params_xmm */, NULL /* hv_guest_idle_state */,
+-            NULL, NULL,
+-            NULL, NULL, NULL /* hv_guest_crash_msr */, NULL,
+-            NULL, NULL, NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-        },
+-        .cpuid = { .eax = 0x40000003, .reg = R_EDX, },
+-    },
+-    [FEAT_HV_RECOMM_EAX] = {
+-        .type = CPUID_FEATURE_WORD,
+-        .feat_names = {
+-            NULL /* hv_recommend_pv_as_switch */,
+-            NULL /* hv_recommend_pv_tlbflush_local */,
+-            NULL /* hv_recommend_pv_tlbflush_remote */,
+-            NULL /* hv_recommend_msr_apic_access */,
+-            NULL /* hv_recommend_msr_reset */,
+-            NULL /* hv_recommend_relaxed_timing */,
+-            NULL /* hv_recommend_dma_remapping */,
+-            NULL /* hv_recommend_int_remapping */,
+-            NULL /* hv_recommend_x2apic_msrs */,
+-            NULL /* hv_recommend_autoeoi_deprecation */,
+-            NULL /* hv_recommend_pv_ipi */,
+-            NULL /* hv_recommend_ex_hypercalls */,
+-            NULL /* hv_hypervisor_is_nested */,
+-            NULL /* hv_recommend_int_mbec */,
+-            NULL /* hv_recommend_evmcs */,
+-            NULL,
+-            NULL, NULL, NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-            NULL, NULL, NULL, NULL,
+-        },
+-        .cpuid = { .eax = 0x40000004, .reg = R_EAX, },
+-    },
+-    [FEAT_HV_NESTED_EAX] = {
+-        .type = CPUID_FEATURE_WORD,
+-        .cpuid = { .eax = 0x4000000A, .reg = R_EAX, },
+-    },
+     [FEAT_SVM] = {
+         .type = CPUID_FEATURE_WORD,
+         .feat_names = {
+@@ -1576,7 +1488,7 @@ typedef struct X86CPUDefinition {
+     int stepping;
+     FeatureWordArray features;
+     const char *model_id;
+-    CPUCaches *cache_info;
++    const CPUCaches *const cache_info;
+     /*
+      * Definitions for alternative versions of CPU model.
+      * List is terminated by item with version == 0.
+@@ -1589,7 +1501,7 @@ typedef struct X86CPUDefinition {
+ /* Reference to a specific CPU model version */
+ struct X86CPUModel {
+     /* Base CPU definition */
+-    X86CPUDefinition *cpudef;
++    const X86CPUDefinition *cpudef;
+     /* CPU model version */
+     X86CPUVersion version;
+     const char *note;
+@@ -1601,14 +1513,15 @@ struct X86CPUModel {
+ };
+ 
+ /* Get full model name for CPU version */
+-static char *x86_cpu_versioned_model_name(X86CPUDefinition *cpudef,
++static char *x86_cpu_versioned_model_name(const X86CPUDefinition *cpudef,
+                                           X86CPUVersion version)
+ {
+     assert(version > 0);
+     return g_strdup_printf("%s-v%d", cpudef->name, (int)version);
+ }
+ 
+-static const X86CPUVersionDefinition *x86_cpu_def_get_versions(X86CPUDefinition *def)
++static const X86CPUVersionDefinition *
++x86_cpu_def_get_versions(const X86CPUDefinition *def)
+ {
+     /* When X86CPUDefinition::versions is NULL, we register only v1 */
+     static const X86CPUVersionDefinition default_version_list[] = {
+@@ -1619,7 +1532,7 @@ static const X86CPUVersionDefinition *x86_cpu_def_get_versions(X86CPUDefinition
+     return def->versions ?: default_version_list;
+ }
+ 
+-static CPUCaches epyc_cache_info = {
++static const CPUCaches epyc_cache_info = {
+     .l1d_cache = &(CPUCacheInfo) {
+         .type = DATA_CACHE,
+         .level = 1,
+@@ -1669,7 +1582,7 @@ static CPUCaches epyc_cache_info = {
+     },
+ };
+ 
+-static CPUCaches epyc_rome_cache_info = {
++static const CPUCaches epyc_rome_cache_info = {
+     .l1d_cache = &(CPUCacheInfo) {
+         .type = DATA_CACHE,
+         .level = 1,
+@@ -1719,7 +1632,7 @@ static CPUCaches epyc_rome_cache_info = {
+     },
+ };
+ 
+-static CPUCaches epyc_milan_cache_info = {
++static const CPUCaches epyc_milan_cache_info = {
+     .l1d_cache = &(CPUCacheInfo) {
+         .type = DATA_CACHE,
+         .level = 1,
+@@ -1797,14 +1710,14 @@ static CPUCaches epyc_milan_cache_info = {
+  *  PT in VMX operation
+  */
+ 
+-static X86CPUDefinition builtin_x86_defs[] = {
++static const X86CPUDefinition builtin_x86_defs[] = {
+     {
+         .name = "qemu64",
+         .level = 0xd,
+         .vendor = CPUID_VENDOR_AMD,
+-        .family = 6,
+-        .model = 6,
+-        .stepping = 3,
++        .family = 15,
++        .model = 107,
++        .stepping = 1,
+         .features[FEAT_1_EDX] =
+             PPRO_FEATURES |
+             CPUID_MTRR | CPUID_CLFLUSH | CPUID_MCA |
+@@ -2802,12 +2715,7 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             CPUID_7_0_EBX_BMI2 | CPUID_7_0_EBX_ERMS | CPUID_7_0_EBX_INVPCID |
+             CPUID_7_0_EBX_RTM | CPUID_7_0_EBX_RDSEED | CPUID_7_0_EBX_ADX |
+             CPUID_7_0_EBX_SMAP,
+-        /* Missing: XSAVES (not supported by some Linux versions,
+-         * including v4.1 to v4.12).
+-         * KVM doesn't yet expose any XSAVES state save component,
+-         * and the only one defined in Skylake (processor tracing)
+-         * probably will block migration anyway.
+-         */
++        /* XSAVES is added in version 4 */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -2883,6 +2791,15 @@ static X86CPUDefinition builtin_x86_defs[] = {
+                     { /* end of list */ }
+                 }
+             },
++            {
++                .version = 4,
++                .note = "IBRS, XSAVES, no TSX",
++                .props = (PropValue[]) {
++                    { "xsaves", "on" },
++                    { "vmx-xsaves", "on" },
++                    { /* end of list */ }
++                }
++            },
+             { /* end of list */ }
+         }
+     },
+@@ -2922,12 +2839,7 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             CPUID_7_0_EBX_AVX512VL | CPUID_7_0_EBX_CLFLUSHOPT,
+         .features[FEAT_7_0_ECX] =
+             CPUID_7_0_ECX_PKU,
+-        /* Missing: XSAVES (not supported by some Linux versions,
+-         * including v4.1 to v4.12).
+-         * KVM doesn't yet expose any XSAVES state save component,
+-         * and the only one defined in Skylake (processor tracing)
+-         * probably will block migration anyway.
+-         */
++        /* XSAVES is added in version 5 */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -3015,6 +2927,15 @@ static X86CPUDefinition builtin_x86_defs[] = {
+                     { /* end of list */ }
+                 }
+             },
++            {
++                .version = 5,
++                .note = "IBRS, XSAVES, EPT switching, no TSX",
++                .props = (PropValue[]) {
++                    { "xsaves", "on" },
++                    { "vmx-xsaves", "on" },
++                    { /* end of list */ }
++                }
++            },
+             { /* end of list */ }
+         }
+     },
+@@ -3057,12 +2978,7 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             CPUID_7_0_ECX_AVX512VNNI,
+         .features[FEAT_7_0_EDX] =
+             CPUID_7_0_EDX_SPEC_CTRL | CPUID_7_0_EDX_SPEC_CTRL_SSBD,
+-        /* Missing: XSAVES (not supported by some Linux versions,
+-                * including v4.1 to v4.12).
+-                * KVM doesn't yet expose any XSAVES state save component,
+-                * and the only one defined in Skylake (processor tracing)
+-                * probably will block migration anyway.
+-                */
++        /* XSAVES is added in version 5 */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -3146,6 +3062,14 @@ static X86CPUDefinition builtin_x86_defs[] = {
+                   { /* end of list */ }
+               },
+             },
++            { .version = 5,
++              .note = "ARCH_CAPABILITIES, EPT switching, XSAVES, no TSX",
++              .props = (PropValue[]) {
++                  { "xsaves", "on" },
++                  { "vmx-xsaves", "on" },
++                  { /* end of list */ }
++              },
++            },
+             { /* end of list */ }
+         }
+     },
+@@ -3195,13 +3119,7 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             MSR_ARCH_CAP_PSCHANGE_MC_NO | MSR_ARCH_CAP_TAA_NO,
+         .features[FEAT_7_1_EAX] =
+             CPUID_7_1_EAX_AVX_VNNI | CPUID_7_1_EAX_AVX512_BF16,
+-        /*
+-         * Missing: XSAVES (not supported by some Linux versions,
+-         * including v4.1 to v4.12).
+-         * KVM doesn't yet expose any XSAVES state save component,
+-         * and the only one defined in Skylake (processor tracing)
+-         * probably will block migration anyway.
+-         */
++        /* XSAVES is added in version 2 */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -3257,6 +3175,18 @@ static X86CPUDefinition builtin_x86_defs[] = {
+         .features[FEAT_VMX_VMFUNC] = MSR_VMX_VMFUNC_EPT_SWITCHING,
+         .xlevel = 0x80000008,
+         .model_id = "Intel Xeon Processor (Cooperlake)",
++        .versions = (X86CPUVersionDefinition[]) {
++            { .version = 1 },
++            { .version = 2,
++              .note = "XSAVES",
++              .props = (PropValue[]) {
++                  { "xsaves", "on" },
++                  { "vmx-xsaves", "on" },
++                  { /* end of list */ }
++              },
++            },
++            { /* end of list */ }
++        }
+     },
+     {
+         .name = "Icelake-Client",
+@@ -3299,12 +3229,7 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             CPUID_7_0_ECX_AVX512_VPOPCNTDQ,
+         .features[FEAT_7_0_EDX] =
+             CPUID_7_0_EDX_SPEC_CTRL | CPUID_7_0_EDX_SPEC_CTRL_SSBD,
+-        /* Missing: XSAVES (not supported by some Linux versions,
+-                * including v4.1 to v4.12).
+-                * KVM doesn't yet expose any XSAVES state save component,
+-                * and the only one defined in Skylake (processor tracing)
+-                * probably will block migration anyway.
+-                */
++        /* XSAVES is added in version 3 */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -3372,6 +3297,15 @@ static X86CPUDefinition builtin_x86_defs[] = {
+                     { /* end of list */ }
+                 },
+             },
++            {
++                .version = 3,
++                .note = "no TSX, XSAVES, deprecated",
++                .props = (PropValue[]) {
++                    { "xsaves", "on" },
++                    { "vmx-xsaves", "on" },
++                    { /* end of list */ }
++                },
++            },
+             { /* end of list */ }
+         },
+         .deprecation_note = "use Icelake-Server instead"
+@@ -3420,12 +3354,7 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             CPUID_7_0_ECX_AVX512_VPOPCNTDQ | CPUID_7_0_ECX_LA57,
+         .features[FEAT_7_0_EDX] =
+             CPUID_7_0_EDX_SPEC_CTRL | CPUID_7_0_EDX_SPEC_CTRL_SSBD,
+-        /* Missing: XSAVES (not supported by some Linux versions,
+-                * including v4.1 to v4.12).
+-                * KVM doesn't yet expose any XSAVES state save component,
+-                * and the only one defined in Skylake (processor tracing)
+-                * probably will block migration anyway.
+-                */
++        /* XSAVES is added in version 5 */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -3518,6 +3447,15 @@ static X86CPUDefinition builtin_x86_defs[] = {
+                     { /* end of list */ }
+                 },
+             },
++            {
++                .version = 5,
++                .note = "XSAVES",
++                .props = (PropValue[]) {
++                    { "xsaves", "on" },
++                    { "vmx-xsaves", "on" },
++                    { /* end of list */ }
++                },
++            },
+             { /* end of list */ }
+         }
+     },
+@@ -3552,13 +3490,7 @@ static X86CPUDefinition builtin_x86_defs[] = {
+         .features[FEAT_7_0_EDX] =
+             CPUID_7_0_EDX_SPEC_CTRL | CPUID_7_0_EDX_ARCH_CAPABILITIES |
+             CPUID_7_0_EDX_SPEC_CTRL_SSBD,
+-        /*
+-         * Missing: XSAVES (not supported by some Linux versions,
+-         * including v4.1 to v4.12).
+-         * KVM doesn't yet expose any XSAVES state save component,
+-         * and the only one defined in Skylake (processor tracing)
+-         * probably will block migration anyway.
+-         */
++        /* XSAVES is added in version 3 */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC | CPUID_XSAVE_XGETBV1,
+         .features[FEAT_6_EAX] =
+@@ -3625,6 +3557,15 @@ static X86CPUDefinition builtin_x86_defs[] = {
+                     { /* end of list */ },
+                 },
+             },
++            {
++                .version = 3,
++                .note = "XSAVES, no MPX, no MONITOR",
++                .props = (PropValue[]) {
++                    { "xsaves", "on" },
++                    { "vmx-xsaves", "on" },
++                    { /* end of list */ },
++                },
++            },
+             { /* end of list */ },
+         },
+     },
+@@ -3683,13 +3624,7 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             CPUID_7_0_EDX_CORE_CAPABILITY,
+         .features[FEAT_CORE_CAPABILITY] =
+             MSR_CORE_CAP_SPLIT_LOCK_DETECT,
+-        /*
+-         * Missing: XSAVES (not supported by some Linux versions,
+-         * including v4.1 to v4.12).
+-         * KVM doesn't yet expose any XSAVES state save component,
+-         * and the only one defined in Skylake (processor tracing)
+-         * probably will block migration anyway.
+-         */
++        /* XSAVES is is added in version 3 */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -3754,6 +3689,15 @@ static X86CPUDefinition builtin_x86_defs[] = {
+                     { /* end of list */ },
+                 },
+             },
++            {
++                .version = 3,
++                .note = "XSAVES, no MPX",
++                .props = (PropValue[]) {
++                    { "xsaves", "on" },
++                    { "vmx-xsaves", "on" },
++                    { /* end of list */ },
++                },
++            },
+             { /* end of list */ },
+         },
+     },
+@@ -4035,11 +3979,7 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             CPUID_7_0_EBX_FSGSBASE | CPUID_7_0_EBX_BMI1 | CPUID_7_0_EBX_AVX2 |
+             CPUID_7_0_EBX_SMEP | CPUID_7_0_EBX_BMI2 | CPUID_7_0_EBX_RDSEED |
+             CPUID_7_0_EBX_ADX | CPUID_7_0_EBX_SMAP | CPUID_7_0_EBX_CLFLUSHOPT,
+-        /*
+-         * Missing: XSAVES (not supported by some Linux versions,
+-         * including v4.1 to v4.12).
+-         * KVM doesn't yet expose any XSAVES state save component.
+-         */
++        /* XSAVES is added in version 2 */
+         .features[FEAT_XSAVE] =
+             CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XSAVEC |
+             CPUID_XSAVE_XGETBV1,
+@@ -4050,6 +3990,17 @@ static X86CPUDefinition builtin_x86_defs[] = {
+         .xlevel = 0x8000001E,
+         .model_id = "Hygon Dhyana Processor",
+         .cache_info = &epyc_cache_info,
++        .versions = (X86CPUVersionDefinition[]) {
++            { .version = 1 },
++            { .version = 2,
++              .note = "XSAVES",
++              .props = (PropValue[]) {
++                  { "xsaves", "on" },
++                  { /* end of list */ }
++              },
++            },
++            { /* end of list */ }
++        }
+     },
+     {
+         .name = "EPYC-Rome",
+@@ -4246,9 +4197,15 @@ static void max_x86_cpu_initfn(Object *obj)
+      */
+     object_property_set_str(OBJECT(cpu), "vendor", CPUID_VENDOR_AMD,
+                             &error_abort);
++#ifdef TARGET_X86_64
++    object_property_set_int(OBJECT(cpu), "family", 15, &error_abort);
++    object_property_set_int(OBJECT(cpu), "model", 107, &error_abort);
++    object_property_set_int(OBJECT(cpu), "stepping", 1, &error_abort);
++#else
+     object_property_set_int(OBJECT(cpu), "family", 6, &error_abort);
+     object_property_set_int(OBJECT(cpu), "model", 6, &error_abort);
+     object_property_set_int(OBJECT(cpu), "stepping", 3, &error_abort);
++#endif
+     object_property_set_str(OBJECT(cpu), "model-id",
+                             "QEMU TCG CPU version " QEMU_HW_VERSION,
+                             &error_abort);
+@@ -5023,7 +4980,7 @@ static void x86_cpu_apply_version_props(X86CPU *cpu, X86CPUModel *model)
+  */
+ static void x86_cpu_load_model(X86CPU *cpu, X86CPUModel *model)
+ {
+-    X86CPUDefinition *def = model->cpudef;
++    const X86CPUDefinition *def = model->cpudef;
+     CPUX86State *env = &cpu->env;
+     FeatureWord w;
+ 
+@@ -5110,7 +5067,7 @@ static void x86_register_cpu_model_type(const char *name, X86CPUModel *model)
+     type_register(&ti);
+ }
+ 
+-static void x86_register_cpudef_types(X86CPUDefinition *def)
++static void x86_register_cpudef_types(const X86CPUDefinition *def)
+ {
+     X86CPUModel *m;
+     const X86CPUVersionDefinition *vdef;
+@@ -6096,17 +6053,16 @@ static void x86_cpu_hyperv_realize(X86CPU *cpu)
+ 
+     /* Hyper-V vendor id */
+     if (!cpu->hyperv_vendor) {
+-        memcpy(cpu->hyperv_vendor_id, "Microsoft Hv", 12);
+-    } else {
+-        len = strlen(cpu->hyperv_vendor);
+-
+-        if (len > 12) {
+-            warn_report("hv-vendor-id truncated to 12 characters");
+-            len = 12;
+-        }
+-        memset(cpu->hyperv_vendor_id, 0, 12);
+-        memcpy(cpu->hyperv_vendor_id, cpu->hyperv_vendor, len);
++        object_property_set_str(OBJECT(cpu), "hv-vendor-id", "Microsoft Hv",
++                                &error_abort);
++    }
++    len = strlen(cpu->hyperv_vendor);
++    if (len > 12) {
++        warn_report("hv-vendor-id truncated to 12 characters");
++        len = 12;
+     }
++    memset(cpu->hyperv_vendor_id, 0, 12);
++    memcpy(cpu->hyperv_vendor_id, cpu->hyperv_vendor, len);
+ 
+     /* 'Hv#1' interface identification*/
+     cpu->hyperv_interface_id[0] = 0x31237648;
+diff --git a/target/i386/cpu.h b/target/i386/cpu.h
+index da72aa5228..ac3abea97c 100644
+--- a/target/i386/cpu.h
++++ b/target/i386/cpu.h
+@@ -531,11 +531,6 @@ typedef enum FeatureWord {
+     FEAT_C000_0001_EDX, /* CPUID[C000_0001].EDX */
+     FEAT_KVM,           /* CPUID[4000_0001].EAX (KVM_CPUID_FEATURES) */
+     FEAT_KVM_HINTS,     /* CPUID[4000_0001].EDX */
+-    FEAT_HYPERV_EAX,    /* CPUID[4000_0003].EAX */
+-    FEAT_HYPERV_EBX,    /* CPUID[4000_0003].EBX */
+-    FEAT_HYPERV_EDX,    /* CPUID[4000_0003].EDX */
+-    FEAT_HV_RECOMM_EAX, /* CPUID[4000_0004].EAX */
+-    FEAT_HV_NESTED_EAX, /* CPUID[4000_000A].EAX */
+     FEAT_SVM,           /* CPUID[8000_000A].EDX */
+     FEAT_XSAVE,         /* CPUID[EAX=0xd,ECX=1].EAX */
+     FEAT_6_EAX,         /* CPUID[6].EAX */
+@@ -1699,6 +1694,7 @@ struct X86CPU {
+     uint32_t hyperv_interface_id[4];
+     uint32_t hyperv_version_id[4];
+     uint32_t hyperv_limits[3];
++    uint32_t hyperv_nested[4];
+ 
+     bool check_cpuid;
+     bool enforce_cpuid;
+diff --git a/target/i386/kvm/kvm-cpu.c b/target/i386/kvm/kvm-cpu.c
+index c660ad4293..5235bce8dc 100644
+--- a/target/i386/kvm/kvm-cpu.c
++++ b/target/i386/kvm/kvm-cpu.c
+@@ -47,6 +47,11 @@ static bool kvm_cpu_realizefn(CPUState *cs, Error **errp)
+ /*
+  * KVM-specific features that are automatically added/removed
+  * from all CPU models when KVM is enabled.
++ *
++ * NOTE: features can be enabled by default only if they were
++ *       already available in the oldest kernel version supported
++ *       by the KVM accelerator (see "OS requirements" section at
++ *       docs/system/target-i386.rst)
+  */
+ static PropValue kvm_default_props[] = {
+     { "kvmclock", "on" },
+diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
+index d972eb4705..c676ee8b38 100644
+--- a/target/i386/kvm/kvm.c
++++ b/target/i386/kvm/kvm.c
+@@ -129,6 +129,7 @@ static int has_exception_payload;
+ static bool has_msr_mcg_ext_ctl;
+ 
+ static struct kvm_cpuid2 *cpuid_cache;
++static struct kvm_cpuid2 *hv_cpuid_cache;
+ static struct kvm_msr_list *kvm_feature_msrs;
+ 
+ int kvm_has_pit_state2(void)
+@@ -715,8 +716,7 @@ unsigned long kvm_arch_vcpu_id(CPUState *cs)
+ 
+ static bool hyperv_enabled(X86CPU *cpu)
+ {
+-    CPUState *cs = CPU(cpu);
+-    return kvm_check_extension(cs->kvm_state, KVM_CAP_HYPERV) > 0 &&
++    return kvm_check_extension(kvm_state, KVM_CAP_HYPERV) > 0 &&
+         ((cpu->hyperv_spinlock_attempts != HYPERV_SPINLOCK_NEVER_NOTIFY) ||
+          cpu->hyperv_features || cpu->hyperv_passthrough);
+ }
+@@ -801,7 +801,8 @@ static bool tsc_is_stable_and_known(CPUX86State *env)
+ static struct {
+     const char *desc;
+     struct {
+-        uint32_t fw;
++        uint32_t func;
++        int reg;
+         uint32_t bits;
+     } flags[2];
+     uint64_t dependencies;
+@@ -809,25 +810,25 @@ static struct {
+     [HYPERV_FEAT_RELAXED] = {
+         .desc = "relaxed timing (hv-relaxed)",
+         .flags = {
+-            {.fw = FEAT_HYPERV_EAX,
++            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
+              .bits = HV_HYPERCALL_AVAILABLE},
+-            {.fw = FEAT_HV_RECOMM_EAX,
++            {.func = HV_CPUID_ENLIGHTMENT_INFO, .reg = R_EAX,
+              .bits = HV_RELAXED_TIMING_RECOMMENDED}
+         }
+     },
+     [HYPERV_FEAT_VAPIC] = {
+         .desc = "virtual APIC (hv-vapic)",
+         .flags = {
+-            {.fw = FEAT_HYPERV_EAX,
++            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
+              .bits = HV_HYPERCALL_AVAILABLE | HV_APIC_ACCESS_AVAILABLE},
+-            {.fw = FEAT_HV_RECOMM_EAX,
++            {.func = HV_CPUID_ENLIGHTMENT_INFO, .reg = R_EAX,
+              .bits = HV_APIC_ACCESS_RECOMMENDED}
+         }
+     },
+     [HYPERV_FEAT_TIME] = {
+         .desc = "clocksources (hv-time)",
+         .flags = {
+-            {.fw = FEAT_HYPERV_EAX,
++            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
+              .bits = HV_HYPERCALL_AVAILABLE | HV_TIME_REF_COUNT_AVAILABLE |
+              HV_REFERENCE_TSC_AVAILABLE}
+         }
+@@ -835,42 +836,42 @@ static struct {
+     [HYPERV_FEAT_CRASH] = {
+         .desc = "crash MSRs (hv-crash)",
+         .flags = {
+-            {.fw = FEAT_HYPERV_EDX,
++            {.func = HV_CPUID_FEATURES, .reg = R_EDX,
+              .bits = HV_GUEST_CRASH_MSR_AVAILABLE}
+         }
+     },
+     [HYPERV_FEAT_RESET] = {
+         .desc = "reset MSR (hv-reset)",
+         .flags = {
+-            {.fw = FEAT_HYPERV_EAX,
++            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
+              .bits = HV_RESET_AVAILABLE}
+         }
+     },
+     [HYPERV_FEAT_VPINDEX] = {
+         .desc = "VP_INDEX MSR (hv-vpindex)",
+         .flags = {
+-            {.fw = FEAT_HYPERV_EAX,
++            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
+              .bits = HV_VP_INDEX_AVAILABLE}
+         }
+     },
+     [HYPERV_FEAT_RUNTIME] = {
+         .desc = "VP_RUNTIME MSR (hv-runtime)",
+         .flags = {
+-            {.fw = FEAT_HYPERV_EAX,
++            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
+              .bits = HV_VP_RUNTIME_AVAILABLE}
+         }
+     },
+     [HYPERV_FEAT_SYNIC] = {
+         .desc = "synthetic interrupt controller (hv-synic)",
+         .flags = {
+-            {.fw = FEAT_HYPERV_EAX,
++            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
+              .bits = HV_SYNIC_AVAILABLE}
+         }
+     },
+     [HYPERV_FEAT_STIMER] = {
+         .desc = "synthetic timers (hv-stimer)",
+         .flags = {
+-            {.fw = FEAT_HYPERV_EAX,
++            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
+              .bits = HV_SYNTIMERS_AVAILABLE}
+         },
+         .dependencies = BIT(HYPERV_FEAT_SYNIC) | BIT(HYPERV_FEAT_TIME)
+@@ -878,23 +879,23 @@ static struct {
+     [HYPERV_FEAT_FREQUENCIES] = {
+         .desc = "frequency MSRs (hv-frequencies)",
+         .flags = {
+-            {.fw = FEAT_HYPERV_EAX,
++            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
+              .bits = HV_ACCESS_FREQUENCY_MSRS},
+-            {.fw = FEAT_HYPERV_EDX,
++            {.func = HV_CPUID_FEATURES, .reg = R_EDX,
+              .bits = HV_FREQUENCY_MSRS_AVAILABLE}
+         }
+     },
+     [HYPERV_FEAT_REENLIGHTENMENT] = {
+         .desc = "reenlightenment MSRs (hv-reenlightenment)",
+         .flags = {
+-            {.fw = FEAT_HYPERV_EAX,
++            {.func = HV_CPUID_FEATURES, .reg = R_EAX,
+              .bits = HV_ACCESS_REENLIGHTENMENTS_CONTROL}
+         }
+     },
+     [HYPERV_FEAT_TLBFLUSH] = {
+         .desc = "paravirtualized TLB flush (hv-tlbflush)",
+         .flags = {
+-            {.fw = FEAT_HV_RECOMM_EAX,
++            {.func = HV_CPUID_ENLIGHTMENT_INFO, .reg = R_EAX,
+              .bits = HV_REMOTE_TLB_FLUSH_RECOMMENDED |
+              HV_EX_PROCESSOR_MASKS_RECOMMENDED}
+         },
+@@ -903,7 +904,7 @@ static struct {
+     [HYPERV_FEAT_EVMCS] = {
+         .desc = "enlightened VMCS (hv-evmcs)",
+         .flags = {
+-            {.fw = FEAT_HV_RECOMM_EAX,
++            {.func = HV_CPUID_ENLIGHTMENT_INFO, .reg = R_EAX,
+              .bits = HV_ENLIGHTENED_VMCS_RECOMMENDED}
+         },
+         .dependencies = BIT(HYPERV_FEAT_VAPIC)
+@@ -911,7 +912,7 @@ static struct {
+     [HYPERV_FEAT_IPI] = {
+         .desc = "paravirtualized IPI (hv-ipi)",
+         .flags = {
+-            {.fw = FEAT_HV_RECOMM_EAX,
++            {.func = HV_CPUID_ENLIGHTMENT_INFO, .reg = R_EAX,
+              .bits = HV_CLUSTER_IPI_RECOMMENDED |
+              HV_EX_PROCESSOR_MASKS_RECOMMENDED}
+         },
+@@ -920,14 +921,15 @@ static struct {
+     [HYPERV_FEAT_STIMER_DIRECT] = {
+         .desc = "direct mode synthetic timers (hv-stimer-direct)",
+         .flags = {
+-            {.fw = FEAT_HYPERV_EDX,
++            {.func = HV_CPUID_FEATURES, .reg = R_EDX,
+              .bits = HV_STIMER_DIRECT_MODE_AVAILABLE}
+         },
+         .dependencies = BIT(HYPERV_FEAT_STIMER)
+     },
+ };
+ 
+-static struct kvm_cpuid2 *try_get_hv_cpuid(CPUState *cs, int max)
++static struct kvm_cpuid2 *try_get_hv_cpuid(CPUState *cs, int max,
++                                           bool do_sys_ioctl)
+ {
+     struct kvm_cpuid2 *cpuid;
+     int r, size;
+@@ -936,7 +938,11 @@ static struct kvm_cpuid2 *try_get_hv_cpuid(CPUState *cs, int max)
+     cpuid = g_malloc0(size);
+     cpuid->nent = max;
+ 
+-    r = kvm_vcpu_ioctl(cs, KVM_GET_SUPPORTED_HV_CPUID, cpuid);
++    if (do_sys_ioctl) {
++        r = kvm_ioctl(kvm_state, KVM_GET_SUPPORTED_HV_CPUID, cpuid);
++    } else {
++        r = kvm_vcpu_ioctl(cs, KVM_GET_SUPPORTED_HV_CPUID, cpuid);
++    }
+     if (r == 0 && cpuid->nent >= max) {
+         r = -E2BIG;
+     }
+@@ -960,16 +966,38 @@ static struct kvm_cpuid2 *try_get_hv_cpuid(CPUState *cs, int max)
+ static struct kvm_cpuid2 *get_supported_hv_cpuid(CPUState *cs)
+ {
+     struct kvm_cpuid2 *cpuid;
+-    int max = 7; /* 0x40000000..0x40000005, 0x4000000A */
++    /* 0x40000000..0x40000005, 0x4000000A, 0x40000080..0x40000080 leaves */
++    int max = 10;
++    int i;
++    bool do_sys_ioctl;
++
++    do_sys_ioctl =
++        kvm_check_extension(kvm_state, KVM_CAP_SYS_HYPERV_CPUID) > 0;
+ 
+     /*
+      * When the buffer is too small, KVM_GET_SUPPORTED_HV_CPUID fails with
+      * -E2BIG, however, it doesn't report back the right size. Keep increasing
+      * it and re-trying until we succeed.
+      */
+-    while ((cpuid = try_get_hv_cpuid(cs, max)) == NULL) {
++    while ((cpuid = try_get_hv_cpuid(cs, max, do_sys_ioctl)) == NULL) {
+         max++;
+     }
++
++    /*
++     * KVM_GET_SUPPORTED_HV_CPUID does not set EVMCS CPUID bit before
++     * KVM_CAP_HYPERV_ENLIGHTENED_VMCS is enabled but we want to get the
++     * information early, just check for the capability and set the bit
++     * manually.
++     */
++    if (!do_sys_ioctl && kvm_check_extension(cs->kvm_state,
++                            KVM_CAP_HYPERV_ENLIGHTENED_VMCS) > 0) {
++        for (i = 0; i < cpuid->nent; i++) {
++            if (cpuid->entries[i].function == HV_CPUID_ENLIGHTMENT_INFO) {
++                cpuid->entries[i].eax |= HV_ENLIGHTENED_VMCS_RECOMMENDED;
++            }
++        }
++    }
++
+     return cpuid;
+ }
+ 
+@@ -1066,56 +1094,62 @@ static struct kvm_cpuid2 *get_supported_hv_cpuid_legacy(CPUState *cs)
+     return cpuid;
+ }
+ 
+-static int hv_cpuid_get_fw(struct kvm_cpuid2 *cpuid, int fw, uint32_t *r)
++static uint32_t hv_cpuid_get_host(CPUState *cs, uint32_t func, int reg)
+ {
+     struct kvm_cpuid_entry2 *entry;
+-    uint32_t func;
+-    int reg;
++    struct kvm_cpuid2 *cpuid;
+ 
+-    switch (fw) {
+-    case FEAT_HYPERV_EAX:
+-        reg = R_EAX;
+-        func = HV_CPUID_FEATURES;
+-        break;
+-    case FEAT_HYPERV_EDX:
+-        reg = R_EDX;
+-        func = HV_CPUID_FEATURES;
+-        break;
+-    case FEAT_HV_RECOMM_EAX:
+-        reg = R_EAX;
+-        func = HV_CPUID_ENLIGHTMENT_INFO;
+-        break;
+-    default:
+-        return -EINVAL;
++    if (hv_cpuid_cache) {
++        cpuid = hv_cpuid_cache;
++    } else {
++        if (kvm_check_extension(kvm_state, KVM_CAP_HYPERV_CPUID) > 0) {
++            cpuid = get_supported_hv_cpuid(cs);
++        } else {
++            cpuid = get_supported_hv_cpuid_legacy(cs);
++        }
++        hv_cpuid_cache = cpuid;
++    }
++
++    if (!cpuid) {
++        return 0;
+     }
+ 
+     entry = cpuid_find_entry(cpuid, func, 0);
+     if (!entry) {
+-        return -ENOENT;
++        return 0;
+     }
+ 
+-    switch (reg) {
+-    case R_EAX:
+-        *r = entry->eax;
+-        break;
+-    case R_EDX:
+-        *r = entry->edx;
+-        break;
+-    default:
+-        return -EINVAL;
++    return cpuid_entry_get_reg(entry, reg);
++}
++
++static bool hyperv_feature_supported(CPUState *cs, int feature)
++{
++    uint32_t func, bits;
++    int i, reg;
++
++    for (i = 0; i < ARRAY_SIZE(kvm_hyperv_properties[feature].flags); i++) {
++
++        func = kvm_hyperv_properties[feature].flags[i].func;
++        reg = kvm_hyperv_properties[feature].flags[i].reg;
++        bits = kvm_hyperv_properties[feature].flags[i].bits;
++
++        if (!func) {
++            continue;
++        }
++
++        if ((hv_cpuid_get_host(cs, func, reg) & bits) != bits) {
++            return false;
++        }
+     }
+ 
+-    return 0;
++    return true;
+ }
+ 
+-static int hv_cpuid_check_and_set(CPUState *cs, struct kvm_cpuid2 *cpuid,
+-                                  int feature)
++static int hv_cpuid_check_and_set(CPUState *cs, int feature, Error **errp)
+ {
+     X86CPU *cpu = X86_CPU(cs);
+-    CPUX86State *env = &cpu->env;
+-    uint32_t r, fw, bits;
+     uint64_t deps;
+-    int i, dep_feat;
++    int dep_feat;
+ 
+     if (!hyperv_feat_enabled(cpu, feature) && !cpu->hyperv_passthrough) {
+         return 0;
+@@ -1125,35 +1159,22 @@ static int hv_cpuid_check_and_set(CPUState *cs, struct kvm_cpuid2 *cpuid,
+     while (deps) {
+         dep_feat = ctz64(deps);
+         if (!(hyperv_feat_enabled(cpu, dep_feat))) {
+-                fprintf(stderr,
+-                        "Hyper-V %s requires Hyper-V %s\n",
+-                        kvm_hyperv_properties[feature].desc,
+-                        kvm_hyperv_properties[dep_feat].desc);
+-                return 1;
++            error_setg(errp, "Hyper-V %s requires Hyper-V %s",
++                       kvm_hyperv_properties[feature].desc,
++                       kvm_hyperv_properties[dep_feat].desc);
++            return 1;
+         }
+         deps &= ~(1ull << dep_feat);
+     }
+ 
+-    for (i = 0; i < ARRAY_SIZE(kvm_hyperv_properties[feature].flags); i++) {
+-        fw = kvm_hyperv_properties[feature].flags[i].fw;
+-        bits = kvm_hyperv_properties[feature].flags[i].bits;
+-
+-        if (!fw) {
+-            continue;
+-        }
+-
+-        if (hv_cpuid_get_fw(cpuid, fw, &r) || (r & bits) != bits) {
+-            if (hyperv_feat_enabled(cpu, feature)) {
+-                fprintf(stderr,
+-                        "Hyper-V %s is not supported by kernel\n",
+-                        kvm_hyperv_properties[feature].desc);
+-                return 1;
+-            } else {
+-                return 0;
+-            }
++    if (!hyperv_feature_supported(cs, feature)) {
++        if (hyperv_feat_enabled(cpu, feature)) {
++            error_setg(errp, "Hyper-V %s is not supported by kernel",
++                       kvm_hyperv_properties[feature].desc);
++            return 1;
++        } else {
++            return 0;
+         }
+-
+-        env->features[fw] |= bits;
+     }
+ 
+     if (cpu->hyperv_passthrough) {
+@@ -1163,157 +1184,156 @@ static int hv_cpuid_check_and_set(CPUState *cs, struct kvm_cpuid2 *cpuid,
+     return 0;
+ }
+ 
+-/*
+- * Fill in Hyper-V CPUIDs. Returns the number of entries filled in cpuid_ent in
+- * case of success, errno < 0 in case of failure and 0 when no Hyper-V
+- * extentions are enabled.
+- */
+-static int hyperv_handle_properties(CPUState *cs,
+-                                    struct kvm_cpuid_entry2 *cpuid_ent)
++static uint32_t hv_build_cpuid_leaf(CPUState *cs, uint32_t func, int reg)
+ {
+     X86CPU *cpu = X86_CPU(cs);
+-    CPUX86State *env = &cpu->env;
+-    struct kvm_cpuid2 *cpuid;
+-    struct kvm_cpuid_entry2 *c;
+-    uint32_t cpuid_i = 0;
+-    int r;
++    uint32_t r = 0;
++    int i, j;
+ 
+-    if (!hyperv_enabled(cpu))
+-        return 0;
+-
+-    if (hyperv_feat_enabled(cpu, HYPERV_FEAT_EVMCS) ||
+-        cpu->hyperv_passthrough) {
+-        uint16_t evmcs_version;
+-
+-        r = kvm_vcpu_enable_cap(cs, KVM_CAP_HYPERV_ENLIGHTENED_VMCS, 0,
+-                                (uintptr_t)&evmcs_version);
+-
+-        if (hyperv_feat_enabled(cpu, HYPERV_FEAT_EVMCS) && r) {
+-            fprintf(stderr, "Hyper-V %s is not supported by kernel\n",
+-                    kvm_hyperv_properties[HYPERV_FEAT_EVMCS].desc);
+-            return -ENOSYS;
+-        }
+-
+-        if (!r) {
+-            env->features[FEAT_HV_RECOMM_EAX] |=
+-                HV_ENLIGHTENED_VMCS_RECOMMENDED;
+-            env->features[FEAT_HV_NESTED_EAX] = evmcs_version;
+-        }
+-    }
+-
+-    if (kvm_check_extension(cs->kvm_state, KVM_CAP_HYPERV_CPUID) > 0) {
+-        cpuid = get_supported_hv_cpuid(cs);
+-    } else {
+-        cpuid = get_supported_hv_cpuid_legacy(cs);
+-    }
+-
+-    if (cpu->hyperv_passthrough) {
+-        memcpy(cpuid_ent, &cpuid->entries[0],
+-               cpuid->nent * sizeof(cpuid->entries[0]));
+-
+-        c = cpuid_find_entry(cpuid, HV_CPUID_VENDOR_AND_MAX_FUNCTIONS, 0);
+-        if (c) {
+-            cpu->hyperv_vendor_id[0] = c->ebx;
+-            cpu->hyperv_vendor_id[1] = c->ecx;
+-            cpu->hyperv_vendor_id[2] = c->edx;
+-        }
+-
+-        c = cpuid_find_entry(cpuid, HV_CPUID_INTERFACE, 0);
+-        if (c) {
+-            cpu->hyperv_interface_id[0] = c->eax;
+-            cpu->hyperv_interface_id[1] = c->ebx;
+-            cpu->hyperv_interface_id[2] = c->ecx;
+-            cpu->hyperv_interface_id[3] = c->edx;
++    for (i = 0; i < ARRAY_SIZE(kvm_hyperv_properties); i++) {
++        if (!hyperv_feat_enabled(cpu, i)) {
++            continue;
+         }
+ 
+-        c = cpuid_find_entry(cpuid, HV_CPUID_VERSION, 0);
+-        if (c) {
+-            cpu->hyperv_version_id[0] = c->eax;
+-            cpu->hyperv_version_id[1] = c->ebx;
+-            cpu->hyperv_version_id[2] = c->ecx;
+-            cpu->hyperv_version_id[3] = c->edx;
+-        }
++        for (j = 0; j < ARRAY_SIZE(kvm_hyperv_properties[i].flags); j++) {
++            if (kvm_hyperv_properties[i].flags[j].func != func) {
++                continue;
++            }
++            if (kvm_hyperv_properties[i].flags[j].reg != reg) {
++                continue;
++            }
+ 
+-        c = cpuid_find_entry(cpuid, HV_CPUID_FEATURES, 0);
+-        if (c) {
+-            env->features[FEAT_HYPERV_EAX] = c->eax;
+-            env->features[FEAT_HYPERV_EBX] = c->ebx;
+-            env->features[FEAT_HYPERV_EDX] = c->edx;
++            r |= kvm_hyperv_properties[i].flags[j].bits;
+         }
++    }
+ 
+-        c = cpuid_find_entry(cpuid, HV_CPUID_IMPLEMENT_LIMITS, 0);
+-        if (c) {
+-            cpu->hv_max_vps = c->eax;
+-            cpu->hyperv_limits[0] = c->ebx;
+-            cpu->hyperv_limits[1] = c->ecx;
+-            cpu->hyperv_limits[2] = c->edx;
+-        }
++    return r;
++}
+ 
+-        c = cpuid_find_entry(cpuid, HV_CPUID_ENLIGHTMENT_INFO, 0);
+-        if (c) {
+-            env->features[FEAT_HV_RECOMM_EAX] = c->eax;
++/*
++ * Expand Hyper-V CPU features. In partucular, check that all the requested
++ * features are supported by the host and the sanity of the configuration
++ * (that all the required dependencies are included). Also, this takes care
++ * of 'hv_passthrough' mode and fills the environment with all supported
++ * Hyper-V features.
++ */
++static void hyperv_expand_features(CPUState *cs, Error **errp)
++{
++    X86CPU *cpu = X86_CPU(cs);
+ 
+-            /* hv-spinlocks may have been overriden */
+-            if (cpu->hyperv_spinlock_attempts != HYPERV_SPINLOCK_NEVER_NOTIFY) {
+-                c->ebx = cpu->hyperv_spinlock_attempts;
+-            }
+-        }
+-        c = cpuid_find_entry(cpuid, HV_CPUID_NESTED_FEATURES, 0);
+-        if (c) {
+-            env->features[FEAT_HV_NESTED_EAX] = c->eax;
+-        }
+-    }
++    if (!hyperv_enabled(cpu))
++        return;
+ 
+-    if (cpu->hyperv_no_nonarch_cs == ON_OFF_AUTO_ON) {
+-        env->features[FEAT_HV_RECOMM_EAX] |= HV_NO_NONARCH_CORESHARING;
+-    } else if (cpu->hyperv_no_nonarch_cs == ON_OFF_AUTO_AUTO) {
+-        c = cpuid_find_entry(cpuid, HV_CPUID_ENLIGHTMENT_INFO, 0);
+-        if (c) {
+-            env->features[FEAT_HV_RECOMM_EAX] |=
+-                c->eax & HV_NO_NONARCH_CORESHARING;
+-        }
++    if (cpu->hyperv_passthrough) {
++        cpu->hyperv_vendor_id[0] =
++            hv_cpuid_get_host(cs, HV_CPUID_VENDOR_AND_MAX_FUNCTIONS, R_EBX);
++        cpu->hyperv_vendor_id[1] =
++            hv_cpuid_get_host(cs, HV_CPUID_VENDOR_AND_MAX_FUNCTIONS, R_ECX);
++        cpu->hyperv_vendor_id[2] =
++            hv_cpuid_get_host(cs, HV_CPUID_VENDOR_AND_MAX_FUNCTIONS, R_EDX);
++        cpu->hyperv_vendor = g_realloc(cpu->hyperv_vendor,
++                                       sizeof(cpu->hyperv_vendor_id) + 1);
++        memcpy(cpu->hyperv_vendor, cpu->hyperv_vendor_id,
++               sizeof(cpu->hyperv_vendor_id));
++        cpu->hyperv_vendor[sizeof(cpu->hyperv_vendor_id)] = 0;
++
++        cpu->hyperv_interface_id[0] =
++            hv_cpuid_get_host(cs, HV_CPUID_INTERFACE, R_EAX);
++        cpu->hyperv_interface_id[1] =
++            hv_cpuid_get_host(cs, HV_CPUID_INTERFACE, R_EBX);
++        cpu->hyperv_interface_id[2] =
++            hv_cpuid_get_host(cs, HV_CPUID_INTERFACE, R_ECX);
++        cpu->hyperv_interface_id[3] =
++            hv_cpuid_get_host(cs, HV_CPUID_INTERFACE, R_EDX);
++
++        cpu->hyperv_version_id[0] =
++            hv_cpuid_get_host(cs, HV_CPUID_VERSION, R_EAX);
++        cpu->hyperv_version_id[1] =
++            hv_cpuid_get_host(cs, HV_CPUID_VERSION, R_EBX);
++        cpu->hyperv_version_id[2] =
++            hv_cpuid_get_host(cs, HV_CPUID_VERSION, R_ECX);
++        cpu->hyperv_version_id[3] =
++            hv_cpuid_get_host(cs, HV_CPUID_VERSION, R_EDX);
++
++        cpu->hv_max_vps = hv_cpuid_get_host(cs, HV_CPUID_IMPLEMENT_LIMITS,
++                                            R_EAX);
++        cpu->hyperv_limits[0] =
++            hv_cpuid_get_host(cs, HV_CPUID_IMPLEMENT_LIMITS, R_EBX);
++        cpu->hyperv_limits[1] =
++            hv_cpuid_get_host(cs, HV_CPUID_IMPLEMENT_LIMITS, R_ECX);
++        cpu->hyperv_limits[2] =
++            hv_cpuid_get_host(cs, HV_CPUID_IMPLEMENT_LIMITS, R_EDX);
++
++        cpu->hyperv_spinlock_attempts =
++            hv_cpuid_get_host(cs, HV_CPUID_ENLIGHTMENT_INFO, R_EBX);
+     }
+ 
+     /* Features */
+-    r = hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_RELAXED);
+-    r |= hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_VAPIC);
+-    r |= hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_TIME);
+-    r |= hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_CRASH);
+-    r |= hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_RESET);
+-    r |= hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_VPINDEX);
+-    r |= hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_RUNTIME);
+-    r |= hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_SYNIC);
+-    r |= hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_STIMER);
+-    r |= hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_FREQUENCIES);
+-    r |= hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_REENLIGHTENMENT);
+-    r |= hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_TLBFLUSH);
+-    r |= hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_EVMCS);
+-    r |= hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_IPI);
+-    r |= hv_cpuid_check_and_set(cs, cpuid, HYPERV_FEAT_STIMER_DIRECT);
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_RELAXED, errp)) {
++        return;
++    }
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_VAPIC, errp)) {
++        return;
++    }
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_TIME, errp)) {
++        return;
++    }
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_CRASH, errp)) {
++        return;
++    }
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_RESET, errp)) {
++        return;
++    }
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_VPINDEX, errp)) {
++        return;
++    }
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_RUNTIME, errp)) {
++        return;
++    }
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_SYNIC, errp)) {
++        return;
++    }
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_STIMER, errp)) {
++        return;
++    }
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_FREQUENCIES, errp)) {
++        return;
++    }
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_REENLIGHTENMENT, errp)) {
++        return;
++    }
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_TLBFLUSH, errp)) {
++        return;
++    }
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_EVMCS, errp)) {
++        return;
++    }
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_IPI, errp)) {
++        return;
++    }
++    if (hv_cpuid_check_and_set(cs, HYPERV_FEAT_STIMER_DIRECT, errp)) {
++        return;
++    }
+ 
+     /* Additional dependencies not covered by kvm_hyperv_properties[] */
+     if (hyperv_feat_enabled(cpu, HYPERV_FEAT_SYNIC) &&
+         !cpu->hyperv_synic_kvm_only &&
+         !hyperv_feat_enabled(cpu, HYPERV_FEAT_VPINDEX)) {
+-        fprintf(stderr, "Hyper-V %s requires Hyper-V %s\n",
+-                kvm_hyperv_properties[HYPERV_FEAT_SYNIC].desc,
+-                kvm_hyperv_properties[HYPERV_FEAT_VPINDEX].desc);
+-        r |= 1;
+-    }
+-
+-    /* Not exposed by KVM but needed to make CPU hotplug in Windows work */
+-    env->features[FEAT_HYPERV_EDX] |= HV_CPU_DYNAMIC_PARTITIONING_AVAILABLE;
+-
+-    if (r) {
+-        r = -ENOSYS;
+-        goto free;
++        error_setg(errp, "Hyper-V %s requires Hyper-V %s",
++                   kvm_hyperv_properties[HYPERV_FEAT_SYNIC].desc,
++                   kvm_hyperv_properties[HYPERV_FEAT_VPINDEX].desc);
+     }
++}
+ 
+-    if (cpu->hyperv_passthrough) {
+-        /* We already copied all feature words from KVM as is */
+-        r = cpuid->nent;
+-        goto free;
+-    }
++/*
++ * Fill in Hyper-V CPUIDs. Returns the number of entries filled in cpuid_ent.
++ */
++static int hyperv_fill_cpuids(CPUState *cs,
++                              struct kvm_cpuid_entry2 *cpuid_ent)
++{
++    X86CPU *cpu = X86_CPU(cs);
++    struct kvm_cpuid_entry2 *c;
++    uint32_t cpuid_i = 0;
+ 
+     c = &cpuid_ent[cpuid_i++];
+     c->function = HV_CPUID_VENDOR_AND_MAX_FUNCTIONS;
+@@ -1339,15 +1359,25 @@ static int hyperv_handle_properties(CPUState *cs,
+ 
+     c = &cpuid_ent[cpuid_i++];
+     c->function = HV_CPUID_FEATURES;
+-    c->eax = env->features[FEAT_HYPERV_EAX];
+-    c->ebx = env->features[FEAT_HYPERV_EBX];
+-    c->edx = env->features[FEAT_HYPERV_EDX];
++    c->eax = hv_build_cpuid_leaf(cs, HV_CPUID_FEATURES, R_EAX);
++    c->ebx = hv_build_cpuid_leaf(cs, HV_CPUID_FEATURES, R_EBX);
++    c->edx = hv_build_cpuid_leaf(cs, HV_CPUID_FEATURES, R_EDX);
++
++    /* Not exposed by KVM but needed to make CPU hotplug in Windows work */
++    c->edx |= HV_CPU_DYNAMIC_PARTITIONING_AVAILABLE;
+ 
+     c = &cpuid_ent[cpuid_i++];
+     c->function = HV_CPUID_ENLIGHTMENT_INFO;
+-    c->eax = env->features[FEAT_HV_RECOMM_EAX];
++    c->eax = hv_build_cpuid_leaf(cs, HV_CPUID_ENLIGHTMENT_INFO, R_EAX);
+     c->ebx = cpu->hyperv_spinlock_attempts;
+ 
++    if (cpu->hyperv_no_nonarch_cs == ON_OFF_AUTO_ON) {
++        c->eax |= HV_NO_NONARCH_CORESHARING;
++    } else if (cpu->hyperv_no_nonarch_cs == ON_OFF_AUTO_AUTO) {
++        c->eax |= hv_cpuid_get_host(cs, HV_CPUID_ENLIGHTMENT_INFO, R_EAX) &
++            HV_NO_NONARCH_CORESHARING;
++    }
++
+     c = &cpuid_ent[cpuid_i++];
+     c->function = HV_CPUID_IMPLEMENT_LIMITS;
+     c->eax = cpu->hv_max_vps;
+@@ -1367,14 +1397,10 @@ static int hyperv_handle_properties(CPUState *cs,
+ 
+         c = &cpuid_ent[cpuid_i++];
+         c->function = HV_CPUID_NESTED_FEATURES;
+-        c->eax = env->features[FEAT_HV_NESTED_EAX];
++        c->eax = cpu->hyperv_nested[0];
+     }
+-    r = cpuid_i;
+-
+-free:
+-    g_free(cpuid);
+ 
+-    return r;
++    return cpuid_i;
+ }
+ 
+ static Error *hv_passthrough_mig_blocker;
+@@ -1458,6 +1484,21 @@ static int hyperv_init_vcpu(X86CPU *cpu)
+         }
+     }
+ 
++    if (hyperv_feat_enabled(cpu, HYPERV_FEAT_EVMCS)) {
++        uint16_t evmcs_version;
++
++        ret = kvm_vcpu_enable_cap(cs, KVM_CAP_HYPERV_ENLIGHTENED_VMCS, 0,
++                                  (uintptr_t)&evmcs_version);
++
++        if (ret < 0) {
++            fprintf(stderr, "Hyper-V %s is not supported by kernel\n",
++                    kvm_hyperv_properties[HYPERV_FEAT_EVMCS].desc);
++            return ret;
++        }
++
++        cpu->hyperv_nested[0] = evmcs_version;
++    }
++
+     return 0;
+ }
+ 
+@@ -1516,11 +1557,19 @@ int kvm_arch_init_vcpu(CPUState *cs)
+     env->apic_bus_freq = KVM_APIC_BUS_FREQUENCY;
+ 
+     /* Paravirtualization CPUIDs */
+-    r = hyperv_handle_properties(cs, cpuid_data.entries);
+-    if (r < 0) {
+-        return r;
+-    } else if (r > 0) {
+-        cpuid_i = r;
++    hyperv_expand_features(cs, &local_err);
++    if (local_err) {
++        error_report_err(local_err);
++        return -ENOSYS;
++    }
++
++    if (hyperv_enabled(cpu)) {
++        r = hyperv_init_vcpu(cpu);
++        if (r) {
++            return r;
++        }
++
++        cpuid_i = hyperv_fill_cpuids(cs, cpuid_data.entries);
+         kvm_base = KVM_CPUID_SIGNATURE_NEXT;
+         has_msr_hv_hypercall = true;
+     }
+@@ -1869,11 +1918,6 @@ int kvm_arch_init_vcpu(CPUState *cs)
+ 
+     kvm_init_msrs(cpu);
+ 
+-    r = hyperv_init_vcpu(cpu);
+-    if (r) {
+-        goto fail;
+-    }
+-
+     return 0;
+ 
+  fail:
+diff --git a/target/i386/monitor.c b/target/i386/monitor.c
+index 5994408bee..119211f0b0 100644
+--- a/target/i386/monitor.c
++++ b/target/i386/monitor.c
+@@ -757,3 +757,9 @@ void qmp_sev_inject_launch_secret(const char *packet_hdr,
+ 
+     sev_inject_launch_secret(packet_hdr, secret, gpa, errp);
+ }
++
++SevAttestationReport *
++qmp_query_sev_attestation_report(const char *mnonce, Error **errp)
++{
++    return sev_get_attestation_report(mnonce, errp);
++}
+diff --git a/target/i386/sev-stub.c b/target/i386/sev-stub.c
+index 0207f1c5aa..0227cb5177 100644
+--- a/target/i386/sev-stub.c
++++ b/target/i386/sev-stub.c
+@@ -74,3 +74,10 @@ int sev_es_save_reset_vector(void *flash_ptr, uint64_t flash_size)
+ {
+     abort();
+ }
++
++SevAttestationReport *
++sev_get_attestation_report(const char *mnonce, Error **errp)
++{
++    error_setg(errp, "SEV is not available in this QEMU");
++    return NULL;
++}
+diff --git a/target/i386/sev.c b/target/i386/sev.c
+index 41f7800b5f..83df8c09f6 100644
+--- a/target/i386/sev.c
++++ b/target/i386/sev.c
+@@ -87,29 +87,31 @@ static SevGuestState *sev_guest;
+ static Error *sev_mig_blocker;
+ 
+ static const char *const sev_fw_errlist[] = {
+-    "",
+-    "Platform state is invalid",
+-    "Guest state is invalid",
+-    "Platform configuration is invalid",
+-    "Buffer too small",
+-    "Platform is already owned",
+-    "Certificate is invalid",
+-    "Policy is not allowed",
+-    "Guest is not active",
+-    "Invalid address",
+-    "Bad signature",
+-    "Bad measurement",
+-    "Asid is already owned",
+-    "Invalid ASID",
+-    "WBINVD is required",
+-    "DF_FLUSH is required",
+-    "Guest handle is invalid",
+-    "Invalid command",
+-    "Guest is active",
+-    "Hardware error",
+-    "Hardware unsafe",
+-    "Feature not supported",
+-    "Invalid parameter"
++    [SEV_RET_SUCCESS]                = "",
++    [SEV_RET_INVALID_PLATFORM_STATE] = "Platform state is invalid",
++    [SEV_RET_INVALID_GUEST_STATE]    = "Guest state is invalid",
++    [SEV_RET_INAVLID_CONFIG]         = "Platform configuration is invalid",
++    [SEV_RET_INVALID_LEN]            = "Buffer too small",
++    [SEV_RET_ALREADY_OWNED]          = "Platform is already owned",
++    [SEV_RET_INVALID_CERTIFICATE]    = "Certificate is invalid",
++    [SEV_RET_POLICY_FAILURE]         = "Policy is not allowed",
++    [SEV_RET_INACTIVE]               = "Guest is not active",
++    [SEV_RET_INVALID_ADDRESS]        = "Invalid address",
++    [SEV_RET_BAD_SIGNATURE]          = "Bad signature",
++    [SEV_RET_BAD_MEASUREMENT]        = "Bad measurement",
++    [SEV_RET_ASID_OWNED]             = "ASID is already owned",
++    [SEV_RET_INVALID_ASID]           = "Invalid ASID",
++    [SEV_RET_WBINVD_REQUIRED]        = "WBINVD is required",
++    [SEV_RET_DFFLUSH_REQUIRED]       = "DF_FLUSH is required",
++    [SEV_RET_INVALID_GUEST]          = "Guest handle is invalid",
++    [SEV_RET_INVALID_COMMAND]        = "Invalid command",
++    [SEV_RET_ACTIVE]                 = "Guest is active",
++    [SEV_RET_HWSEV_RET_PLATFORM]     = "Hardware error",
++    [SEV_RET_HWSEV_RET_UNSAFE]       = "Hardware unsafe",
++    [SEV_RET_UNSUPPORTED]            = "Feature not supported",
++    [SEV_RET_INVALID_PARAM]          = "Invalid parameter",
++    [SEV_RET_RESOURCE_LIMIT]         = "Required firmware resource depleted",
++    [SEV_RET_SECURE_DATA_INVALID]    = "Part-specific integrity check failure",
+ };
+ 
+ #define SEV_FW_MAX_ERROR      ARRAY_SIZE(sev_fw_errlist)
+@@ -492,6 +494,73 @@ out:
+     return cap;
+ }
+ 
++SevAttestationReport *
++sev_get_attestation_report(const char *mnonce, Error **errp)
++{
++    struct kvm_sev_attestation_report input = {};
++    SevAttestationReport *report = NULL;
++    SevGuestState *sev = sev_guest;
++    guchar *data;
++    guchar *buf;
++    gsize len;
++    int err = 0, ret;
++
++    if (!sev_enabled()) {
++        error_setg(errp, "SEV is not enabled");
++        return NULL;
++    }
++
++    /* lets decode the mnonce string */
++    buf = g_base64_decode(mnonce, &len);
++    if (!buf) {
++        error_setg(errp, "SEV: failed to decode mnonce input");
++        return NULL;
++    }
++
++    /* verify the input mnonce length */
++    if (len != sizeof(input.mnonce)) {
++        error_setg(errp, "SEV: mnonce must be %zu bytes (got %" G_GSIZE_FORMAT ")",
++                sizeof(input.mnonce), len);
++        g_free(buf);
++        return NULL;
++    }
++
++    /* Query the report length */
++    ret = sev_ioctl(sev->sev_fd, KVM_SEV_GET_ATTESTATION_REPORT,
++            &input, &err);
++    if (ret < 0) {
++        if (err != SEV_RET_INVALID_LEN) {
++            error_setg(errp, "failed to query the attestation report length "
++                    "ret=%d fw_err=%d (%s)", ret, err, fw_error_to_str(err));
++            g_free(buf);
++            return NULL;
++        }
++    }
++
++    data = g_malloc(input.len);
++    input.uaddr = (unsigned long)data;
++    memcpy(input.mnonce, buf, sizeof(input.mnonce));
++
++    /* Query the report */
++    ret = sev_ioctl(sev->sev_fd, KVM_SEV_GET_ATTESTATION_REPORT,
++            &input, &err);
++    if (ret) {
++        error_setg_errno(errp, errno, "Failed to get attestation report"
++                " ret=%d fw_err=%d (%s)", ret, err, fw_error_to_str(err));
++        goto e_free_data;
++    }
++
++    report = g_new0(SevAttestationReport, 1);
++    report->data = g_base64_encode(data, input.len);
++
++    trace_kvm_sev_attestation_report(mnonce, report->data);
++
++e_free_data:
++    g_free(data);
++    g_free(buf);
++    return report;
++}
++
+ static int
+ sev_read_file_base64(const char *filename, guchar **data, gsize *len)
+ {
+diff --git a/target/i386/sev_i386.h b/target/i386/sev_i386.h
+index ae221d4c72..ae6d840478 100644
+--- a/target/i386/sev_i386.h
++++ b/target/i386/sev_i386.h
+@@ -35,5 +35,7 @@ extern uint32_t sev_get_cbit_position(void);
+ extern uint32_t sev_get_reduced_phys_bits(void);
+ extern char *sev_get_launch_measurement(void);
+ extern SevCapability *sev_get_capabilities(Error **errp);
++extern SevAttestationReport *
++sev_get_attestation_report(const char *mnonce, Error **errp);
+ 
+ #endif
+diff --git a/target/i386/trace-events b/target/i386/trace-events
+index a22ab24e21..8d6437404d 100644
+--- a/target/i386/trace-events
++++ b/target/i386/trace-events
+@@ -10,3 +10,4 @@ kvm_sev_launch_update_data(void *addr, uint64_t len) "addr %p len 0x%" PRIx64
+ kvm_sev_launch_measurement(const char *value) "data %s"
+ kvm_sev_launch_finish(void) ""
+ kvm_sev_launch_secret(uint64_t hpa, uint64_t hva, uint64_t secret, int len) "hpa 0x%" PRIx64 " hva 0x%" PRIx64 " data 0x%" PRIx64 " len %d"
++kvm_sev_attestation_report(const char *mnonce, const char *data) "mnonce %s data %s"
+diff --git a/tests/qemu-iotests/iotests.py b/tests/qemu-iotests/iotests.py
+index 92681907ed..777fa2ec0e 100644
+--- a/tests/qemu-iotests/iotests.py
++++ b/tests/qemu-iotests/iotests.py
+@@ -571,7 +571,7 @@ class VM(qtest.QEMUQtestMachine):
+     def __init__(self, path_suffix=''):
+         name = "qemu%s-%d" % (path_suffix, os.getpid())
+         super().__init__(qemu_prog, qemu_opts, name=name,
+-                         base_temp_dir=test_dir,
++                         test_dir=test_dir,
+                          socket_scm_helper=socket_scm_helper,
+                          sock_dir=sock_dir)
+         self._num_drives = 0

@@ -1,0 +1,13 @@
+commit 72205289a0799c6d0a73107198098b830dbea2f9
+Author: Matheus Ferst <matheus.ferst@eldorado.org.br>
+Date:   Thu May 20 16:51:42 2021 -0300
+
+    scripts/checkpatch.pl: process .c.inc and .h.inc files as C source
+    
+    Change the regex used to determine whether a file should be processed as
+    C source to include .c.inc and .h.inc extensions.
+    
+    Signed-off-by: Matheus Ferst <matheus.ferst@eldorado.org.br>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Message-Id: <20210520195142.941261-1-matheus.ferst@eldorado.org.br>
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>

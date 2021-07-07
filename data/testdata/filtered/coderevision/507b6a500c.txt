@@ -1,0 +1,407 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+deleted file mode 100644
+index 9e3b0b09af..0000000000
+--- a/target/arm/helper-mve.h
++++ /dev/null
+@@ -1,24 +0,0 @@
+-/*
+- *  M-profile MVE specific helper definitions
+- *
+- *  Copyright (c) 2021 Linaro, Ltd.
+- *
+- * This library is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU Lesser General Public
+- * License as published by the Free Software Foundation; either
+- * version 2.1 of the License, or (at your option) any later version.
+- *
+- * This library is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+- * Lesser General Public License for more details.
+- *
+- * You should have received a copy of the GNU Lesser General Public
+- * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+- */
+-DEF_HELPER_FLAGS_3(mve_vldrb, TCG_CALL_NO_WG, void, env, ptr, i32)
+-DEF_HELPER_FLAGS_3(mve_vldrh, TCG_CALL_NO_WG, void, env, ptr, i32)
+-DEF_HELPER_FLAGS_3(mve_vldrw, TCG_CALL_NO_WG, void, env, ptr, i32)
+-DEF_HELPER_FLAGS_3(mve_vstrb, TCG_CALL_NO_WG, void, env, ptr, i32)
+-DEF_HELPER_FLAGS_3(mve_vstrh, TCG_CALL_NO_WG, void, env, ptr, i32)
+-DEF_HELPER_FLAGS_3(mve_vstrw, TCG_CALL_NO_WG, void, env, ptr, i32)
+diff --git a/target/arm/helper.h b/target/arm/helper.h
+index db87d7d537..dc6eb96d43 100644
+--- a/target/arm/helper.h
++++ b/target/arm/helper.h
+@@ -1019,5 +1019,3 @@ DEF_HELPER_FLAGS_6(gvec_bfmlal_idx, TCG_CALL_NO_RWG,
+ #include "helper-a64.h"
+ #include "helper-sve.h"
+ #endif
+-
+-#include "helper-mve.h"
+diff --git a/target/arm/internals.h b/target/arm/internals.h
+index 3ba86e8af8..886db56b58 100644
+--- a/target/arm/internals.h
++++ b/target/arm/internals.h
+@@ -1202,15 +1202,4 @@ static inline uint64_t useronly_maybe_clean_ptr(uint32_t desc, uint64_t ptr)
+     return ptr;
+ }
+ 
+-/* Values for M-profile PSR.ECI for MVE insns */
+-enum MVEECIState {
+-    ECI_NONE = 0, /* No completed beats */
+-    ECI_A0 = 1, /* Completed: A0 */
+-    ECI_A0A1 = 2, /* Completed: A0, A1 */
+-    /* 3 is reserved */
+-    ECI_A0A1A2 = 4, /* Completed: A0, A1, A2 */
+-    ECI_A0A1A2B0 = 5, /* Completed: A0, A1, A2, B0 */
+-    /* All other values reserved */
+-};
+-
+ #endif
+diff --git a/target/arm/meson.build b/target/arm/meson.build
+index 25a02bf276..2b50be3f86 100644
+--- a/target/arm/meson.build
++++ b/target/arm/meson.build
+@@ -23,7 +23,6 @@ arm_ss.add(files(
+   'helper.c',
+   'iwmmxt_helper.c',
+   'm_helper.c',
+-  'mve_helper.c',
+   'neon_helper.c',
+   'op_helper.c',
+   'tlb_helper.c',
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index 858a161fd7..c8492bb576 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -18,25 +18,3 @@
+ #
+ # This file is processed by scripts/decodetree.py
+ #
+-
+-%qd 22:1 13:3
+-
+-&vldr_vstr rn qd imm p a w size l
+-
+-@vldr_vstr ....... . . . . l:1 rn:4 ... ...... imm:7 &vldr_vstr qd=%qd
+-
+-# Vector loads and stores
+-
+-# Non-widening loads/stores (P=0 W=0 is 'related encoding')
+-VLDR_VSTR        1110110 0 a:1 . 1   . .... ... 111100 .......   @vldr_vstr \
+-                 size=0 p=0 w=1
+-VLDR_VSTR        1110110 0 a:1 . 1   . .... ... 111101 .......   @vldr_vstr \
+-                 size=1 p=0 w=1
+-VLDR_VSTR        1110110 0 a:1 . 1   . .... ... 111110 .......   @vldr_vstr \
+-                 size=2 p=0 w=1
+-VLDR_VSTR        1110110 1 a:1 . w:1 . .... ... 111100 .......   @vldr_vstr \
+-                 size=0 p=1
+-VLDR_VSTR        1110110 1 a:1 . w:1 . .... ... 111101 .......   @vldr_vstr \
+-                 size=1 p=1
+-VLDR_VSTR        1110110 1 a:1 . w:1 . .... ... 111110 .......   @vldr_vstr \
+-                 size=2 p=1
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+deleted file mode 100644
+index 60c61268c7..0000000000
+--- a/target/arm/mve_helper.c
++++ /dev/null
+@@ -1,172 +0,0 @@
+-/*
+- * M-profile MVE Operations
+- *
+- * Copyright (c) 2021 Linaro, Ltd.
+- *
+- * This library is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU Lesser General Public
+- * License as published by the Free Software Foundation; either
+- * version 2.1 of the License, or (at your option) any later version.
+- *
+- * This library is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+- * Lesser General Public License for more details.
+- *
+- * You should have received a copy of the GNU Lesser General Public
+- * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+- */
+-
+-#include "qemu/osdep.h"
+-#include "cpu.h"
+-#include "internals.h"
+-#include "vec_internal.h"
+-#include "exec/helper-proto.h"
+-#include "exec/cpu_ldst.h"
+-#include "exec/exec-all.h"
+-
+-static uint16_t mve_element_mask(CPUARMState *env)
+-{
+-    /*
+-     * Return the mask of which elements in the MVE vector should be
+-     * updated. This is a combination of multiple things:
+-     *  (1) by default, we update every lane in the vector
+-     *  (2) VPT predication stores its state in the VPR register;
+-     *  (3) low-overhead-branch tail predication will mask out part
+-     *      the vector on the final iteration of the loop
+-     *  (4) if EPSR.ECI is set then we must execute only some beats
+-     *      of the insn
+-     * We combine all these into a 16-bit result with the same semantics
+-     * as VPR.P0: 0 to mask the lane, 1 if it is active.
+-     * 8-bit vector ops will look at all bits of the result;
+-     * 16-bit ops will look at bits 0, 2, 4, ...;
+-     * 32-bit ops will look at bits 0, 4, 8 and 12.
+-     * Compare pseudocode GetCurInstrBeat(), though that only returns
+-     * the 4-bit slice of the mask corresponding to a single beat.
+-     */
+-    uint16_t mask = FIELD_EX32(env->v7m.vpr, V7M_VPR, P0);
+-
+-    if (!(env->v7m.vpr & R_V7M_VPR_MASK01_MASK)) {
+-        mask |= 0xff;
+-    }
+-    if (!(env->v7m.vpr & R_V7M_VPR_MASK23_MASK)) {
+-        mask |= 0xff00;
+-    }
+-
+-    if (env->v7m.ltpsize < 4 &&
+-        env->regs[14] <= (1 << (4 - env->v7m.ltpsize))) {
+-        /*
+-         * Tail predication active, and this is the last loop iteration.
+-         * The element size is (1 << ltpsize), and we only want to process
+-         * loopcount elements, so we want to retain the least significant
+-         * (loopcount * esize) predicate bits and zero out bits above that.
+-         */
+-        int masklen = env->regs[14] << env->v7m.ltpsize;
+-        assert(masklen <= 16);
+-        mask &= MAKE_64BIT_MASK(0, masklen);
+-    }
+-
+-    if ((env->condexec_bits & 0xf) == 0) {
+-        /*
+-         * ECI bits indicate which beats are already executed;
+-         * we handle this by effectively predicating them out.
+-         */
+-        int eci = env->condexec_bits >> 4;
+-        switch (eci) {
+-        case ECI_NONE:
+-            break;
+-        case ECI_A0:
+-            mask &= 0xfff0;
+-            break;
+-        case ECI_A0A1:
+-            mask &= 0xff00;
+-            break;
+-        case ECI_A0A1A2:
+-        case ECI_A0A1A2B0:
+-            mask &= 0xf000;
+-            break;
+-        default:
+-            g_assert_not_reached();
+-        }
+-    }
+-
+-    return mask;
+-}
+-
+-static void mve_advance_vpt(CPUARMState *env)
+-{
+-    /* Advance the VPT and ECI state if necessary */
+-    uint32_t vpr = env->v7m.vpr;
+-    unsigned mask01, mask23;
+-
+-    if ((env->condexec_bits & 0xf) == 0) {
+-        env->condexec_bits = (env->condexec_bits == (ECI_A0A1A2B0 << 4)) ?
+-            (ECI_A0 << 4) : (ECI_NONE << 4);
+-    }
+-
+-    if (!(vpr & (R_V7M_VPR_MASK01_MASK | R_V7M_VPR_MASK23_MASK))) {
+-        /* VPT not enabled, nothing to do */
+-        return;
+-    }
+-
+-    mask01 = FIELD_EX32(vpr, V7M_VPR, MASK01);
+-    mask23 = FIELD_EX32(vpr, V7M_VPR, MASK23);
+-    if (mask01 > 8) {
+-        /* high bit set, but not 0b1000: invert the relevant half of P0 */
+-        vpr ^= 0xff;
+-    }
+-    if (mask23 > 8) {
+-        /* high bit set, but not 0b1000: invert the relevant half of P0 */
+-        vpr ^= 0xff00;
+-    }
+-    vpr = FIELD_DP32(vpr, V7M_VPR, MASK01, mask01 << 1);
+-    vpr = FIELD_DP32(vpr, V7M_VPR, MASK23, mask23 << 1);
+-    env->v7m.vpr = vpr;
+-}
+-
+-
+-#define DO_VLDR(OP, MSIZE, LDTYPE, ESIZE, TYPE)                         \
+-    void HELPER(mve_##OP)(CPUARMState *env, void *vd, uint32_t addr)    \
+-    {                                                                   \
+-        TYPE *d = vd;                                                   \
+-        uint16_t mask = mve_element_mask(env);                          \
+-        unsigned b, e;                                                  \
+-        /*                                                              \
+-         * R_SXTM allows the dest reg to become UNKNOWN for abandoned   \
+-         * beats so we don't care if we update part of the dest and     \
+-         * then take an exception.                                      \
+-         */                                                             \
+-        for (b = 0, e = 0; b < 16; b += ESIZE, e++) {                   \
+-            if (mask & (1 << b)) {                                      \
+-                d[H##ESIZE(e)] = cpu_##LDTYPE##_data_ra(env, addr, GETPC()); \
+-            }                                                           \
+-            addr += MSIZE;                                              \
+-        }                                                               \
+-        mve_advance_vpt(env);                                           \
+-    }
+-
+-#define DO_VSTR(OP, MSIZE, STTYPE, ESIZE, TYPE)                         \
+-    void HELPER(mve_##OP)(CPUARMState *env, void *vd, uint32_t addr)    \
+-    {                                                                   \
+-        TYPE *d = vd;                                                   \
+-        uint16_t mask = mve_element_mask(env);                          \
+-        unsigned b, e;                                                  \
+-        for (b = 0, e = 0; b < 16; b += ESIZE, e++) {                   \
+-            if (mask & (1 << b)) {                                      \
+-                cpu_##STTYPE##_data_ra(env, addr, d[H##ESIZE(e)], GETPC()); \
+-            }                                                           \
+-            addr += MSIZE;                                              \
+-        }                                                               \
+-        mve_advance_vpt(env);                                           \
+-    }
+-
+-DO_VLDR(vldrb, 1, ldub, 1, uint8_t)
+-DO_VLDR(vldrh, 2, lduw, 2, uint16_t)
+-DO_VLDR(vldrw, 4, ldl, 4, uint32_t)
+-
+-DO_VSTR(vstrb, 1, stb, 1, uint8_t)
+-DO_VSTR(vstrh, 2, stw, 2, uint16_t)
+-DO_VSTR(vstrw, 4, stl, 4, uint32_t)
+-
+-#undef DO_VLDR
+-#undef DO_VSTR
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index f98bd6d038..e91f526a1a 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -27,122 +27,3 @@
+ 
+ /* Include the generated decoder */
+ #include "decode-mve.c.inc"
+-
+-typedef void MVEGenLdStFn(TCGv_ptr, TCGv_ptr, TCGv_i32);
+-
+-/* Return the offset of a Qn register (same semantics as aa32_vfp_qreg()) */
+-static inline long mve_qreg_offset(unsigned reg)
+-{
+-    return offsetof(CPUARMState, vfp.zregs[reg].d[0]);
+-}
+-
+-static TCGv_ptr mve_qreg_ptr(unsigned reg)
+-{
+-    TCGv_ptr ret = tcg_temp_new_ptr();
+-    tcg_gen_addi_ptr(ret, cpu_env, mve_qreg_offset(reg));
+-    return ret;
+-}
+-
+-static bool mve_check_qreg_bank(DisasContext *s, int qmask)
+-{
+-    /*
+-     * Check whether Qregs are in range. For v8.1M only Q0..Q7
+-     * are supported, see VFPSmallRegisterBank().
+-     */
+-    return qmask < 8;
+-}
+-
+-static bool mve_eci_check(DisasContext *s)
+-{
+-    /*
+-     * This is a beatwise insn: check that ECI is valid (not a
+-     * reserved value) and note that we are handling it.
+-     * Return true if OK, false if we generated an exception.
+-     */
+-    s->eci_handled = true;
+-    switch (s->eci) {
+-    case ECI_NONE:
+-    case ECI_A0:
+-    case ECI_A0A1:
+-    case ECI_A0A1A2:
+-    case ECI_A0A1A2B0:
+-        return true;
+-    default:
+-        /* Reserved value: INVSTATE UsageFault */
+-        gen_exception_insn(s, s->pc_curr, EXCP_INVSTATE, syn_uncategorized(),
+-                           default_exception_el(s));
+-        return false;
+-    }
+-}
+-
+-static void mve_update_eci(DisasContext *s)
+-{
+-    /*
+-     * The helper function will always update the CPUState field,
+-     * so we only need to update the DisasContext field.
+-     */
+-    if (s->eci) {
+-        s->eci = (s->eci == ECI_A0A1A2B0) ? ECI_A0 : ECI_NONE;
+-    }
+-}
+-
+-static bool do_ldst(DisasContext *s, arg_VLDR_VSTR *a, MVEGenLdStFn *fn)
+-{
+-    TCGv_i32 addr;
+-    uint32_t offset;
+-    TCGv_ptr qreg;
+-
+-    if (!dc_isar_feature(aa32_mve, s) ||
+-        !mve_check_qreg_bank(s, a->qd) ||
+-        !fn) {
+-        return false;
+-    }
+-
+-    /* CONSTRAINED UNPREDICTABLE: we choose to UNDEF */
+-    if (a->rn == 15 || (a->rn == 13 && a->w)) {
+-        return false;
+-    }
+-
+-    if (!mve_eci_check(s) || !vfp_access_check(s)) {
+-        return true;
+-    }
+-
+-    offset = a->imm << a->size;
+-    if (!a->a) {
+-        offset = -offset;
+-    }
+-    addr = load_reg(s, a->rn);
+-    if (a->p) {
+-        tcg_gen_addi_i32(addr, addr, offset);
+-    }
+-
+-    qreg = mve_qreg_ptr(a->qd);
+-    fn(cpu_env, qreg, addr);
+-    tcg_temp_free_ptr(qreg);
+-
+-    /*
+-     * Writeback always happens after the last beat of the insn,
+-     * regardless of predication
+-     */
+-    if (a->w) {
+-        if (!a->p) {
+-            tcg_gen_addi_i32(addr, addr, offset);
+-        }
+-        store_reg(s, a->rn, addr);
+-    } else {
+-        tcg_temp_free_i32(addr);
+-    }
+-    mve_update_eci(s);
+-    return true;
+-}
+-
+-static bool trans_VLDR_VSTR(DisasContext *s, arg_VLDR_VSTR *a)
+-{
+-    static MVEGenLdStFn * const ldstfns[4][2] = {
+-        { gen_helper_mve_vstrb, gen_helper_mve_vldrb },
+-        { gen_helper_mve_vstrh, gen_helper_mve_vldrh },
+-        { gen_helper_mve_vstrw, gen_helper_mve_vldrw },
+-        { NULL, NULL }
+-    };
+-    return do_ldst(s, a, ldstfns[a->size][a->l]);
+-}

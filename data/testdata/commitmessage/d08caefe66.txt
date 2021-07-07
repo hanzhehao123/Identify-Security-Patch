@@ -1,0 +1,12 @@
+commit d08caefe6648fc0713af5361e2b88bee53b67ebb
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:49 2021 -0400
+
+    scripts/qmp-shell: add redirection shim
+    
+    qmp-shell has a new home, add a redirect for a little while as the dust
+    settles.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-43-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

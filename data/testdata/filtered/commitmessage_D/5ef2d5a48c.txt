@@ -1,0 +1,34 @@
+commit 5ef2d5a48c98bcaca86b33755e175104802b44c3
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:25 2021 +0200
+
+    cpu: Directly use cpu_write_elf*() fallback handlers in place
+    
+    No code directly accesses CPUClass::write_elf*() handlers out
+    of hw/core/cpu.c (the rest are assignation in target/ code):
+    
+      $ git grep -F -- '->write_elf'
+      hw/core/cpu.c:157:    return (*cc->write_elf32_qemunote)(f, cpu, opaque);
+      hw/core/cpu.c:171:    return (*cc->write_elf32_note)(f, cpu, cpuid, opaque);
+      hw/core/cpu.c:186:    return (*cc->write_elf64_qemunote)(f, cpu, opaque);
+      hw/core/cpu.c:200:    return (*cc->write_elf64_note)(f, cpu, cpuid, opaque);
+      hw/core/cpu.c:440:    k->write_elf32_qemunote = cpu_common_write_elf32_qemunote;
+      hw/core/cpu.c:441:    k->write_elf32_note = cpu_common_write_elf32_note;
+      hw/core/cpu.c:442:    k->write_elf64_qemunote = cpu_common_write_elf64_qemunote;
+      hw/core/cpu.c:443:    k->write_elf64_note = cpu_common_write_elf64_note;
+      target/arm/cpu.c:2304:    cc->write_elf64_note = arm_cpu_write_elf64_note;
+      target/arm/cpu.c:2305:    cc->write_elf32_note = arm_cpu_write_elf32_note;
+      target/i386/cpu.c:7425:    cc->write_elf64_note = x86_cpu_write_elf64_note;
+      target/i386/cpu.c:7426:    cc->write_elf64_qemunote = x86_cpu_write_elf64_qemunote;
+      target/i386/cpu.c:7427:    cc->write_elf32_note = x86_cpu_write_elf32_note;
+      target/i386/cpu.c:7428:    cc->write_elf32_qemunote = x86_cpu_write_elf32_qemunote;
+      target/ppc/translate_init.c.inc:10891:    cc->write_elf64_note = ppc64_cpu_write_elf64_note;
+      target/ppc/translate_init.c.inc:10892:    cc->write_elf32_note = ppc32_cpu_write_elf32_note;
+      target/s390x/cpu.c:522:    cc->write_elf64_note = s390_cpu_write_elf64_note;
+    
+    Check the handler presence in place and remove the common fallback code.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-9-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

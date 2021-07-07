@@ -1,0 +1,13 @@
+commit f50be48a7b64905ca8556fa5ca18beb11004fa4a
+Author: Stefan Berger <stefanb@linux.vnet.ibm.com>
+Date:   Tue Jun 15 16:21:18 2021 +0200
+
+    arm: Eliminate all TPM related code if CONFIG_TPM is not set
+    
+    Peter Maydell <peter.maydell@linaro.org>
+    
+    Signed-off-by: Stefan Berger <stefanb@linux.ibm.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Tested-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210614191335.1968807-3-stefanb@linux.ibm.com>
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>

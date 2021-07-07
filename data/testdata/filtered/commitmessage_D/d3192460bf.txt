@@ -1,0 +1,14 @@
+commit d3192460bffdf31e830a9ef1261b587259e7ebd7
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 16:31:39 2021 -0700
+
+    util: Pass file+line to qemu_rec_mutex_unlock_impl
+    
+    Create macros for file+line expansion in qemu_rec_mutex_unlock
+    like we have for qemu_mutex_unlock.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210614233143.1221879-5-richard.henderson@linaro.org>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

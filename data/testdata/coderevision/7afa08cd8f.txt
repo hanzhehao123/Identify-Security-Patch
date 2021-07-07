@@ -1,0 +1,175 @@
+diff --git a/migration/dirtyrate.c b/migration/dirtyrate.c
+index 2ee3890721..ccb98147e8 100644
+--- a/migration/dirtyrate.c
++++ b/migration/dirtyrate.c
+@@ -48,12 +48,6 @@ static bool is_sample_period_valid(int64_t sec)
+     return true;
+ }
+ 
+-static bool is_sample_pages_valid(int64_t pages)
+-{
+-    return pages >= MIN_SAMPLE_PAGE_COUNT &&
+-           pages <= MAX_SAMPLE_PAGE_COUNT;
+-}
+-
+ static int dirtyrate_set_state(int *state, int old_state, int new_state)
+ {
+     assert(new_state < DIRTY_RATE_STATUS__MAX);
+@@ -78,15 +72,13 @@ static struct DirtyRateInfo *query_dirty_rate_info(void)
+     info->status = CalculatingState;
+     info->start_time = DirtyStat.start_time;
+     info->calc_time = DirtyStat.calc_time;
+-    info->sample_pages = DirtyStat.sample_pages;
+ 
+     trace_query_dirty_rate_info(DirtyRateStatus_str(CalculatingState));
+ 
+     return info;
+ }
+ 
+-static void init_dirtyrate_stat(int64_t start_time, int64_t calc_time,
+-                                uint64_t sample_pages)
++static void init_dirtyrate_stat(int64_t start_time, int64_t calc_time)
+ {
+     DirtyStat.total_dirty_samples = 0;
+     DirtyStat.total_sample_count = 0;
+@@ -94,7 +86,6 @@ static void init_dirtyrate_stat(int64_t start_time, int64_t calc_time,
+     DirtyStat.dirty_rate = -1;
+     DirtyStat.start_time = start_time;
+     DirtyStat.calc_time = calc_time;
+-    DirtyStat.sample_pages = sample_pages;
+ }
+ 
+ static void update_dirtyrate_stat(struct RamblockDirtyInfo *info)
+@@ -370,7 +361,6 @@ void *get_dirtyrate_thread(void *arg)
+     int ret;
+     int64_t start_time;
+     int64_t calc_time;
+-    uint64_t sample_pages;
+ 
+     ret = dirtyrate_set_state(&CalculatingState, DIRTY_RATE_STATUS_UNSTARTED,
+                               DIRTY_RATE_STATUS_MEASURING);
+@@ -381,8 +371,7 @@ void *get_dirtyrate_thread(void *arg)
+ 
+     start_time = qemu_clock_get_ms(QEMU_CLOCK_REALTIME) / 1000;
+     calc_time = config.sample_period_seconds;
+-    sample_pages = config.sample_pages_per_gigabytes;
+-    init_dirtyrate_stat(start_time, calc_time, sample_pages);
++    init_dirtyrate_stat(start_time, calc_time);
+ 
+     calculate_dirtyrate(config);
+ 
+@@ -394,8 +383,7 @@ void *get_dirtyrate_thread(void *arg)
+     return NULL;
+ }
+ 
+-void qmp_calc_dirty_rate(int64_t calc_time, bool has_sample_pages,
+-                         int64_t sample_pages, Error **errp)
++void qmp_calc_dirty_rate(int64_t calc_time, Error **errp)
+ {
+     static struct DirtyRateConfig config;
+     QemuThread thread;
+@@ -416,17 +404,6 @@ void qmp_calc_dirty_rate(int64_t calc_time, bool has_sample_pages,
+         return;
+     }
+ 
+-    if (has_sample_pages) {
+-        if (!is_sample_pages_valid(sample_pages)) {
+-            error_setg(errp, "sample-pages is out of range[%d, %d].",
+-                            MIN_SAMPLE_PAGE_COUNT,
+-                            MAX_SAMPLE_PAGE_COUNT);
+-            return;
+-        }
+-    } else {
+-        sample_pages = DIRTYRATE_DEFAULT_SAMPLE_PAGES;
+-    }
+-
+     /*
+      * Init calculation state as unstarted.
+      */
+@@ -438,7 +415,7 @@ void qmp_calc_dirty_rate(int64_t calc_time, bool has_sample_pages,
+     }
+ 
+     config.sample_period_seconds = calc_time;
+-    config.sample_pages_per_gigabytes = sample_pages;
++    config.sample_pages_per_gigabytes = DIRTYRATE_DEFAULT_SAMPLE_PAGES;
+     qemu_thread_create(&thread, "get_dirtyrate", get_dirtyrate_thread,
+                        (void *)&config, QEMU_THREAD_DETACHED);
+ }
+diff --git a/migration/dirtyrate.h b/migration/dirtyrate.h
+index e1fd29089e..6ec429534d 100644
+--- a/migration/dirtyrate.h
++++ b/migration/dirtyrate.h
+@@ -15,6 +15,7 @@
+ 
+ /*
+  * Sample 512 pages per GB as default.
++ * TODO: Make it configurable.
+  */
+ #define DIRTYRATE_DEFAULT_SAMPLE_PAGES            512
+ 
+@@ -34,12 +35,6 @@
+ #define MIN_FETCH_DIRTYRATE_TIME_SEC              1
+ #define MAX_FETCH_DIRTYRATE_TIME_SEC              60
+ 
+-/*
+- * Take 1/16 pages in 1G as the maxmum sample page count
+- */
+-#define MIN_SAMPLE_PAGE_COUNT                     128
+-#define MAX_SAMPLE_PAGE_COUNT                     16384
+-
+ struct DirtyRateConfig {
+     uint64_t sample_pages_per_gigabytes; /* sample pages per GB */
+     int64_t sample_period_seconds; /* time duration between two sampling */
+@@ -68,7 +63,6 @@ struct DirtyRateStat {
+     int64_t dirty_rate; /* dirty rate in MB/s */
+     int64_t start_time; /* calculation start time in units of second */
+     int64_t calc_time; /* time duration of two sampling in units of second */
+-    uint64_t sample_pages; /* sample pages per GB */
+ };
+ 
+ void *get_dirtyrate_thread(void *arg);
+diff --git a/qapi/migration.json b/qapi/migration.json
+index 1124a2dda8..7a5bdf9a0d 100644
+--- a/qapi/migration.json
++++ b/qapi/migration.json
+@@ -1740,9 +1740,6 @@
+ #
+ # @calc-time: time in units of second for sample dirty pages
+ #
+-# @sample-pages: page count per GB for sample dirty pages
+-#                the default value is 512 (since 6.1)
+-#
+ # Since: 5.2
+ #
+ ##
+@@ -1750,8 +1747,7 @@
+   'data': {'*dirty-rate': 'int64',
+            'status': 'DirtyRateStatus',
+            'start-time': 'int64',
+-           'calc-time': 'int64',
+-           'sample-pages': 'uint64'} }
++           'calc-time': 'int64'} }
+ 
+ ##
+ # @calc-dirty-rate:
+@@ -1760,18 +1756,13 @@
+ #
+ # @calc-time: time in units of second for sample dirty pages
+ #
+-# @sample-pages: page count per GB for sample dirty pages
+-#                the default value is 512 (since 6.1)
+-#
+ # Since: 5.2
+ #
+ # Example:
+-#   {"command": "calc-dirty-rate", "data": {"calc-time": 1,
+-#                                           'sample-pages': 512} }
++#   {"command": "calc-dirty-rate", "data": {"calc-time": 1} }
+ #
+ ##
+-{ 'command': 'calc-dirty-rate', 'data': {'calc-time': 'int64',
+-                                         '*sample-pages': 'int'} }
++{ 'command': 'calc-dirty-rate', 'data': {'calc-time': 'int64'} }
+ 
+ ##
+ # @query-dirty-rate:

@@ -1,0 +1,30 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index de5fa189f0..5317dcd516 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -322,8 +322,8 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+ 
+ 
+ class HMPShell(QMPShell):
+-    def __init__(self, address, pretty=False):
+-        super().__init__(address, pretty)
++    def __init__(self, address):
++        super().__init__(address)
+         self.__cpu_index = 0
+ 
+     def __cmd_completion(self):
+@@ -421,9 +421,12 @@ def main():
+     if args.qmp_server is None:
+         parser.error("QMP socket or TCP address must be specified")
+ 
+-    shell_class = HMPShell if args.hmp else QMPShell
++    qemu: QMPShell
+     try:
+-        qemu = shell_class(args.qmp_server, args.pretty)
++        if args.hmp:
++            qemu = HMPShell(args.qmp_server)
++        else:
++            qemu = QMPShell(args.qmp_server, args.pretty)
+     except qmp.QMPBadPortError:
+         parser.error(f"Bad port number: {args.qmp_server}")
+         return  # pycharm doesn't know error() is noreturn

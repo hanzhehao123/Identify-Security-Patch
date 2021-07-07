@@ -1,0 +1,118 @@
+diff --git a/python/PACKAGE.rst b/python/PACKAGE.rst
+index 05ea7789fc..1bbfe1b58e 100644
+--- a/python/PACKAGE.rst
++++ b/python/PACKAGE.rst
+@@ -31,7 +31,3 @@ official `GitLab mirror <https://gitlab.com/qemu-project/qemu>`_.
+ Please report bugs on the `QEMU issue tracker
+ <https://gitlab.com/qemu-project/qemu/-/issues>`_ and tag ``@jsnow`` in
+ the report.
+-
+-Optional packages necessary for running code quality analysis for this
+-package can be installed with the optional dependency group "devel":
+-``pip install qemu[devel]``.
+diff --git a/python/Pipfile b/python/Pipfile
+index e7acb8cefa..dbe96f71c4 100644
+--- a/python/Pipfile
++++ b/python/Pipfile
+@@ -4,7 +4,10 @@ url = "https://pypi.org/simple"
+ verify_ssl = true
+ 
+ [dev-packages]
+-qemu = {editable = true, extras = ["devel"], path = "."}
++flake8 = ">=3.6.0"
++isort = ">=5.1.2"
++mypy = ">=0.770"
++pylint = ">=2.8.0"
+ 
+ [packages]
+ qemu = {editable = true,path = "."}
+diff --git a/python/Pipfile.lock b/python/Pipfile.lock
+index a2cdc1c50e..f0bf576c31 100644
+--- a/python/Pipfile.lock
++++ b/python/Pipfile.lock
+@@ -1,7 +1,7 @@
+ {
+     "_meta": {
+         "hash": {
+-            "sha256": "eff562a688ebc6f3ffe67494dbb804b883e2159ad81c4d55d96da9f7aec13e91"
++            "sha256": "7c74cc4c2db3a75c954a6686411cda6fd60e464620bb6d5f1ed9a54be61db4cc"
+         },
+         "pipfile-spec": 6,
+         "requires": {
+@@ -35,7 +35,7 @@
+                 "sha256:07528381786f2a6237b061f6e96610a4167b226cb926e2aa2b6b1d78057c576b",
+                 "sha256:bf8fd333346d844f616e8d47905ef3a3384edae6b4e9beb0c5101e25e3110907"
+             ],
+-            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'",
++            "index": "pypi",
+             "version": "==3.9.2"
+         },
+         "importlib-metadata": {
+@@ -51,7 +51,7 @@
+                 "sha256:0a943902919f65c5684ac4e0154b1ad4fac6dcaa5d9f3426b732f1c8b5419be6",
+                 "sha256:2bb1680aad211e3c9944dbce1d4ba09a989f04e238296c87fe2139faa26d655d"
+             ],
+-            "markers": "python_version >= '3.6' and python_version < '4.0'",
++            "index": "pypi",
+             "version": "==5.8.0"
+         },
+         "lazy-object-proxy": {
+@@ -114,7 +114,7 @@
+                 "sha256:d65cc1df038ef55a99e617431f0553cd77763869eebdf9042403e16089fe746c",
+                 "sha256:d7da2e1d5f558c37d6e8c1246f1aec1e7349e4913d8fb3cb289a35de573fe2eb"
+             ],
+-            "markers": "python_version >= '3.5'",
++            "index": "pypi",
+             "version": "==0.812"
+         },
+         "mypy-extensions": {
+@@ -145,13 +145,9 @@
+                 "sha256:586d8fa9b1891f4b725f587ef267abe2a1bad89d6b184520c7f07a253dd6e217",
+                 "sha256:f7e2072654a6b6afdf5e2fb38147d3e2d2d43c89f648637baab63e026481279b"
+             ],
+-            "markers": "python_version ~= '3.6'",
++            "index": "pypi",
+             "version": "==2.8.2"
+         },
+-        "qemu": {
+-            "editable": true,
+-            "path": "."
+-        },
+         "toml": {
+             "hashes": [
+                 "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b",
+diff --git a/python/README.rst b/python/README.rst
+index 954870973d..bf9bbca979 100644
+--- a/python/README.rst
++++ b/python/README.rst
+@@ -24,10 +24,6 @@ which installs a version of the package that installs a forwarder
+ pointing to these files, such that the package always reflects the
+ latest version in your git tree.
+ 
+-Installing ".[devel]" instead of "." will additionally pull in required
+-packages for testing this package. They are not runtime requirements,
+-and are not needed to simply use these libraries.
+-
+ See `Installing packages using pip and virtual environments
+ <https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/>`_
+ for more information.
+diff --git a/python/setup.cfg b/python/setup.cfg
+index 39dc135e60..3f07bd2752 100644
+--- a/python/setup.cfg
++++ b/python/setup.cfg
+@@ -22,15 +22,6 @@ packages =
+     qemu.machine
+     qemu.utils
+ 
+-[options.extras_require]
+-# Run `pipenv lock --dev` when changing these requirements.
+-devel =
+-    flake8 >= 3.6.0
+-    isort >= 5.1.2
+-    mypy >= 0.770
+-    pylint >= 2.8.0
+-
+-
+ [flake8]
+ extend-ignore = E722  # Prefer pylint's bare-except checks to flake8's
+ exclude = __pycache__,

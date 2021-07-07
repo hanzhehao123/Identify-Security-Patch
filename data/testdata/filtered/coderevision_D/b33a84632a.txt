@@ -1,0 +1,88 @@
+diff --git a/.gitlab-ci.d/buildtest.yml b/.gitlab-ci.d/buildtest.yml
+index fe44a5c2be..a86c27fdbe 100644
+--- a/.gitlab-ci.d/buildtest.yml
++++ b/.gitlab-ci.d/buildtest.yml
+@@ -630,6 +630,16 @@ build-coroutine-sigaltstack:
+ #
+ # These jobs test old gcrypt and nettle from RHEL7
+ # which had some API differences.
++crypto-old-gcrypt:
++  extends: .native_build_job_template
++  needs:
++    job: amd64-centos7-container
++  variables:
++    IMAGE: centos7
++    TARGETS: x86_64-softmmu x86_64-linux-user
++    CONFIGURE_ARGS: --disable-nettle --enable-gcrypt
++    MAKE_CHECK_ARGS: check
++
+ crypto-only-gnutls:
+   extends: .native_build_job_template
+   needs:
+diff --git a/configure b/configure
+index fb8c5187e8..fddda94c63 100755
+--- a/configure
++++ b/configure
+@@ -407,6 +407,7 @@ gnutls="$default_feature"
+ nettle="$default_feature"
+ nettle_xts="no"
+ gcrypt="$default_feature"
++gcrypt_hmac="no"
+ gcrypt_xts="no"
+ qemu_private_xts="yes"
+ auth_pam="$default_feature"
+@@ -2859,7 +2860,7 @@ has_libgcrypt() {
+     maj=`libgcrypt-config --version | awk -F . '{print $1}'`
+     min=`libgcrypt-config --version | awk -F . '{print $2}'`
+ 
+-    if test $maj != 1 || test $min -lt 8
++    if test $maj != 1 || test $min -lt 5
+     then
+        return 1
+     fi
+@@ -2925,6 +2926,18 @@ if test "$gcrypt" != "no"; then
+         gcrypt="yes"
+         cat > $TMPC << EOF
+ #include <gcrypt.h>
++int main(void) {
++  gcry_mac_hd_t handle;
++  gcry_mac_open(&handle, GCRY_MAC_HMAC_MD5,
++                GCRY_MAC_FLAG_SECURE, NULL);
++  return 0;
++}
++EOF
++        if compile_prog "$gcrypt_cflags" "$gcrypt_libs" ; then
++            gcrypt_hmac=yes
++        fi
++        cat > $TMPC << EOF
++#include <gcrypt.h>
+ int main(void) {
+   gcry_cipher_hd_t handle;
+   gcry_cipher_open(&handle, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_XTS, 0);
+@@ -5708,6 +5721,9 @@ if test "$gnutls" = "yes" ; then
+ fi
+ if test "$gcrypt" = "yes" ; then
+   echo "CONFIG_GCRYPT=y" >> $config_host_mak
++  if test "$gcrypt_hmac" = "yes" ; then
++    echo "CONFIG_GCRYPT_HMAC=y" >> $config_host_mak
++  fi
+   echo "GCRYPT_CFLAGS=$gcrypt_cflags" >> $config_host_mak
+   echo "GCRYPT_LIBS=$gcrypt_libs" >> $config_host_mak
+ fi
+diff --git a/crypto/meson.build b/crypto/meson.build
+index af7e80c6f6..7f37b5d335 100644
+--- a/crypto/meson.build
++++ b/crypto/meson.build
+@@ -26,7 +26,11 @@ if 'CONFIG_NETTLE' in config_host
+   crypto_ss.add(files('hash-nettle.c', 'hmac-nettle.c', 'pbkdf-nettle.c'))
+ elif 'CONFIG_GCRYPT' in config_host
+   crypto_ss.add(files('hash-gcrypt.c', 'pbkdf-gcrypt.c'))
+-  crypto_ss.add(files('hmac-gcrypt.c'))
++  if 'CONFIG_GCRYPT_HMAC' in config_host
++    crypto_ss.add(files('hmac-gcrypt.c'))
++  else
++    crypto_ss.add(files('hmac-glib.c'))
++  endif
+ else
+   crypto_ss.add(files('hash-glib.c', 'hmac-glib.c', 'pbkdf-stub.c'))
+ endif

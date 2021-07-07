@@ -1,0 +1,11 @@
+commit 5047ae648b7f25d3cdb6ce4995c62aa7806abd7f
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Sep 5 13:26:48 2020 -0700
+
+    tcg/arm: Implement TCG_TARGET_HAS_roti_vec
+    
+    Implement via expansion, so don't actually set TCG_TARGET_HAS_roti_vec.
+    For NEON, this is shift-right followed by shift-left-and-insert.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

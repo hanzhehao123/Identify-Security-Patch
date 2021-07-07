@@ -1,0 +1,14 @@
+commit b6139eb0578fc422cfee77fccbd11152e73af1df
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Fri Jan 29 10:00:42 2021 -1000
+
+    tcg/tci: Improve tcg_target_call_clobber_regs
+    
+    The current setting is much too pessimistic.  Indicating only
+    the one or two registers that are actually assigned after a
+    call should avoid unnecessary movement between the register
+    array and the stack array.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

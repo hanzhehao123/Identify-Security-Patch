@@ -1,0 +1,17 @@
+commit de3036acb4f2cbb80ef8d827ce2b7ec9104a0b14
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Wed May 26 17:21:03 2021 -0300
+
+    monitor: removed cpustats command
+    
+    Since ppc was the last architecture to collect these statistics and
+    it is currently phasing this collection out, the command that would query
+    this information is being removed.
+    
+    Suggested-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Message-Id: <20210526202104.127910-5-bruno.larsen@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Acked-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

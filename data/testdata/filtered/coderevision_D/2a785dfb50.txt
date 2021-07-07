@@ -1,0 +1,77 @@
+diff --git a/target/s390x/helper.h b/target/s390x/helper.h
+index e99c9643eb..0cfb82ee8a 100644
+--- a/target/s390x/helper.h
++++ b/target/s390x/helper.h
+@@ -126,7 +126,6 @@ DEF_HELPER_FLAGS_1(stck, TCG_CALL_NO_RWG_SE, i64, env)
+ DEF_HELPER_FLAGS_3(probe_write_access, TCG_CALL_NO_WG, void, env, i64, i64)
+ 
+ /* === Vector Support Instructions === */
+-DEF_HELPER_FLAGS_4(gvec_vbperm, TCG_CALL_NO_RWG, void, ptr, cptr, cptr, i32)
+ DEF_HELPER_FLAGS_4(vll, TCG_CALL_NO_WG, void, env, ptr, i64, i64)
+ DEF_HELPER_FLAGS_4(gvec_vpk16, TCG_CALL_NO_RWG, void, ptr, cptr, cptr, i32)
+ DEF_HELPER_FLAGS_4(gvec_vpk32, TCG_CALL_NO_RWG, void, ptr, cptr, cptr, i32)
+diff --git a/target/s390x/insn-data.def b/target/s390x/insn-data.def
+index 1634a6bc5a..35a0086a85 100644
+--- a/target/s390x/insn-data.def
++++ b/target/s390x/insn-data.def
+@@ -989,8 +989,6 @@
+ 
+ /* === Vector Support Instructions === */
+ 
+-/* VECTOR BIT PERMUTE */
+-    E(0xe785, VBPERM,  VRR_c, VE,  0, 0, 0, 0, vbperm, 0, 0, IF_VEC)
+ /* VECTOR GATHER ELEMENT */
+     E(0xe713, VGEF,    VRV,   V,   la2, 0, 0, 0, vge, 0, ES_32, IF_VEC)
+     E(0xe712, VGEG,    VRV,   V,   la2, 0, 0, 0, vge, 0, ES_64, IF_VEC)
+diff --git a/target/s390x/translate_vx.c.inc b/target/s390x/translate_vx.c.inc
+index 96283d4ddb..91e2967c49 100644
+--- a/target/s390x/translate_vx.c.inc
++++ b/target/s390x/translate_vx.c.inc
+@@ -327,14 +327,6 @@ static void gen_addi2_i64(TCGv_i64 dl, TCGv_i64 dh, TCGv_i64 al, TCGv_i64 ah,
+     tcg_temp_free_i64(bh);
+ }
+ 
+-static DisasJumpType op_vbperm(DisasContext *s, DisasOps *o)
+-{
+-    gen_gvec_3_ool(get_field(s, v1), get_field(s, v2), get_field(s, v3), 0,
+-                   gen_helper_gvec_vbperm);
+-
+-    return DISAS_NEXT;
+-}
+-
+ static DisasJumpType op_vge(DisasContext *s, DisasOps *o)
+ {
+     const uint8_t es = s->insn->data;
+diff --git a/target/s390x/vec_helper.c b/target/s390x/vec_helper.c
+index 599bab06bd..986e7cc825 100644
+--- a/target/s390x/vec_helper.c
++++ b/target/s390x/vec_helper.c
+@@ -19,28 +19,6 @@
+ #include "exec/cpu_ldst.h"
+ #include "exec/exec-all.h"
+ 
+-void HELPER(gvec_vbperm)(void *v1, const void *v2, const void *v3,
+-                         uint32_t desc)
+-{
+-    S390Vector tmp = {};
+-    uint16_t result = 0;
+-    int i;
+-
+-    for (i = 0; i < 16; i++) {
+-        const uint8_t bit_nr = s390_vec_read_element8(v3, i);
+-        uint16_t bit;
+-
+-        if (bit_nr >= 128) {
+-            continue;
+-        }
+-        bit = (s390_vec_read_element8(v2, bit_nr / 8)
+-               >> (7 - (bit_nr % 8))) & 1;
+-        result |= (bit << (15 - i));
+-    }
+-    s390_vec_write_element16(&tmp, 3, result);
+-    *(S390Vector *)v1 = tmp;
+-}
+-
+ void HELPER(vll)(CPUS390XState *env, void *v1, uint64_t addr, uint64_t bytes)
+ {
+     if (likely(bytes >= 16)) {

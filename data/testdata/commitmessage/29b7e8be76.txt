@@ -1,0 +1,17 @@
+commit 29b7e8be76a142f6715e20bc13dc61ded1b8d2a7
+Author: Peter Xu <peterx@redhat.com>
+Date:   Thu May 6 12:05:45 2021 -0400
+
+    KVM: Simplify dirty log sync in kvm_set_phys_mem
+    
+    kvm_physical_sync_dirty_bitmap() on the whole section is inaccurate, because
+    the section can be a superset of the memslot that we're working on.  The result
+    is that if the section covers multiple kvm memslots, we could be doing the
+    synchronization for multiple times for each kvmslot in the section.
+    
+    With the two helpers that we just introduced, it's very easy to do it right now
+    by calling the helpers.
+    
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Message-Id: <20210506160549.130416-7-peterx@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

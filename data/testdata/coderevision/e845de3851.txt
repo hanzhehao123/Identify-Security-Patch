@@ -1,0 +1,40 @@
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index 065d40fd3e..72c521559f 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -1576,7 +1576,7 @@ typedef struct X86CPUDefinition {
+     int stepping;
+     FeatureWordArray features;
+     const char *model_id;
+-    const CPUCaches *const cache_info;
++    CPUCaches *cache_info;
+     /*
+      * Definitions for alternative versions of CPU model.
+      * List is terminated by item with version == 0.
+@@ -1619,7 +1619,7 @@ static const X86CPUVersionDefinition *x86_cpu_def_get_versions(X86CPUDefinition
+     return def->versions ?: default_version_list;
+ }
+ 
+-static const CPUCaches epyc_cache_info = {
++static CPUCaches epyc_cache_info = {
+     .l1d_cache = &(CPUCacheInfo) {
+         .type = DATA_CACHE,
+         .level = 1,
+@@ -1669,7 +1669,7 @@ static const CPUCaches epyc_cache_info = {
+     },
+ };
+ 
+-static const CPUCaches epyc_rome_cache_info = {
++static CPUCaches epyc_rome_cache_info = {
+     .l1d_cache = &(CPUCacheInfo) {
+         .type = DATA_CACHE,
+         .level = 1,
+@@ -1719,7 +1719,7 @@ static const CPUCaches epyc_rome_cache_info = {
+     },
+ };
+ 
+-static const CPUCaches epyc_milan_cache_info = {
++static CPUCaches epyc_milan_cache_info = {
+     .l1d_cache = &(CPUCacheInfo) {
+         .type = DATA_CACHE,
+         .level = 1,

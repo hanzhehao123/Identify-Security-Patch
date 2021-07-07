@@ -1,0 +1,12 @@
+commit 0a73d7ac9a200cdf17562d0a893c1578f3ffa4a4
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Tue May 18 20:36:31 2021 +0200
+
+    exec/memory_ldst_cached: Sort declarations
+    
+    To ease the file review, sort the declarations by the size of
+    the access (8, 16, 32). Simple code movement, no logical change.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210518183655.1711377-2-philmd@redhat.com>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

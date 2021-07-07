@@ -1,0 +1,16 @@
+commit 7e7c2a0de74d56c3f47205df3dcf68ed7d43d30d
+Author: John Snow <jsnow@redhat.com>
+Date:   Fri Jun 4 11:55:31 2021 -0400
+
+    python/qemu-ga-client: add entry point
+    
+    Remove the shebang, and add a package-defined entry point instead. Now,
+    it can be accessed using 'qemu-ga-client' from the command line after
+    installing the package.
+    
+    The next commit adds a forwarder shim that allows the running of this
+    script without needing to install the package again.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210604155532.1499282-11-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

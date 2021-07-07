@@ -1,0 +1,14 @@
+commit 60ff2ae2a21ddc11cc7284194a3013ff864ac03c
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Thu Apr 15 14:28:16 2021 +0100
+
+    block: add trace point when fdatasync fails
+    
+    A flush failure is a critical failure scenario for some operations.
+    For example, it will prevent migration from completing, as it will
+    make vm_stop() report an error. Thus it is important to have a
+    trace point present for debugging.
+    
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>

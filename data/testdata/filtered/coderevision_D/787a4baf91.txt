@@ -1,0 +1,22 @@
+diff --git a/target/riscv/pmp.c b/target/riscv/pmp.c
+index 82ed020b10..78203291de 100644
+--- a/target/riscv/pmp.c
++++ b/target/riscv/pmp.c
+@@ -402,8 +402,6 @@ bool pmp_hart_has_privs(CPURISCVState *env, target_ulong addr,
+                     case 15:
+                         *allowed_privs = PMP_READ;
+                         break;
+-                    default:
+-                        g_assert_not_reached();
+                     }
+                 } else {
+                     switch (epmp_operation) {
+@@ -435,8 +433,6 @@ bool pmp_hart_has_privs(CPURISCVState *env, target_ulong addr,
+                     case 7:
+                         *allowed_privs = PMP_READ | PMP_WRITE | PMP_EXEC;
+                         break;
+-                    default:
+-                        g_assert_not_reached();
+                     }
+                 }
+             }

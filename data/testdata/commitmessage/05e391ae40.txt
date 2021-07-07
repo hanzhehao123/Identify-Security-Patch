@@ -1,0 +1,8 @@
+commit 05e391ae4056e122fd78b694607ccd2e5a943dab
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 3 11:15:26 2021 +0200
+
+    configure, meson: convert pam detection to meson
+    
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

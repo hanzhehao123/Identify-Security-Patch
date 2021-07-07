@@ -1,0 +1,15 @@
+commit 3e92aa34434bbcf88e5cc0a8334946216dcaf233
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Thu Mar 18 11:29:50 2021 -0600
+
+    tcg: Store the TCGHelperInfo in the TCGOp for call
+    
+    This will give us both flags and typemask for use later.
+    
+    We also fix a dumping bug, wherein calls generated for plugins
+    fail tcg_find_helper and print (null) instead of either a name
+    or the raw function pointer.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

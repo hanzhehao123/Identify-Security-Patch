@@ -1,0 +1,13 @@
+commit 319466876b33dc98aa2b9e59deab126c2236bd3e
+Author: Patrick Venture <venture@google.com>
+Date:   Tue Jun 8 13:25:20 2021 -0700
+
+    hw/arm: gsj add i2c comments
+    
+    Adds comments to the board init to identify missing i2c devices.
+    
+    Signed-off-by: Patrick Venture <venture@google.com>
+    Reviewed-by: Hao Wu <wuhaotsh@google.com>
+    Reviewed-by: Joel Stanley <joel@jms.id.au>
+    Message-id: 20210608202522.2677850-2-venture@google.com
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

@@ -1,0 +1,70 @@
+diff --git a/hw/acpi/ghes-stub.c b/hw/acpi/ghes-stub.c
+index c315de1802..9faba043b8 100644
+--- a/hw/acpi/ghes-stub.c
++++ b/hw/acpi/ghes-stub.c
+@@ -15,8 +15,3 @@ int acpi_ghes_record_errors(uint8_t source_id, uint64_t physical_address)
+ {
+     return -1;
+ }
+-
+-bool acpi_ghes_present(void)
+-{
+-    return false;
+-}
+diff --git a/hw/acpi/ghes.c b/hw/acpi/ghes.c
+index a749b84d62..a4dac6bf15 100644
+--- a/hw/acpi/ghes.c
++++ b/hw/acpi/ghes.c
+@@ -386,8 +386,6 @@ void acpi_ghes_add_fw_cfg(AcpiGhesState *ags, FWCfgState *s,
+     /* Create a read-write fw_cfg file for Address */
+     fw_cfg_add_file_callback(s, ACPI_GHES_DATA_ADDR_FW_CFG_FILE, NULL, NULL,
+         NULL, &(ags->ghes_addr_le), sizeof(ags->ghes_addr_le), false);
+-
+-    ags->present = true;
+ }
+ 
+ int acpi_ghes_record_errors(uint8_t source_id, uint64_t physical_address)
+@@ -445,18 +443,3 @@ int acpi_ghes_record_errors(uint8_t source_id, uint64_t physical_address)
+ 
+     return ret;
+ }
+-
+-bool acpi_ghes_present(void)
+-{
+-    AcpiGedState *acpi_ged_state;
+-    AcpiGhesState *ags;
+-
+-    acpi_ged_state = ACPI_GED(object_resolve_path_type("", TYPE_ACPI_GED,
+-                                                       NULL));
+-
+-    if (!acpi_ged_state) {
+-        return false;
+-    }
+-    ags = &acpi_ged_state->ghes_state;
+-    return ags->present;
+-}
+diff --git a/include/hw/acpi/ghes.h b/include/hw/acpi/ghes.h
+index 674f6958e9..2ae8bc1ded 100644
+--- a/include/hw/acpi/ghes.h
++++ b/include/hw/acpi/ghes.h
+@@ -64,7 +64,6 @@ enum {
+ 
+ typedef struct AcpiGhesState {
+     uint64_t ghes_addr_le;
+-    bool present; /* True if GHES is present at all on this board */
+ } AcpiGhesState;
+ 
+ void build_ghes_error_table(GArray *hardware_errors, BIOSLinker *linker);
+@@ -73,12 +72,4 @@ void acpi_build_hest(GArray *table_data, BIOSLinker *linker,
+ void acpi_ghes_add_fw_cfg(AcpiGhesState *vms, FWCfgState *s,
+                           GArray *hardware_errors);
+ int acpi_ghes_record_errors(uint8_t notify, uint64_t error_physical_addr);
+-
+-/**
+- * acpi_ghes_present: Report whether ACPI GHES table is present
+- *
+- * Returns: true if the system has an ACPI GHES table and it is
+- * safe to call acpi_ghes_record_errors() to record a memory error.
+- */
+-bool acpi_ghes_present(void);
+ #endif

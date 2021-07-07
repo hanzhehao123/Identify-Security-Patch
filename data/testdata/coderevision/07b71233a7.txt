@@ -1,0 +1,32 @@
+diff --git a/python/qemu/machine.py b/python/qemu/machine.py
+index 5b87e9ce02..b379fcbe72 100644
+--- a/python/qemu/machine.py
++++ b/python/qemu/machine.py
+@@ -223,8 +223,9 @@ def send_fd_scm(self, fd: Optional[int] = None,
+             assert fd is not None
+             fd_param.append(str(fd))
+ 
++        devnull = open(os.path.devnull, 'rb')
+         proc = subprocess.Popen(
+-            fd_param, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
++            fd_param, stdin=devnull, stdout=subprocess.PIPE,
+             stderr=subprocess.STDOUT, close_fds=False
+         )
+         output = proc.communicate()[0]
+@@ -390,6 +391,7 @@ def _launch(self) -> None:
+         """
+         Launch the VM and establish a QMP connection
+         """
++        devnull = open(os.path.devnull, 'rb')
+         self._pre_launch()
+         self._qemu_full_args = tuple(
+             chain(self._wrapper,
+@@ -399,7 +401,7 @@ def _launch(self) -> None:
+         )
+         LOG.debug('VM launch command: %r', ' '.join(self._qemu_full_args))
+         self._popen = subprocess.Popen(self._qemu_full_args,
+-                                       stdin=subprocess.DEVNULL,
++                                       stdin=devnull,
+                                        stdout=self._qemu_log_file,
+                                        stderr=subprocess.STDOUT,
+                                        shell=False,

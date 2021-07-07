@@ -1,0 +1,12 @@
+commit 7fc29896d237b6cb2db49e65f00882f554fc48c0
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:43 2021 -0400
+
+    scripts/qmp-shell: convert usage comment to docstring
+    
+    The nice usage comment should be a docstring instead of a comment, so
+    that it's visible from other python tooling.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-37-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

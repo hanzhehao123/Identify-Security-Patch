@@ -1,0 +1,17 @@
+diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
+index 3fd0c48d77..09b19262c8 100644
+--- a/target/mips/tcg/translate.c
++++ b/target/mips/tcg/translate.c
+@@ -24379,11 +24379,10 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
+         {
+             TCGv t0, t1;
+ 
+-            check_dsp(ctx);
+-
+             if (rt == 0) {
+                 break;
+             }
++            check_dsp(ctx);
+ 
+             t0 = tcg_temp_new();
+             t1 = tcg_temp_new();

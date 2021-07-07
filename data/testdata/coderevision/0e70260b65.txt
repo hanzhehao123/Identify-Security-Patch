@@ -1,0 +1,22 @@
+diff --git a/include/qemu/coroutine.h b/include/qemu/coroutine.h
+index 4829ff373d..292e61aef0 100644
+--- a/include/qemu/coroutine.h
++++ b/include/qemu/coroutine.h
+@@ -210,15 +210,13 @@ void coroutine_fn qemu_co_queue_wait_impl(CoQueue *queue, QemuLockable *lock);
+ /**
+  * Removes the next coroutine from the CoQueue, and wake it up.
+  * Returns true if a coroutine was removed, false if the queue is empty.
+- * OK to run from coroutine and non-coroutine context.
+  */
+-bool qemu_co_queue_next(CoQueue *queue);
++bool coroutine_fn qemu_co_queue_next(CoQueue *queue);
+ 
+ /**
+  * Empties the CoQueue; all coroutines are woken up.
+- * OK to run from coroutine and non-coroutine context.
+  */
+-void qemu_co_queue_restart_all(CoQueue *queue);
++void coroutine_fn qemu_co_queue_restart_all(CoQueue *queue);
+ 
+ /**
+  * Removes the next coroutine from the CoQueue, and wake it up.  Unlike

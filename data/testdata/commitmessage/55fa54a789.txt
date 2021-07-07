@@ -1,0 +1,14 @@
+commit 55fa54a789f6e66fe9e7997429667e3e8917ffb9
+Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date:   Mon Jun 14 10:11:30 2021 +0200
+
+    co-shared-resource: protect with a mutex
+    
+    co-shared-resource is currently not thread-safe, as also reported
+    in co-shared-resource.h. Add a QemuMutex because co_try_get_from_shres
+    can also be invoked from non-coroutine context.
+    
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Message-Id: <20210614081130.22134-6-eesposit@redhat.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>

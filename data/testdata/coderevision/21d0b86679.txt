@@ -1,0 +1,13 @@
+diff --git a/python/setup.cfg b/python/setup.cfg
+index 9aeab2bb0d..52a89a0a29 100644
+--- a/python/setup.cfg
++++ b/python/setup.cfg
+@@ -24,8 +24,6 @@ packages =
+ 
+ [flake8]
+ extend-ignore = E722  # Prefer pylint's bare-except checks to flake8's
+-exclude = __pycache__,
+-          .venv,
+ 
+ [pylint.messages control]
+ # Disable the message, report, category or checker with the given id(s). You

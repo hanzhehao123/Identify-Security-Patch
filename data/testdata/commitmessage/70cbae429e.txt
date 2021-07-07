@@ -1,0 +1,10 @@
+commit 70cbae429ef3a7c36facd418da2c00e01ae51cb7
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Mon May 17 04:17:15 2021 -0400
+
+    KVM: do not allow setting properties at runtime
+    
+    Only allow accelerator properties to be set when the
+    accelerator is being created.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

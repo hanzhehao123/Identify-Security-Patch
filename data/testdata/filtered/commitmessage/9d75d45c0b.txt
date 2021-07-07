@@ -1,0 +1,17 @@
+commit 9d75d45c0b88c87ac25ee4c65e724447834c1d3b
+Author: Jamie Iles <jamie@nuviainc.com>
+Date:   Wed May 26 13:18:47 2021 +0100
+
+    target/arm: use raise_exception_ra for stack limit exception
+    
+    The sequence cpu_restore_state() + raise_exception() is equivalent to
+    raise_exception_ra(), so use that instead.  (In this case we never
+    cared about the syndrome value, because M-profile doesn't use the
+    syndrome; the old code was just written unnecessarily awkwardly.)
+    
+    Cc: Richard Henderson <richard.henderson@linaro.org>
+    Cc: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Jamie Iles <jamie@nuviainc.com>
+    [PMM: Retain edited version of comment; rewrite commit message]
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

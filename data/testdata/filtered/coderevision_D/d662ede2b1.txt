@@ -1,0 +1,61 @@
+diff --git a/accel/hvf/hvf-accel-ops.c b/accel/hvf/hvf-accel-ops.c
+index 14fc49791e..69741ce708 100644
+--- a/accel/hvf/hvf-accel-ops.c
++++ b/accel/hvf/hvf-accel-ops.c
+@@ -58,6 +58,8 @@
+ #include "sysemu/runstate.h"
+ #include "qemu/guest-random.h"
+ 
++#include "hvf-accel-ops.h"
++
+ HVFState *hvf_state;
+ 
+ /* Memory slots */
+diff --git a/accel/hvf/hvf-accel-ops.h b/accel/hvf/hvf-accel-ops.h
+new file mode 100644
+index 0000000000..018a4e22f6
+--- /dev/null
++++ b/accel/hvf/hvf-accel-ops.h
+@@ -0,0 +1,17 @@
++/*
++ * Accelerator CPUS Interface
++ *
++ * Copyright 2020 SUSE LLC
++ *
++ * This work is licensed under the terms of the GNU GPL, version 2 or later.
++ * See the COPYING file in the top-level directory.
++ */
++
++#ifndef HVF_CPUS_H
++#define HVF_CPUS_H
++
++#include "sysemu/cpus.h"
++
++int hvf_vcpu_exec(CPUState *);
++
++#endif /* HVF_CPUS_H */
+diff --git a/include/sysemu/hvf_int.h b/include/sysemu/hvf_int.h
+index fd1dcaf26e..80c1a8f946 100644
+--- a/include/sysemu/hvf_int.h
++++ b/include/sysemu/hvf_int.h
+@@ -46,7 +46,6 @@ extern HVFState *hvf_state;
+ void assert_hvf_ok(hv_return_t ret);
+ int hvf_arch_init_vcpu(CPUState *cpu);
+ void hvf_arch_vcpu_destroy(CPUState *cpu);
+-int hvf_vcpu_exec(CPUState *);
+ hvf_slot *hvf_find_overlap_slot(uint64_t, uint64_t);
+ int hvf_put_registers(CPUState *);
+ int hvf_get_registers(CPUState *);
+diff --git a/target/i386/hvf/hvf.c b/target/i386/hvf/hvf.c
+index 02f7be6cfd..c7132ee370 100644
+--- a/target/i386/hvf/hvf.c
++++ b/target/i386/hvf/hvf.c
+@@ -73,6 +73,8 @@
+ #include "qemu/accel.h"
+ #include "target/i386/cpu.h"
+ 
++#include "hvf-accel-ops.h"
++
+ void vmx_update_tpr(CPUState *cpu)
+ {
+     /* TODO: need integrate APIC handling */

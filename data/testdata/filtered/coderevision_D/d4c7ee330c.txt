@@ -1,0 +1,39 @@
+diff --git a/.gitlab-ci.d/buildtest.yml b/.gitlab-ci.d/buildtest.yml
+index b72c57e4df..fe44a5c2be 100644
+--- a/.gitlab-ci.d/buildtest.yml
++++ b/.gitlab-ci.d/buildtest.yml
+@@ -626,6 +626,21 @@ build-coroutine-sigaltstack:
+                     --enable-trace-backends=ftrace
+     MAKE_CHECK_ARGS: check-unit
+ 
++# Most jobs test latest gcrypt or nettle builds
++#
++# These jobs test old gcrypt and nettle from RHEL7
++# which had some API differences.
++crypto-only-gnutls:
++  extends: .native_build_job_template
++  needs:
++    job: amd64-centos7-container
++  variables:
++    IMAGE: centos7
++    TARGETS: x86_64-softmmu x86_64-linux-user
++    CONFIGURE_ARGS: --disable-nettle --disable-gcrypt --enable-gnutls
++    MAKE_CHECK_ARGS: check
++
++
+ # Check our reduced build configurations
+ build-without-default-devices:
+   extends: .native_build_job_template
+diff --git a/configure b/configure
+index b36df40c27..fb8c5187e8 100755
+--- a/configure
++++ b/configure
+@@ -2801,7 +2801,7 @@ fi
+ 
+ if test "$gnutls" != "no"; then
+     pass="no"
+-    if $pkg_config --exists "gnutls >= 3.5.18"; then
++    if $pkg_config --exists "gnutls >= 3.1.18"; then
+         gnutls_cflags=$($pkg_config --cflags gnutls)
+         gnutls_libs=$($pkg_config --libs gnutls)
+         # Packaging for the static libraries is not always correct.

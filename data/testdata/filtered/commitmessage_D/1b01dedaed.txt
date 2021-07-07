@@ -1,0 +1,13 @@
+commit 1b01dedaed41c2ca6129475c22b7b778b109fae8
+Author: Eric Farman <farman@linux.ibm.com>
+Date:   Fri Jun 18 01:25:35 2021 +0200
+
+    s390x/css: Split out the IRB sense data
+    
+    Let's move this logic into its own routine,
+    so it can be reused later.
+    
+    Signed-off-by: Eric Farman <farman@linux.ibm.com>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210617232537.1337506-3-farman@linux.ibm.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

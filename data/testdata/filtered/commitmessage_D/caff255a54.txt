@@ -1,0 +1,45 @@
+commit caff255a546d12530cf7c28e60690cd0e65851fd
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Tue Jun 15 16:21:21 2021 +0200
+
+    tpm: Return QMP error when TPM is disabled in build
+    
+    When the management layer queries a binary built using --disable-tpm
+    for TPM devices, it gets confused by getting empty responses:
+    
+      { "execute": "query-tpm" }
+      {
+          "return": [
+          ]
+      }
+      { "execute": "query-tpm-types" }
+      {
+          "return": [
+          ]
+      }
+      { "execute": "query-tpm-models" }
+      {
+          "return": [
+          ]
+      }
+    
+    To make it clearer by returning an error:
+    - Make the TPM QAPI schema conditional
+      All of tpm.json is now 'if': 'defined(CONFIG_TPM)'.
+    - Adapt the HMP command
+    - Remove stubs which became unnecessary
+    
+    The management layer now gets a 'CommandNotFound' error:
+    
+      { "execute": "query-tpm" }
+      {
+          "error": {
+              "class": "CommandNotFound",
+              "desc": "The command query-tpm has not been found"
+          }
+      }
+    
+    Suggested-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Reviewed-by: Markus Armbruster <armbru@redhat.com>
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Signed-off-by: Stefan Berger <stefanb@linux.ibm.com>

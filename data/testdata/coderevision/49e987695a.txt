@@ -1,0 +1,58 @@
+diff --git a/softmmu/vl.c b/softmmu/vl.c
+index 326c1e9080..5e8240b9d8 100644
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
+@@ -1722,15 +1722,9 @@ static void object_option_foreach_add(bool (*type_opt_predicate)(const char *))
+     }
+ }
+ 
+-static void object_option_add_visitor(Visitor *v)
+-{
+-    ObjectOption *opt = g_new0(ObjectOption, 1);
+-    visit_type_ObjectOptions(v, NULL, &opt->opts, &error_fatal);
+-    QTAILQ_INSERT_TAIL(&object_opts, opt, next);
+-}
+-
+ static void object_option_parse(const char *optarg)
+ {
++    ObjectOption *opt;
+     QemuOpts *opts;
+     const char *type;
+     Visitor *v;
+@@ -1758,8 +1752,11 @@ static void object_option_parse(const char *optarg)
+         v = opts_visitor_new(opts);
+     }
+ 
+-    object_option_add_visitor(v);
++    opt = g_new0(ObjectOption, 1);
++    visit_type_ObjectOptions(v, NULL, &opt->opts, &error_fatal);
+     visit_free(v);
++
++    QTAILQ_INSERT_TAIL(&object_opts, opt, next);
+ }
+ 
+ /*
+@@ -2137,22 +2134,13 @@ static int global_init_func(void *opaque, QemuOpts *opts, Error **errp)
+  */
+ static bool is_qemuopts_group(const char *group)
+ {
+-    if (g_str_equal(group, "object")) {
+-        return false;
+-    }
+     return true;
+ }
+ 
+ static void qemu_record_config_group(const char *group, QDict *dict,
+                                      bool from_json, Error **errp)
+ {
+-    if (g_str_equal(group, "object")) {
+-        Visitor *v = qobject_input_visitor_new_keyval(QOBJECT(dict));
+-        object_option_add_visitor(v);
+-        visit_free(v);
+-    } else {
+-        abort();
+-    }
++    abort();
+ }
+ 
+ /*

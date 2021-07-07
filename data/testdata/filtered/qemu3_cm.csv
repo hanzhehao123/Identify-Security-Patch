@@ -1,0 +1,3976 @@
+label,content,hash
+0,"commit 88725336717ab93a194bd1b100179b6a96983988
+Author: Taylor Simpson <tsimpson@quicinc.com>
+Date:   Tue Jun 1 18:19:43 2021 -0500
+
+    Hexagon (target/hexagon) cleanup gen_store_conditional[48] functions
+    
+    Previously the store-conditional code was writing to hex_pred[prednum].
+    Then, the fGEN_TCG override was reading from there to the destination
+    variable so that the packet commit logic would handle it properly.
+    
+    The correct implementation is to write to the destination variable
+    and don't have the extra read in the override.
+    
+    Remove the unused arguments from gen_store_conditional[48]
+    
+    Signed-off-by: Taylor Simpson <tsimpson@quicinc.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <1622589584-22571-4-git-send-email-tsimpson@quicinc.com>",8872533671
+0,"commit a5a8d98c8537f022a14bdc70eff12e296431b80f
+Author: Taylor Simpson <tsimpson@quicinc.com>
+Date:   Tue Jun 1 18:19:42 2021 -0500
+
+    Hexagon (target/hexagon) fix l2fetch instructions
+    
+    Y4_l2fetch == l2fetch(Rs32, Rt32)
+    Y5_l2fetch == l2fetch(Rs32, Rtt32)
+    
+    The semantics for these instructions are present, but the encodings
+    are missing.
+    
+    Note that these are treated as nops in qemu, so we add overrides.
+    
+    Test case added to tests/tcg/hexagon/misc.c
+    
+    Signed-off-by: Taylor Simpson <tsimpson@quicinc.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <1622589584-22571-3-git-send-email-tsimpson@quicinc.com>",a5a8d98c85
+0,"commit 9e654e10197f5a014eccd71de5ea633c1b0f4303
+Merge: 271fc190b3 149009bef4
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 28 17:08:34 2021 +0100
+
+    Merge remote-tracking branch 'remotes/vsementsov/tags/pull-jobs-2021-06-25' into staging
+    
+    block: Make block-copy API thread-safe
+    
+    # gpg: Signature made Fri 25 Jun 2021 13:40:24 BST
+    # gpg:                using RSA key 8B9C26CDB2FD147C880E86A1561F24C1F19F79FB
+    # gpg: Good signature from ""Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>"" [unknown]
+    # gpg: WARNING: This key is not certified with a trusted signature!
+    # gpg:          There is no indication that the signature belongs to the owner.
+    # Primary key fingerprint: 8B9C 26CD B2FD 147C 880E  86A1 561F 24C1 F19F 79FB
+    
+    * remotes/vsementsov/tags/pull-jobs-2021-06-25:
+      block-copy: atomic .cancelled and .finished fields in BlockCopyCallState
+      block-copy: add CoMutex lock
+      block-copy: move progress_set_remaining in block_copy_task_end
+      block-copy: streamline choice of copy_range vs. read/write
+      block-copy: small refactor in block_copy_task_entry and block_copy_common
+      co-shared-resource: protect with a mutex
+      progressmeter: protect with a mutex
+      blockjob: let ratelimit handle a speed of 0
+      block-copy: let ratelimit handle a speed of 0
+      ratelimit: treat zero speed as unlimited
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",9e654e1019
+0,"commit 687f9f7834e30330fd952f1fe096518509ff8ff7
+Merge: 5d2d18ae39 f5c6ee0c6b
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 28 09:44:41 2021 +0100
+
+    Merge remote-tracking branch 'remotes/philmd/tags/mips-20210625' into staging
+    
+    MIPS patches queue
+    
+    Various fixes:
+    - Potential integer overflow (CID 1452921)
+    - Invalid emulation of nanoMIPS BPOSGE32 opcode
+    - Missing exception when DINSV opcode used with DSP disabled
+    - Do not abort but emit exception for invalid BRANCH opcodes
+    - TCG temporary leaks
+    
+    Housekeeping:
+    - Remove dead code / comments
+    - Restrict few files to TCG, declarations to sysemu
+    - Merge MSA32 and MSA64 decodetree definitions
+    
+    # gpg: Signature made Fri 25 Jun 2021 10:22:20 BST
+    # gpg:                using RSA key FAABE75E12917221DCFD6BB2E3E32C2CDEADC0DE
+    # gpg: Good signature from ""Philippe Mathieu-Daudé (F4BUG) <f4bug@amsat.org>"" [full]
+    # Primary key fingerprint: FAAB E75E 1291 7221 DCFD  6BB2 E3E3 2C2C DEAD C0DE
+    
+    * remotes/philmd/tags/mips-20210625:
+      target/mips: Merge msa32/msa64 decodetree definitions
+      target/mips: Remove pointless gen_msa()
+      target/mips: Optimize regnames[] arrays
+      target/mips: Constify host_to_mips_errno[]
+      target/mips: fix emulation of nanoMIPS BPOSGE32 instruction
+      target/mips: Remove microMIPS BPOSGE32 / BPOSGE64 unuseful cases
+      target/mips: Remove SmartMIPS / MDMX unuseful comments
+      target/mips: Restrict some system specific declarations to sysemu
+      target/mips: Move translate.h to tcg/ sub directory
+      target/mips: Move TCG trace events to tcg/ sub directory
+      target/mips: Do not abort on invalid instruction
+      target/mips: Raise exception when DINSV opcode used with DSP disabled
+      target/mips: Fix more TCG temporary leaks in gen_pool32a5_nanomips_insn
+      target/mips: Fix TCG temporary leaks in gen_pool32a5_nanomips_insn()
+      target/mips: Fix potential integer overflow (CID 1452921)
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",687f9f7834
+0,"commit 593d3c51481bc40433474bd2b922217e819f1f68
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 17 17:53:04 2021 +0200
+
+    machine: move common smp_parse code to caller
+    
+    Most of smp_parse and pc_smp_parse is guarded by an ""if (opts)""
+    conditional, and the rest is common to both function.  Move the
+    conditional and the common code to the caller, machine_smp_parse.
+    
+    Move the replay_add_blocker call after all errors are checked for.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Message-Id: <20210617155308.928754-8-pbonzini@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",593d3c5148
+0,"commit d0c389d2ce6031d80e872e8e1b6ebb0f96afbe69
+Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date:   Thu Jun 24 09:20:42 2021 +0200
+
+    block-copy: add CoMutex lock
+    
+    Group various structures fields, to better understand what we need to
+    protect with a lock and what doesn't need it.
+    Then, add a CoMutex to protect concurrent access of block-copy
+    data structures. This mutex also protects .copy_bitmap, because its thread-safe
+    API does not prevent it from assigning two tasks to the same
+    bitmap region.
+    
+    Exceptions to the lock:
+    - .sleep_state is handled in the series ""coroutine: new sleep/wake API""
+    and thus here left as TODO.
+    
+    - .finished, .cancelled and reads to .ret and .error_is_read will be
+    protected in the following patch, because are used also outside
+    coroutines.
+    
+    - .skip_unallocated is atomic. Including it under the mutex would
+    increase the critical sections and make them also much more complex.
+    We can have it as atomic since it is only written from outside and
+    read by block-copy coroutines.
+    
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Message-Id: <20210624072043.180494-5-eesposit@redhat.com>
+      [vsementsov: fix typo in comment]
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>",d0c389d2ce
+0,"commit 55fa54a789f6e66fe9e7997429667e3e8917ffb9
+Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date:   Mon Jun 14 10:11:30 2021 +0200
+
+    co-shared-resource: protect with a mutex
+    
+    co-shared-resource is currently not thread-safe, as also reported
+    in co-shared-resource.h. Add a QemuMutex because co_try_get_from_shres
+    can also be invoked from non-coroutine context.
+    
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Message-Id: <20210614081130.22134-6-eesposit@redhat.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>",55fa54a789
+0,"commit a7b4f8fc09ec62d09a11cce72a886c453636c547
+Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date:   Mon Jun 14 10:11:29 2021 +0200
+
+    progressmeter: protect with a mutex
+    
+    Progressmeter is protected by the AioContext mutex, which
+    is taken by the block jobs and their caller (like blockdev).
+    
+    We would like to remove the dependency of block layer code on the
+    AioContext mutex, since most drivers and the core I/O code are already
+    not relying on it.
+    
+    Create a new C file to implement the ProgressMeter API, but keep the
+    struct as public, to avoid forcing allocation on the heap.
+    
+    Also add a mutex to be able to provide an accurate snapshot of the
+    progress values to the caller.
+    
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+    Message-Id: <20210614081130.22134-5-eesposit@redhat.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>",a7b4f8fc09
+0,"commit c02b83ed1ff62211f4c44855e0ca1656d5811688
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Mon Jun 14 10:11:28 2021 +0200
+
+    blockjob: let ratelimit handle a speed of 0
+    
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Message-Id: <20210614081130.22134-4-eesposit@redhat.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>",c02b83ed1f
+0,"commit ca657c99e6b41fa765443fc93df5c4adf468e369
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Mon Jun 14 10:11:27 2021 +0200
+
+    block-copy: let ratelimit handle a speed of 0
+    
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Message-Id: <20210614081130.22134-3-eesposit@redhat.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>",ca657c99e6
+0,"commit 720507ed95023e45620f305767d12cd716e8b8ca
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Mon Jun 14 10:11:26 2021 +0200
+
+    ratelimit: treat zero speed as unlimited
+    
+    Both users of RateLimit, block-copy.c and blockjob.c, treat
+    a speed of zero as unlimited, while RateLimit treats it as
+    ""as slow as possible"".  The latter is nicer from the code
+    point of view but pretty useless, so disable rate limiting
+    if a speed of zero is provided.
+    
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Message-Id: <20210614081130.22134-2-eesposit@redhat.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>",720507ed95
+0,"commit 7c4ab60f18f5257d37164df0ae0951ece4425b02
+Author: Alex Bennée <alex.bennee@linaro.org>
+Date:   Wed Jun 23 11:27:48 2021 +0100
+
+    plugins/api: expose symbol lookup to plugins
+    
+    This is a quality of life helper for plugins so they don't need to
+    re-implement symbol lookup when dumping an address. The strings are
+    constant so don't need to be duplicated. One minor tweak is to return
+    NULL instead of a zero length string to show lookup failed.
+    
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Mahmoud Mandour <ma.mandourr@gmail.com>
+    Message-Id: <20210608040532.56449-2-ma.mandourr@gmail.com>
+    Message-Id: <20210623102749.25686-8-alex.bennee@linaro.org>",7c4ab60f18
+0,"commit bd80936a4f18075e0e407df180801a9743ce290c
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Tue Jun 15 08:34:52 2021 +0200
+
+    file-posix: handle EINTR during ioctl
+    
+    Similar to other handle_aiocb_* functions, handle_aiocb_ioctl needs to cater
+    for the possibility that ioctl is interrupted by a signal.  Otherwise, the
+    I/O is incorrectly reported as a failure to the guest.
+    
+    Reported-by: Gordon Watson <gwatson@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",bd80936a4f
+0,"commit 24b36e9813ec15da7db62e3b3621730710c5f020
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 3 10:34:23 2021 +0200
+
+    block: add max_hw_transfer to BlockLimits
+    
+    For block host devices, I/O can happen through either the kernel file
+    descriptor I/O system calls (preadv/pwritev, io_submit, io_uring)
+    or the SCSI passthrough ioctl SG_IO.
+    
+    In the latter case, the size of each transfer can be limited by the
+    HBA, while for file descriptor I/O the kernel is able to split and
+    merge I/O in smaller pieces as needed.  Applying the HBA limits to
+    file descriptor I/O results in more system calls and suboptimal
+    performance, so this patch splits the max_transfer limit in two:
+    max_transfer remains valid and is used in general, while max_hw_transfer
+    is limited to the maximum hardware size.  max_hw_transfer can then be
+    included by the scsi-generic driver in the block limits page, to ensure
+    that the stricter hardware limit is used.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",24b36e9813
+0,"commit b99f7fa08a3df8b8a6a907642e5851cdcf43fa9f
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed Jun 16 15:13:49 2021 +0200
+
+    block-backend: align max_transfer to request alignment
+    
+    Block device requests must be aligned to bs->bl.request_alignment.
+    It makes sense for drivers to align bs->bl.max_transfer the same
+    way; however when there is no specified limit, blk_get_max_transfer
+    just returns INT_MAX.  Since the contract of the function does not
+    specify that INT_MAX means ""no maximum"", just align the outcome
+    of the function (whether INT_MAX or bs->bl.max_transfer) before
+    returning it.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",b99f7fa08a
+0,"commit 01ef8185b809af9d287e1a03a3f9d8ea8231118a
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed Apr 14 19:51:48 2021 +0200
+
+    scsi-generic: pass max_segments via max_iov field in BlockLimits
+    
+    I/O to a disk via read/write is not limited by the number of segments allowed
+    by the host adapter; the kernel can split requests if needed, and the limit
+    imposed by the host adapter can be very low (256k or so) to avoid that SG_IO
+    returns EINVAL if memory is heavily fragmented.
+    
+    Since this value is only interesting for SG_IO-based I/O, do not include
+    it in the max_transfer and only take it into account when patching the
+    block limits VPD page in the scsi-generic device.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Reviewed-by: Max Reitz <mreitz@redhat.com>",01ef8185b8
+0,"commit dcafa248277732863c8a472e4e5aa1cdd41228e8
+Author: Peter Xu <peterx@redhat.com>
+Date:   Tue Jun 8 21:43:55 2021 -0400
+
+    KVM: Fix dirty ring mmap incorrect size due to renaming accident
+    
+    Found this when I wanted to try the per-vcpu dirty rate series out, then I
+    found that it's not really working and it can quickly hang death a guest.  I
+    found strange errors (e.g. guest crash after migration) happens even without
+    the per-vcpu dirty rate series.
+    
+    When merging dirty ring, probably no one notice that the trivial renaming diff
+    [1] missed two existing references of kvm_dirty_ring_sizes; they do matter
+    since otherwise we'll mmap() a shorter range of memory after the renaming.
+    
+    I think it didn't SIGBUS for me easily simply because some other stuff within
+    qemu mmap()ed right after the dirty rings (e.g. when testing 4096 slots, it
+    aligned with one small page on x86), so when we access the rings we've been
+    reading/writting to random memory elsewhere of qemu.
+    
+    Fix the two sizes when map/unmap the shared dirty gfn memory.
+    
+    [1] https://lore.kernel.org/qemu-devel/dac5f0c6-1bca-3daf-e5d2-6451dbbaca93@redhat.com/
+    
+    Cc: Hyman Huang <huangy81@chinatelecom.cn>
+    Cc: Paolo Bonzini <pbonzini@redhat.com>
+    Cc: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Message-Id: <20210609014355.217110-1-peterx@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",dcafa24827
+0,"commit 4c1f23cfb84c386a8f4f5433f0fd98e0c85d057b
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed Jun 16 17:36:55 2021 +0200
+
+    tests: remove QCRYPTO_HAVE_TLS_TEST_SUPPORT
+    
+    meson.build already decides whether it is possible to build the TLS
+    test suite.  There is no need to include that in the source as well.
+    The dummy tests in fact are broken because they do not produce valid
+    TAP output (empty output is rejected by scripts/tap-driver.pl).
+    
+    Cc: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",4c1f23cfb8
+0,"commit 05d9d0359e6da7dc8255712d745d079a04fa5ae5
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sat May 22 20:16:15 2021 +0200
+
+    target/mips: Do not abort on invalid instruction
+    
+    On real hardware an invalid instruction doesn't halt the world,
+    but usually triggers a RESERVED INSTRUCTION exception.
+    TCG guest code shouldn't abort QEMU anyway.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210617174323.2900831-2-f4bug@amsat.org>",05d9d0359e
+0,"commit 6eb223104c4e5cdfeaf57cff20fb1ad54084393b
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Thu Jun 17 18:03:34 2021 +0200
+
+    target/mips: Fix more TCG temporary leaks in gen_pool32a5_nanomips_insn
+    
+    Fix multiple TCG temporary leaks in gen_pool32a5_nanomips_insn().
+    
+    Fixes: 3285a3e4445 (""target/mips: Add emulation of DSP ASE for nanoMIPS - part 1"")
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210617174323.2900831-3-f4bug@amsat.org>",6eb223104c
+0,"commit 96342d53a881a5686b1e4797aead1c025985772e
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sun May 30 11:36:29 2021 +0200
+
+    target/mips: Fix TCG temporary leaks in gen_pool32a5_nanomips_insn()
+    
+    Fix a pair of TCG temporary leak when translating nanoMIPS SHILO opcode.
+    
+    Fixes: 3285a3e4445 (""target/mips: Add emulation of DSP ASE for nanoMIPS"")
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210530094538.1275329-1-f4bug@amsat.org>",96342d53a8
+0,"commit 2838b1d6356044eb240edd4e1b9b5ab5946c5b28
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Wed May 5 23:38:36 2021 +0200
+
+    target/mips: Fix potential integer overflow (CID 1452921)
+    
+    Use the BIT_ULL() macro to ensure we use 64-bit arithmetic.
+    This fixes the following Coverity issue (OVERFLOW_BEFORE_WIDEN):
+    
+      CID 1452921:  Integer handling issues:
+    
+        Potentially overflowing expression ""1 << w"" with type ""int""
+        (32 bits, signed) is evaluated using 32-bit arithmetic, and
+        then used in a context that expects an expression of type
+        ""uint64_t"" (64 bits, unsigned).
+    
+    Fixes: 074cfcb4dae (""target/mips: Implement hardware page table walker"")
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210505215119.1517465-1-f4bug@amsat.org>",2838b1d635
+0,"commit 79a412891f0cb6bbffd8fd9e13608066234e56c1
+Author: Bin Meng <bin.meng@windriver.com>
+Date:   Tue Jun 15 16:51:33 2021 +0800
+
+    target/riscv: gdbstub: Fix dynamic CSR XML generation
+    
+    Since commit 605def6eeee5 (""target/riscv: Use the RISCVException enum for CSR operations"")
+    the CSR predicate() function was changed to return RISCV_EXCP_NONE
+    instead of 0 for a valid CSR, but it forgot to update the dynamic
+    CSR XML generation codes in gdbstub.
+    
+    Fixes: 605def6eeee5 (""target/riscv: Use the RISCVException enum for CSR operations"")
+    Reported-by: Xuzhou Cheng <xuzhou.cheng@windriver.com>
+    Signed-off-by: Bin Meng <bin.meng@windriver.com>
+    Tested-by: Xuzhou Cheng <xuzhou.cheng@windriver.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210615085133.389887-1-bmeng.cn@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>",79a412891f
+0,"commit d0ac9a61474cf594d19082bc8976247e984ea9a3
+Merge: b22726abdf c32c3d68ed
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 24 09:31:26 2021 +0100
+
+    Merge remote-tracking branch 'remotes/thuth-gitlab/tags/pull-request-2021-06-21' into staging
+    
+    * Documentation updates
+    * Remove leading underscores from header guards
+    * Display hexadecimal value with '0x' prefix
+    
+    # gpg: Signature made Mon 21 Jun 2021 11:33:53 BST
+    # gpg:                using RSA key 27B88847EEE0250118F3EAB92ED9D774FE702DB5
+    # gpg:                issuer ""thuth@redhat.com""
+    # gpg: Good signature from ""Thomas Huth <th.huth@gmx.de>"" [full]
+    # gpg:                 aka ""Thomas Huth <thuth@redhat.com>"" [full]
+    # gpg:                 aka ""Thomas Huth <huth@tuxfamily.org>"" [full]
+    # gpg:                 aka ""Thomas Huth <th.huth@posteo.de>"" [unknown]
+    # Primary key fingerprint: 27B8 8847 EEE0 2501 18F3  EAB9 2ED9 D774 FE70 2DB5
+    
+    * remotes/thuth-gitlab/tags/pull-request-2021-06-21:
+      MAINTAINERS: Add qtest/arm-cpu-features.c to ARM TCG CPUs section
+      fuzz: Display hexadecimal value with '0x' prefix
+      Remove leading underscores from QEMU defines
+      Update documentation to refer to new location for issues
+      docs/tools/virtiofsd: Fix bad rst syntax
+      docs/tools/virtiofsd.rst: Do not hard-code the QEMU binary name
+      docs/interop/live-block-operations: Do not hard-code the QEMU binary name
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",d0ac9a6147
+0,"commit 32a9a245d719a883eef2cbf07d2cf89efa0206d0
+Author: Max Reitz <mreitz@redhat.com>
+Date:   Mon May 3 02:54:18 2021 -0700
+
+    block/snapshot: Clarify goto fallback behavior
+    
+    In the bdrv_snapshot_goto() fallback code, we work with a pointer to
+    either bs->file or bs->backing.  We detach that child, close the node
+    (with .bdrv_close()), apply the snapshot on the child node, and then
+    re-open the node (with .bdrv_open()).
+    
+    In order for .bdrv_open() to attach the same child node that we had
+    before, we pass ""file={child-node}"" or ""backing={child-node}"" to it.
+    Therefore, when .bdrv_open() has returned success, we can assume that
+    bs->file or bs->backing (respectively) points to our original child
+    again.  This is verified by an assertion.
+    
+    All of this is not immediately clear from a quick glance at the code,
+    so add a comment to the assertion what it is for, and why it is valid.
+    It certainly confused Coverity.
+    
+    Reported-by: Coverity (CID 1452774)
+    Signed-off-by: Max Reitz <mreitz@redhat.com>
+    Message-Id: <20210503095418.31521-1-mreitz@redhat.com>
+    [mreitz: s/close/detach/]
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>",32a9a245d7
+0,"commit eb1a35e47aff9bda70d74874241e7966f800f4e3
+Author: Akihiko Odaki <akihiko.odaki@gmail.com>
+Date:   Wed Jun 23 05:17:40 2021 +0900
+
+    coreaudio: Lock only the buffer
+    
+    On macOS 11.3.1, Core Audio calls AudioDeviceIOProc after calling an
+    internal function named HALB_Mutex::Lock(), which locks a mutex in
+    HALB_IOThread::Entry(void*). HALB_Mutex::Lock() is also called in
+    AudioObjectGetPropertyData, which is called by coreaudio driver.
+    Therefore, a deadlock will occur if coreaudio driver calls
+    AudioObjectGetPropertyData while holding a lock for a mutex and tries
+    to lock the same mutex in AudioDeviceIOProc.
+    
+    audioDeviceIOProc, which implements AudioDeviceIOProc in coreaudio
+    driver, requires an exclusive access for the device configuration and
+    the buffer. Fortunately, a mutex is necessary only for the buffer in
+    audioDeviceIOProc because a change for the device configuration occurs
+    only before setting up AudioDeviceIOProc or after stopping the playback
+    with AudioDeviceStop.
+    
+    With this change, the mutex owned by the driver will only be used for
+    the buffer, and the device configuration change will be protected with
+    the implicit iothread mutex.
+    
+    Signed-off-by: Akihiko Odaki <akihiko.odaki@gmail.com>
+    Message-id: 20210622201740.38005-1-akihiko.odaki@gmail.com
+    Message-Id: <20210622201740.38005-1-akihiko.odaki@gmail.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>",eb1a35e47a
+0,"commit b733163e057a15b4b81f3f1d21908f3759315c78
+Merge: 0add99ea3e 1c9638667b
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue Jun 22 10:39:16 2021 +0100
+
+    Merge remote-tracking branch 'remotes/rth-gitlab/tags/pull-tcg-20210619-2' into staging
+    
+    TCI cleanup and re-encoding
+    Fixes for #367 and #390.
+    Move TCGCond to tcg/tcg-cond.h.
+    Fix for win32 qemu_try_memalign.
+    
+    # gpg: Signature made Sun 20 Jun 2021 05:23:53 BST
+    # gpg:                using RSA key 7A481E78868B4DB6A85A05C064DF38E8AF7E215F
+    # gpg:                issuer ""richard.henderson@linaro.org""
+    # gpg: Good signature from ""Richard Henderson <richard.henderson@linaro.org>"" [full]
+    # Primary key fingerprint: 7A48 1E78 868B 4DB6 A85A  05C0 64DF 38E8 AF7E 215F
+    
+    * remotes/rth-gitlab/tags/pull-tcg-20210619-2: (33 commits)
+      util/oslib-win32: Fix fatal assertion in qemu_try_memalign
+      tcg: expose TCGCond manipulation routines
+      tcg: Restart when exhausting the stack frame
+      tcg: Allocate sufficient storage in temp_allocate_frame
+      tcg/sparc: Fix temp_allocate_frame vs sparc stack bias
+      accel/tcg: Probe the proper permissions for atomic ops
+      tests/tcg: Increase timeout for TCI
+      tcg/tci: Use {set,clear}_helper_retaddr
+      tcg/tci: Remove the qemu_ld/st_type macros
+      Revert ""tcg/tci: Use exec/cpu_ldst.h interfaces""
+      tcg/tci: Split out tci_qemu_ld, tci_qemu_st
+      tcg/tci: Implement add2, sub2
+      tcg/tci: Implement mulu2, muls2
+      tcg/tci: Implement clz, ctz, ctpop
+      tcg/tci: Implement extract, sextract
+      tcg/tci: Implement andc, orc, eqv, nand, nor
+      tcg/tci: Implement movcond
+      tcg/tci: Implement goto_ptr
+      tcg/tci: Change encoding to uint32_t units
+      tcg/tci: Remove tci_write_reg
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",b733163e05
+0,"commit 507b6a500c2f0f6cf6182aa69efac4c20eb3e97b
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:15:45 2021 +0100
+
+    target/arm: Implement MVE VLDR/VSTR (non-widening forms)
+    
+    Implement the forms of the MVE VLDR and VSTR insns which perform
+    non-widening loads of bytes, halfwords or words from memory into
+    vector elements of the same width (encodings T5, T6, T7).
+    
+    (At the moment we know for MVE and M-profile in general that
+    vfp_access_check() can never return false, but we include the
+    conventional return-true-on-failure check for consistency
+    with non-M-profile translation code.)
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-2-peter.maydell@linaro.org",507b6a500c
+0,"commit e494cd0a1abce13a9a934c1cfdaaeabd389a77c7
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 18 15:10:16 2021 +0100
+
+    target/arm: Handle writeback in VLDR/VSTR sysreg with no memory access
+    
+    A few subcases of VLDR/VSTR sysreg succeed but do not perform a
+    memory access:
+     * VSTR of VPR when unprivileged
+     * VLDR to VPR when unprivileged
+     * VLDR to FPCXT_NS when fpInactive
+    
+    In these cases, even though we don't do the memory access we should
+    still update the base register and perform the stack limit check if
+    the insn's addressing mode specifies writeback.  Our implementation
+    failed to do this, because we handle these side-effects inside the
+    memory_to_fp_sysreg() and fp_sysreg_to_memory() callback functions,
+    which are only called if there's something to load or store.
+    
+    Fix this by adding an extra argument to the callbacks which is set to
+    true to actually perform the access and false to only do side effects
+    like writeback, and calling the callback with do_access = false
+    for the three cases listed above.
+    
+    This produces slightly suboptimal code for the case of a write
+    to FPCXT_NS when the FPU is inactive and the insn didn't have
+    side effects (ie no writeback, or via VMSR), in which case we'll
+    generate a conditional branch over an unconditional branch.
+    But this doesn't seem to be important enough to merit requiring
+    the callback to report back whether it generated any code or not.
+    
+    Cc: qemu-stable@nongnu.org
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210618141019.10671-5-peter.maydell@linaro.org",e494cd0a1a
+0,"commit 82faef92fb149b6bad699c3275473fda6fd486b6
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 3 18:12:57 2021 +0100
+
+    hw/acpi: Provide stub version of acpi_ghes_record_errors()
+    
+    Generic code in target/arm wants to call acpi_ghes_record_errors();
+    provide a stub version so that we don't fail to link when
+    CONFIG_ACPI_APEI is not set. This requires us to add a new
+    ghes-stub.c file to contain it and the meson.build mechanics
+    to use it when appropriate.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Dongjiu Geng <gengdongjiu1@gmail.com>
+    Message-id: 20210603171259.27962-2-peter.maydell@linaro.org",82faef92fb
+0,"commit 0add99ea3ea91af8230e3933ad7826b2da25a44d
+Merge: 53f306f316 d08caefe66
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 21 16:11:33 2021 +0100
+
+    Merge remote-tracking branch 'remotes/jsnow-gitlab/tags/python-pull-request' into staging
+    
+    Python Pull request
+    
+    Moves QMP-related tools not used for build or automatic testing from
+    scripts/ to python/qemu/qmp/ where they will be protected from bitrot by
+    the check-python-* CI jobs.
+    
+    stub forwarders are left in the old locations for now.
+    
+    # gpg: Signature made Sat 19 Jun 2021 00:02:40 BST
+    # gpg:                using RSA key F9B7ABDBBCACDF95BE76CBD07DEF8106AAFC390E
+    # gpg: Good signature from ""John Snow (John Huston) <jsnow@redhat.com>"" [full]
+    # Primary key fingerprint: FAEB 9711 A12C F475 812F  18F2 88A9 064D 1835 61EB
+    #      Subkey fingerprint: F9B7 ABDB BCAC DF95 BE76  CBD0 7DEF 8106 AAFC 390E
+    
+    * remotes/jsnow-gitlab/tags/python-pull-request: (72 commits)
+      scripts/qmp-shell: add redirection shim
+      python: add qmp-shell entry point
+      scripts/qmp-shell: move to python/qemu/qmp/qmp_shell.py
+      scripts/qmp-shell: add docstrings
+      scripts/qmp-shell: make QMPShellError inherit QMPError
+      scripts/qmp-shell: remove double-underscores
+      scripts/qmp-shell: convert usage comment to docstring
+      scripts/qmp-shell: Remove too-broad-exception
+      scripts/qmp-shell: Fix empty-transaction invocation
+      scripts/qmp-shell: remove TODO
+      scripts/qmp-shell: use logging to show warnings
+      scripts/qmp-shell: Use context manager instead of atexit
+      python/qmp: return generic type from context manager
+      scripts/qmp-shell: unprivatize 'pretty' property
+      scripts/qmp-shell: Accept SocketAddrT instead of string
+      scripts/qmp-shell: add mypy types
+      python/qmp: add QMPObject type alias
+      scripts/qmp-shell: initialize completer early
+      scripts/qmp-shell: refactor QMPCompleter
+      scripts/qmp-shell: Fix ""FuzzyJSON"" parser
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",0add99ea3e
+0,"commit 53f306f316549d20c76886903181413d20842423
+Merge: e4bfa6cd68 4e2f5f3a9d
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 21 11:26:04 2021 +0100
+
+    Merge remote-tracking branch 'remotes/ehabkost-gl/tags/x86-next-pull-request' into staging
+    
+    x86 queue, 2021-06-18
+    
+    Features:
+    * Add ratelimit for bus locks acquired in guest (Chenyi Qiang)
+    
+    Documentation:
+    * SEV documentation updates (Tom Lendacky)
+    * Add a table showing x86-64 ABI compatibility levels (Daniel P. Berrangé)
+    
+    Automated changes:
+    * Update Linux headers to 5.13-rc4 (Eduardo Habkost)
+    
+    # gpg: Signature made Fri 18 Jun 2021 20:51:26 BST
+    # gpg:                using RSA key 5A322FD5ABC4D3DBACCFD1AA2807936F984DC5A6
+    # gpg:                issuer ""ehabkost@redhat.com""
+    # gpg: Good signature from ""Eduardo Habkost <ehabkost@redhat.com>"" [full]
+    # Primary key fingerprint: 5A32 2FD5 ABC4 D3DB ACCF  D1AA 2807 936F 984D C5A6
+    
+    * remotes/ehabkost-gl/tags/x86-next-pull-request:
+      scripts: helper to generate x86_64 CPU ABI compat info
+      docs: add a table showing x86-64 ABI compatibility levels
+      docs/interop/firmware.json: Add SEV-ES support
+      docs: Add SEV-ES documentation to amd-memory-encryption.txt
+      doc: Fix some mistakes in the SEV documentation
+      i386: Add ratelimit for bus locks acquired in guest
+      Update Linux headers to 5.13-rc4
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",53f306f316
+0,"commit 0599a046acf1b625e97cef0aa702b5d86528c642
+Author: Eric Farman <farman@linux.ibm.com>
+Date:   Fri Jun 18 01:25:36 2021 +0200
+
+    s390x/css: Refactor IRB construction
+    
+    Currently, all subchannel types have ""sense data"" copied into
+    the IRB.ECW space, and a couple flags enabled in the IRB.SCSW
+    and IRB.ESW. But for passthrough (vfio-ccw) subchannels,
+    this data isn't populated in the first place, so enabling
+    those flags leads to unexpected behavior if the guest tries to
+    process the sense data (zeros) in the IRB.ECW.
+    
+    Let's add a subchannel callback that builds these portions of
+    the IRB, and move the existing code into a routine for those
+    virtual subchannels. The passthrough subchannels will be able
+    to piggy-back onto this later.
+    
+    Signed-off-by: Eric Farman <farman@linux.ibm.com>
+    Message-Id: <20210617232537.1337506-4-farman@linux.ibm.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>",0599a046ac
+0,"commit 10b81272b305da375c3c3e9ec86f2e35df702f2e
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 20:07:44 2021 -0700
+
+    linux-user/s390x: Save and restore psw.mask properly
+    
+    At present, we're referencing env->psw.mask directly, which
+    fails to ensure that env->cc_op is incorporated or updated.
+    Use s390_cpu_{set_psw,get_psw_mask} to fix this.
+    
+    Mirror the kernel's cleaning of the psw.mask in save_sigregs
+    and restore_sigregs.  Ignore PSW_MASK_RI for now, as qemu does
+    not support that.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: David Hildenbrand <david@redhat.com>
+    Tested-by: jonathan.albrecht <jonathan.albrecht@linux.vnet.ibm.com>
+    Tested-by: <ruixin.bao@ibm.com>
+    Message-Id: <20210615030744.1252385-6-richard.henderson@linaro.org>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>",10b81272b3
+0,"commit 3af448b38677e7be5ccda6a65e06150abd1005b6
+Author: Thomas Huth <thuth@redhat.com>
+Date:   Tue May 25 16:20:32 2021 +0200
+
+    configure: Check whether we can compile the s390-ccw bios with -msoft-float
+    
+    The -msoft-float switch is not available in older versions of Clang.
+    Since we rely on the compiler to not generate floating point instructions
+    unexpectedly, we block those old compilers now via a test in the configure
+    script. Note that for some weird reasons, the Clang compiler only complains
+    about the missing soft-float support if no other flags are passed via
+    ""-Wl,..."" to the linker. So we have to use ""compile_object"" instead of
+    ""compile_prog"" for this check.
+    
+    Signed-off-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210525142032.156989-1-thuth@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>",3af448b386
+0,"commit a8fbec7ed80f4cc7ffec87144a03d990ff8002ff
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sat Jun 12 21:58:42 2021 +0200
+
+    fuzz: Display hexadecimal value with '0x' prefix
+    
+    Use memory_region_size() to get the MemoryRegion size,
+    and display it with the '0x' prefix.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alexander Bulekov <alxndr@bu.edu>
+    Reviewed-by: Laurent Vivier <laurent@vivier.eu>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210612195842.1595999-1-f4bug@amsat.org>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>",a8fbec7ed8
+0,"commit 8a589aeb271bb470884f960e76cd6a7c89c022c9
+Author: Khem Raj <raj.khem@gmail.com>
+Date:   Mon Jun 14 12:17:29 2021 -0700
+
+    linux-user: Check for ieee128 fpbits in PPC64 HWCAP2 feature list
+    
+    glibc 2.34 is now checking for this in hwcaps at
+    runtime [1] and failing to run the binary if machine
+    does not support 128bit IEEE fp
+    
+    Fixes
+    Fatal glibc error: CPU lacks float128 support (POWER 9 or later required)
+    
+    [1] https://sourceware.org/git/?p=glibc.git;a=commitdiff;h=d337345ce145e23c5f3a956f349d924fdf54ce2d;hp=eb24865637a271ab7dad13190330105eab0d478d
+    
+    Signed-off-by: Khem Raj <raj.khem@gmail.com>
+    Cc: Florian Weimer <fweimer@redhat.com>
+    Reviewed-by: Laurent Vivier <laurent@vivier.eu>
+    Message-Id: <20210614191729.2981488-1-raj.khem@gmail.com>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>",8a589aeb27
+0,"commit 732d58979c9d6ab1b955b65264a15d0696ea477e
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Jun 19 06:32:03 2021 -0700
+
+    tcg: Restart when exhausting the stack frame
+    
+    Assume that we'll have fewer temps allocated after
+    restarting with a fewer number of instructions.
+    
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>",732d58979c
+0,"commit 3e92aa34434bbcf88e5cc0a8334946216dcaf233
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Thu Mar 18 11:29:50 2021 -0600
+
+    tcg: Store the TCGHelperInfo in the TCGOp for call
+    
+    This will give us both flags and typemask for use later.
+    
+    We also fix a dumping bug, wherein calls generated for plugins
+    fail tcg_find_helper and print (null) instead of either a name
+    or the raw function pointer.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>",3e92aa3443
+0,"commit c83055ef1d47cd03667d7608f3f5ff232484146e
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:41 2021 -0400
+
+    scripts/qmp-shell: Fix empty-transaction invocation
+    
+    calling ""transaction( )"" is pointless, but valid. Rework the parser to
+    allow this kind of invocation. This helps clean up exception handling
+    later by removing accidental breakages of the parser that aren't
+    explicitly forbidden.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-35-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>",c83055ef1d
+0,"commit 41574295829b9a34d43e7cb95847340942d1ddf5
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:32 2021 -0400
+
+    scripts/qmp-shell: initialize completer early
+    
+    Add an empty completer as a more type-safe placeholder instead of
+    'None'.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-26-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>",4157429582
+0,"commit 2ac3f3786e09c2ad40da16fa4ff4b0f99200f72e
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:26 2021 -0400
+
+    scripts/qmp-shell: Make verbose a public attribute
+    
+    No real reason to hide this behind an underscore; make it part of the
+    initializer and make it a regular RW attribute.
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-20-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>",2ac3f3786e
+0,"commit 1e129afc311a4a3897e83a308cce79e2c1cc3d89
+Author: John Snow <jsnow@redhat.com>
+Date:   Fri Jun 4 11:55:30 2021 -0400
+
+    scripts/qemu-ga-client: move to python/qemu/qmp/qemu_ga_client.py
+    
+    The script itself will be unavailable for a few commits before being
+    restored, with no way to run it right after this commit. This helps move
+    git history into the new file. To prevent linter regressions, though, we
+    do need to immediately touch up the filename to remove dashes (to make
+    the module importable), and remove the executable bit.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210604155532.1499282-10-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>",1e129afc31
+0,"commit e75f516ac131dbc3c82ac52ef527680c4745add3
+Author: John Snow <jsnow@redhat.com>
+Date:   Fri Jun 4 11:55:23 2021 -0400
+
+    scripts/qemu-ga-client: apply (most) flake8 rules
+    
+    - Line length should be < 80
+    - You shouldn't perform unscoped imports except at the top of the module
+    
+    Notably, the sys.path hack creates problems with the import rule. This
+    will be fixed later.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210604155532.1499282-3-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>",e75f516ac1
+0,"commit 26c1ccadc41bf32a720faf4d652eae41c7e54d00
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:08 2021 -0400
+
+    scripts/qom-fuse: apply flake8 rules
+    
+    flake8 still has one warning because of the sys.path hack, but that will
+    be going away by the end of this patch series.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210603003719.1321369-9-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>",26c1ccadc4
+0,"commit 08ea55d0681333c8c6475a82b71f7bc946042986
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:40 2021 +0300
+
+    block/nbd: simplify waking of nbd_co_establish_connection()
+    
+    Instead of managing connect_bh, bh_ctx, and wait_connect fields, we
+    can use a single link to the waiting coroutine with proper mutex
+    protection.
+    
+    So new logic is:
+    
+    nbd_co_establish_connection() sets wait_co under the mutex, releases
+    the mutex, then yield()s.  Note that wait_co may be scheduled by the
+    thread immediately after unlocking the mutex.  Still, the main thread
+    (or iothread) will not reach the code for entering the coroutine until
+    the yield(), so we are safe.
+    
+    connect_thread_func() and nbd_co_establish_connection_cancel() do
+    the following to handle wait_co:
+    
+    Under the mutex, if thr->wait_co is not NULL, make it NULL and
+    schedule it. This way, we avoid scheduling the coroutine twice.
+    
+    Still scheduling is a bit different:
+    
+    In connect_thread_func() we can just call aio_co_wake under mutex,
+    after commit
+       [async: the main AioContext is only ""current"" if under the BQL]
+    we are sure that aio_co_wake() will not try to acquire the aio context
+    and do qemu_aio_coroutine_enter() but simply schedule the coroutine by
+    aio_co_schedule().
+    
+    nbd_co_establish_connection_cancel() will be called from non-coroutine
+    context in further patch and will be able to go through
+    qemu_aio_coroutine_enter() path of aio_co_wake(). So keep current
+    behavior of waking the coroutine after the critical section.
+    
+    Also, this commit reduces the dependence of
+    nbd_co_establish_connection() on the internals of bs (we now use a
+    generic pointer to the coroutine, instead of direct use of
+    s->connection_co).  This is a step towards splitting the connection
+    API out of nbd.c.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210610100802.5888-11-vsementsov@virtuozzo.com>
+    Reviewied-by: Eric Blake <eblake@redhat.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>",08ea55d068
+0,"commit 2a25def4be09714c543713f111813b521b2356ee
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:38 2021 +0300
+
+    block/nbd: nbd_client_handshake(): fix leak of s->ioc
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Roman Kagan <rvkagan@yandex-team.ru>
+    Message-Id: <20210610100802.5888-9-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>",2a25def4be
+0,"commit e8b35bf5dc8d4e98d91855a9c7b2ed905c8e6888
+Author: Roman Kagan <rvkagan@yandex-team.ru>
+Date:   Thu Jun 10 13:07:37 2021 +0300
+
+    block/nbd: ensure ->connection_thread is always valid
+    
+    Simplify lifetime management of BDRVNBDState->connect_thread by
+    delaying the possible cleanup of it until the BDRVNBDState itself goes
+    away.
+    
+    This also reverts
+     0267101af6 ""block/nbd: fix possible use after free of s->connect_thread""
+    as now s->connect_thread can't be cleared until the very end.
+    
+    Signed-off-by: Roman Kagan <rvkagan@yandex-team.ru>
+     [vsementsov: rebase, revert 0267101af6 changes]
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+     [eblake: tweak comment]
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-8-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>",e8b35bf5dc
+0,"commit bbba1c376b8b1ba5171bd14eb6bf212fa1173ddb
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:33 2021 +0300
+
+    block/nbd: fix how state is cleared on nbd_open() failure paths
+    
+    We have two ""return error"" paths in nbd_open() after
+    nbd_process_options(). Actually we should call nbd_clear_bdrvstate()
+    on these paths. Interesting that nbd_process_options() calls
+    nbd_clear_bdrvstate() by itself.
+    
+    Let's fix leaks and refactor things to be more obvious:
+    
+    - intialize yank at top of nbd_open()
+    - move yank cleanup to nbd_clear_bdrvstate()
+    - refactor nbd_open() so that all failure paths except for
+      yank-register goes through nbd_clear_bdrvstate()
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Roman Kagan <rvkagan@yandex-team.ru>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-4-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>",bbba1c376b
+0,"commit 3687ad49038e13103f7382316e16dff79abddf95
+Author: Roman Kagan <rvkagan@yandex-team.ru>
+Date:   Thu Jun 10 13:07:32 2021 +0300
+
+    block/nbd: fix channel object leak
+    
+    nbd_free_connect_thread leaks the channel object if it hasn't been
+    stolen.
+    
+    Unref it and fix the leak.
+    
+    Signed-off-by: Roman Kagan <rvkagan@yandex-team.ru>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-3-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>",3687ad4903
+0,"commit 035d1ef26565f8f8eae058c37f5731a9ae304b96
+Author: Chenyi Qiang <chenyi.qiang@intel.com>
+Date:   Fri May 21 12:38:20 2021 +0800
+
+    i386: Add ratelimit for bus locks acquired in guest
+    
+    A bus lock is acquired through either split locked access to writeback
+    (WB) memory or any locked access to non-WB memory. It is typically >1000
+    cycles slower than an atomic operation within a cache and can also
+    disrupts performance on other cores.
+    
+    Virtual Machines can exploit bus locks to degrade the performance of
+    system. To address this kind of performance DOS attack coming from the
+    VMs, bus lock VM exit is introduced in KVM and it can report the bus
+    locks detected in guest. If enabled in KVM, it would exit to the
+    userspace to let the user enforce throttling policies once bus locks
+    acquired in VMs.
+    
+    The availability of bus lock VM exit can be detected through the
+    KVM_CAP_X86_BUS_LOCK_EXIT. The returned bitmap contains the potential
+    policies supported by KVM. The field KVM_BUS_LOCK_DETECTION_EXIT in
+    bitmap is the only supported strategy at present. It indicates that KVM
+    will exit to userspace to handle the bus locks.
+    
+    This patch adds a ratelimit on the bus locks acquired in guest as a
+    mitigation policy.
+    
+    Introduce a new field ""bus_lock_ratelimit"" to record the limited speed
+    of bus locks in the target VM. The user can specify it through the
+    ""bus-lock-ratelimit"" as a machine property. In current implementation,
+    the default value of the speed is 0 per second, which means no
+    restrictions on the bus locks.
+    
+    As for ratelimit on detected bus locks, simply set the ratelimit
+    interval to 1s and restrict the quota of bus lock occurence to the value
+    of ""bus_lock_ratelimit"". A potential alternative is to introduce the
+    time slice as a property which can help the user achieve more precise
+    control.
+    
+    The detail of bus lock VM exit can be found in spec:
+    https://software.intel.com/content/www/us/en/develop/download/intel-architecture-instruction-set-extensions-programming-reference.html
+    
+    Signed-off-by: Chenyi Qiang <chenyi.qiang@intel.com>
+    Message-Id: <20210521043820.29678-1-chenyi.qiang@intel.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>",035d1ef265
+0,"commit a2cd86a94a881b38a7d8bb67c61920ab3b23e82d
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Wed Jun 16 12:43:49 2021 +0200
+
+    hw/audio/sb16: Avoid assertion by restricting I/O sampling rate range
+    
+    While the SB16 seems to work up to 48000 Hz, the ""Sound Blaster Series
+    Hardware Programming Guide"" limit the sampling range from 4000 Hz to
+    44100 Hz (Section 3-9, 3-10: Digitized Sound I/O Programming, tables
+    3-2 and 3-3).
+    
+    Later, section 6-15 (DSP Commands) is more specific regarding the 41h /
+    42h registers (Set digitized sound output sampling rate):
+    
+      Valid sampling rates range from 5000 to 45000 Hz inclusive.
+    
+    There is no comment regarding error handling if the register is filled
+    with an out-of-range value.  (See also section 3-28 ""8-bit or 16-bit
+    Auto-initialize Transfer""). Assume limits are enforced in hardware.
+    
+    This fixes triggering an assertion in audio_calloc():
+    
+      #1 abort
+      #2 audio_bug audio/audio.c:119:9
+      #3 audio_calloc audio/audio.c:154:9
+      #4 audio_pcm_sw_alloc_resources_out audio/audio_template.h:116:15
+      #5 audio_pcm_sw_init_out audio/audio_template.h:175:11
+      #6 audio_pcm_create_voice_pair_out audio/audio_template.h:410:9
+      #7 AUD_open_out audio/audio_template.h:503:14
+      #8 continue_dma8 hw/audio/sb16.c:216:20
+      #9 dma_cmd8 hw/audio/sb16.c:276:5
+      #10 command hw/audio/sb16.c:0
+      #11 dsp_write hw/audio/sb16.c:949:13
+      #12 portio_write softmmu/ioport.c:205:13
+      #13 memory_region_write_accessor softmmu/memory.c:491:5
+      #14 access_with_adjusted_size softmmu/memory.c:552:18
+      #15 memory_region_dispatch_write softmmu/memory.c:0:13
+      #16 flatview_write_continue softmmu/physmem.c:2759:23
+      #17 flatview_write softmmu/physmem.c:2799:14
+      #18 address_space_write softmmu/physmem.c:2891:18
+      #19 cpu_outw softmmu/ioport.c:70:5
+    
+    [*] http://www.baudline.com/solutions/full_duplex/sb16_pci/index.html
+    
+    OSS-Fuzz Report: https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=29174
+    
+    Fixes: 85571bc7415 (""audio merge (malc)"")
+    Buglink: https://bugs.launchpad.net/bugs/1910603
+    Tested-by: Qiang Liu <cyruscyliu@gmail.com>
+    Reviewed-by: Qiang Liu <cyruscyliu@gmail.com>
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Message-Id: <20210616104349.2398060-1-f4bug@amsat.org>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>",a2cd86a94a
+0,"commit 375256a8460ae7310b053b52fe579c8832e73d10
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 16:09:13 2021 +0100
+
+    target/arm: Handle VPR semantics in existing code
+    
+    When MVE is supported, the VPR register has a place on the exception
+    stack frame in a previously reserved slot just above the FPSCR.
+    It must also be zeroed in various situations when we invalidate
+    FPU context.
+    
+    Update the code which handles the stack frames (exception entry and
+    exit code, VLLDM, and VLSTM) to save/restore VPR.
+    
+    Update code which invalidates FP registers (mostly also exception
+    entry and exit code, but also VSCCLRM and the code in
+    full_vfp_access_check() that corresponds to the ExecuteFPCheck()
+    pseudocode) to zero VPR.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210614151007.4545-4-peter.maydell@linaro.org",375256a846
+0,"commit d3327a38cda104dd292105b6b9d140f2158209f9
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Jun 12 12:57:07 2021 -0700
+
+    target/arm: Fix mte page crossing test
+    
+    The test was off-by-one, because tag_last points to the
+    last byte of the tag to check, thus tag_last - prev_page
+    will equal TARGET_PAGE_SIZE when we use the first byte
+    of the next page.
+    
+    Resolves: https://gitlab.com/qemu-project/qemu/-/issues/403
+    Reported-by: Peter Collingbourne <pcc@google.com>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210612195707.840217-1-richard.henderson@linaro.org
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",d3327a38cd
+0,"commit e3897b75fd2ac8c4bfda95d60309cb6414da8000
+Merge: 1dd259ae24 4fa7b4cc50
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Wed Jun 16 14:32:43 2021 +0100
+
+    Merge remote-tracking branch 'remotes/kraxel/tags/vga-20210615-pull-request' into staging
+    
+    vga: fixes for stdvga, vhost-user-gpu and virtio-gpu.
+    
+    # gpg: Signature made Tue 15 Jun 2021 18:40:11 BST
+    # gpg:                using RSA key A0328CFFB93A17A79901FE7D4CB6D8EED3E87138
+    # gpg: Good signature from ""Gerd Hoffmann (work) <kraxel@redhat.com>"" [full]
+    # gpg:                 aka ""Gerd Hoffmann <gerd@kraxel.org>"" [full]
+    # gpg:                 aka ""Gerd Hoffmann (private) <kraxel@gmail.com>"" [full]
+    # Primary key fingerprint: A032 8CFF B93A 17A7 9901  FE7D 4CB6 D8EE D3E8 7138
+    
+    * remotes/kraxel/tags/vga-20210615-pull-request:
+      virtio-gpu: move scanout_id sanity check
+      vhost-user-gpu: reorder free calls.
+      vga: Allow writing VBE_DISPI_ID5 to ID register
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",e3897b75fd
+0,"commit 498df2a7470e09d6cb0204f45eeb30d7ae796465
+Author: Lara Lazier <laramglazier@gmail.com>
+Date:   Wed Jun 16 14:39:06 2021 +0200
+
+    target/i386: Added consistency checks for CR0
+    
+    The combination of unset CD and set NW bit in CR0 is illegal.
+    CR0[63:32] are also reserved and need to be zero.
+    (AMD64 Architecture Programmer's Manual, V2, 15.5)
+    
+    Signed-off-by: Lara Lazier <laramglazier@gmail.com>
+    Message-Id: <20210616123907.17765-4-laramglazier@gmail.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",498df2a747
+0,"commit 9181fb7043edcf096e0ae426cc3fb6f669c7fcb5
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 10 13:43:23 2021 +0200
+
+    hostmem: Wire up RAM_NORESERVE via ""reserve"" property
+    
+    Let's provide a way to control the use of RAM_NORESERVE via memory
+    backends using the ""reserve"" property which defaults to true (old
+    behavior).
+    
+    Only Linux currently supports clearing the flag (and support is checked at
+    runtime, depending on the setting of ""/proc/sys/vm/overcommit_memory"").
+    Windows and other POSIX systems will bail out with ""reserve=false"".
+    
+    The target use case is virtio-mem, which dynamically exposes memory
+    inside a large, sparse memory area to the VM. This essentially allows
+    avoiding to set ""/proc/sys/vm/overcommit_memory == 0"") when using
+    virtio-mem and also supporting hugetlbfs in the future.
+    
+    As really only Linux implements RAM_NORESERVE right now, let's expose
+    the property only with CONFIG_LINUX. Setting the property to ""false""
+    will then only fail in corner cases -- for example on very old kernels
+    or when memory overcommit was completely disabled by the admin.
+    
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Reviewed-by: Markus Armbruster <armbru@redhat.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com> for memory backend and machine core
+    Cc: Markus Armbruster <armbru@redhat.com>
+    Cc: Eric Blake <eblake@redhat.com>
+    Cc: Igor Mammedov <imammedo@redhat.com>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210510114328.21835-11-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",9181fb7043
+0,"commit adad0b3ae8446acef0670efaa1e835ba37fca4bc
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 10 13:43:14 2021 +0200
+
+    util/mmap-alloc: Factor out calculation of the pagesize for the guard page
+    
+    Let's factor out calculating the size of the guard page and rename the
+    variable to make it clearer that this pagesize only applies to the
+    guard page.
+    
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    Acked-by: Murilo Opsfelder Araujo <muriloo@linux.ibm.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com> for memory backend and machine core
+    Cc: Igor Kotrasinski <i.kotrasinsk@partner.samsung.com>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210510114328.21835-2-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",adad0b3ae8
+0,"commit cdfa56c551bb48f286cfe1f2daa1083d333ee45d
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Apr 6 10:01:25 2021 +0200
+
+    softmmu/physmem: Fix ram_block_discard_range() to handle shared anonymous memory
+    
+    We can create shared anonymous memory via
+        ""-object memory-backend-ram,share=on,...""
+    which is, for example, required by PVRDMA for mremap() to work.
+    
+    Shared anonymous memory is weird, though. Instead of MADV_DONTNEED, we
+    have to use MADV_REMOVE: MADV_DONTNEED will only remove / zap all
+    relevant page table entries of the current process, the backend storage
+    will not get removed, resulting in no reduced memory consumption and
+    a repopulation of previous content on next access.
+    
+    Shared anonymous memory is internally really just shmem, but without a
+    fd exposed. As we cannot use fallocate() without the fd to discard the
+    backing storage, MADV_REMOVE gets the same job done without a fd as
+    documented in ""man 2 madvise"". Removing backing storage implicitly
+    invalidates all page table entries with relevant mappings - an additional
+    MADV_DONTNEED is not required.
+    
+    Fixes: 06329ccecfa0 (""mem: add share parameter to memory-backend-ram"")
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210406080126.24010-3-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",cdfa56c551
+0,"commit a25c84c7e0ac00c026afa28fbbfa044e12fe0b1a
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 17:12:43 2021 +0100
+
+    hw/intc/armv7m_nvic: Remove stale comment
+    
+    In commit da6d674e509f0939b we split the NVIC code out from the GIC.
+    This allowed us to specify the NVIC's default value for the num-irq
+    property (64) in the usual way in its property list, and we deleted
+    the previous hack where we updated the value in the state struct in
+    the instance init function.  Remove a stale comment about that hack
+    which we forgot to delete at that time.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210614161243.14211-1-peter.maydell@linaro.org",a25c84c7e0
+0,"commit 0bcd5a18940e1c1e3350b93cfadcdc6b58ca1c0e
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Sun Jun 13 11:26:14 2021 +0100
+
+    esp: fix migration version check in esp_is_version_5()
+    
+    Commit 4e78f3bf35 ""esp: defer command completion interrupt on incoming data
+    transfers"" added a version check for use with VMSTATE_*_TEST macros to allow
+    migration from older QEMU versions. Unfortunately the version check fails to
+    work in its current form since if the VMStateDescription version_id is
+    incremented, the test returns false and so the fields are not included in the
+    outgoing migration stream.
+    
+    Change the version check to use >= rather == to ensure that migration works
+    correctly when the ESPState VMStateDescription has version_id > 5.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Fixes: 4e78f3bf35 (""esp: defer command completion interrupt on incoming data transfers"")
+    Message-Id: <20210613102614.5438-1-mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",0bcd5a1894
+0,"commit 35579b523cf8f441da12f968ce5dcf6ae0bfbfea
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Wed May 19 11:08:02 2021 +0100
+
+    esp: revert 75ef849696 ""esp: correctly fill bus id with requested lun""
+    
+    This commit from nearly 10 years ago is now broken due to the improvements
+    in esp emulation (or perhaps was never correct).  It shows up as a bug
+    in detecting the CDROM drive under MacOS. The error is caused by the
+    MacOS CDROM driver sending this CDB with an ""S without ATN"" command and
+    without DMA:
+    
+        0x12 0x00 0x00 0x00 0x05 0x00 (INQUIRY)
+    
+    This is a valid INQUIRY command, however with this logic present the 3rd
+    byte (0x0) is copied over the 1st byte (0x12) which silently converts the
+    INQUIRY command to a TEST UNIT READY command before passing it to the
+    QEMU SCSI layer.  Since the TEST UNIT READY command has a zero length
+    response the MacOS CDROM driver never receives a response and assumes
+    the CDROM is not present.
+    
+    The logic was to ignore the IDENTIFY byte and copy the LUN over from
+    the CDB, which did store the LUN in bits 5-7 of the second byte in
+    olden times.  This however is all obsolete, so just drop the code.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Message-Id: <20210519100803.10293-5-mark.cave-ayland@ilande.co.uk>
+    [Tweaked commit message. - Paolo]
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",35579b523c
+0,"commit af947a3d853a235943681a00f07f3081f5143cc3
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Tue May 18 22:25:11 2021 +0100
+
+    esp: only set ESP_RSEQ at the start of the select sequence
+    
+    When processing a command to select a target and send a CDB, the ESP device
+    maintains a sequence step register so that if an error occurs the host can
+    determine which part of the selection/CDB submission sequence failed.
+    
+    The old Linux 2.6 driver is really pedantic here: it checks the sequence step
+    register even if a command succeeds and complains loudly on the console if the
+    sequence step register doesn't match the expected bus phase and interrupt flags.
+    
+    This reason this mismatch occurs is because the ESP emulation currently doesn't
+    update the bus phase until the next TI (Transfer Information) command and so the
+    cleared sequence step register is considered invalid for the stale bus phase.
+    
+    Normally this isn't an issue as the host only checks the sequence step register
+    if an error occurs but the old Linux 2.6 driver does this in several places
+    causing a large stream of ""esp0: STEP_ASEL for tgt 0"" messages to appear on the
+    console during the boot process.
+    
+    Fix this by not clearing the sequence step register when reading the interrupt
+    register and clearing the DMA status, so the guest sees a valid sequence step
+    and bus phase combination at the end of the command phase. No other change is
+    required since the sequence step register is correctly updated throughout the
+    selection/CDB submission sequence once one of the select commands is issued.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Fixes: 1b9e48a5bd (""esp: implement non-DMA transfers in PDMA mode"")
+    Message-Id: <20210518212511.21688-3-mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",af947a3d85
+0,"commit cf1a7a9b3721544aaa3e43d111eb383c30d71a62
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Tue May 18 22:25:10 2021 +0100
+
+    esp: only assert INTR_DC interrupt flag if selection fails
+    
+    The datasheet sequence tables confirm that when a target selection fails, only
+    the INTR_DC interrupt flag should be asserted.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Fixes: cf47a41e05 (""esp: latch individual bits in ESP_RINTR register"")
+    Message-Id: <20210518212511.21688-2-mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",cf1a7a9b37
+0,"commit 6e1da3d305499d3907f3c7f6638243e2e09b5085
+Author: Peng Liang <liangpeng10@huawei.com>
+Date:   Thu Jun 10 21:17:29 2021 +0800
+
+    runstate: Initialize Error * to NULL
+    
+    Based on the description of error_setg(), the local variable err in
+    qemu_init_subsystems() should be initialized to NULL.
+    
+    Fixes: efd7ab22fb (""vl: extract qemu_init_subsystems"")
+    Cc: qemu-stable@nongnu.org
+    Signed-off-by: Peng Liang <liangpeng10@huawei.com>
+    Message-Id: <20210610131729.3906565-1-liangpeng10@huawei.com>
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",6e1da3d305
+0,"commit 06b80795ee25d23e69747b2cb435003c6db2a6ab
+Author: Maxim Levitsky <mlevitsk@redhat.com>
+Date:   Thu Dec 17 18:56:12 2020 +0200
+
+    block/scsi: correctly emulate the VPD block limits page
+    
+    When the device doesn't support the VPD block limits page, we emulate it even
+    for SCSI passthrough.
+    
+    As a part of the emulation we need to add it to the 'Supported VPD Pages'
+    
+    The code that does this adds it to the page, but it doesn't increase the length
+    of the data to be copied to the guest, thus the guest never sees the VPD block
+    limits page as supported.
+    
+    Bump the transfer size by 1 in this case.
+    
+    Signed-off-by: Maxim Levitsky <mlevitsk@redhat.com>
+    Reviewed-by: Max Reitz <mreitz@redhat.com>
+    Message-Id: <20201217165612.942849-6-mlevitsk@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",06b80795ee
+0,"commit e7d85d955a7a3405934a104f35228aae1d338a6d
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed Jun 9 14:34:35 2021 +0200
+
+    qemu-config: use qemu_opts_from_qdict
+    
+    Using qemu_opts_absorb_qdict, and then checking for any leftover options,
+    is redundant because there is already a function that does the same,
+    qemu_opts_from_qdict.  qemu_opts_from_qdict consumes the whole dictionary
+    and therefore can just return an error message if an option fails to validate.
+    
+    This also fixes a bug, because the ""id"" entry was retrieved in
+    qemu_config_do_parse and then left there by qemu_opts_absorb_qdict.
+    As a result, it was reported as an unrecognized option.
+    
+    Reported-by: Markus Armbruster <armbru@redhat.com>
+    Reviewed-by: Markus Armbruster <armbru@redhat.com>
+    Fixes: 3770141139 (""qemu-config: parse configuration files to a QDict"")
+    Cc: qemu-stable@nongnu.org
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",e7d85d955a
+0,"commit 38f71349c7c4969bc14da4da1c70b8cc4078d596
+Author: Zhenzhong Duan <zhenzhong.duan@intel.com>
+Date:   Thu Jun 10 16:47:41 2021 +0800
+
+    vl: Fix an assert failure in error path
+    
+    Based on the description of error_setg(), the local variable err in
+    qemu_maybe_daemonize() should be initialized to NULL.
+    
+    Without fix, the uninitialized *errp triggers assert failure which
+    doesn't show much valuable information.
+    
+    Before the fix:
+    qemu-system-x86_64: ../util/error.c:59: error_setv: Assertion `*errp == NULL' failed.
+    
+    After fix:
+    qemu-system-x86_64: cannot create PID file: Cannot open pid file: Permission denied
+    
+    Signed-off-by: Zhenzhong Duan <zhenzhong.duan@intel.com>
+    Message-Id: <20210610084741.456260-1-zhenzhong.duan@intel.com>
+    Cc: qemu-stable@nongnu.org
+    Fixes: 0546c0609c (""vl: split various early command line options to a separate function"", 2020-12-10)
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",38f71349c7
+0,"commit 4fa7b4cc500e1fbd8c11e65548b7713db81e75ff
+Author: Gerd Hoffmann <kraxel@redhat.com>
+Date:   Fri Jun 4 09:50:29 2021 +0200
+
+    virtio-gpu: move scanout_id sanity check
+    
+    Checking scanout_id in virtio_gpu_do_set_scanout() is too late, for the
+    ""resource_id == 0"" case (aka disable scanout) the scanout_id is used
+    unchecked.  Move the check into the callers to fix that.
+    
+    Fixes: e64d4b6a9bc3 (""virtio-gpu: Refactor virtio_gpu_set_scanout"")
+    Fixes: 32db3c63ae11 (""virtio-gpu: Add virtio_gpu_set_scanout_blob"")
+    Resolves: https://gitlab.com/qemu-project/qemu/-/issues/383
+    Reported-by: Alexander Bulekov <alxndr@bu.edu>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>
+    Reviewed-by: Vivek Kasireddy <vivek.kasireddy@intel.com>
+    Reviewed-by: Li Qiang <liq3ea@gmail.com>
+    Message-Id: <20210604075029.1201478-1-kraxel@redhat.com>",4fa7b4cc50
+0,"commit 25b2ef2e8ee23109b0c3ce9ea71330bf8a7d12bd
+Author: Gerd Hoffmann <kraxel@redhat.com>
+Date:   Fri Jun 4 12:37:14 2021 +0200
+
+    vhost-user-gpu: reorder free calls.
+    
+    Free in correct order to avoid use-after-free.
+    
+    Resolves: CID 1453812
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Reviewed-by: Li Qiang <liq3ea@gmail.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210604103714.1237414-1-kraxel@redhat.com>",25b2ef2e8e
+0,"commit 1ea06abceec61b6f3ab33dadb0510b6e09fb61e2
+Merge: fbe7919ece 970bc16f60
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 15:59:13 2021 +0100
+
+    Merge remote-tracking branch 'remotes/berrange-gitlab/tags/misc-fixes-pull-request' into staging
+    
+    Merge misc patches
+    
+    # gpg: Signature made Mon 14 Jun 2021 15:14:48 BST
+    # gpg:                using RSA key DAF3A6FDB26B62912D0E8E3FBE86EBB415104FDF
+    # gpg: Good signature from ""Daniel P. Berrange <dan@berrange.com>"" [full]
+    # gpg:                 aka ""Daniel P. Berrange <berrange@redhat.com>"" [full]
+    # Primary key fingerprint: DAF3 A6FD B26B 6291 2D0E  8E3F BE86 EBB4 1510 4FDF
+    
+    * remotes/berrange-gitlab/tags/misc-fixes-pull-request:
+      usb/dev-mtp: use GDateTime for formatting timestamp for objects
+      block: use GDateTime for formatting timestamp when dumping snapshot info
+      migration: use GDateTime for formatting timestamp in snapshot names
+      block: remove duplicate trace.h include
+      block: add trace point when fdatasync fails
+      block: preserve errno from fdatasync failures
+      softmmu: add trace point when bdrv_flush_all fails
+      migration: add trace point when vm_stop_force_state fails
+      sasl: remove comment about obsolete kerberos versions
+      docs: recommend SCRAM-SHA-256 SASL mech instead of SHA-1 variant
+      docs: document usage of the authorization framework
+      docs: document how to pass secret data to QEMU
+      docs: add table of contents to QAPI references
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",1ea06abcee
+0,"commit 60ff2ae2a21ddc11cc7284194a3013ff864ac03c
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Thu Apr 15 14:28:16 2021 +0100
+
+    block: add trace point when fdatasync fails
+    
+    A flush failure is a critical failure scenario for some operations.
+    For example, it will prevent migration from completing, as it will
+    make vm_stop() report an error. Thus it is important to have a
+    trace point present for debugging.
+    
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>",60ff2ae2a2
+0,"commit c7ddc8821d88d958bb6d4ef1279ec3609b17ffda
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Thu Apr 15 14:28:16 2021 +0100
+
+    block: preserve errno from fdatasync failures
+    
+    When fdatasync() fails on a file backend we set a flag that
+    short-circuits any future attempts to call fdatasync(). The
+    first failure returns the true errno, but the later short-
+    circuited calls return a generic EIO. The latter is unhelpful
+    because fdatasync() can return a variety of errnos, including
+    EACCESS.
+    
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>",c7ddc8821d
+0,"commit 8af3f5c6d66ac203000c2d8ebebd3b751f575008
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Thu Apr 15 14:33:51 2021 +0100
+
+    softmmu: add trace point when bdrv_flush_all fails
+    
+    The VM stop process has to flush outstanding I/O and this is a critical
+    failure scenario that is hard to diagnose. Add a probe point that
+    records the flush return code.
+    
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>",8af3f5c6d6
+0,"commit 626ff6515d41854dc8a880849ae2744c20a70ba7
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Thu Apr 15 14:33:51 2021 +0100
+
+    migration: add trace point when vm_stop_force_state fails
+    
+    This is a critical failure scenario for migration that is hard to
+    diagnose from existing probes. Most likely it is caused by an error
+    from bdrv_flush(), but we're not logging the errno anywhere, hence
+    this new probe.
+    
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>",626ff6515d
+0,"commit e2bf32dfabbfe6aabde4a0400b25b768b4481785
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Thu Mar 4 18:14:26 2021 +0000
+
+    docs: recommend SCRAM-SHA-256 SASL mech instead of SHA-1 variant
+    
+    The SHA-256 variant better meats modern security expectations.
+    Also warn that the password file is storing entries in clear
+    text.
+    
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>",e2bf32dfab
+0,"commit fbe7919ecee8d525ccd107027d73d877cd4eccc4
+Merge: 894fc4fd67 a5a8b84772
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 10:25:37 2021 +0100
+
+    Merge remote-tracking branch 'remotes/rth-gitlab/tags/pull-tcg-20210613' into staging
+    
+    Clean up code_gen_buffer allocation.
+    Add tcg_remove_ops_after.
+    Fix tcg_constant_* documentation.
+    Improve TB chaining documentation.
+    Fix float32_exp2.
+    Fix arm tcg_out_op function signature.
+    
+    # gpg: Signature made Mon 14 Jun 2021 02:12:35 BST
+    # gpg:                using RSA key 7A481E78868B4DB6A85A05C064DF38E8AF7E215F
+    # gpg:                issuer ""richard.henderson@linaro.org""
+    # gpg: Good signature from ""Richard Henderson <richard.henderson@linaro.org>"" [full]
+    # Primary key fingerprint: 7A48 1E78 868B 4DB6 A85A  05C0 64DF 38E8 AF7E 215F
+    
+    * remotes/rth-gitlab/tags/pull-tcg-20210613: (34 commits)
+      docs/devel: Explain in more detail the TB chaining mechanisms
+      softfloat: Fix tp init in float32_exp2
+      tcg/arm: Fix tcg_out_op function signature
+      tcg: Fix documentation for tcg_constant_* vs tcg_temp_free_*
+      tcg: Introduce tcg_remove_ops_after
+      tcg: Move tcg_init_ctx and tcg_ctx from accel/tcg/
+      tcg: When allocating for !splitwx, begin with PROT_NONE
+      tcg: Merge buffer protection and guard page protection
+      tcg: Round the tb_size default from qemu_get_host_physmem
+      util/osdep: Add qemu_mprotect_rw
+      tcg: Sink qemu_madvise call to common code
+      tcg: Return the map protection from alloc_code_gen_buffer
+      tcg: Allocate code_gen_buffer into struct tcg_region_state
+      tcg: Move in_code_gen_buffer and tests to region.c
+      tcg: Tidy split_cross_256mb
+      tcg: Tidy tcg_n_regions
+      tcg: Rename region.start to region.after_prologue
+      tcg: Replace region.end with region.total_size
+      tcg: Move MAX_CODE_GEN_BUFFER_SIZE to tcg-target.h
+      tcg: Introduce tcg_max_ctxs
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",fbe7919ece
+0,"commit b7da02dad0f25928e688a5dce74a0f10fa120594
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Wed Mar 10 17:41:26 2021 -0600
+
+    tcg: When allocating for !splitwx, begin with PROT_NONE
+    
+    There's a change in mprotect() behaviour [1] in the latest macOS
+    on M1 and it's not yet clear if it's going to be fixed by Apple.
+    
+    In this case, instead of changing permissions of N guard pages,
+    we change permissions of N rwx regions.  The same number of
+    syscalls are required either way.
+    
+    [1] https://gist.github.com/hikalium/75ae822466ee4da13cbbe486498a191f
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>",b7da02dad0
+0,"commit 22c6a9938f7515a2c05fb7dea128e2e305953115
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Wed Mar 10 17:27:49 2021 -0600
+
+    tcg: Merge buffer protection and guard page protection
+    
+    Do not handle protections on a case-by-case basis in the
+    various alloc_code_gen_buffer instances; do it within a
+    single loop in tcg_region_init.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>",22c6a9938f
+0,"commit ba22783d6ef821551360890a025cd29b2444e948
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sun Mar 14 13:32:18 2021 -0600
+
+    tcg: Round the tb_size default from qemu_get_host_physmem
+    
+    If qemu_get_host_physmem returns an odd number of pages,
+    then physmem / 8 will not be a multiple of the page size.
+    
+    The following was observed on a gitlab runner:
+    
+    ERROR qtest-arm/boot-serial-test - Bail out!
+    ERROR:../util/osdep.c:80:qemu_mprotect__osdep: \
+      assertion failed: (!(size & ~qemu_real_host_page_mask))
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>",ba22783d6e
+0,"commit d7107fc00aff819338e1d2683eabcbb2ff4ef61b
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Wed Mar 10 17:47:33 2021 -0600
+
+    util/osdep: Add qemu_mprotect_rw
+    
+    For --enable-tcg-interpreter on Windows, we will need this.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>",d7107fc00a
+0,"commit 7be9ebcf924c04b22f4c4cf990f51da4259b07c3
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Wed Mar 10 13:59:37 2021 -0600
+
+    tcg: Return the map protection from alloc_code_gen_buffer
+    
+    Change the interface from a boolean error indication to a
+    negative error vs a non-negative protection.  For the moment
+    this is only interface change, not making use of the new data.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>",7be9ebcf92
+0,"commit bf042e8e52f0140388837ce75f865969831ab1ab
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Mar 9 16:33:15 2021 -0600
+
+    tcg: Split out tcg_region_prologue_set
+    
+    This has only one user, but will make more sense after some
+    code motion.
+    
+    Always leave the tcg_init_ctx initialized to the first region,
+    in preparation for tcg_prologue_init().  This also requires
+    that we don't re-allocate the region for the first cpu, lest
+    we hit the assertion for total number of regions allocated .
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>",bf042e8e52
+0,"commit 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+Merge: 7fe7fae8b4 5a2d9929ac
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 11 09:21:48 2021 +0100
+
+    Merge remote-tracking branch 'remotes/jasowang/tags/net-pull-request' into staging
+    
+    # gpg: Signature made Fri 11 Jun 2021 03:54:51 BST
+    # gpg:                using RSA key EF04965B398D6211
+    # gpg: Good signature from ""Jason Wang (Jason Wang on RedHat) <jasowang@redhat.com>"" [marginal]
+    # gpg: WARNING: This key is not certified with sufficiently trusted signatures!
+    # gpg:          It is not certain that the signature belongs to the owner.
+    # Primary key fingerprint: 215D 46F4 8246 689E C77F  3562 EF04 965B 398D 6211
+    
+    * remotes/jasowang/tags/net-pull-request:
+      Fixed calculation error of pkt->header_size in fill_pkt_tcp_info()
+      Add the function of colo_compare_cleanup
+      Add a function named packet_new_nocopy for COLO.
+      Remove migrate_set_block_enabled in checkpoint
+      Optimize the function of filter_send
+      Fix the qemu crash when guest shutdown during checkpoint
+      Remove some duplicate trace code.
+      netdev: add more commands to preconfig mode
+      vhost-vdpa: remove the unused vhost_vdpa_get_acked_features()
+      vhost-vdpa: don't initialize backend_features
+      vhost-vdpa: map virtqueue notification area if possible
+      vhost-vdpa: skip ram device from the IOTLB mapping
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",894fc4fd67
+0,"commit 0c7af1a778d036402ec0829783afee1ce6ea942c
+Author: Rao, Lei <lei.rao@intel.com>
+Date:   Tue Jun 8 16:23:30 2021 +0800
+
+    Add the function of colo_compare_cleanup
+    
+    This patch fixes the following:
+        #0  __GI_raise (sig=sig@entry=6) at ../sysdeps/unix/sysv/linux/raise.c:50
+        #1  0x00007f6ae4559859 in __GI_abort () at abort.c:79
+        #2  0x0000559aaa386720 in error_exit (err=16, msg=0x559aaa5973d0 <__func__.16227> ""qemu_mutex_destroy"") at util/qemu-thread-posix.c:36
+        #3  0x0000559aaa3868c5 in qemu_mutex_destroy (mutex=0x559aabffe828) at util/qemu-thread-posix.c:69
+        #4  0x0000559aaa2f93a8 in char_finalize (obj=0x559aabffe800) at chardev/char.c:285
+        #5  0x0000559aaa23318a in object_deinit (obj=0x559aabffe800, type=0x559aabfd7d20) at qom/object.c:606
+        #6  0x0000559aaa2331b8 in object_deinit (obj=0x559aabffe800, type=0x559aabfd9060) at qom/object.c:610
+        #7  0x0000559aaa233200 in object_finalize (data=0x559aabffe800) at qom/object.c:620
+        #8  0x0000559aaa234202 in object_unref (obj=0x559aabffe800) at qom/object.c:1074
+        #9  0x0000559aaa2356b6 in object_finalize_child_property (obj=0x559aac0dac10, name=0x559aac778760 ""compare0-0"", opaque=0x559aabffe800) at qom/object.c:1584
+        #10 0x0000559aaa232f70 in object_property_del_all (obj=0x559aac0dac10) at qom/object.c:557
+        #11 0x0000559aaa2331ed in object_finalize (data=0x559aac0dac10) at qom/object.c:619
+        #12 0x0000559aaa234202 in object_unref (obj=0x559aac0dac10) at qom/object.c:1074
+        #13 0x0000559aaa2356b6 in object_finalize_child_property (obj=0x559aac0c75c0, name=0x559aac0dadc0 ""chardevs"", opaque=0x559aac0dac10) at qom/object.c:1584
+        #14 0x0000559aaa233071 in object_property_del_child (obj=0x559aac0c75c0, child=0x559aac0dac10, errp=0x0) at qom/object.c:580
+        #15 0x0000559aaa233155 in object_unparent (obj=0x559aac0dac10) at qom/object.c:599
+        #16 0x0000559aaa2fb721 in qemu_chr_cleanup () at chardev/char.c:1159
+        #17 0x0000559aa9f9b110 in main (argc=54, argv=0x7ffeb62fa998, envp=0x7ffeb62fab50) at vl.c:4539
+    
+    When chardev is cleaned up, chr_write_lock needs to be destroyed. But
+    the colo-compare module is not cleaned up normally before it when the
+    guest poweroff. It is holding chr_write_lock at this time. This will
+    cause qemu crash.So we add the function of colo_compare_cleanup() before
+    qemu_chr_cleanup() to fix the bug.
+    
+    Signed-off-by: Lei Rao <lei.rao@intel.com>
+    Reviewed-by: Zhang Chen <chen.zhang@intel.com>
+    Reviewed-by: Lukas Straub <lukasstraub2@web.de>
+    Tested-by: Lukas Straub <lukasstraub2@web.de>
+    Signed-off-by: Zhang Chen <chen.zhang@intel.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>",0c7af1a778
+0,"commit 229620d52e389bc7690f11e4f5fa9b249b5ca65d
+Author: Rao, Lei <lei.rao@intel.com>
+Date:   Tue Jun 8 16:23:26 2021 +0800
+
+    Fix the qemu crash when guest shutdown during checkpoint
+    
+    This patch fixes the following:
+        qemu-system-x86_64: invalid runstate transition: 'colo' ->'shutdown'
+        Aborted (core dumped)
+    
+    Signed-off-by: Lei Rao <lei.rao@intel.com>
+    Reviewed-by: Li Zhijian <lizhijian@fujitsu.com>
+    Reviewed-by: Zhang Chen <chen.zhang@intel.com>
+    Reviewed-by: Lukas Straub <lukasstraub2@web.de>
+    Tested-by: Lukas Straub <lukasstraub2@web.de>
+    Signed-off-by: Zhang Chen <chen.zhang@intel.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>",229620d52e
+0,"commit c33f23a419f95da16ab4faaf08be635c89b96ff0
+Author: Jason Wang <jasowang@redhat.com>
+Date:   Wed Jun 2 11:31:26 2021 +0800
+
+    vhost-vdpa: don't initialize backend_features
+    
+    We used to initialize backend_features during vhost_vdpa_init()
+    regardless whether or not it was supported by vhost. This will lead
+    the unsupported features like VIRTIO_F_IN_ORDER to be included and set
+    to the vhost-vdpa during vhost_dev_start. Because the
+    VIRTIO_F_IN_ORDER is not supported by vhost-vdpa so it won't be
+    advertised to guest which will break the datapath.
+    
+    Fix this by not initializing the backend_features, so the
+    acked_features could be built only from guest features via
+    vhost_net_ack_features().
+    
+    Fixes: 108a64818e69b (""vhost-vdpa: introduce vhost-vdpa backend"")
+    Cc: qemu-stable@nongnu.org
+    Cc: Gautam Dawar <gdawar@xilinx.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>",c33f23a419
+0,"commit 7fe7fae8b48e3f9c647fd685e5155ebc8e6fb84d
+Merge: a4716fd8d7 a4a571d978
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Wed Jun 9 16:40:21 2021 +0100
+
+    Merge remote-tracking branch 'remotes/dgilbert-gitlab/tags/pull-migration-20210609a' into staging
+    
+    Migration pull for 2021-06-09
+    
+    Yank crash fix from Leo
+    RDMA fix from Li
+    mptcp support from me
+    dirty-rate changes from Hyman and Peter
+    
+    (Note I've switched to the gitlab I've been using for virtiofs pulls)
+    
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    
+    # gpg: Signature made Wed 09 Jun 2021 15:40:01 BST
+    # gpg:                using RSA key 45F5C71B4A0CB7FB977A9FA90516331EBC5BFDE7
+    # gpg: Good signature from ""Dr. David Alan Gilbert (RH2) <dgilbert@redhat.com>"" [full]
+    # Primary key fingerprint: 45F5 C71B 4A0C B7FB 977A  9FA9 0516 331E BC5B FDE7
+    
+    * remotes/dgilbert-gitlab/tags/pull-migration-20210609a:
+      hmp: Add ""calc_dirty_rate"" and ""info dirty_rate"" cmds
+      migration/dirtyrate: make sample page count configurable
+      sockets: Support multipath TCP
+      migration/socket: Close the listener at the end
+      migration: Add cleanup hook for inwards migration
+      io/net-listener: Call the notifier during finalize
+      channel-socket: Only set CLOEXEC if we have space for fds
+      migration/rdma: Fix cm event use after free
+      yank: Unregister function when using TLS migration
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",7fe7fae8b4
+0,"commit 6b8c2eb5c63db2b6b418256bcfecb51e17d72b0f
+Author: Li Zhijian <lizhijian@cn.fujitsu.com>
+Date:   Wed Jun 2 10:35:06 2021 +0800
+
+    migration/rdma: Fix cm event use after free
+    
+    Signed-off-by: Li Zhijian <lizhijian@cn.fujitsu.com>
+    Message-Id: <20210602023506.3821293-1-lizhijian@cn.fujitsu.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>",6b8c2eb5c6
+0,"commit 7de2e8565335c13fb3516cddbe2e40e366cce273
+Author: Leonardo Bras <leobras.c@gmail.com>
+Date:   Tue Jun 1 02:40:31 2021 -0300
+
+    yank: Unregister function when using TLS migration
+    
+    After yank feature was introduced in migration, whenever migration
+    is started using TLS, the following error happens in both source and
+    destination hosts:
+    
+    (qemu) qemu-kvm: ../util/yank.c:107: yank_unregister_instance:
+    Assertion `QLIST_EMPTY(&entry->yankfns)' failed.
+    
+    This happens because of a missing yank_unregister_function() when using
+    qio-channel-tls.
+    
+    Fix this by also allowing TYPE_QIO_CHANNEL_TLS object type to perform
+    yank_unregister_function() in channel_close() and multifd_load_cleanup().
+    
+    Also, inside migration_channel_connect() and
+    migration_channel_process_incoming() move yank_register_function() so
+    it only runs once on a TLS migration.
+    
+    Fixes: b5eea99ec2f (""migration: Add yank feature"", 2021-01-13)
+    Buglink: https://bugzilla.redhat.com/show_bug.cgi?id=1964326
+    Signed-off-by: Leonardo Bras <leobras.c@gmail.com>
+    Reviewed-by: Lukas Straub <lukasstraub2@web.de>
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    
+    --
+    Changes since v2:
+    - Dropped all references to ioc->master
+    - yank_register_function() and yank_unregister_function() now only run
+      once in a TLS migration.
+    
+    Changes since v1:
+    - Cast p->c to QIOChannelTLS into multifd_load_cleanup()
+    Message-Id: <20210601054030.1153249-1-leobras.c@gmail.com>
+    
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>",7de2e85653
+0,"commit eee2d61e202b5bd49a5eb211e347e02c86287ef4
+Author: LIU Zhiwei <zhiwei_liu@c-sky.com>
+Date:   Fri May 21 13:48:16 2021 +0800
+
+    target/riscv: Pass the same value to oprsz and maxsz.
+    
+    Since commit e2e7168a214b0ed98dc357bba96816486a289762, if oprsz
+    is still zero(as we don't use this field), simd_desc will trigger an
+    assert.
+    
+    Besides, tcg_gen_gvec_*_ptr calls simd_desc in it's implementation.
+    Here we pass the value to maxsz and oprsz to bypass the assert.
+    
+    Signed-off-by: LIU Zhiwei <zhiwei_liu@c-sky.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210521054816.1784297-1-zhiwei_liu@c-sky.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>",eee2d61e20
+0,"commit 719f0f603c2289f438b8d6ef4358d9407b4c2905
+Author: Jose Martins <josemartins90@gmail.com>
+Date:   Tue Apr 20 22:36:56 2021 +0100
+
+    target/riscv: fix wfi exception behavior
+    
+    The wfi exception trigger behavior should take into account user mode,
+    hstatus.vtw, and the fact the an wfi might raise different types of
+    exceptions depending on various factors:
+    
+    If supervisor mode is not present:
+    
+    - an illegal instruction exception should be generated if user mode
+    executes and wfi instruction and mstatus.tw = 1.
+    
+    If supervisor mode is present:
+    
+    - when a wfi instruction is executed, an illegal exception should be triggered
+    if either the current mode is user or the mode is supervisor and mstatus.tw is
+    set.
+    
+    Plus, if the hypervisor extensions are enabled:
+    
+    - a virtual instruction exception should be raised when a wfi is executed from
+    virtual-user or virtual-supervisor and hstatus.vtw is set.
+    
+    Signed-off-by: Jose Martins <josemartins90@gmail.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210420213656.85148-1-josemartins90@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>",719f0f603c
+0,"commit 143897b50140cfd7540f867edca5d658e76aa9bf
+Author: Bin Meng <bin.meng@windriver.com>
+Date:   Fri Apr 30 15:13:02 2021 +0800
+
+    hw/riscv: microchip_pfsoc: Support direct kernel boot
+    
+    At present the Microchip Icicle Kit machine only supports using
+    '-bios' to load the HSS, and does not support '-kernel' for direct
+    kernel booting just like other RISC-V machines do. One has to use
+    U-Boot which is chain-loaded by HSS, to load a kernel for testing.
+    This is not so convenient.
+    
+    Adding '-kernel' support together with the existing '-bios', we
+    follow the following table to select which payload we execute:
+    
+      -bios |    -kernel | payload
+      ------+------------+--------
+          N |          N | HSS
+          Y | don't care | HSS
+          N |          Y | kernel
+    
+    This ensures backwards compatibility with how we used to expose
+    '-bios' to users. When '-kernel' is used for direct boot, '-dtb'
+    must be present to provide a valid device tree for the board,
+    as we don't generate device tree.
+    
+    When direct kernel boot is used, the OpenSBI fw_dynamic BIOS image
+    is used to boot a payload like U-Boot or OS kernel directly.
+    
+    Documentation is updated to describe the direct kernel boot. Note
+    as of today there is still no PolarFire SoC support in the upstream
+    Linux kernel hence the document does not include instructions for
+    that. It will be updated in the future.
+    
+    Signed-off-by: Bin Meng <bin.meng@windriver.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210430071302.1489082-8-bmeng.cn@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>",143897b501
+0,"commit 33ba8b0adc91482dd4247a0773cfe7def011933f
+Merge: a35947f15c df77d45a51
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 7 20:05:29 2021 +0100
+
+    Merge remote-tracking branch 'remotes/vivier2/tags/trivial-branch-for-6.1-pull-request' into staging
+    
+    Trivial branch pull request 20210607
+    
+    # gpg: Signature made Mon 07 Jun 2021 19:56:43 BST
+    # gpg:                using RSA key CD2F75DDC8E3A4DC2E4F5173F30C38BD3F2FBE3C
+    # gpg:                issuer ""laurent@vivier.eu""
+    # gpg: Good signature from ""Laurent Vivier <lvivier@redhat.com>"" [full]
+    # gpg:                 aka ""Laurent Vivier <laurent@vivier.eu>"" [full]
+    # gpg:                 aka ""Laurent Vivier (Red Hat) <lvivier@redhat.com>"" [full]
+    # Primary key fingerprint: CD2F 75DD C8E3 A4DC 2E4F  5173 F30C 38BD 3F2F BE3C
+    
+    * remotes/vivier2/tags/trivial-branch-for-6.1-pull-request:
+      vhost-vdpa: Remove redundant declaration of address_space_memory
+      scripts/oss-fuzz: Fix typo in documentation
+      target/mips: Fix 'Uncoditional' typo
+      target/hppa: Remove unused 'memory.h' header
+      hw/display/macfb: Classify the ""nubus-macfb"" as display device
+      target/nios2: fix page-fit instruction count
+      docs: fix broken reference
+      linux-user/syscall: Constify bitmask_transtbl fcntl/mmap flags_tlb[]
+      misc: Correct relative include path
+      i386/kvm: The value passed to strerror should be positive
+      target/riscv: Do not include 'pmp.h' in user emulation
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",33ba8b0adc
+0,"commit e2d301780953dea5f0065bcfccf261c2bf3f7e98
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Tue May 25 10:25:53 2021 +0200
+
+    gitlab-ci: Split gprof-gcov job
+    
+    This job is hitting the 70min limit, so split it in 2 tasks.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210525082556.4011380-7-f4bug@amsat.org>",e2d3017809
+0,"commit 81c4edc39e550efd639f7730dd94029e04cf7b96
+Author: Alex Bennée <alex.bennee@linaro.org>
+Date:   Thu May 27 17:03:14 2021 +0100
+
+    tests/tcg: add a multiarch signals test to stress test signal delivery
+    
+    This adds a simple signal test that combines the POSIX timer_create
+    with signal delivery across multiple threads. The aim is to provide a
+    bit more of a stress test to flush out signal handling issues for
+    easily than the occasional random crash we sometimes see in linux-test
+    or threadcount.
+    
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210527160319.19834-2-alex.bennee@linaro.org>",81c4edc39e
+0,"commit eeae5466c47ef06e8cc59e2cb114e094e722e389
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Wed Jun 2 19:07:59 2021 +0200
+
+    scripts/oss-fuzz: Fix typo in documentation
+    
+    While we only use stdin, the chardev is named 'stdio'.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Alexander Bulekov <alxndr@bu.edu>
+    Message-Id: <20210602170759.2500248-4-f4bug@amsat.org>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>",eeae5466c4
+0,"commit dd6921894905c8ce0664a77f9dac78408bc3b52d
+Author: Pavel Dovgalyuk <pavel.dovgalyuk@ispras.ru>
+Date:   Tue May 11 11:40:10 2021 +0300
+
+    target/nios2: fix page-fit instruction count
+    
+    This patch fixes calculation of number of the instructions
+    that fit the current page. It prevents creation of the translation
+    blocks that cross the page boundaries. It is required for deterministic
+    exception generation in icount mode.
+    
+    Signed-off-by: Pavel Dovgalyuk <Pavel.Dovgalyuk@ispras.ru>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <162072241046.823357.10485774346114851009.stgit@pasha-ThinkPad-X280>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>",dd69218949
+0,"commit 908a87706ec6214d4a72245c8a0c9d327baf436b
+Merge: 1cbd2d9149 49e987695a
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 4 17:27:29 2021 +0100
+
+    Merge remote-tracking branch 'remotes/bonzini-gitlab/tags/for-upstream' into staging
+    
+    * OpenBSD cleanup (Brad)
+    * fixes for the i386 accel/cpu refactoring (Claudio)
+    * unmap test for emulated SCSI (Kit)
+    * fix for iscsi module (myself)
+    * fix for -readconfig of objects (myself)
+    * fixes for x86 16-bit task switching (myself)
+    * fix for x86 MOV from/to CR8 (Richard)
+    
+    # gpg: Signature made Fri 04 Jun 2021 12:53:32 BST
+    # gpg:                using RSA key F13338574B662389866C7682BFFBD25F78C7AE83
+    # gpg:                issuer ""pbonzini@redhat.com""
+    # gpg: Good signature from ""Paolo Bonzini <bonzini@gnu.org>"" [full]
+    # gpg:                 aka ""Paolo Bonzini <pbonzini@redhat.com>"" [full]
+    # Primary key fingerprint: 46F5 9FBD 57D6 12E7 BFD4  E2F7 7E15 100C CD36 69B1
+    #      Subkey fingerprint: F133 3857 4B66 2389 866C  7682 BFFB D25F 78C7 AE83
+    
+    * remotes/bonzini-gitlab/tags/for-upstream:
+      vl: plug -object back into -readconfig
+      vl: plumb keyval-based options into -readconfig
+      qemu-config: parse configuration files to a QDict
+      i386: run accel_cpu_instance_init as post_init
+      i386: reorder call to cpu_exec_realizefn
+      tests/qtest/virtio-scsi-test: add unmap large LBA with 4k blocks test
+      target/i386: Fix decode of cr8
+      target/i386: tcg: fix switching from 16-bit to 32-bit tasks or vice versa
+      target/i386: tcg: fix loading of registers from 16-bit TSS
+      target/i386: tcg: fix segment register offsets for 16-bit TSS
+      oslib-posix: Remove OpenBSD workaround for fcntl(""/dev/null"", F_SETFL, O_NONBLOCK) failure
+      iscsi: link libm into the module
+      meson: allow optional dependencies for block modules
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",908a87706e
+0,"commit 29c3d213f4ad69688638330728cff1a8769d7415
+Author: Brad Smith <brad@comstyle.com>
+Date:   Thu Apr 1 13:34:00 2021 -0400
+
+    oslib-posix: Remove OpenBSD workaround for fcntl(""/dev/null"", F_SETFL, O_NONBLOCK) failure
+    
+    OpenBSD prior to 6.3 required a workaround to utilize fcntl(F_SETFL) on memory
+    devices.
+    
+    Since modern verions of OpenBSD that are only officialy supported and buildable
+    on do not have this issue I am garbage collecting this workaround.
+    
+    Signed-off-by: Brad Smith <brad@comstyle.com>
+    
+    Message-Id: <YGYECGXQhdamEJgC@humpty.home.comstyle.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",29c3d213f4
+0,"commit 7fa1c63553242ad557c26dafd01e828ff1507c64
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Tue Jun 1 10:00:48 2021 +0200
+
+    iscsi: link libm into the module
+    
+    Depending on the configuration of QEMU, some binaries might not need libm
+    at all.  In that case libiscsi, which uses exp(), will fail to load.
+    Link it in the module explicitly.
+    
+    Reported-by: Yi Sun <yisun@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",7fa1c63553
+0,"commit 453d9c61dd5681159051c6e4d07e7b2633de2e70
+Merge: a97978bcc2 1c86188589
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 3 16:59:46 2021 +0100
+
+    Merge remote-tracking branch 'remotes/pmaydell/tags/pull-target-arm-20210603' into staging
+    
+    target-arm queue:
+     * Some not-yet-enabled preliminaries for M-profile MVE support
+     * Consistently use ""Cortex-Axx"", not ""Cortex Axx"" in docs, comments
+     * docs: Fix installation of man pages with Sphinx 4.x
+     * Mark LDS{MIN,MAX} as signed operations
+     * Fix missing syndrome value for DAIF and PAC check exceptions
+     * Implement BFloat16 extensions
+     * Refactoring of hvf accelerator code in preparation for aarch64 support
+     * Fix some coverity nits in test code
+    
+    # gpg: Signature made Thu 03 Jun 2021 16:58:02 BST
+    # gpg:                using RSA key E1A5C593CD419DE28E8315CF3C2525ED14360CDE
+    # gpg:                issuer ""peter.maydell@linaro.org""
+    # gpg: Good signature from ""Peter Maydell <peter.maydell@linaro.org>"" [ultimate]
+    # gpg:                 aka ""Peter Maydell <pmaydell@gmail.com>"" [ultimate]
+    # gpg:                 aka ""Peter Maydell <pmaydell@chiark.greenend.org.uk>"" [ultimate]
+    # Primary key fingerprint: E1A5 C593 CD41 9DE2 8E83  15CF 3C25 25ED 1436 0CDE
+    
+    * remotes/pmaydell/tags/pull-target-arm-20210603: (45 commits)
+      tests/unit/test-vmstate: Assert that dup() and mkstemp() succeed
+      tests/qtest/tpm-tests: Remove unnecessary NULL checks
+      tests/qtest/pflash-cfi02-test: Avoid potential integer overflow
+      tests/qtest/hd-geo-test: Fix checks on mkstemp() return value
+      tests/qtest/e1000e-test: Check qemu_recv() succeeded
+      tests/qtest/bios-tables-test: Check for dup2() failure
+      hvf: Simplify post reset/init/loadvm hooks
+      hvf: Introduce hvf vcpu struct
+      hvf: Remove hvf-accel-ops.h
+      hvf: Make synchronize functions static
+      hvf: Use cpu_synchronize_state()
+      hvf: Split out common code on vcpu init and destroy
+      hvf: Remove use of hv_uvaddr_t and hv_gpaddr_t
+      hvf: Make hvf_set_phys_mem() static
+      hvf: Move hvf internal definitions into common header
+      hvf: Move cpu functions into common directory
+      hvf: Move vcpu thread functions into common directory
+      hvf: Move assert_hvf_ok() into common directory
+      target/arm: Enable BFloat16 extensions
+      linux-user/aarch64: Enable hwcap bits for bfloat16
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",453d9c61dd
+0,"commit 1c861885894d840235954060050d240259f5340b
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue May 25 14:44:58 2021 +0100
+
+    tests/unit/test-vmstate: Assert that dup() and mkstemp() succeed
+    
+    Coverity complains that we don't check for failures from dup()
+    and mkstemp(); add asserts that these syscalls succeeded.
+    
+    Fixes: Coverity CID 1432516, 1432574
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Stefan Berger <stefanb@linux.ibm.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210525134458.6675-7-peter.maydell@linaro.org",1c86188589
+0,"commit 909e4a0826cde069555d90a9797590c5988d9b7e
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue May 25 14:44:56 2021 +0100
+
+    tests/qtest/pflash-cfi02-test: Avoid potential integer overflow
+    
+    Coverity points out that we calculate a 64-bit value using 32-bit
+    arithmetic; add the cast to force the multiply to be done as 64-bits.
+    (The overflow will never happen with the current test data.)
+    
+    Fixes: Coverity CID 1432320
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Stefan Berger <stefanb@linux.ibm.com>
+    Message-id: 20210525134458.6675-5-peter.maydell@linaro.org",909e4a0826
+0,"commit 2c398ee5e3a4b8db995ec4b211f28a1119bf10ca
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue May 25 14:44:55 2021 +0100
+
+    tests/qtest/hd-geo-test: Fix checks on mkstemp() return value
+    
+    Coverity notices that the checks against mkstemp() failing in
+    create_qcow2_with_mbr() are wrong: mkstemp returns -1 on failure but
+    the check is just ""g_assert(fd)"".  Fix to use ""g_assert(fd >= 0)"",
+    matching the correct check in create_test_img().
+    
+    Fixes: Coverity CID 1432274
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Stefan Berger <stefanb@linux.ibm.com>
+    Message-id: 20210525134458.6675-4-peter.maydell@linaro.org",2c398ee5e3
+0,"commit 380822edb3252962001a47c02facb7c7e977dc7d
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue May 25 14:44:54 2021 +0100
+
+    tests/qtest/e1000e-test: Check qemu_recv() succeeded
+    
+    The e1000e_send_verify() test calls qemu_recv() but doesn't
+    check that the call succeeded, which annoys Coverity. Add
+    an explicit test check for the length of the data.
+    
+    (This is a test check, not a ""we assume this syscall always
+    succeeds"", so we use g_assert_cmpint() rather than g_assert().)
+    
+    Fixes: Coverity CID 1432324
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Stefan Berger <stefanb@linux.ibm.com>
+    Message-id: 20210525134458.6675-3-peter.maydell@linaro.org",380822edb3
+0,"commit 3c65e439b2724cc70af31a87447a0c7292babac5
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue May 25 14:44:53 2021 +0100
+
+    tests/qtest/bios-tables-test: Check for dup2() failure
+    
+    Coverity notes that we don't check for dup2() failing.  Add some
+    assertions so that if it does ever happen we get some indication.
+    (This is similar to how we handle other ""don't expect this syscall to
+    fail"" checks in this test code.)
+    
+    Fixes: Coverity CID 1432346
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Stefan Berger <stefanb@linux.ibm.com>
+    Message-id: 20210525134458.6675-2-peter.maydell@linaro.org",3c65e439b2
+0,"commit 60c8f7265d7eb51dfb38ea6701d10cbe2d7c7a64
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue May 25 15:58:10 2021 -0700
+
+    softfpu: Add float_round_to_odd_inf
+    
+    For Arm BFDOT and BFMMLA, we need a version of round-to-odd
+    that overflows to infinity, instead of the max normal number.
+    
+    Cc: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210525225817.400336-6-richard.henderson@linaro.org
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",60c8f7265d
+0,"commit 9d75d45c0b88c87ac25ee4c65e724447834c1d3b
+Author: Jamie Iles <jamie@nuviainc.com>
+Date:   Wed May 26 13:18:47 2021 +0100
+
+    target/arm: use raise_exception_ra for stack limit exception
+    
+    The sequence cpu_restore_state() + raise_exception() is equivalent to
+    raise_exception_ra(), so use that instead.  (In this case we never
+    cared about the syndrome value, because M-profile doesn't use the
+    syndrome; the old code was just written unnecessarily awkwardly.)
+    
+    Cc: Richard Henderson <richard.henderson@linaro.org>
+    Cc: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Jamie Iles <jamie@nuviainc.com>
+    [PMM: Retain edited version of comment; rewrite commit message]
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",9d75d45c0b
+0,"commit 5bf100c3200bc74b5d7b4e430c3b23e60caf1605
+Author: Jamie Iles <jamie@nuviainc.com>
+Date:   Wed May 26 13:18:46 2021 +0100
+
+    target/arm: use raise_exception_ra for MTE check failure
+    
+    Now that raise_exception_ra restores the state before raising the
+    exception we can use restore_exception_ra to perform the state restore +
+    exception raising without clobbering the syndrome.
+    
+    Cc: Richard Henderson <richard.henderson@linaro.org>
+    Cc: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Jamie Iles <jamie@nuviainc.com>
+    [PMM: Keep the one line of the comment that is still relevant]
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",5bf100c320
+0,"commit 6e0c60a2be30c333b06d3558a62b0f177199cbfb
+Author: Jamie Iles <jamie@nuviainc.com>
+Date:   Wed May 26 13:18:44 2021 +0100
+
+    target/arm: fix missing exception class
+    
+    The DAIF and PAC checks used raise_exception_ra to raise an exception
+    and unwind CPU state but raise_exception_ra is currently designed for
+    handling data aborts as the syndrome is partially precomputed and
+    encoded in the TB and then merged in merge_syn_data_abort when handling
+    the data abort.  Using raise_exception_ra for DAIF and PAC checks
+    results in an empty syndrome being retrieved from data[2] in
+    restore_state_to_opc and setting ESR to 0.  This manifested as:
+    
+      kvm [571]: Unknown exception class: esr: 0x000000 –
+      Unknown/Uncategorized
+    
+    when launching a KVM guest when the host qemu used a CPU supporting
+    EL2+pointer authentication and enabling pointer authentication in the
+    guest.
+    
+    Rework raise_exception_ra such that the state is restored before raising
+    the exception so that the exception is not clobbered by
+    restore_state_to_opc.
+    
+    Fixes: 0d43e1a2d29a (""target/arm: Add PAuth helpers"")
+    Cc: Richard Henderson <richard.henderson@linaro.org>
+    Cc: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Jamie Iles <jamie@nuviainc.com>
+    [PMM: added comment]
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",6e0c60a2be
+0,"commit 8f0a4b6a9b40e18116a2bb6bbcc00feb8119c792
+Author: Matheus Ferst <matheus.ferst@eldorado.org.br>
+Date:   Tue Jun 1 16:35:28 2021 -0300
+
+    target/ppc: Move cmp/cmpi/cmpl/cmpli to decodetree
+    
+    Additionally, REQUIRE_64BIT when L=1 to match what is specified in The
+    Programming Environments Manual:
+    
+    ""For 32-bit implementations, the L field must be cleared, otherwise the
+    instruction form is invalid.""
+    
+    Some CPUs are known to deviate from this specification by ignoring the
+    L bit [1]. The stricter behavior, however, can help users that test
+    software with qemu, making it more likely to detect bugs that would
+    otherwise be silent.
+    
+    If deemed necessary, a future patch can adapt this behavior based on
+    the specific CPU model.
+    
+    [1] The 601 manual is the only one I've found that explicitly states
+    that the L bit is ignored, but we also observe this behavior in a 7447A
+    v1.2.
+    
+    Signed-off-by: Matheus Ferst <matheus.ferst@eldorado.org.br>
+    Message-Id: <20210601193528.2533031-15-matheus.ferst@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    [dwg: Corrected whitespace error]
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>",8f0a4b6a9b
+0,"commit 0a11bb7a35075379dffafb75698dd503eb6f9b9c
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Jun 1 16:35:19 2021 -0300
+
+    target/ppc: Implement PNOP
+    
+    The illegal suffix behavior matches what was observed in a
+    POWER10 DD2.0 machine.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Matheus Ferst <matheus.ferst@eldorado.org.br>
+    Message-Id: <20210601193528.2533031-6-matheus.ferst@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>",0a11bb7a35
+0,"commit b873ed83311d96644b544b10f6869a430660585a
+Author: Daniel Henrique Barboza <danielhb413@gmail.com>
+Date:   Fri May 28 17:16:19 2021 -0300
+
+    ppc/pef.c: initialize cgs->ready in kvmppc_svm_init()
+    
+    QEMU is failing to launch a CGS pSeries guest in a host that has PEF
+    support:
+    
+    qemu-system-ppc64: ../softmmu/vl.c:2585: qemu_machine_creation_done: Assertion `machine->cgs->ready' failed.
+    Aborted
+    
+    This is happening because we're not setting the cgs->ready flag that is
+    asserted in qemu_machine_creation_done() during machine start.
+    
+    cgs->ready is set in s390_pv_kvm_init() and sev_kvm_init(). Let's set it
+    in kvmppc_svm_init() as well.
+    
+    Reported-by: Ram Pai <linuxram@us.ibm.com>
+    Signed-off-by: Daniel Henrique Barboza <danielhb413@gmail.com>
+    Message-Id: <20210528201619.52363-1-danielhb413@gmail.com>
+    Acked-by: Ram Pai <linuxram@us.ibm.com>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>",b873ed8331
+0,"commit ac559ecbea2649819e7b3fdd09f4e0243e0128db
+Author: Nicholas Piggin <npiggin@gmail.com>
+Date:   Wed May 26 19:16:25 2021 +1000
+
+    spapr: Set LPCR to current AIL mode when starting a new CPU
+    
+    TCG does not keep track of AIL mode in a central place, it's based on
+    the current LPCR[AIL] bits. Synchronize the new CPU's LPCR to the
+    current LPCR in rtas_start_cpu(), similarly to the way the ILE bit is
+    synchronized.
+    
+    Open-code the ILE setting as well now that the caller's LPCR is
+    available directly, there is no need for the indirection.
+    
+    Without this, under both TCG and KVM, adding a POWER8/9/10 class CPU
+    with a new core ID after a modern Linux has booted results in the new
+    CPU's LPCR missing the LPCR[AIL]=0b11 setting that the other CPUs have.
+    This can cause crashes and unexpected behaviour.
+    
+    Signed-off-by: Nicholas Piggin <npiggin@gmail.com>
+    Message-Id: <20210526091626.3388262-3-npiggin@gmail.com>
+    Reviewed-by: Cédric Le Goater <clg@kaod.org>
+    Reviewed-by: Greg Kurz <groug@kaod.org>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>",ac559ecbea
+0,"commit 9f9f82dacebbb816c62d730658f14a615c3ea003
+Author: Shivaprasad G Bhat <sbhat@linux.ibm.com>
+Date:   Wed May 26 11:27:15 2021 -0400
+
+    spapr: nvdimm: Fix the persistent-memory root node name in device tree
+    
+    The FDT code is adding the pmem root node by name ""persistent-memory""
+    which should have been ""ibm,persistent-memory"".
+    
+    The linux fetches the device tree nodes by type and it has been working
+    correctly as the type is correct. If someone searches by its intended
+    name it would fail, so fix that.
+    
+    Reported-by: Aneesh Kumar K.V <aneesh.kumar@linux.ibm.com>
+    Signed-off-by: Shivaprasad G Bhat <sbhat@linux.ibm.com>
+    Message-Id: <162204278956.219.9061511386011411578.stgit@cc493db1e665>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>",9f9f82dace
+0,"commit f93c8f148c0f6c2e20c29c54276862ee79a53d02
+Author: Shivaprasad G Bhat <sbhat@linux.ibm.com>
+Date:   Tue May 18 08:03:17 2021 -0400
+
+    spapr: nvdimm: Forward declare and move the definitions
+    
+    The subsequent patches add definitions which tend to get
+    the compilation to cyclic dependency. So, prepare with
+    forward declarations, move the definitions and clean up.
+    
+    Signed-off-by: Shivaprasad G Bhat <sbhat@linux.ibm.com>
+    Message-Id: <162133925415.610.11584121797866216417.stgit@4f1e6f2bd33e>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>",f93c8f148c
+0,"commit ac9ef668321ebb6eb871a0c4dd380fa7d7891b4e
+Author: Mahesh Salgaonkar <mahesh@linux.ibm.com>
+Date:   Fri May 21 13:35:51 2021 +0530
+
+    spapr: Fix EEH capability issue on KVM guest for PCI passthru
+    
+    With upstream kernel, especially after commit 98ba956f6a389
+    (""powerpc/pseries/eeh: Rework device EEH PE determination"") we see that KVM
+    guest isn't able to enable EEH option for PCI pass-through devices anymore.
+    
+    [root@atest-guest ~]# dmesg | grep EEH
+    [    0.032337] EEH: pSeries platform initialized
+    [    0.298207] EEH: No capable adapters found: recovery disabled.
+    [root@atest-guest ~]#
+    
+    So far the linux kernel was assuming pe_config_addr equal to device's
+    config_addr and using it to enable EEH on the PE through ibm,set-eeh-option
+    RTAS call. Which wasn't the correct way as per PAPR. The linux kernel
+    commit 98ba956f6a389 fixed this flow. With that fixed, linux now uses PE
+    config address returned by ibm,get-config-addr-info2 RTAS call to enable
+    EEH option per-PE basis instead of per-device basis. However this has
+    uncovered a bug in qemu where ibm,set-eeh-option is treating PE config
+    address as per-device config address.
+    
+    Hence in qemu guest with recent kernel the ibm,set-eeh-option RTAS call
+    fails with -3 return value indicating that there is no PCI device exist for
+    the specified PE config address. The rtas_ibm_set_eeh_option call uses
+    pci_find_device() to get the PC device that matches specific bus and devfn
+    extracted from PE config address passed as argument. Thus it tries to map
+    the PE config address to a single specific PCI device 'bus->devices[devfn]'
+    which always results into checking device on slot 0 'bus->devices[0]'.
+    This succeeds when there is a pass-through device (vfio-pci) present on
+    slot 0. But in cases where there is no pass-through device present in slot
+    0, but present in non-zero slots, ibm,set-eeh-option call fails to enable
+    the EEH capability.
+    
+    hw/ppc/spapr_pci_vfio.c: spapr_phb_vfio_eeh_set_option()
+       case RTAS_EEH_ENABLE: {
+            PCIHostState *phb;
+            PCIDevice *pdev;
+    
+            /*
+             * The EEH functionality is enabled on basis of PCI device,
+             * instead of PE. We need check the validity of the PCI
+             * device address.
+             */
+            phb = PCI_HOST_BRIDGE(sphb);
+            pdev = pci_find_device(phb->bus,
+                                   (addr >> 16) & 0xFF, (addr >> 8) & 0xFF);
+            if (!pdev || !object_dynamic_cast(OBJECT(pdev), ""vfio-pci"")) {
+                return RTAS_OUT_PARAM_ERROR;
+            }
+    
+    hw/pci/pci.c:pci_find_device()
+    
+    PCIDevice *pci_find_device(PCIBus *bus, int bus_num, uint8_t devfn)
+    {
+        bus = pci_find_bus_nr(bus, bus_num);
+    
+        if (!bus)
+            return NULL;
+    
+        return bus->devices[devfn];
+    }
+    
+    This patch fixes ibm,set-eeh-option to check for presence of any PCI device
+    (vfio-pci) under specified bus and enable the EEH if found. The current
+    code already makes sure that all the devices on that bus are from same
+    iommu group (within same PE) and fail very early if it does not.
+    
+    After this fix guest is able to find EEH capable devices and enable EEH
+    recovery on it.
+    
+    [root@atest-guest ~]# dmesg | grep EEH
+    [    0.048139] EEH: pSeries platform initialized
+    [    0.405115] EEH: Capable adapter found: recovery enabled.
+    [root@atest-guest ~]#
+    
+    Reviewed-by: Daniel Henrique Barboza <danielhb413@gmail.com>
+    Signed-off-by: Mahesh Salgaonkar <mahesh@linux.ibm.com>
+    Message-Id: <162158429107.145117.5843504911924013125.stgit@jupiter>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>",ac9ef66832
+0,"commit 3bf0844f3be77b24cc8f56fc8df9ff199f8324cb
+Author: Greg Kurz <groug@kaod.org>
+Date:   Fri May 21 18:07:35 2021 +0200
+
+    spapr: Don't hijack current_machine->boot_order
+    
+    QEMU 6.0 moved all the -boot variables to the machine. Especially, the
+    removal of the boot_order static changed the handling of '-boot once'
+    from:
+    
+        if (boot_once) {
+            qemu_boot_set(boot_once, &error_fatal);
+            qemu_register_reset(restore_boot_order, g_strdup(boot_order));
+        }
+    
+    to
+    
+        if (current_machine->boot_once) {
+            qemu_boot_set(current_machine->boot_once, &error_fatal);
+            qemu_register_reset(restore_boot_order,
+                                g_strdup(current_machine->boot_order));
+        }
+    
+    This means that we now register as subsequent boot order a copy
+    of current_machine->boot_once that was just set with the previous
+    call to qemu_boot_set(), i.e. we never transition away from the
+    once boot order.
+    
+    It is certainly fragile^Wwrong for the spapr code to hijack a
+    field of the base machine type object like that. The boot order
+    rework simply turned this software boundary violation into an
+    actual bug.
+    
+    Have the spapr code to handle that with its own field in
+    SpaprMachineState. Also kfree() the initial boot device
+    string when ""once"" was used.
+    
+    Fixes: 4b7acd2ac821 (""vl: clean up -boot variables"")
+    Resolves: https://bugzilla.redhat.com/show_bug.cgi?id=1960119
+    Cc: pbonzini@redhat.com
+    Signed-off-by: Greg Kurz <groug@kaod.org>
+    Message-Id: <20210521160735.1901914-1-groug@kaod.org>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>",3bf0844f3b
+0,"commit 8e6dad2028d01b7f9ec76cf3b83457fab57fa1eb
+Merge: 8c345b3e6a b317006a3f
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Wed Jun 2 19:34:03 2021 +0100
+
+    Merge remote-tracking branch 'remotes/kevin/tags/for-upstream' into staging
+    
+    Block layer patches
+    
+    - NBD server: Fix crashes related to switching between AioContexts
+    - file-posix: Workaround for discard/write_zeroes on buggy filesystems
+    - Follow-up fixes for the reopen vs. permission changes
+    - quorum: Fix error handling for flush
+    - block-copy: Refactor copy_range handling
+    - docs: Describe how to use 'null-co' block driver
+    
+    # gpg: Signature made Wed 02 Jun 2021 14:44:15 BST
+    # gpg:                using RSA key DC3DEB159A9AF95D3D7456FE7F09B272C88F2FD6
+    # gpg:                issuer ""kwolf@redhat.com""
+    # gpg: Good signature from ""Kevin Wolf <kwolf@redhat.com>"" [full]
+    # Primary key fingerprint: DC3D EB15 9A9A F95D 3D74  56FE 7F09 B272 C88F 2FD6
+    
+    * remotes/kevin/tags/for-upstream:
+      docs/secure-coding-practices: Describe how to use 'null-co' block driver
+      block-copy: refactor copy_range handling
+      block-copy: fix block_copy_task_entry() progress update
+      nbd/server: Use drained block ops to quiesce the server
+      block-backend: add drained_poll
+      block: improve permission conflict error message
+      block: simplify bdrv_child_user_desc()
+      block/vvfat: inherit child_vvfat_qcow from child_of_bds
+      block: improve bdrv_child_get_parent_desc()
+      block-backend: improve blk_root_get_parent_desc()
+      block: document child argument of bdrv_attach_child_common()
+      block/file-posix: Try other fallbacks after invalid FALLOC_FL_ZERO_RANGE
+      block/file-posix: Fix problem with fallocate(PUNCH_HOLE) on GPFS
+      block: drop BlockBackendRootState::read_only
+      block: drop BlockDriverState::read_only
+      block: consistently use bdrv_is_read_only()
+      block/vvfat: fix vvfat_child_perm crash
+      block/vvfat: child_vvfat_qcow: add .get_parent_aio_context, fix crash
+      qemu-io-cmds: assert that we don't have .perm requested in no-blk case
+      block/quorum: Provide .bdrv_co_flush instead of .bdrv_co_flush_to_disk
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",8e6dad2028
+0,"commit b317006a3f1f04191a7981cef83417cb2477213b
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Tue Jun 1 18:25:48 2021 +0200
+
+    docs/secure-coding-practices: Describe how to use 'null-co' block driver
+    
+    Document that security reports must use 'null-co,read-zeroes=on'
+    because otherwise the memory is left uninitialized (which is an
+    on-purpose performance feature).
+    
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210601162548.2076631-1-philmd@redhat.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>",b317006a3f
+0,"commit 8146b357d0cb3a3f5d500a1536f9f0e1ff3302cc
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Fri May 28 17:16:27 2021 +0300
+
+    block-copy: fix block_copy_task_entry() progress update
+    
+    Don't report successful progress on failure, when call_state->ret is
+    set.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210528141628.44287-2-vsementsov@virtuozzo.com>
+    Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>",8146b357d0
+0,"commit fd6afc501a019682d1b8468b562355a2887087bd
+Author: Sergio Lopez <slp@redhat.com>
+Date:   Wed Jun 2 08:05:52 2021 +0200
+
+    nbd/server: Use drained block ops to quiesce the server
+    
+    Before switching between AioContexts we need to make sure that we're
+    fully quiesced (""nb_requests == 0"" for every client) when entering the
+    drained section.
+    
+    To do this, we set ""quiescing = true"" for every client on
+    "".drained_begin"" to prevent new coroutines from being created, and
+    check if ""nb_requests == 0"" on "".drained_poll"". Finally, once we're
+    exiting the drained section, on "".drained_end"" we set ""quiescing =
+    false"" and call ""nbd_client_receive_next_request()"" to resume the
+    processing of new requests.
+    
+    With these changes, ""blk_aio_attach()"" and ""blk_aio_detach()"" can be
+    reverted to be as simple as they were before f148ae7d36.
+    
+    RHBZ: https://bugzilla.redhat.com/show_bug.cgi?id=1960137
+    Suggested-by: Kevin Wolf <kwolf@redhat.com>
+    Signed-off-by: Sergio Lopez <slp@redhat.com>
+    Message-Id: <20210602060552.17433-3-slp@redhat.com>
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>",fd6afc501a
+0,"commit 30ebb9aa9203b5051c5c4f4e2421803b94e5f2cc
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Tue Jun 1 10:52:18 2021 +0300
+
+    block: improve permission conflict error message
+    
+    Now permissions are updated as follows:
+     1. do graph modifications ignoring permissions
+     2. do permission update
+    
+     (of course, we rollback [1] if [2] fails)
+    
+    So, on stage [2] we can't say which users are ""old"" and which are
+    ""new"" and exist only since [1]. And current error message is a bit
+    outdated. Let's improve it, to make everything clean.
+    
+    While being here, add also a comment and some good assertions.
+    
+    iotests 283, 307, qsd-jobs outputs are updated.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210601075218.79249-7-vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>",30ebb9aa92
+0,"commit 8081f064e404dd524b3c43248b2084dee9d32d7c
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Tue Jun 1 10:52:16 2021 +0300
+
+    block/vvfat: inherit child_vvfat_qcow from child_of_bds
+    
+    Recently we've fixed a crash by adding .get_parent_aio_context handler
+    to child_vvfat_qcow. Now we want it to support .get_parent_desc as
+    well. child_vvfat_qcow wants to implement own .inherit_options, it's
+    not bad. But omitting all other handlers is a bad idea. Let's inherit
+    the class from child_of_bds instead, similar to chain_child_class and
+    detach_by_driver_cb_class in test-bdrv-drain.c.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210601075218.79249-5-vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>",8081f064e4
+0,"commit fa95e9fbab2c19fc07ba82988b1690f8a6ff171b
+Author: Thomas Huth <thuth@redhat.com>
+Date:   Thu May 27 19:20:20 2021 +0200
+
+    block/file-posix: Try other fallbacks after invalid FALLOC_FL_ZERO_RANGE
+    
+    If fallocate(... FALLOC_FL_ZERO_RANGE ...) returns EINVAL, it's likely
+    an indication that the file system is buggy and does not implement
+    unaligned accesses right. We still might be lucky with the other
+    fallback fallocate() calls later in this function, though, so we should
+    not return immediately and try the others first.
+    Since FALLOC_FL_ZERO_RANGE could also return EINVAL if the file descriptor
+    is not a regular file, we ignore this filesystem bug silently, without
+    printing an error message for the user.
+    
+    Signed-off-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210527172020.847617-3-thuth@redhat.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>",fa95e9fbab
+0,"commit 73ebf29729d1a40feaa9f8ab8951b6ee6dbfbede
+Author: Thomas Huth <thuth@redhat.com>
+Date:   Thu May 27 19:20:19 2021 +0200
+
+    block/file-posix: Fix problem with fallocate(PUNCH_HOLE) on GPFS
+    
+    A customer reported that running
+    
+     qemu-img convert -t none -O qcow2 -f qcow2 input.qcow2 output.qcow2
+    
+    fails for them with the following error message when the images are
+    stored on a GPFS file system :
+    
+     qemu-img: error while writing sector 0: Invalid argument
+    
+    After analyzing the strace output, it seems like the problem is in
+    handle_aiocb_write_zeroes(): The call to fallocate(FALLOC_FL_PUNCH_HOLE)
+    returns EINVAL, which can apparently happen if the file system has
+    a different idea of the granularity of the operation. It's arguably
+    a bug in GPFS, since the PUNCH_HOLE mode should not result in EINVAL
+    according to the man-page of fallocate(), but the file system is out
+    there in production and so we have to deal with it. In commit 294682cc3a
+    (""block: workaround for unaligned byte range in fallocate()"") we also
+    already applied the a work-around for the same problem to the earlier
+    fallocate(FALLOC_FL_ZERO_RANGE) call, so do it now similar with the
+    PUNCH_HOLE call. But instead of silently catching and returning
+    -ENOTSUP (which causes the caller to fall back to writing zeroes),
+    let's rather inform the user once about the buggy file system and
+    try the other fallback instead.
+    
+    Signed-off-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210527172020.847617-2-thuth@redhat.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>",73ebf29729
+0,"commit 39df2c6d57b9eaa30d37a34b5a20cbc0474725c0
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Mon May 24 13:12:57 2021 +0300
+
+    block/vvfat: fix vvfat_child_perm crash
+    
+    It's wrong to rely on s->qcow in vvfat_child_perm, as on permission
+    update during bdrv_open_child() call this field is not set yet.
+    
+    Still prior to aa5a04c7db27eea6b36de32f241b155f0d9ce34d, it didn't
+    crash, as bdrv_open_child passed NULL as child to bdrv_child_perm(),
+    and NULL was equal to NULL in assertion (still, it was bad guarantee
+    for child being s->qcow, not backing :).
+    
+    Since aa5a04c7db27eea6b36de32f241b155f0d9ce34d
+    ""add bdrv_attach_child_noperm"" bdrv_refresh_perms called on parent node
+    when attaching child, and new correct child pointer is passed to
+    .bdrv_child_perm. Still, s->qcow is NULL at the moment. Let's rely only
+    on role instead.
+    
+    Without that fix,
+    ./build/qemu-system-x86_64 -usb -device usb-storage,drive=fat16 \
+        -drive \
+        file=fat:rw:fat-type=16:""<path of a host folder>"",id=fat16,format=raw,if=none
+    
+    crashes:
+    (gdb) bt
+    0  raise () at /lib64/libc.so.6
+    1  abort () at /lib64/libc.so.6
+    2  _nl_load_domain.cold () at /lib64/libc.so.6
+    3  annobin_assert.c_end () at /lib64/libc.so.6
+    4  vvfat_child_perm (bs=0x559186f3d690, c=0x559186f1ed20, role=3,
+                         reopen_queue=0x0, perm=0, shared=31,
+                         nperm=0x7ffe56f28298, nshared=0x7ffe56f282a0) at
+        ../block/vvfat.c:3214
+    5  bdrv_child_perm (bs=0x559186f3d690, child_bs=0x559186f60190,
+                        c=0x559186f1ed20, role=3, reopen_queue=0x0,
+                        parent_perm=0, parent_shared=31,
+                        nperm=0x7ffe56f28298, nshared=0x7ffe56f282a0)
+        at ../block.c:2094
+    6  bdrv_node_refresh_perm (bs=0x559186f3d690, q=0x0,
+                               tran=0x559186f65850, errp=0x7ffe56f28530) at
+        ../block.c:2336
+    7  bdrv_list_refresh_perms (list=0x559186db5b90 = {...}, q=0x0,
+                                tran=0x559186f65850, errp=0x7ffe56f28530)
+        at ../block.c:2358
+    8  bdrv_refresh_perms (bs=0x559186f3d690, errp=0x7ffe56f28530) at
+        ../block.c:2419
+    9  bdrv_attach_child
+        (parent_bs=0x559186f3d690, child_bs=0x559186f60190,
+         child_name=0x559184d83e3d ""write-target"",
+         child_class=0x5591852f3b00 <child_vvfat_qcow>, child_role=3,
+         errp=0x7ffe56f28530) at ../block.c:2959
+    10 bdrv_open_child
+        (filename=0x559186f5cb80 ""/var/tmp/vl.7WYmFU"",
+         options=0x559186f66c20, bdref_key=0x559184d83e3d ""write-target"",
+         parent=0x559186f3d690, child_class=0x5591852f3b00
+         <child_vvfat_qcow>, child_role=3, allow_none=false,
+         errp=0x7ffe56f28530) at ../block.c:3351
+    11 enable_write_target (bs=0x559186f3d690, errp=0x7ffe56f28530) at
+        ../block/vvfat.c:3177
+    12 vvfat_open (bs=0x559186f3d690, options=0x559186f42db0, flags=155650,
+                   errp=0x7ffe56f28530) at ../block/vvfat.c:1236
+    13 bdrv_open_driver (bs=0x559186f3d690, drv=0x5591853d97e0
+                         <bdrv_vvfat>, node_name=0x0,
+                         options=0x559186f42db0, open_flags=155650,
+                         errp=0x7ffe56f28640) at ../block.c:1557
+    14 bdrv_open_common (bs=0x559186f3d690, file=0x0,
+                         options=0x559186f42db0, errp=0x7ffe56f28640) at
+        ../block.c:1833
+    ...
+    
+    (gdb) fr 4
+     #4  vvfat_child_perm (bs=0x559186f3d690, c=0x559186f1ed20, role=3,
+                          reopen_queue=0x0, perm=0, shared=31,
+                          nperm=0x7ffe56f28298, nshared=0x7ffe56f282a0) at
+        ../block/vvfat.c:3214
+    3214        assert(c == s->qcow || (role & BDRV_CHILD_COW));
+    (gdb) p role
+     $1 = 3   # BDRV_CHILD_DATA | BDRV_CHILD_METADATA
+    (gdb) p *c
+     $2 = {bs = 0x559186f60190, name = 0x559186f669d0 ""write-target"", klass
+         = 0x5591852f3b00 <child_vvfat_qcow>, role = 3, opaque =
+             0x559186f3d690, perm = 3, shared_perm = 4, frozen = false,
+             parent_quiesce_counter = 0, next = {le_next = 0x0, le_prev =
+                 0x559186f41818}, next_parent = {le_next = 0x0, le_prev =
+                     0x559186f64320}}
+    (gdb) p s->qcow
+     $3 = (BdrvChild *) 0x0
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210524101257.119377-3-vsementsov@virtuozzo.com>
+    Tested-by: John Arbuckle <programmingkidx@gmail.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>",39df2c6d57
+0,"commit fb62b5889695825ea22f29d4eadb9ac1b8935a71
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Mon May 24 13:12:56 2021 +0300
+
+    block/vvfat: child_vvfat_qcow: add .get_parent_aio_context, fix crash
+    
+    Commit 3ca1f3225727419ba573673b744edac10904276f
+    ""block: BdrvChildClass: add .get_parent_aio_context handler"" introduced
+    new handler and commit 228ca37e12f97788e05bd0c92f89b3e5e4019607
+    ""block: drop ctx argument from bdrv_root_attach_child"" made a generic
+    use of it. But 3ca1f3225727419ba573673b744edac10904276f didn't update
+    child_vvfat_qcow. Fix that.
+    
+    Before that fix the command
+    
+    ./build/qemu-system-x86_64 -usb -device usb-storage,drive=fat16 \
+      -drive file=fat:rw:fat-type=16:""<path of a host folder>"",id=fat16,format=raw,if=none
+    
+    crashes:
+    
+    1  bdrv_child_get_parent_aio_context (c=0x559d62426d20)
+        at ../block.c:1440
+    2  bdrv_attach_child_common
+        (child_bs=0x559d62468190, child_name=0x559d606f9e3d ""write-target"",
+         child_class=0x559d60c58d20 <child_vvfat_qcow>, child_role=3,
+         perm=3, shared_perm=4, opaque=0x559d62445690,
+         child=0x7ffc74c2acc8, tran=0x559d6246ddd0, errp=0x7ffc74c2ae60)
+        at ../block.c:2795
+    3  bdrv_attach_child_noperm
+        (parent_bs=0x559d62445690, child_bs=0x559d62468190,
+         child_name=0x559d606f9e3d ""write-target"",
+         child_class=0x559d60c58d20 <child_vvfat_qcow>, child_role=3,
+         child=0x7ffc74c2acc8, tran=0x559d6246ddd0, errp=0x7ffc74c2ae60) at
+        ../block.c:2855
+    4  bdrv_attach_child
+        (parent_bs=0x559d62445690, child_bs=0x559d62468190,
+         child_name=0x559d606f9e3d ""write-target"",
+         child_class=0x559d60c58d20 <child_vvfat_qcow>, child_role=3,
+         errp=0x7ffc74c2ae60) at ../block.c:2953
+    5  bdrv_open_child
+        (filename=0x559d62464b80 ""/var/tmp/vl.h3TIS4"",
+         options=0x559d6246ec20, bdref_key=0x559d606f9e3d ""write-target"",
+         parent=0x559d62445690, child_class=0x559d60c58d20
+         <child_vvfat_qcow>, child_role=3, allow_none=false,
+         errp=0x7ffc74c2ae60) at ../block.c:3351
+    6  enable_write_target (bs=0x559d62445690, errp=0x7ffc74c2ae60) at
+       ../block/vvfat.c:3176
+    7  vvfat_open (bs=0x559d62445690, options=0x559d6244adb0, flags=155650,
+                   errp=0x7ffc74c2ae60) at ../block/vvfat.c:1236
+    8  bdrv_open_driver (bs=0x559d62445690, drv=0x559d60d4f7e0
+                         <bdrv_vvfat>, node_name=0x0,
+                         options=0x559d6244adb0, open_flags=155650,
+                         errp=0x7ffc74c2af70) at ../block.c:1557
+    9  bdrv_open_common (bs=0x559d62445690, file=0x0,
+                         options=0x559d6244adb0, errp=0x7ffc74c2af70) at
+    ...
+    
+    (gdb) fr 1
+     #1  0x0000559d603ea3bf in bdrv_child_get_parent_aio_context
+         (c=0x559d62426d20) at ../block.c:1440
+    1440        return c->klass->get_parent_aio_context(c);
+     (gdb) p c->klass
+    $1 = (const BdrvChildClass *) 0x559d60c58d20 <child_vvfat_qcow>
+     (gdb) p c->klass->get_parent_aio_context
+    $2 = (AioContext *(*)(BdrvChild *)) 0x0
+    
+    Fixes: 3ca1f3225727419ba573673b744edac10904276f
+    Fixes: 228ca37e12f97788e05bd0c92f89b3e5e4019607
+    Reported-by: John Arbuckle <programmingkidx@gmail.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210524101257.119377-2-vsementsov@virtuozzo.com>
+    Tested-by: John Arbuckle <programmingkidx@gmail.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>",fb62b58896
+0,"commit b4c10fc6fe452c080004a484554275794160d379
+Author: Thomas Huth <thuth@redhat.com>
+Date:   Wed May 19 17:58:59 2021 +0200
+
+    block/ssh: Bump minimum libssh version to 0.8.7
+    
+    It has been over two years since RHEL-8 was released, and thus per the
+    platform build policy, we no longer need to support RHEL-7 as a build
+    target. So from the RHEL-7 perspective, we do not have to support
+    libssh v0.7 anymore now.
+    
+    Let's look at the versions from other distributions and operating
+    systems - according to repology.org, current shipping versions are:
+    
+                 RHEL-8: 0.9.4
+          Debian Buster: 0.8.7
+     openSUSE Leap 15.2: 0.8.7
+       Ubuntu LTS 18.04: 0.8.0 *
+       Ubuntu LTS 20.04: 0.9.3
+                FreeBSD: 0.9.5
+              Fedora 33: 0.9.5
+              Fedora 34: 0.9.5
+                OpenBSD: 0.9.5
+         macOS HomeBrew: 0.9.5
+             HaikuPorts: 0.9.5
+    
+    * The version of libssh in Ubuntu 18.04 claims to be 0.8.0 from the
+    name of the package, but in reality it is a 0.7 patched up as a
+    Frankenstein monster with patches from the 0.8 development branch.
+    This gave us some headaches in the past already and so it never worked
+    with QEMU. All attempts to get it supported have failed in the past,
+    patches for QEMU have never been merged and a request to Ubuntu to
+    fix it in their 18.04 distro has been ignored:
+    
+     https://bugs.launchpad.net/ubuntu/+source/libssh/+bug/1847514
+    
+    Thus we really should ignore the libssh in Ubuntu 18.04 in QEMU, too.
+    
+    Fix it by bumping the minimum libssh version to something that is
+    greater than 0.8.0 now. Debian Buster and openSUSE Leap have the
+    oldest version and so 0.8.7 is the new minimum.
+    
+    Signed-off-by: Thomas Huth <thuth@redhat.com>
+    Tested-by: Richard W.M. Jones <rjones@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Acked-by: Richard W.M. Jones <rjones@redhat.com>
+    Message-Id: <20210519155859.344569-1-thuth@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>",b4c10fc6fe
+0,"commit 6b9c277797879ce41ed20deb6737f4156cc279b3
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:17:15 2021 -0400
+
+    gitlab: add python linters to CI
+    
+    Add a Python container that has just enough juice for us to run the
+    Python code quality analysis tools. Base this container on Fedora,
+    because Fedora has very convenient packaging for testing multiple Python
+    versions.
+    
+    We need python3, pip (for pulling packages), pipenv and virtualenv for
+    creating virtual environments, and tox for running tests. make is needed
+    for running 'make check-tox' and 'make venv-check' targets. Python3.10
+    is needed explicitly because the tox package only pulls in 3.6-3.9, but
+    we wish to test the forthcoming release of Python as well to help
+    predict any problems. Lastly, we need gcc to compile PyPI packages that
+    may not have a binary distribution available.
+    
+    Add two tests:
+    
+    check-python-pipenv uses pipenv to test a frozen, very explicit set of
+    packages against our minimum supported python version, Python 3.6. This
+    test is not allowed to fail. The dependencies this test uses do not
+    change unless python/Pipfile.lock is changed.
+    
+    check-python-tox uses tox to install the latest versions of required
+    python dependencies against a wide array of Python versions from 3.6 to
+    3.9, even including the yet-to-be-released Python 3.10. This test is
+    allowed to fail with a warning.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-32-jsnow@redhat.com
+    [Fix rebase conflict over .gitlab-ci.yml --js]
+    Signed-off-by: John Snow <jsnow@redhat.com>",6b9c277797
+0,"commit dbe75f55669a4e2295b0dae161b8f796e6dbaded
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:17:10 2021 -0400
+
+    python: add devel package requirements to setuptools
+    
+    setuptools doesn't have a formal understanding of development requires,
+    but it has an optional feataures section. Fine; add a ""devel"" feature
+    and add the requirements to it.
+    
+    To avoid duplication, we can modify pipenv to install qemu[devel]
+    instead. This enables us to run invocations like ""pip install -e
+    .[devel]"" and test the package on bleeding-edge packages beyond those
+    specified in Pipfile.lock.
+    
+    Importantly, this also allows us to install the qemu development
+    packages in a non-networked mode: `pip3 install --no-index -e .[devel]`
+    will now fail if the proper development dependencies are not already
+    met. This can be useful for automated build scripts where fetching
+    network packages may be undesirable.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-27-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>",dbe75f5566
+0,"commit 0542a4c95767b2370cb6622efe723bb6197aa04c
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:17:06 2021 -0400
+
+    python: add mypy to pipenv
+    
+    0.730 appears to be about the oldest version that works with the
+    features we want, including nice human readable output (to make sure
+    iotest 297 passes), and type-parameterized Popen generics.
+    
+    0.770, however, supports adding 'strict' to the config file, so require
+    at least 0.770.
+    
+    Now that we are checking a namespace package, we need to tell mypy to
+    allow PEP420 namespaces, so modify the mypy config as part of the move.
+    
+    mypy can now be run from the python root by typing 'mypy -p qemu'.
+    
+    A note on mypy invocation: Running it as ""mypy qemu/"" changes the import
+    path detection mechanisms in mypy slightly, and it will fail. See
+    https://github.com/python/mypy/issues/8584 for a decent entry point with
+    more breadcrumbs on the various behaviors that contribute to this subtle
+    difference.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Tested-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-23-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>",0542a4c957
+0,"commit eae4e442caa087b2ef292a5fb6377236fa8423f2
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:16:57 2021 -0400
+
+    python: add MANIFEST.in
+    
+    When creating a source or binary distribution via 'python3 setup.py
+    <sdist|bdist>', the VERSION and PACKAGE.rst files aren't bundled by
+    default. Create a MANIFEST.in file that instructs the build tools to
+    include these so that installation from these files won't fail.
+    
+    This is required by 'tox', as well as by the tooling needed to upload
+    packages to PyPI.
+    
+    Exclude the 'README.rst' file -- that's intended as a guidebook to our
+    source tree, not a file that needs to be distributed.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-14-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>",eae4e442ca
+0,"commit 63c33f3c286efe4c6474b53ae97915c9d1a6923a
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:16:49 2021 -0400
+
+    python/machine: Disable pylint warning for open() in _pre_launch
+    
+    Shift the open() call later so that the pylint pragma applies *only* to
+    that one open() call. Add a note that suggests why this is safe: the
+    resource is unconditionally cleaned up in _post_shutdown().
+    
+    _post_shutdown is called after failed launches (see launch()), and
+    unconditionally after every call to shutdown(), and therefore also on
+    __exit__.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Wainer dos Santos Moschetta <wainersm@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-6-jsnow@redhat.com
+    Message-id: 20210517184808.3562549-6-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>",63c33f3c28
+0,"commit d8c6a89968906af24ab27acd936013d3f937fc16
+Author: Cleber Rosa <crosa@redhat.com>
+Date:   Mon Apr 12 00:46:39 2021 -0400
+
+    Acceptance Tests: make username/password configurable
+    
+    This makes the username/password used for authentication configurable,
+    because some guest operating systems may have restrictions on accounts
+    to be used for logins, and it just makes it better documented.
+    
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Reviewed-by: Eric Auger <eric.auger@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210412044644.55083-7-crosa@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>",d8c6a89968
+0,"commit 7edee7ad9408696b9b8d40b5842a07a0c4e9b7a2
+Author: Cleber Rosa <crosa@redhat.com>
+Date:   Mon Apr 12 00:46:37 2021 -0400
+
+    Acceptance Tests: move useful ssh methods to base class
+    
+    Both the virtiofs submounts and the linux ssh mips malta tests
+    contains useful methods related to ssh that deserve to be made
+    available to other tests.  Let's move them to an auxiliary, mix-in
+    class that will be used on the base LinuxTest class.
+    
+    The method that helps with setting up an ssh connection will now
+    support both key and password based authentication, defaulting to key
+    based.
+    
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Reviewed-by: Wainer dos Santos Moschetta <wainersm@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Reviewed-by: Eric Auger <eric.auger@redhat.com>
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Message-Id: <20210412044644.55083-5-crosa@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>",7edee7ad94
+0,"commit 061817a7ccd9e1c028153f308c541c299a009ef8
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:18 2021 +0200
+
+    i386: drop FEAT_HYPERV feature leaves
+    
+    Hyper-V feature leaves are weird. We have some of them in
+    feature_word_info[] array but we don't use feature_word_info
+    magic to enable them. Neither do we use feature_dependencies[]
+    mechanism to validate the configuration as it doesn't allign
+    well with Hyper-V's many-to-many dependency chains. Some of
+    the feature leaves hold not only feature bits, but also values.
+    E.g. FEAT_HV_NESTED_EAX contains both features and the supported
+    Enlightened VMCS range.
+    
+    Hyper-V features are already represented in 'struct X86CPU' with
+    uint64_t hyperv_features so duplicating them in env->features adds
+    little (or zero) benefits. THe other half of Hyper-V emulation features
+    is also stored with values in hyperv_vendor_id[], hyperv_limits[],...
+    so env->features[] is already incomplete.
+    
+    Remove Hyper-V feature leaves from env->features[] completely.
+    kvm_hyperv_properties[] is converted to using raw CPUID func/reg
+    pairs for features, this allows us to get rid of hv_cpuid_get_fw()
+    conversion.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-8-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>",061817a7cc
+0,"commit 52848929b70dcf92a68aedcfd90207be81ba3274
+Merge: f9dc72de91 fc967aad40
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Sun May 30 20:10:30 2021 +0100
+
+    Merge remote-tracking branch 'remotes/kraxel/tags/usb-20210528-pull-request' into staging
+    
+    usb: bugfixes for hid and xhci.
+    
+    # gpg: Signature made Fri 28 May 2021 15:21:51 BST
+    # gpg:                using RSA key A0328CFFB93A17A79901FE7D4CB6D8EED3E87138
+    # gpg: Good signature from ""Gerd Hoffmann (work) <kraxel@redhat.com>"" [full]
+    # gpg:                 aka ""Gerd Hoffmann <gerd@kraxel.org>"" [full]
+    # gpg:                 aka ""Gerd Hoffmann (private) <kraxel@gmail.com>"" [full]
+    # Primary key fingerprint: A032 8CFF B93A 17A7 9901  FE7D 4CB6 D8EE D3E8 7138
+    
+    * remotes/kraxel/tags/usb-20210528-pull-request:
+      hw/usb: hcd-xhci-pci: Fix spec violation of IP flag for MSI/MSI-X
+      hw/usb: hcd-xhci-pci: Raise MSI/MSI-X interrupts only when told to
+      hw/input/hid: Add support for keys of jp106 keyboard.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",52848929b7
+0,"commit f9dc72de91d2915b808e82da34bf613afa5cce43
+Merge: a648df3889 bdd53f7392
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Sun May 30 18:33:43 2021 +0100
+
+    Merge remote-tracking branch 'remotes/kraxel/tags/vga-20210527-pull-request' into staging
+    
+    virtio-gpu: add blob resource support.
+    vhost-user-gpu: security fixes.
+    
+    # gpg: Signature made Thu 27 May 2021 15:23:25 BST
+    # gpg:                using RSA key A0328CFFB93A17A79901FE7D4CB6D8EED3E87138
+    # gpg: Good signature from ""Gerd Hoffmann (work) <kraxel@redhat.com>"" [full]
+    # gpg:                 aka ""Gerd Hoffmann <gerd@kraxel.org>"" [full]
+    # gpg:                 aka ""Gerd Hoffmann (private) <kraxel@gmail.com>"" [full]
+    # Primary key fingerprint: A032 8CFF B93A 17A7 9901  FE7D 4CB6 D8EE D3E8 7138
+    
+    * remotes/kraxel/tags/vga-20210527-pull-request: (23 commits)
+      virtio-gpu: Update cursor data using blob
+      virtio-gpu: Add virtio_gpu_set_scanout_blob
+      virtio-gpu: Factor out update scanout
+      virtio-gpu: Add helpers to create and destroy dmabuf objects
+      ui/pixman: Add qemu_pixman_to_drm_format()
+      virtio-gpu: Add virtio_gpu_resource_create_blob
+      virtio-gpu: Add initial definitions for blob resources
+      virtio-gpu: Refactor virtio_gpu_create_mapping_iov
+      virtio-gpu: Refactor virtio_gpu_set_scanout
+      virtio-gpu: Add virtio_gpu_find_check_resource
+      stubs: Add stubs for udmabuf helpers
+      virtio-gpu: Add udmabuf helpers
+      headers: Add udmabuf.h
+      ui: Get the fd associated with udmabuf driver
+      hw/display/qxl: Set pci rom address aligned with page size
+      vhost-user-gpu: abstract vg_cleanup_mapping_iov
+      vhost-user-gpu: fix OOB write in 'virgl_cmd_get_capset' (CVE-2021-3546)
+      vhost-user-gpu: fix memory leak in 'virgl_resource_attach_backing' (CVE-2021-3544)
+      vhost-user-gpu: fix memory leak in 'virgl_cmd_resource_unref' (CVE-2021-3544)
+      vhost-user-gpu: fix memory leak while calling 'vg_resource_unref' (CVE-2021-3544)
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",f9dc72de91
+0,"commit a648df38898ddbad1bd6d71a6680b3788f6528b2
+Merge: 62c0ac5041 4f8a39494a
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri May 28 22:55:56 2021 +0100
+
+    Merge remote-tracking branch 'remotes/jasowang/tags/net-pull-request' into staging
+    
+    # gpg: Signature made Thu 27 May 2021 04:06:17 BST
+    # gpg:                using RSA key EF04965B398D6211
+    # gpg: Good signature from ""Jason Wang (Jason Wang on RedHat) <jasowang@redhat.com>"" [marginal]
+    # gpg: WARNING: This key is not certified with sufficiently trusted signatures!
+    # gpg:          It is not certain that the signature belongs to the owner.
+    # Primary key fingerprint: 215D 46F4 8246 689E C77F  3562 EF04 965B 398D 6211
+    
+    * remotes/jasowang/tags/net-pull-request:
+      tap-bsd: Remove special casing for older OpenBSD releases
+      virtio-net: failover: add missing remove_migration_state_change_notifier()
+      hw/net/imx_fec: return 0xffff when accessing non-existing PHY
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",a648df3889
+0,"commit 62c0ac5041e9130b041adfa13a41583d3c3ddd24
+Merge: 7258034ab4 119065574d
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri May 28 16:25:20 2021 +0100
+
+    Merge remote-tracking branch 'remotes/rth-gitlab/tags/pull-tcg-20210526' into staging
+    
+    Adjust types for some memory access functions.
+    Reduce inclusion of tcg headers.
+    Fix watchpoints vs replay.
+    Fix tcg/aarch64 roli expansion.
+    Introduce SysemuCPUOps structure.
+    
+    # gpg: Signature made Thu 27 May 2021 00:43:54 BST
+    # gpg:                using RSA key 7A481E78868B4DB6A85A05C064DF38E8AF7E215F
+    # gpg:                issuer ""richard.henderson@linaro.org""
+    # gpg: Good signature from ""Richard Henderson <richard.henderson@linaro.org>"" [full]
+    # Primary key fingerprint: 7A48 1E78 868B 4DB6 A85A  05C0 64DF 38E8 AF7E 215F
+    
+    * remotes/rth-gitlab/tags/pull-tcg-20210526: (31 commits)
+      hw/core: Constify TCGCPUOps
+      target/mips: Fold jazz behaviour into mips_cpu_do_transaction_failed
+      cpu: Move CPUClass::get_paging_enabled to SysemuCPUOps
+      cpu: Move CPUClass::get_memory_mapping to SysemuCPUOps
+      cpu: Move CPUClass::get_phys_page_debug to SysemuCPUOps
+      cpu: Move CPUClass::asidx_from_attrs to SysemuCPUOps
+      cpu: Move CPUClass::write_elf* to SysemuCPUOps
+      cpu: Move CPUClass::get_crash_info to SysemuCPUOps
+      cpu: Move CPUClass::virtio_is_big_endian to SysemuCPUOps
+      cpu: Move CPUClass::vmsd to SysemuCPUOps
+      cpu: Introduce SysemuCPUOps structure
+      cpu: Move AVR target vmsd field from CPUClass to DeviceClass
+      cpu: Rename CPUClass vmsd -> legacy_vmsd
+      cpu: Assert DeviceClass::vmsd is NULL on user emulation
+      cpu: Directly use get_memory_mapping() fallback handlers in place
+      cpu: Directly use get_paging_enabled() fallback handlers in place
+      cpu: Directly use cpu_write_elf*() fallback handlers in place
+      cpu: Introduce cpu_virtio_is_big_endian()
+      cpu: Un-inline cpu_get_phys_page_debug and cpu_asidx_from_attrs
+      cpu: Split as cpu-common / cpu-sysemu
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",62c0ac5041
+0,"commit fc967aad408eb4777b099d17ada1f39be5f6fd2e
+Author: Ruimei Yan <ruimei.yan@windriver.com>
+Date:   Fri May 21 10:42:24 2021 +0800
+
+    hw/usb: hcd-xhci-pci: Fix spec violation of IP flag for MSI/MSI-X
+    
+    Per xHCI spec v1.2 chapter 4.17.5 page 296:
+    
+      If MSI or MSI-X interrupts are enabled, Interrupt Pending (IP)
+      shall be cleared automatically when the PCI dword write generated
+      by the interrupt assertion is complete.
+    
+    Currently QEMU does not clear the IP flag in the MSI / MSI-X mode.
+    This causes subsequent spurious interrupt to be delivered to guests.
+    To solve this, we change the xhci intr_raise() hook routine to have
+    a bool return value that is passed to its caller (the xhci core),
+    with true indicating that IP should be self-cleared.
+    
+    Fixes: 62c6ae04cf43 (""xhci: Initial xHCI implementation"")
+    Fixes: 4c47f800631a (""xhci: add msix support"")
+    Signed-off-by: Ruimei Yan <ruimei.yan@windriver.com>
+    [bmeng: move IP clear codes from xhci pci to xhci core]
+    Signed-off-by: Bin Meng <bin.meng@windriver.com>
+    Message-Id: <20210521024224.2277634-2-bmeng.cn@gmail.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>",fc967aad40
+0,"commit f56bf4caf7179c82a50e3f7618f335526fba37d3
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Tue May 25 07:18:39 2021 +0200
+
+    gitlab: Run Avocado tests manually (except mainstream CI)
+    
+    Due to a design problem and misunderstanding between the Avocado
+    framework and QEMU, Avocado is fetching many asset artifacts it
+    shouldn't be fetching, exhausting the jobs CI timeout.
+    
+    Since Avocado artifacts are cached, this is not an issue with old
+    forks, which already have populated the cache and do not need to
+    download new artifacts to run the tests.
+    
+    However this is very confusing to new contributors who start to
+    fork the project and keep having failing CI pipelines.
+    
+    As a temporary kludge, add the QEMU_CI_AVOCADO_TESTING variable
+    to allow old forks to keep running the Avocado tests, while still
+    allowing new forks to use the mainstream set of CI tests.
+    
+    Keep the tests enabled by default on the mainstream namespace
+    which is old enough to have a populated cache, hoping we will
+    keep this cache long enough until the Avocado/QEMU design issue
+    is fixed.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-Id: <20210525082556.4011380-9-f4bug@amsat.org>",f56bf4caf7
+0,"commit f230dba714e7777098ede5758d62b21922e7ec2f
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Tue May 25 06:46:56 2021 +0200
+
+    gitlab: Keep Avocado reports during 1 week
+    
+    Sometimes pull requests are merged during the week-end, triggering
+    a CI pipeline. Currently if such pipeline fails, the Avocado reports
+    are available for 2 days. For the reviewers working on the project
+    during office hours, the reports are already discarded when they
+    want to look at them. Increase this time to 1 week, which should
+    give reviewers enough time.
+    
+    Only keep the reports on failure, which is the only case we'll
+    look at them.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210525082556.4011380-8-f4bug@amsat.org>",f230dba714
+0,"commit dcaf5e8f2fab7426194f3d656cf272accd28518b
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri May 14 13:04:04 2021 +0100
+
+    gitlab: Drop linux user build job for CentOS 7
+    
+    It has been over two years since RHEL-8 was released, and thus per the
+    platform build policy, we no longer need to support RHEL-7 as a build
+    target.
+    
+    The build-user-centos7 job was to detect a failure specific to CentOS
+    7 and there are already other linux user jobs for other platforms.
+    Thus we can drop this job rather than move it to CentOS 8.
+    
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210514120415.1368922-2-berrange@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>",dcaf5e8f2f
+0,"commit c5847f5e4e5e0aa6a3dd40c5d2ec9a70bdc990a5
+Merge: 8385235ba9 e49e49dd73
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu May 27 14:57:00 2021 +0100
+
+    Merge remote-tracking branch 'remotes/dgilbert/tags/pull-migration-20210526a' into staging
+    
+    Virtiofs, migration and hmp pull 2021-05-26
+    
+    Fixes for a loadvm regression from Kevin,
+    some virtiofsd cleanups from Vivek and Mahmoud, and
+    some RDMA migration fixups from Li.
+    
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    
+    # gpg: Signature made Wed 26 May 2021 18:43:30 BST
+    # gpg:                using RSA key 45F5C71B4A0CB7FB977A9FA90516331EBC5BFDE7
+    # gpg: Good signature from ""Dr. David Alan Gilbert (RH2) <dgilbert@redhat.com>"" [full]
+    # Primary key fingerprint: 45F5 C71B 4A0C B7FB 977A  9FA9 0516 331E BC5B FDE7
+    
+    * remotes/dgilbert/tags/pull-migration-20210526a:
+      migration/rdma: source: poll cm_event from return path
+      migration/rdma: destination: create the return patch after the first accept
+      migration/rdma: Fix rdma_addrinfo res leaks
+      migration/rdma: cleanup rdma in rdma_start_incoming_migration error path
+      migration/rdma: Fix cm_event used before being initialized
+      tools/virtiofsd/fuse_opt.c: Replaced a malloc with GLib's g_try_malloc
+      tools/virtiofsd/buffer.c: replaced a calloc call with GLib's g_try_new0
+      virtiofsd: Set req->reply_sent right after sending reply
+      virtiofsd: Check EOF before short read
+      virtiofsd: Simplify skip byte logic
+      virtiofsd: get rid of in_sg_left variable
+      virtiofsd: Use iov_discard_front() to skip bytes
+      virtiofsd: Get rid of unreachable code in read
+      virtiofsd: Check for EINTR in preadv() and retry
+      hmp: Fix loadvm to resume the VM on success instead of failure
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",c5847f5e4e
+0,"commit 25c001a40346342550ba152817ab306b6df0bd77
+Author: Vivek Kasireddy <vivek.kasireddy@intel.com>
+Date:   Wed May 26 16:14:20 2021 -0700
+
+    virtio-gpu: Add virtio_gpu_find_check_resource
+    
+    Move finding the resource and validating its backing storage into one
+    function.
+    
+    Based-on-patch-by: Gerd Hoffmann <kraxel@redhat.com>
+    Cc: Gerd Hoffmann <kraxel@redhat.com>
+    Signed-off-by: Vivek Kasireddy <vivek.kasireddy@intel.com>
+    Message-Id: <20210526231429.1045476-6-vivek.kasireddy@intel.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>",25c001a403
+0,"commit ce7015d9e8669e2a45aba7a95fe6ef8a8f55bfe0
+Author: maobibo <maobibo@loongson.cn>
+Date:   Tue May 18 20:20:48 2021 +0800
+
+    hw/display/qxl: Set pci rom address aligned with page size
+    
+    On some MIPS system, page size is 16K, and qxl vga device can
+    be used for VM in kvm mode. Qxl pci rom size is set 8K fixed,
+    smaller than 16K page size on host system, it fails to be
+    added into memslots in kvm mode where memory_size and GPA
+    are required to align with page size.
+    
+    This patch fixes this issue.
+    
+    Signed-off-by: Bibo Mao <maobibo@loongson.cn>
+    Message-Id: <1621340448-31617-1-git-send-email-maobibo@loongson.cn>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>",ce7015d9e8
+0,"commit 63736af5a6571d9def93769431e0d7e38c6677bf
+Author: Li Qiang <liq3ea@163.com>
+Date:   Sat May 15 20:04:01 2021 -0700
+
+    vhost-user-gpu: fix memory leak in 'virgl_resource_attach_backing' (CVE-2021-3544)
+    
+    If 'virgl_renderer_resource_attach_iov' failed, the 'res_iovs' will
+    be leaked.
+    
+    Fixes: CVE-2021-3544
+    Reported-by: Li Qiang <liq3ea@163.com>
+    virtio-gpu fix: 33243031da (""virtio-gpu-3d: fix memory leak
+    in resource attach backing"")
+    
+    Signed-off-by: Li Qiang <liq3ea@163.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Message-Id: <20210516030403.107723-7-liq3ea@163.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>",63736af5a6
+0,"commit f6091d86ba9ea05f4e111b9b42ee0005c37a6779
+Author: Li Qiang <liq3ea@163.com>
+Date:   Sat May 15 20:04:00 2021 -0700
+
+    vhost-user-gpu: fix memory leak in 'virgl_cmd_resource_unref' (CVE-2021-3544)
+    
+    The 'res->iov' will be leaked if the guest trigger following sequences:
+    
+            virgl_cmd_create_resource_2d
+            virgl_resource_attach_backing
+            virgl_cmd_resource_unref
+    
+    This patch fixes this.
+    
+    Fixes: CVE-2021-3544
+    Reported-by: Li Qiang <liq3ea@163.com>
+    virtio-gpu fix: 5e8e3c4c75 (""virtio-gpu: fix resource leak
+    in virgl_cmd_resource_unref""
+    
+    Signed-off-by: Li Qiang <liq3ea@163.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Message-Id: <20210516030403.107723-6-liq3ea@163.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>",f6091d86ba
+0,"commit b7afebcf9e6ecf3cf9b5a9b9b731ed04bca6aa3e
+Author: Li Qiang <liq3ea@163.com>
+Date:   Sat May 15 20:03:59 2021 -0700
+
+    vhost-user-gpu: fix memory leak while calling 'vg_resource_unref' (CVE-2021-3544)
+    
+    If the guest trigger following sequences, the attach_backing will be leaked:
+    
+            vg_resource_create_2d
+            vg_resource_attach_backing
+            vg_resource_unref
+    
+    This patch fix this by freeing 'res->iov' in vg_resource_destroy.
+    
+    Fixes: CVE-2021-3544
+    Reported-by: Li Qiang <liq3ea@163.com>
+    virtio-gpu fix: 5e8e3c4c75 (""virtio-gpu: fix resource leak
+    in virgl_cmd_resource_unref"")
+    
+    Reviewed-by: Prasad J Pandit <pjp@fedoraproject.org>
+    Signed-off-by: Li Qiang <liq3ea@163.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Message-Id: <20210516030403.107723-5-liq3ea@163.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>",b7afebcf9e
+0,"commit b9f79858a614d95f5de875d0ca31096eaab72c3b
+Author: Li Qiang <liq3ea@163.com>
+Date:   Sat May 15 20:03:58 2021 -0700
+
+    vhost-user-gpu: fix memory leak in vg_resource_attach_backing (CVE-2021-3544)
+    
+    Check whether the 'res' has already been attach_backing to avoid
+    memory leak.
+    
+    Fixes: CVE-2021-3544
+    Reported-by: Li Qiang <liq3ea@163.com>
+    virtio-gpu fix: 204f01b309 (""virtio-gpu: fix memory leak
+    in resource attach backing"")
+    
+    Signed-off-by: Li Qiang <liq3ea@163.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Message-Id: <20210516030403.107723-4-liq3ea@163.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>",b9f79858a6
+0,"commit 86dd8fac2acc366930a5dc08d3fb1b1e816f4e1e
+Author: Li Qiang <liq3ea@163.com>
+Date:   Sat May 15 20:03:57 2021 -0700
+
+    vhost-user-gpu: fix resource leak in 'vg_resource_create_2d' (CVE-2021-3544)
+    
+    Call 'vugbm_buffer_destroy' in error path to avoid resource leak.
+    
+    Fixes: CVE-2021-3544
+    Reported-by: Li Qiang <liq3ea@163.com>
+    Reviewed-by: Prasad J Pandit <pjp@fedoraproject.org>
+    Signed-off-by: Li Qiang <liq3ea@163.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Message-Id: <20210516030403.107723-3-liq3ea@163.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>",86dd8fac2a
+0,"commit 121841b25d72d13f8cad554363138c360f1250ea
+Author: Li Qiang <liq3ea@163.com>
+Date:   Sat May 15 20:03:56 2021 -0700
+
+    vhost-user-gpu: fix memory disclosure in virgl_cmd_get_capset_info (CVE-2021-3545)
+    
+    Otherwise some of the 'resp' will be leaked to guest.
+    
+    Fixes: CVE-2021-3545
+    Reported-by: Li Qiang <liq3ea@163.com>
+    virtio-gpu fix: 42a8dadc74 (""virtio-gpu: fix information leak
+    in getting capset info dispatch"")
+    
+    Signed-off-by: Li Qiang <liq3ea@163.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Message-Id: <20210516030403.107723-2-liq3ea@163.com>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>",121841b25d
+0,"commit 1e157667d7657418b68fadb5cc016c6804e17501
+Author: Laurent Vivier <lvivier@redhat.com>
+Date:   Tue Apr 27 15:51:47 2021 +0200
+
+    virtio-net: failover: add missing remove_migration_state_change_notifier()
+    
+    In the failover case configuration, virtio_net_device_realize() uses an
+    add_migration_state_change_notifier() to add a state notifier, but this
+    notifier is not removed by the unrealize function when the virtio-net
+    card is unplugged.
+    
+    If the card is unplugged and a migration is started, the notifier is
+    called and as it is not valid anymore QEMU crashes.
+    
+    This patch fixes the problem by adding the
+    remove_migration_state_change_notifier() in virtio_net_device_unrealize().
+    
+    The problem can be reproduced with:
+    
+      $ qemu-system-x86_64 -enable-kvm -m 1g -M q35 \
+        -device pcie-root-port,slot=4,id=root1 \
+        -device pcie-root-port,slot=5,id=root2 \
+        -device virtio-net-pci,id=net1,mac=52:54:00:6f:55:cc,failover=on,bus=root1 \
+        -monitor stdio disk.qcow2
+      (qemu) device_del net1
+      (qemu) migrate ""exec:gzip -c > STATEFILE.gz""
+    
+      Thread 1 ""qemu-system-x86"" received signal SIGSEGV, Segmentation fault.
+      0x0000000000000000 in ?? ()
+      (gdb) bt
+      #0  0x0000000000000000 in  ()
+      #1  0x0000555555d726d7 in notifier_list_notify (...)
+          at .../util/notify.c:39
+      #2  0x0000555555842c1a in migrate_fd_connect (...)
+          at .../migration/migration.c:3975
+      #3  0x0000555555950f7d in migration_channel_connect (...)
+          error@entry=0x0) at .../migration/channel.c:107
+      #4  0x0000555555910922 in exec_start_outgoing_migration (...)
+          at .../migration/exec.c:42
+    
+    Reported-by: Igor Mammedov <imammedo@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Michael S. Tsirkin <mst@redhat.com>
+    Signed-off-by: Laurent Vivier <lvivier@redhat.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>",1e157667d7
+0,"commit 3803b6b4273afd50021c39a8e34ca706aeadb684
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Feb 27 12:44:00 2021 -0800
+
+    target/mips: Fold jazz behaviour into mips_cpu_do_transaction_failed
+    
+    Add a flag to MIPSCPUClass in order to avoid needing to
+    replace mips_tcg_ops.do_transaction_failed.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-ID: <20210227232519.222663-2-richard.henderson@linaro.org>",3803b6b427
+0,"commit 83ec01b675a731910b3b2183091302ad31b3482b
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:34 2021 +0200
+
+    cpu: Move CPUClass::get_crash_info to SysemuCPUOps
+    
+    cpu_get_crash_info() is called on GUEST_PANICKED events,
+    which only occur in system emulation.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-18-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>",83ec01b675
+0,"commit df4fd7d5c8a334fc4305b35e92ce44479a7be656
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:22 2021 +0200
+
+    cpu: Split as cpu-common / cpu-sysemu
+    
+    The current cpu.c contains sysemu-specific methods.
+    To avoid building them in user-mode builds, split the
+    current cpu.c as cpu-common.c / cpu-sysemu.c.
+    
+    Start by moving cpu_get_crash_info().
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-6-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>",df4fd7d5c8
+0,"commit 26b1248f66c20f9d7fa384acecfdac03a0c8393d
+Author: Yasuo Kuwahara <kwhr00@gmail.com>
+Date:   Tue May 25 18:46:19 2021 +0900
+
+    tcg/aarch64: Fix tcg_out_rotl
+    
+    The last argument of tcg_out_extr() must be in the range 0-31 if ext==0.
+    Before the fix, when m==0 it becomes 32 and it crashes with an Illegal
+    instruction on Apple Silicon.  After the fix, it will be 0.  If m is in
+    the range 1-31, it is the same as before.
+    
+    Signed-off-by: Yasuo Kuwahara <kwhr00@gmail.com>
+    Message-Id: <CAHfJ0vSXnmnTLmT0kR=a8ACRdw_UsLYOhStzUzgVEHoH8U-7sA@mail.gmail.com>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>",26b1248f66
+0,"commit 57dcb643d79731b08a863444d6591d22552bc2e5
+Author: Pavel Dovgalyuk <pavel.dovgalyuk@ispras.ru>
+Date:   Tue May 11 12:11:43 2021 +0300
+
+    replay: fix watchpoint processing for reverse debugging
+    
+    This patch enables reverse debugging with watchpoints.
+    Reverse continue scans the execution to find the breakpoints
+    and watchpoints that should fire. It uses helper function
+    replay_breakpoint() for that. But this function needs to access
+    icount, which can't be correct in the middle of TB.
+    Therefore, in case of watchpoint, we have to retranslate the block
+    to allow this access.
+    
+    Signed-off-by: Pavel Dovgalyuk <Pavel.Dovgalyuk@ispras.ru>
+    Message-Id: <162072430303.827403.7379783546934958566.stgit@pasha-ThinkPad-X280>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>",57dcb643d7
+0,"commit 8385235ba99c53d1187658f2fc289b953a8090b1
+Merge: 2ab2dad01f 7cf333a372
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Wed May 26 21:05:35 2021 +0100
+
+    Merge remote-tracking branch 'remotes/bonzini-gitlab/tags/for-upstream' into staging
+    
+    * submodule cleanups (Philippe, myself)
+    * tiny step towards a usable preconfig mode (myself)
+    * Kconfig and LOCK_GUARD cleanups (philippe)
+    * new x86 CPUID feature (Yang Zhong)
+    * ""-object qtest"" support (myself)
+    * Dirty ring support for KVM (Peter)
+    * Fixes for 6.0 command line parsing breakage (myself)
+    * Fix for macOS 11.3 SDK (Katsuhiro)
+    
+    # gpg: Signature made Wed 26 May 2021 13:50:12 BST
+    # gpg:                using RSA key F13338574B662389866C7682BFFBD25F78C7AE83
+    # gpg:                issuer ""pbonzini@redhat.com""
+    # gpg: Good signature from ""Paolo Bonzini <bonzini@gnu.org>"" [full]
+    # gpg:                 aka ""Paolo Bonzini <pbonzini@redhat.com>"" [full]
+    # Primary key fingerprint: 46F5 9FBD 57D6 12E7 BFD4  E2F7 7E15 100C CD36 69B1
+    #      Subkey fingerprint: F133 3857 4B66 2389 866C  7682 BFFB D25F 78C7 AE83
+    
+    * remotes/bonzini-gitlab/tags/for-upstream: (28 commits)
+      gitlab-ci: use --meson=git for CFI jobs
+      hw/scsi: Fix sector translation bug in scsi_unmap_complete_noio
+      configure: Avoid error messages about missing *-config-*.h files
+      doc: Add notes about -mon option mode=control argument.
+      qemu-config: load modules when instantiating option groups
+      vl: allow not specifying size in -m when using -M memory-backend
+      replication: move include out of root directory
+      remove qemu-options* from root directory
+      meson: Set implicit_include_directories to false
+      tests/qtest/fuzz: Fix build failure
+      KVM: Dirty ring support
+      KVM: Disable manual dirty log when dirty ring enabled
+      KVM: Add dirty-ring-size property
+      KVM: Cache kvm slot dirty bitmap size
+      KVM: Simplify dirty log sync in kvm_set_phys_mem
+      KVM: Provide helper to sync dirty bitmap from slot to ramblock
+      KVM: Provide helper to get kvm dirty log
+      KVM: Create the KVMSlot dirty bitmap on flag changes
+      KVM: Use a big lock to replace per-kml slots_lock
+      memory: Introduce log_sync_global() to memory listener
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",8385235ba9
+0,"commit f53b450ada3bf7fa1c88fbf4f13b864af7795bd3
+Author: Li Zhijian <lizhijian@cn.fujitsu.com>
+Date:   Tue May 25 16:05:50 2021 +0800
+
+    migration/rdma: Fix rdma_addrinfo res leaks
+    
+    rdma_freeaddrinfo() is the reverse operation of rdma_getaddrinfo()
+    
+    Signed-off-by: Li Zhijian <lizhijian@cn.fujitsu.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Message-Id: <20210525080552.28259-2-lizhijian@cn.fujitsu.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>",f53b450ada
+0,"commit efb208dc9c3f1e881aecff21fb1c7a7b6b869480
+Author: Li Zhijian <lizhijian@cn.fujitsu.com>
+Date:   Wed May 19 14:47:40 2021 +0800
+
+    migration/rdma: Fix cm_event used before being initialized
+    
+    A segmentation fault was triggered when i try to abort a postcopy + rdma
+    migration.
+    
+    since rdma_ack_cm_event releases a uninitialized cm_event in these case.
+    
+    like below:
+    2496     ret = rdma_get_cm_event(rdma->channel, &cm_event);
+    2497     if (ret) {
+    2498         perror(""rdma_get_cm_event after rdma_connect"");
+    2499         ERROR(errp, ""connecting to destination!"");
+    2500         rdma_ack_cm_event(cm_event); <<<< cause segmentation fault
+    2501         goto err_rdma_source_connect;
+    2502     }
+    
+    Refer to the rdma_get_cm_event() code, cm_event will be
+    updated/changed only if rdma_get_cm_event() returns 0. So it's okey to
+    remove the ack in error patch.
+    
+    Signed-off-by: Li Zhijian <lizhijian@cn.fujitsu.com>
+    
+    Message-Id: <20210519064740.10828-1-lizhijian@cn.fujitsu.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>",efb208dc9c
+0,"commit c53cd04e70641fdf9410aac40c617d074047b3e1
+Author: Kevin Wolf <kwolf@redhat.com>
+Date:   Tue May 11 18:31:51 2021 +0200
+
+    hmp: Fix loadvm to resume the VM on success instead of failure
+    
+    Commit f61fe11aa6f broke hmp_loadvm() by adding an incorrect negation
+    when converting from 0/-errno return values to a bool value. The result
+    is that loadvm resumes the VM now if it failed and keeps it stopped if
+    it failed. Fix it to restore the old behaviour and do it the other way
+    around.
+    
+    Fixes: f61fe11aa6f7f8f0ffe4ddaa56a8108f3ab57854
+    Cc: qemu-stable@nongnu.org
+    Reported-by: Yanhui Ma <yama@redhat.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>
+    Message-Id: <20210511163151.45167-1-kwolf@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>",c53cd04e70
+0,"commit 2ab2dad01f6dc3667c0d53d2b1ba46b511031207
+Merge: 0319ad22bd 96376ab154
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Wed May 26 15:27:20 2021 +0100
+
+    Merge remote-tracking branch 'remotes/kraxel/tags/input-20210526-pull-request' into staging
+    
+    input: a bunch of ps2 fixes.
+    
+    # gpg: Signature made Wed 26 May 2021 15:06:12 BST
+    # gpg:                using RSA key A0328CFFB93A17A79901FE7D4CB6D8EED3E87138
+    # gpg: Good signature from ""Gerd Hoffmann (work) <kraxel@redhat.com>"" [full]
+    # gpg:                 aka ""Gerd Hoffmann <gerd@kraxel.org>"" [full]
+    # gpg:                 aka ""Gerd Hoffmann (private) <kraxel@gmail.com>"" [full]
+    # Primary key fingerprint: A032 8CFF B93A 17A7 9901  FE7D 4CB6 D8EE D3E8 7138
+    
+    * remotes/kraxel/tags/input-20210526-pull-request:
+      hw/input/ps2: Use ps2_raise_irq() instead of open coding it
+      pckbd: clear outport_present in outer pre_load()
+      pckbd: remove duplicated keyboard and mouse defines
+      pckbd: correctly disable PS/2 communication
+      pckbd: add function kbd_pending()
+      pckbd: add controller response queue
+      pckbd: add state variable for interrupt source
+      pckbd: PS/2 keyboard throttle
+      pckbd: don't update OBF flags if KBD_STAT_OBF is set
+      pckbd: split out interrupt line changing code
+      ps2: don't deassert irq twice if queue is empty
+      ps2: don't raise an interrupt if queue is full
+      ps2: fix mouse stream corruption
+      hw/input: expand trace info reported for ps2 device
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>",2ab2dad01f
+0,"commit aaad026480e91266be19dad6c5aa3b83579b6b6e
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Thu May 13 18:20:08 2021 +0200
+
+    tests/qtest/fuzz: Fix build failure
+    
+    On Fedora 32, using clang (version 10.0.1-3.fc32) we get:
+    
+      tests/qtest/fuzz/fuzz.c:237:5: error: implicit declaration of function 'qemu_init' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+          qemu_init(result.we_wordc, result.we_wordv, NULL);
+          ^
+    
+    qemu_init() is declared in ""sysemu/sysemu.h"", include this
+    header to fix.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210513162008.3922223-1-philmd@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",aaad026480
+0,"commit a81a592698c5cf3d84486b00c84b7979dfa0a3da
+Author: Peter Xu <peterx@redhat.com>
+Date:   Thu May 6 12:05:48 2021 -0400
+
+    KVM: Disable manual dirty log when dirty ring enabled
+    
+    KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2 is for KVM_CLEAR_DIRTY_LOG, which is only
+    useful for KVM_GET_DIRTY_LOG.  Skip enabling it for kvm dirty ring.
+    
+    More importantly, KVM_DIRTY_LOG_INITIALLY_SET will not wr-protect all the pages
+    initially, which is against how kvm dirty ring is used - there's no way for kvm
+    dirty ring to re-protect a page before it's notified as being written first
+    with a GFN entry in the ring!  So when KVM_DIRTY_LOG_INITIALLY_SET is enabled
+    with dirty ring, we'll see silent data loss after migration.
+    
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Message-Id: <20210506160549.130416-10-peterx@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",a81a592698
+0,"commit 2ea5cb0a47c9dbf78235de30a0d5846a4ab6d995
+Author: Peter Xu <peterx@redhat.com>
+Date:   Thu May 6 12:05:47 2021 -0400
+
+    KVM: Add dirty-ring-size property
+    
+    Add a parameter for dirty gfn count for dirty rings.  If zero, dirty ring is
+    disabled.  Otherwise dirty ring will be enabled with the per-vcpu gfn count as
+    specified.  If dirty ring cannot be enabled due to unsupported kernel or
+    illegal parameter, it'll fallback to dirty logging.
+    
+    By default, dirty ring is not enabled (dirty-gfn-count default to 0).
+    
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Message-Id: <20210506160549.130416-9-peterx@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",2ea5cb0a47
+0,"commit e65e5f50db0a54a69cc62c2118d010244bf133ac
+Author: Peter Xu <peterx@redhat.com>
+Date:   Thu May 6 12:05:43 2021 -0400
+
+    KVM: Provide helper to get kvm dirty log
+    
+    Provide a helper kvm_slot_get_dirty_log() to make the function
+    kvm_physical_sync_dirty_bitmap() clearer.  We can even cache the as_id
+    into KVMSlot when it is created, so that we don't even need to pass it
+    down every time.
+    
+    Since at it, remove return value of kvm_physical_sync_dirty_bitmap()
+    because it should never fail.
+    
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Message-Id: <20210506160549.130416-5-peterx@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",e65e5f50db
+0,"commit cfa1f4bceea02c386bd7408fcc29544ac4679657
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Tue May 11 17:53:50 2021 +0200
+
+    hw/mem/nvdimm: Use Kconfig 'imply' instead of 'depends on'
+    
+    Per the kconfig.rst:
+    
+      A device should be listed [...] ``imply`` if (depending on
+      the QEMU command line) the board may or  may not be started
+      without it.
+    
+    This is the case with the NVDIMM device, so use the 'imply'
+    weak reverse dependency to select the symbol.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210511155354.3069141-2-philmd@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",cfa1f4bcee
+0,"commit 2d652f24cc0064bc314dc9775dbd5ba4d8282f10
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed May 12 09:21:56 2021 +0200
+
+    configure: simplify assignment to GIT_SUBMODULES
+    
+    Do not guard each assignment with a check for --with-git-submodules=ignore.
+    To avoid a confusing ""GIT"" line from the Makefile, guard the git-submodule-update
+    recipe so that it is empty when --with-git-submodules=ignore.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>",2d652f24cc

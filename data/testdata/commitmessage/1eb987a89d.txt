@@ -1,0 +1,12 @@
+commit 1eb987a89d944515b05ccd8b913bee7fd0d547ae
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:23 2021 +0100
+
+    target/arm: Implement MVE VRHADD
+    
+    Implement the MVE VRHADD insn, which performs a rounded halving
+    addition.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-40-peter.maydell@linaro.org

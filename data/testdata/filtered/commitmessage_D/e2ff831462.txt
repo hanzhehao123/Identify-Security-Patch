@@ -1,0 +1,12 @@
+commit e2ff831462d8783d5ba822db971c0d91380cc7c7
+Author: Alex Bennée <alex.bennee@linaro.org>
+Date:   Thu May 27 17:03:19 2021 +0100
+
+    tests/acceptance: tag various arm tests as TCG only
+    
+    We should never be trying to run most of these models under a KVM
+    environment.
+    
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Tested-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210527160319.19834-7-alex.bennee@linaro.org>

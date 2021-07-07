@@ -1,0 +1,20 @@
+commit fd1ce58d901bbe982db8c19ca6e1a63b30643150
+Author: Cleber Rosa <crosa@redhat.com>
+Date:   Mon Apr 12 00:46:43 2021 -0400
+
+    Acceptance Tests: introduce CPU hotplug test
+    
+    Even though there are qtest based tests for hotplugging CPUs (from
+    which this test took some inspiration from), this one adds checks
+    from a Linux guest point of view.
+    
+    It should also serve as an example for tests that follow a similar
+    pattern and need to interact with QEMU (via qmp) and with the Linux
+    guest via SSH.
+    
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Reviewed-by: Eric Auger <eric.auger@redhat.com>
+    Message-Id: <20210412044644.55083-11-crosa@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>

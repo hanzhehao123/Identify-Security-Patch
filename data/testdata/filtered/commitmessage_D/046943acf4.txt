@@ -1,0 +1,10 @@
+commit 046943acf4f1d2aeec6f42f1cd4f37096d0b2c98
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:21 2021 +0200
+
+    cpu: Remove duplicated 'sysemu/hw_accel.h' header
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-5-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

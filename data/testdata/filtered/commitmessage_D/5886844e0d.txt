@@ -1,0 +1,17 @@
+commit 5886844e0d6a242ded952c33a01fc41cfa79d7b8
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Mon Jun 14 21:32:15 2021 +0200
+
+    hw/isa/Kconfig: Fix missing dependency ISA_SUPERIO -> FDC
+    
+    isa_superio_realize() calls isa_fdc_init_drives(), which is defined
+    in hw/block/fdc.c, so ISA_SUPERIO needs to select the FDC symbol.
+    
+    Reported-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Acked-by: Paolo Bonzini <pbonzini@redhat.com>
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210614193220.2007159-2-philmd@redhat.com
+    Fixes: c0ff3795143 ("Introduce a CONFIG_ISA_SUPERIO switch for isa-superio.c")
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>

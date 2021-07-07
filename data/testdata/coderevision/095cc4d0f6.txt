@@ -1,0 +1,34 @@
+diff --git a/block/block-backend.c b/block/block-backend.c
+index 15f1ea4288..5be32c0c42 100644
+--- a/block/block-backend.c
++++ b/block/block-backend.c
+@@ -2386,13 +2386,8 @@ static void blk_root_drained_begin(BdrvChild *child)
+ static bool blk_root_drained_poll(BdrvChild *child)
+ {
+     BlockBackend *blk = child->opaque;
+-    bool busy = false;
+     assert(blk->quiesce_counter);
+-
+-    if (blk->dev_ops && blk->dev_ops->drained_poll) {
+-        busy = blk->dev_ops->drained_poll(blk->dev_opaque);
+-    }
+-    return busy || !!blk->in_flight;
++    return !!blk->in_flight;
+ }
+ 
+ static void blk_root_drained_end(BdrvChild *child, int *drained_end_counter)
+diff --git a/include/sysemu/block-backend.h b/include/sysemu/block-backend.h
+index 5423e3d9c6..880e903293 100644
+--- a/include/sysemu/block-backend.h
++++ b/include/sysemu/block-backend.h
+@@ -66,10 +66,6 @@ typedef struct BlockDevOps {
+      * Runs when the backend's last drain request ends.
+      */
+     void (*drained_end)(void *opaque);
+-    /*
+-     * Is the device still busy?
+-     */
+-    bool (*drained_poll)(void *opaque);
+ } BlockDevOps;
+ 
+ /* This struct is embedded in (the private) BlockBackend struct and contains

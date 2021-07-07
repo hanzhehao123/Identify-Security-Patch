@@ -1,0 +1,15 @@
+commit 07c0f65385b94bbc8efc398ff82edd05953e39c2
+Author: Taylor Simpson <tsimpson@quicinc.com>
+Date:   Tue Jun 1 18:19:41 2021 -0500
+
+    Hexagon (target/hexagon) fix bug in fLSBNEW*
+    
+    Change fLSBNEW/fLSBNEW0/fLSBNEW1 from copy to "x & 1"
+    Remove gen_logical_not function
+    Clean up fLSBNEWNOT to use andi-1 followed by xori-1
+    
+    Test cases added to tests/tcg/hexagon/misc.c
+    
+    Signed-off-by: Taylor Simpson <tsimpson@quicinc.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <1622589584-22571-2-git-send-email-tsimpson@quicinc.com>

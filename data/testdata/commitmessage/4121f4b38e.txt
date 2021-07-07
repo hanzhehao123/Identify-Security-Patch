@@ -1,0 +1,11 @@
+commit 4121f4b38e976641ee66ad52567f6f178a8f2048
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Tue May 18 20:36:36 2021 +0200
+
+    exec/memory: Use correct type size
+    
+    Use uint8_t for (unsigned) byte.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210518183655.1711377-7-philmd@redhat.com>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

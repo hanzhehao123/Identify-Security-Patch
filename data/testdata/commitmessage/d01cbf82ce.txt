@@ -1,0 +1,16 @@
+commit d01cbf82ce748955e622712356d8f56bc762ba9d
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 10 13:43:16 2021 +0200
+
+    util/mmap-alloc: Factor out activating of memory to mmap_activate()
+    
+    We want to activate memory within a reserved memory region, to make it
+    accessible. Let's factor that out.
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Acked-by: Murilo Opsfelder Araujo <muriloo@linux.ibm.com>
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com> for memory backend and machine core
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210510114328.21835-4-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

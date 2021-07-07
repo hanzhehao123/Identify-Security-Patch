@@ -1,0 +1,16 @@
+commit 840cafced12f962e7447de4333a55b67b44030a1
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sun May 2 16:57:27 2021 -0700
+
+    gitlab: Enable cross-i386 builds of TCI
+    
+    We're currently only testing TCI with a 64-bit host -- also test
+    with a 32-bit host.  Enable a selection of softmmu and user-only
+    targets, 32-bit LE, 64-bit LE, 32-bit BE, as there are ifdefs for each.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Acked-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210502235727.1979457-27-richard.henderson@linaro.org>
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>

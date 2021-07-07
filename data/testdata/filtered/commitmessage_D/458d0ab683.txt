@@ -1,0 +1,13 @@
+commit 458d0ab6830f9bcd76af9df4d1d4db8ab646fcef
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue May 25 15:58:15 2021 -0700
+
+    target/arm: Implement bfloat widening fma (indexed)
+    
+    This is BFMLAL{B,T} for both AArch64 AdvSIMD and SVE,
+    and VFMA{B,T}.BF16 for AArch32 NEON.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210525225817.400336-11-richard.henderson@linaro.org
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

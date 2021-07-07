@@ -1,0 +1,24 @@
+diff --git a/tcg/tci/tcg-target.c.inc b/tcg/tci/tcg-target.c.inc
+index 5269a788a3..fa3de99445 100644
+--- a/tcg/tci/tcg-target.c.inc
++++ b/tcg/tci/tcg-target.c.inc
+@@ -820,7 +820,6 @@ static void tcg_target_init(TCGContext *s)
+         MAKE_64BIT_MASK(TCG_REG_R0, 64 / TCG_TARGET_REG_BITS);
+ 
+     s->reserved_regs = 0;
+-    tcg_regset_set_reg(s->reserved_regs, TCG_REG_TMP);
+     tcg_regset_set_reg(s->reserved_regs, TCG_REG_CALL_STACK);
+ 
+     /* The call arguments come first, followed by the temp storage. */
+diff --git a/tcg/tci/tcg-target.h b/tcg/tci/tcg-target.h
+index 80cafb7d18..f2e5cba539 100644
+--- a/tcg/tci/tcg-target.h
++++ b/tcg/tci/tcg-target.h
+@@ -156,7 +156,6 @@ typedef enum {
+     TCG_REG_R14,
+     TCG_REG_R15,
+ 
+-    TCG_REG_TMP = TCG_REG_R13,
+     TCG_AREG0 = TCG_REG_R14,
+     TCG_REG_CALL_STACK = TCG_REG_R15,
+ } TCGReg;

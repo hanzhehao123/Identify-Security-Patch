@@ -1,0 +1,15 @@
+commit 593d3c51481bc40433474bd2b922217e819f1f68
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 17 17:53:04 2021 +0200
+
+    machine: move common smp_parse code to caller
+    
+    Most of smp_parse and pc_smp_parse is guarded by an "if (opts)"
+    conditional, and the rest is common to both function.  Move the
+    conditional and the common code to the caller, machine_smp_parse.
+    
+    Move the replay_add_blocker call after all errors are checked for.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Message-Id: <20210617155308.928754-8-pbonzini@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

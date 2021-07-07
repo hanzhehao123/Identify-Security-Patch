@@ -1,0 +1,12 @@
+diff --git a/target/s390x/gen-features.c b/target/s390x/gen-features.c
+index 219b1f9420..a6ec918e90 100644
+--- a/target/s390x/gen-features.c
++++ b/target/s390x/gen-features.c
+@@ -720,7 +720,6 @@ static uint16_t qemu_MAX[] = {
+     S390_FEAT_INSTRUCTION_EXEC_PROT,
+     S390_FEAT_MISC_INSTRUCTION_EXT2,
+     S390_FEAT_MSA_EXT_8,
+-    S390_FEAT_VECTOR_ENH,
+ };
+ 
+ /****** END FEATURE DEFS ******/

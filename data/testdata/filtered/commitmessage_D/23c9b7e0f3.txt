@@ -1,0 +1,19 @@
+commit 23c9b7e0f3ddc727fc664b616a3d73a24adef9d0
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 16:31:41 2021 -0700
+
+    include/qemu/lockable: Use _Generic instead of QEMU_GENERIC
+    
+    This is both more and less complicated than our expansion
+    using __builtin_choose_expr and __builtin_types_compatible_p.
+    
+    The expansion through QEMU_MAKE_LOCKABLE_ doesn't work because
+    we're not emumerating all of the types within the same _Generic,
+    which results in errors about unhandled cases.  We must also
+    handle void* explicitly, so that the NULL constant can be used.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Tested-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-Id: <20210614233143.1221879-7-richard.henderson@linaro.org>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

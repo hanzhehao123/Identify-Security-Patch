@@ -1,0 +1,15 @@
+commit 456a0e3b3c723d1d599d73920e98474ca9073386
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Wed May 19 15:29:16 2021 +0100
+
+    target/m68k: introduce gen_singlestep_exception() function
+    
+    Introduce a new gen_singlestep_exception() function to be called when generating
+    the EXCP_DEBUG exception in single-step mode rather than calling
+    gen_raise_exception(EXCP_DEBUG) directly. This allows for the single-step
+    exception behaviour for all callers to be managed in a single place.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210519142917.16693-4-mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

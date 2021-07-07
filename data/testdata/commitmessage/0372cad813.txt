@@ -1,0 +1,11 @@
+commit 0372cad813193bab3fb88985129ac59c801ca065
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:18 2021 +0100
+
+    target/arm: Implement MVE VSHL insn
+    
+    Implement the MVE VSHL insn (vector form).
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-35-peter.maydell@linaro.org

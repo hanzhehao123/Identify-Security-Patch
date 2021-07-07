@@ -1,0 +1,12 @@
+commit 387debdb93d2635fb6d62bff38887d17ef4d8117
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:10 2021 +0100
+
+    target/arm: Implement MVE VPST
+    
+    Implement the MVE VPST insn, which sets the predicate mask
+    fields in the VPR to the immediate value encoded in the insn.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-27-peter.maydell@linaro.org

@@ -1,0 +1,13 @@
+commit 34b8ff25db3eff9c8c02371ac976b16389d0fcb7
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sun May 30 09:02:16 2021 +0200
+
+    target/mips: Move TCG trace events to tcg/ sub directory
+    
+    Commit a2b0a27d33e ("target/mips: Move TCG source files under
+    tcg/ sub directory") forgot to move the trace-event file.
+    As it only contains TCG events, move it for consistency.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210617174323.2900831-4-f4bug@amsat.org>

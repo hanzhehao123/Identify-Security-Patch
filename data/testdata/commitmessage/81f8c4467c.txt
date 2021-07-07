@@ -1,0 +1,17 @@
+commit 81f8c4467c1899ef1ba984c70c328ac0c32af10c
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:17:02 2021 -0400
+
+    python: move flake8 config to setup.cfg
+    
+    Update the comment concerning the flake8 exception to match commit
+    42c0dd12, whose commit message stated:
+    
+    A note on the flake8 exception: flake8 will warn on *any* bare except,
+    but pylint's is context-aware and will suppress the warning if you
+    re-raise the exception.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-19-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

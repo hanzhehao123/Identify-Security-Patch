@@ -1,0 +1,29 @@
+commit 9e654e10197f5a014eccd71de5ea633c1b0f4303
+Merge: 271fc190b3 149009bef4
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 28 17:08:34 2021 +0100
+
+    Merge remote-tracking branch 'remotes/vsementsov/tags/pull-jobs-2021-06-25' into staging
+    
+    block: Make block-copy API thread-safe
+    
+    # gpg: Signature made Fri 25 Jun 2021 13:40:24 BST
+    # gpg:                using RSA key 8B9C26CDB2FD147C880E86A1561F24C1F19F79FB
+    # gpg: Good signature from "Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>" [unknown]
+    # gpg: WARNING: This key is not certified with a trusted signature!
+    # gpg:          There is no indication that the signature belongs to the owner.
+    # Primary key fingerprint: 8B9C 26CD B2FD 147C 880E  86A1 561F 24C1 F19F 79FB
+    
+    * remotes/vsementsov/tags/pull-jobs-2021-06-25:
+      block-copy: atomic .cancelled and .finished fields in BlockCopyCallState
+      block-copy: add CoMutex lock
+      block-copy: move progress_set_remaining in block_copy_task_end
+      block-copy: streamline choice of copy_range vs. read/write
+      block-copy: small refactor in block_copy_task_entry and block_copy_common
+      co-shared-resource: protect with a mutex
+      progressmeter: protect with a mutex
+      blockjob: let ratelimit handle a speed of 0
+      block-copy: let ratelimit handle a speed of 0
+      ratelimit: treat zero speed as unlimited
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

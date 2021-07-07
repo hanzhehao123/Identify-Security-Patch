@@ -1,0 +1,13 @@
+commit f68729747da6b770e895fa88fedf7997666bc735
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:45 2021 +0300
+
+    block/nbd: introduce nbd_client_connection_new()
+    
+    This is a step of creating bs-independent nbd connection interface.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Roman Kagan <rvkagan@yandex-team.ru>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-16-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

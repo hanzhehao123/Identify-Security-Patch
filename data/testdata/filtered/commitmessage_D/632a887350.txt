@@ -1,0 +1,18 @@
+commit 632a8873500d27022c584256afc11e57e2418b94
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Tue May 18 09:08:17 2021 -0400
+
+    qemu-config: load modules when instantiating option groups
+    
+    Right now the SPICE module is special cased to be loaded when processing
+    of the -spice command line option.  However, the spice option group
+    can also be brought in via -readconfig, in which case the module is
+    not loaded.
+    
+    Add a generic hook to load modules that provide a QemuOpts group,
+    and use it for the "spice" and "iscsi" groups.
+    
+    Fixes: #194
+    Fixes: https://bugs.launchpad.net/qemu/+bug/1910696
+    Cc: qemu-stable@nongnu.org
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

@@ -1,0 +1,24 @@
+commit bf7a3ee04430dfe426eacf6ee587e2a069ba67ce
+Author: Vivek Goyal <vgoyal@redhat.com>
+Date:   Tue May 18 17:35:36 2021 -0400
+
+    virtiofsd: Simplify skip byte logic
+    
+    We need to skip bytes in two cases.
+    
+    a. Before we start reading into in_sg, we need to skip iov_len bytes
+       in the beginning which typically will have fuse_out_header.
+    
+    b. If preadv() does a short read, then we need to retry preadv() with
+       remainig bytes and skip the bytes preadv() read in short read.
+    
+    For case a, there is no reason that skipping logic be inside the while
+    loop. Move it outside. And only retain logic "b" inside while loop.
+    
+    Also get rid of variable "skip_size". Looks like we can do without it.
+    
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Signed-off-by: Vivek Goyal <vgoyal@redhat.com>
+    Message-Id: <20210518213538.693422-6-vgoyal@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

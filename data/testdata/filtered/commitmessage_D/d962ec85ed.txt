@@ -1,0 +1,12 @@
+commit d962ec85ed188b04f35a28771c69845f09a3867e
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:21 2021 -0400
+
+    scripts/qmp-shell: fix shell history exception handling
+    
+    We want to remove exceptions that are too broad here; we only want to
+    catch IOErrors that get raised as a direct result of the open call.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-15-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

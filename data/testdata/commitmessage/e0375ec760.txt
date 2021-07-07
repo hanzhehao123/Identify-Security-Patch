@@ -1,0 +1,12 @@
+commit e0375ec760d3c49163eb16f272349dc16f13e59c
+Author: Lara Lazier <laramglazier@gmail.com>
+Date:   Wed Jun 16 14:39:07 2021 +0200
+
+    target/i386: Added Intercept CR0 writes check
+    
+    When the selective CR0 write intercept is set, all writes to bits in
+    CR0 other than CR0.TS or CR0.MP cause a VMEXIT.
+    
+    Signed-off-by: Lara Lazier <laramglazier@gmail.com>
+    Message-Id: <20210616123907.17765-5-laramglazier@gmail.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

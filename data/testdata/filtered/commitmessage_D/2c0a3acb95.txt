@@ -1,0 +1,21 @@
+commit 2c0a3acb9570a9e1ffae3c73ef94bc826dc9dd1d
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Tue Jun 1 10:52:15 2021 +0300
+
+    block: improve bdrv_child_get_parent_desc()
+    
+    We have different types of parents: block nodes, block backends and
+    jobs. So, it makes sense to specify type together with name.
+    
+    Next, this handler us used to compose an error message about permission
+    conflict. And permission conflict occurs in a specific place of block
+    graph. We shouldn't report name of parent device (as it refers another
+    place in block graph), but exactly and only the name of the node. So,
+    use bdrv_get_node_name() directly.
+    
+    iotest 283 output is updated.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Alberto Garcia <berto@igalia.com>
+    Message-Id: <20210601075218.79249-4-vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

@@ -1,0 +1,13 @@
+commit 22adb61ff6277637ae49b8dab667143f11bb53ff
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Wed May 26 11:35:16 2021 -0300
+
+    target/ppc: fold ppc_store_ptcr into it's only caller
+    
+    ppc_store_ptcr, defined in mmu_helper.c, was only used by
+    helper_store_ptcr, in misc_helper.c. To avoid possible confusion,
+    the function was folded into the helper.
+    
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Message-Id: <20210526143516.125582-1-bruno.larsen@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

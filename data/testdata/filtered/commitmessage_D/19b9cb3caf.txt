@@ -1,0 +1,14 @@
+commit 19b9cb3cafa72dfbb897da2dd473277d57ea1197
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 3 11:11:16 2021 +0200
+
+    configure: drop unused variables for xts
+    
+    All XTS configuration uses qemu_private_xts.  Drop other variables as
+    they have only ever been used to generate the summary (which has since
+    been moved to meson.build).
+    
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Richard Henderson <richard.henderson@liaro.org>
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

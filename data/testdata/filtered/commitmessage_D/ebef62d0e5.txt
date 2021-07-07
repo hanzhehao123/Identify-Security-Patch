@@ -1,0 +1,14 @@
+commit ebef62d0e527d4a021f94a405fb38db263f3c4a5
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 10 13:43:19 2021 +0200
+
+    softmmu/memory: Pass ram_flags to qemu_ram_alloc() and qemu_ram_alloc_internal()
+    
+    Let's pass ram_flags to qemu_ram_alloc() and qemu_ram_alloc_internal(),
+    preparing for passing additional flags.
+    
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com> for memory backend and machine core
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210510114328.21835-7-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

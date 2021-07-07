@@ -1,0 +1,10 @@
+commit 2b60b62e05893de9698aa4a2c27de244870f0a50
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:38 2021 +0200
+
+    cpu: Move CPUClass::get_memory_mapping to SysemuCPUOps
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-22-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

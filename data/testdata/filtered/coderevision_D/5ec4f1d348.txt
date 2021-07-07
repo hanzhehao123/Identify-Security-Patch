@@ -1,0 +1,150 @@
+diff --git a/hw/alpha/Kconfig b/hw/alpha/Kconfig
+index 9af650c94e..15c59ff264 100644
+--- a/hw/alpha/Kconfig
++++ b/hw/alpha/Kconfig
+@@ -3,7 +3,9 @@ config DP264
+     imply PCI_DEVICES
+     imply TEST_DEVICES
+     imply E1000_PCI
+-    select I82378
++    select I82374
++    select I8254
++    select I8259
+     select IDE_CMD646
+     select MC146818RTC
+     select PCI
+diff --git a/hw/alpha/alpha_sys.h b/hw/alpha/alpha_sys.h
+index 2263e821da..4835b3d5ee 100644
+--- a/hw/alpha/alpha_sys.h
++++ b/hw/alpha/alpha_sys.h
+@@ -10,7 +10,7 @@
+ #include "hw/intc/i8259.h"
+ 
+ 
+-PCIBus *typhoon_init(MemoryRegion *, qemu_irq *, qemu_irq *, AlphaCPU *[4],
++PCIBus *typhoon_init(MemoryRegion *, ISABus **, qemu_irq *, AlphaCPU *[4],
+                      pci_map_irq_fn, uint8_t devfn_min);
+ 
+ /* alpha_pci.c.  */
+diff --git a/hw/alpha/dp264.c b/hw/alpha/dp264.c
+index c78ed96d0e..316f0691cd 100644
+--- a/hw/alpha/dp264.c
++++ b/hw/alpha/dp264.c
+@@ -15,7 +15,9 @@
+ #include "qemu/error-report.h"
+ #include "hw/rtc/mc146818rtc.h"
+ #include "hw/ide/pci.h"
++#include "hw/timer/i8254.h"
+ #include "hw/isa/superio.h"
++#include "hw/dma/i8257.h"
+ #include "net/net.h"
+ #include "qemu/cutils.h"
+ #include "qemu/datadir.h"
+@@ -56,10 +58,8 @@ static void clipper_init(MachineState *machine)
+     AlphaCPU *cpus[4];
+     PCIBus *pci_bus;
+     PCIDevice *pci_dev;
+-    DeviceState *i82378_dev;
+     ISABus *isa_bus;
+     qemu_irq rtc_irq;
+-    qemu_irq isa_irq;
+     long size, i;
+     char *palcode_filename;
+     uint64_t palcode_entry;
+@@ -90,39 +90,14 @@ static void clipper_init(MachineState *machine)
+      * Init the chipset.  Because we're using CLIPPER IRQ mappings,
+      * the minimum PCI device IdSel is 1.
+      */
+-    pci_bus = typhoon_init(machine->ram, &isa_irq, &rtc_irq, cpus,
++    pci_bus = typhoon_init(machine->ram, &isa_bus, &rtc_irq, cpus,
+                            clipper_pci_map_irq, PCI_DEVFN(1, 0));
+ 
+-    /*
+-     * Init the PCI -> ISA bridge.
+-     *
+-     * Technically, PCI-based Alphas shipped with one of three different
+-     * PCI-ISA bridges:
+-     *
+-     * - Intel i82378 SIO
+-     * - Cypress CY82c693UB
+-     * - ALI M1533
+-     *
+-     * (An Intel i82375 PCI-EISA bridge was also used on some models.)
+-     *
+-     * For simplicity, we model an i82378 here, even though it wouldn't
+-     * have been on any Tsunami/Typhoon systems; it's close enough, and
+-     * we don't want to deal with modelling the CY82c693UB (which has
+-     * incompatible edge/level control registers, plus other peripherals
+-     * like IDE and USB) or the M1533 (which also has IDE and USB).
+-     *
+-     * Importantly, we need to provide a PCI device node for it, otherwise
+-     * some operating systems won't notice there's an ISA bus to configure.
+-     */
+-    i82378_dev = DEVICE(pci_create_simple(pci_bus, PCI_DEVFN(7, 0), "i82378"));
+-    isa_bus = ISA_BUS(qdev_get_child_bus(i82378_dev, "isa.0"));
+-
+-    /* Connect the ISA PIC to the Typhoon IRQ used for ISA interrupts. */
+-    qdev_connect_gpio_out(i82378_dev, 0, isa_irq);
+-
+     /* Since we have an SRM-compatible PALcode, use the SRM epoch.  */
+     mc146818_rtc_init(isa_bus, 1900, rtc_irq);
+ 
++    i8254_pit_init(isa_bus, 0x40, 0, NULL);
++
+     /* VGA setup.  Don't bother loading the bios.  */
+     pci_vga_init(pci_bus);
+ 
+@@ -131,6 +106,9 @@ static void clipper_init(MachineState *machine)
+         pci_nic_init_nofail(&nd_table[i], pci_bus, "e1000", NULL);
+     }
+ 
++    /* 2 82C37 (dma) */
++    isa_create_simple(isa_bus, "i82374");
++
+     /* Super I/O */
+     isa_create_simple(isa_bus, TYPE_SMC37C669_SUPERIO);
+ 
+diff --git a/hw/alpha/typhoon.c b/hw/alpha/typhoon.c
+index bd39c8ca86..fa31a2f286 100644
+--- a/hw/alpha/typhoon.c
++++ b/hw/alpha/typhoon.c
+@@ -814,9 +814,9 @@ static void typhoon_alarm_timer(void *opaque)
+     cpu_interrupt(CPU(s->cchip.cpu[cpu]), CPU_INTERRUPT_TIMER);
+ }
+ 
+-PCIBus *typhoon_init(MemoryRegion *ram, qemu_irq *p_isa_irq,
+-                     qemu_irq *p_rtc_irq, AlphaCPU *cpus[4],
+-                     pci_map_irq_fn sys_map_irq, uint8_t devfn_min)
++PCIBus *typhoon_init(MemoryRegion *ram, ISABus **isa_bus, qemu_irq *p_rtc_irq,
++                     AlphaCPU *cpus[4], pci_map_irq_fn sys_map_irq,
++                     uint8_t devfn_min)
+ {
+     MemoryRegion *addr_space = get_system_memory();
+     DeviceState *dev;
+@@ -844,7 +844,6 @@ PCIBus *typhoon_init(MemoryRegion *ram, qemu_irq *p_isa_irq,
+         }
+     }
+ 
+-    *p_isa_irq = qemu_allocate_irq(typhoon_set_isa_irq, s, 0);
+     *p_rtc_irq = qemu_allocate_irq(typhoon_set_timer_irq, s, 0);
+ 
+     /* Main memory region, 0x00.0000.0000.  Real hardware supports 32GB,
+@@ -920,6 +919,18 @@ PCIBus *typhoon_init(MemoryRegion *ram, qemu_irq *p_isa_irq,
+     /* Pchip1 PCI I/O, 0x802.FC00.0000, 32MB.  */
+     /* Pchip1 PCI configuration, 0x802.FE00.0000, 16MB.  */
+ 
++    /* Init the ISA bus.  */
++    /* ??? Technically there should be a cy82c693ub pci-isa bridge.  */
++    {
++        qemu_irq *isa_irqs;
++
++        *isa_bus = isa_bus_new(NULL, get_system_memory(), &s->pchip.reg_io,
++                               &error_abort);
++        isa_irqs = i8259_init(*isa_bus,
++                              qemu_allocate_irq(typhoon_set_isa_irq, s, 0));
++        isa_bus_irqs(*isa_bus, isa_irqs);
++    }
++
+     return b;
+ }
+ 

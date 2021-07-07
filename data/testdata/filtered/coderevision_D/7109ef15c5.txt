@@ -1,0 +1,22 @@
+diff --git a/accel/tcg/tcg-all.c b/accel/tcg/tcg-all.c
+index 30d81ff7f5..f132033999 100644
+--- a/accel/tcg/tcg-all.c
++++ b/accel/tcg/tcg-all.c
+@@ -105,7 +105,7 @@ static void tcg_accel_instance_init(Object *obj)
+ 
+ bool mttcg_enabled;
+ 
+-static int tcg_init_machine(MachineState *ms)
++static int tcg_init(MachineState *ms)
+ {
+     TCGState *s = TCG_STATE(current_accel());
+ 
+@@ -189,7 +189,7 @@ static void tcg_accel_class_init(ObjectClass *oc, void *data)
+ {
+     AccelClass *ac = ACCEL_CLASS(oc);
+     ac->name = "tcg";
+-    ac->init_machine = tcg_init_machine;
++    ac->init_machine = tcg_init;
+     ac->allowed = &tcg_allowed;
+ 
+     object_class_property_add_str(oc, "thread",

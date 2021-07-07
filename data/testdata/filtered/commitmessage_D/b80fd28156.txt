@@ -1,0 +1,14 @@
+commit b80fd28156610f8a1dcc70441da28b96566643bc
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed May 12 09:18:55 2021 +0200
+
+    configure: check for submodules if --with-git-submodules=ignore
+    
+    Right now --with-git-submodules=ignore has a subtle difference from
+    just running without a .git directory, in that it does not check
+    that submodule sources actually exist.  Move the check for
+    ui/keycodemapdb/README so that it happens even if the user
+    specified --with-git-submodules=ignore, with a customized
+    error message that is more suitable for this situation.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

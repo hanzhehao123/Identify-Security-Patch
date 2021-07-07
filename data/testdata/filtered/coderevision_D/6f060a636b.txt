@@ -1,0 +1,118 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 4bbb9b3ae2..161308b67e 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -348,10 +348,3 @@ DEF_HELPER_FLAGS_4(mve_vrmlaldavhuw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+ 
+ DEF_HELPER_FLAGS_4(mve_vrmlsldavhsw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+ DEF_HELPER_FLAGS_4(mve_vrmlsldavhxsw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+-
+-DEF_HELPER_FLAGS_3(mve_vaddvsb, TCG_CALL_NO_WG, i32, env, ptr, i32)
+-DEF_HELPER_FLAGS_3(mve_vaddvub, TCG_CALL_NO_WG, i32, env, ptr, i32)
+-DEF_HELPER_FLAGS_3(mve_vaddvsh, TCG_CALL_NO_WG, i32, env, ptr, i32)
+-DEF_HELPER_FLAGS_3(mve_vaddvuh, TCG_CALL_NO_WG, i32, env, ptr, i32)
+-DEF_HELPER_FLAGS_3(mve_vaddvsw, TCG_CALL_NO_WG, i32, env, ptr, i32)
+-DEF_HELPER_FLAGS_3(mve_vaddvuw, TCG_CALL_NO_WG, i32, env, ptr, i32)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index d9ece7be5d..695097dcca 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -252,8 +252,6 @@ VBRSR            1111 1110 0 . .. ... 1 ... 1 1110 . 110 .... @2scalar
+ VQDMULH_scalar   1110 1110 0 . .. ... 1 ... 0 1110 . 110 .... @2scalar
+ VQRDMULH_scalar  1111 1110 0 . .. ... 1 ... 0 1110 . 110 .... @2scalar
+ 
+-# Vector add across vector
+-VADDV            111 u:1 1110 1111 size:2 01 ... 0 1111 0 0 a:1 0 qm:3 0 rda=%rdalo
+ 
+ # Predicate operations
+ %mask_22_13      22:1 13:3
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index 05552ce7ee..e3cec487e0 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -1134,27 +1134,3 @@ DO_LDAVH(vrmlaldavhuw, 4, uint32_t, false, int128_add, int128_add, int128_make64
+ 
+ DO_LDAVH(vrmlsldavhsw, 4, int32_t, false, int128_add, int128_sub, int128_makes64)
+ DO_LDAVH(vrmlsldavhxsw, 4, int32_t, true, int128_add, int128_sub, int128_makes64)
+-
+-/* Vector add across vector */
+-#define DO_VADDV(OP, ESIZE, TYPE)                               \
+-    uint32_t HELPER(glue(mve_, OP))(CPUARMState *env, void *vm, \
+-                                    uint32_t ra)                \
+-    {                                                           \
+-        uint16_t mask = mve_element_mask(env);                  \
+-        unsigned e;                                             \
+-        TYPE *m = vm;                                           \
+-        for (e = 0; e < 16 / ESIZE; e++, mask >>= ESIZE) {      \
+-            if (mask & 1) {                                     \
+-                ra += m[H##ESIZE(e)];                           \
+-            }                                                   \
+-        }                                                       \
+-        mve_advance_vpt(env);                                   \
+-        return ra;                                              \
+-    }                                                           \
+-
+-DO_VADDV(vaddvsb, 1, uint8_t)
+-DO_VADDV(vaddvsh, 2, uint16_t)
+-DO_VADDV(vaddvsw, 4, uint32_t)
+-DO_VADDV(vaddvub, 1, uint8_t)
+-DO_VADDV(vaddvuh, 2, uint16_t)
+-DO_VADDV(vaddvuw, 4, uint32_t)
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index 04d84e8846..73c15f4133 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -33,7 +33,6 @@ typedef void MVEGenOneOpFn(TCGv_ptr, TCGv_ptr, TCGv_ptr);
+ typedef void MVEGenTwoOpFn(TCGv_ptr, TCGv_ptr, TCGv_ptr, TCGv_ptr);
+ typedef void MVEGenTwoOpScalarFn(TCGv_ptr, TCGv_ptr, TCGv_ptr, TCGv_i32);
+ typedef void MVEGenDualAccOpFn(TCGv_i64, TCGv_ptr, TCGv_ptr, TCGv_ptr, TCGv_i64);
+-typedef void MVEGenVADDVFn(TCGv_i32, TCGv_ptr, TCGv_ptr, TCGv_i32);
+ 
+ /* Return the offset of a Qn register (same semantics as aa32_vfp_qreg()) */
+ static inline long mve_qreg_offset(unsigned reg)
+@@ -744,45 +743,3 @@ static bool trans_VPST(DisasContext *s, arg_VPST *a)
+     mve_update_and_store_eci(s);
+     return true;
+ }
+-
+-static bool trans_VADDV(DisasContext *s, arg_VADDV *a)
+-{
+-    /* VADDV: vector add across vector */
+-    static MVEGenVADDVFn * const fns[4][2] = {
+-        { gen_helper_mve_vaddvsb, gen_helper_mve_vaddvub },
+-        { gen_helper_mve_vaddvsh, gen_helper_mve_vaddvuh },
+-        { gen_helper_mve_vaddvsw, gen_helper_mve_vaddvuw },
+-        { NULL, NULL }
+-    };
+-    TCGv_ptr qm;
+-    TCGv_i32 rda;
+-
+-    if (!dc_isar_feature(aa32_mve, s) ||
+-        a->size == 3) {
+-        return false;
+-    }
+-    if (!mve_eci_check(s) || !vfp_access_check(s)) {
+-        return true;
+-    }
+-
+-    /*
+-     * This insn is subject to beat-wise execution. Partial execution
+-     * of an A=0 (no-accumulate) insn which does not execute the first
+-     * beat must start with the current value of Rda, not zero.
+-     */
+-    if (a->a || mve_skip_first_beat(s)) {
+-        /* Accumulate input from Rda */
+-        rda = load_reg(s, a->rda);
+-    } else {
+-        /* Accumulate starting at zero */
+-        rda = tcg_const_i32(0);
+-    }
+-
+-    qm = mve_qreg_ptr(a->qm);
+-    fns[a->size][a->u](rda, cpu_env, qm, rda);
+-    store_reg(s, a->rda, rda);
+-    tcg_temp_free_ptr(qm);
+-
+-    mve_update_eci(s);
+-    return true;
+-}

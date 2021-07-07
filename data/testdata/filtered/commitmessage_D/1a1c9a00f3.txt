@@ -1,0 +1,16 @@
+commit 1a1c9a00f390e236eab910fdf0ab08df0be08890
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Mon May 31 11:56:29 2021 -0300
+
+    target/ppc: removed all mentions to PPC_DUMP_CPU
+    
+    This feature will no longer be useful as ppc moves to using decodetree
+    for TCG. And building with it enabled is no longer possible, due to
+    changes in opc_handler_t. Since the last commit that mentions it
+    happened in 2014, I think it is safe to remove it.
+    
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Message-Id: <20210531145629.21300-5-bruno.larsen@eldorado.org.br>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

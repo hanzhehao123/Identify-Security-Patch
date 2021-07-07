@@ -1,0 +1,61 @@
+diff --git a/docs/devel/lockcnt.txt b/docs/devel/lockcnt.txt
+index a3fb3bc5d8..2d85462fe3 100644
+--- a/docs/devel/lockcnt.txt
++++ b/docs/devel/lockcnt.txt
+@@ -145,7 +145,7 @@ can also be more efficient in two ways:
+ - on some platforms, one can implement QemuLockCnt to hold the lock
+   and the mutex in a single word, making the fast path no more expensive
+   than simply managing a counter using atomic operations (see
+-  docs/devel/atomics.rst).  This can be very helpful if concurrent access to
++  docs/devel/atomics.txt).  This can be very helpful if concurrent access to
+   the data structure is expected to be rare.
+ 
+ 
+diff --git a/include/qemu/atomic.h b/include/qemu/atomic.h
+index 3ccf84fd46..8f4b3a80fb 100644
+--- a/include/qemu/atomic.h
++++ b/include/qemu/atomic.h
+@@ -8,7 +8,7 @@
+  * This work is licensed under the terms of the GNU GPL, version 2 or later.
+  * See the COPYING file in the top-level directory.
+  *
+- * See docs/devel/atomics.rst for discussion about the guarantees each
++ * See docs/devel/atomics.txt for discussion about the guarantees each
+  * atomic primitive is meant to provide.
+  */
+ 
+@@ -432,7 +432,7 @@
+  * sequentially consistent operations.
+  *
+  * As long as they are used as paired operations they are safe to
+- * use. See docs/devel/atomics.rst for more discussion.
++ * use. See docs/devel/atomics.txt for more discussion.
+  */
+ 
+ #ifndef qatomic_mb_read
+diff --git a/include/qemu/atomic128.h b/include/qemu/atomic128.h
+index adb9a1a260..ad2bcf45b4 100644
+--- a/include/qemu/atomic128.h
++++ b/include/qemu/atomic128.h
+@@ -6,7 +6,7 @@
+  * This work is licensed under the terms of the GNU GPL, version 2 or later.
+  * See the COPYING file in the top-level directory.
+  *
+- * See docs/devel/atomics.rst for discussion about the guarantees each
++ * See docs/devel/atomics.txt for discussion about the guarantees each
+  * atomic primitive is meant to provide.
+  */
+ 
+diff --git a/tcg/README b/tcg/README
+index 8510d823e3..0cf9e2727c 100644
+--- a/tcg/README
++++ b/tcg/README
+@@ -461,7 +461,7 @@ when MTTCG is enabled.
+ The guest translators should generate this opcode for all guest instructions
+ which have ordering side effects.
+ 
+-Please see docs/devel/atomics.rst for more information on memory barriers.
++Please see docs/devel/atomics.txt for more information on memory barriers.
+ 
+ ********* 64-bit guest on 32-bit host support
+ 

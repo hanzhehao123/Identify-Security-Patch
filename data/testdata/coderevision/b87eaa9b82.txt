@@ -1,0 +1,83 @@
+diff --git a/include/exec/memory.h b/include/exec/memory.h
+index e38b7e3dce..c8b9088924 100644
+--- a/include/exec/memory.h
++++ b/include/exec/memory.h
+@@ -616,18 +616,6 @@ struct MemoryListener {
+      */
+     void (*log_sync)(MemoryListener *listener, MemoryRegionSection *section);
+ 
+-    /**
+-     * @log_sync_global:
+-     *
+-     * This is the global version of @log_sync when the listener does
+-     * not have a way to synchronize the log with finer granularity.
+-     * When the listener registers with @log_sync_global defined, then
+-     * its @log_sync must be NULL.  Vice versa.
+-     *
+-     * @listener: The #MemoryListener.
+-     */
+-    void (*log_sync_global)(MemoryListener *listener);
+-
+     /**
+      * @log_clear:
+      *
+diff --git a/softmmu/memory.c b/softmmu/memory.c
+index c19b0be6b1..3bb533c0bc 100644
+--- a/softmmu/memory.c
++++ b/softmmu/memory.c
+@@ -2055,10 +2055,6 @@ void memory_region_set_dirty(MemoryRegion *mr, hwaddr addr,
+                                         memory_region_get_dirty_log_mask(mr));
+ }
+ 
+-/*
+- * If memory region `mr' is NULL, do global sync.  Otherwise, sync
+- * dirty bitmap for the specified memory region.
+- */
+ static void memory_region_sync_dirty_bitmap(MemoryRegion *mr)
+ {
+     MemoryListener *listener;
+@@ -2072,24 +2068,18 @@ static void memory_region_sync_dirty_bitmap(MemoryRegion *mr)
+      * address space once.
+      */
+     QTAILQ_FOREACH(listener, &memory_listeners, link) {
+-        if (listener->log_sync) {
+-            as = listener->address_space;
+-            view = address_space_get_flatview(as);
+-            FOR_EACH_FLAT_RANGE(fr, view) {
+-                if (fr->dirty_log_mask && (!mr || fr->mr == mr)) {
+-                    MemoryRegionSection mrs = section_from_flat_range(fr, view);
+-                    listener->log_sync(listener, &mrs);
+-                }
++        if (!listener->log_sync) {
++            continue;
++        }
++        as = listener->address_space;
++        view = address_space_get_flatview(as);
++        FOR_EACH_FLAT_RANGE(fr, view) {
++            if (fr->dirty_log_mask && (!mr || fr->mr == mr)) {
++                MemoryRegionSection mrs = section_from_flat_range(fr, view);
++                listener->log_sync(listener, &mrs);
+             }
+-            flatview_unref(view);
+-        } else if (listener->log_sync_global) {
+-            /*
+-             * No matter whether MR is specified, what we can do here
+-             * is to do a global sync, because we are not capable to
+-             * sync in a finer granularity.
+-             */
+-            listener->log_sync_global(listener);
+         }
++        flatview_unref(view);
+     }
+ }
+ 
+@@ -2777,9 +2767,6 @@ void memory_listener_register(MemoryListener *listener, AddressSpace *as)
+ {
+     MemoryListener *other = NULL;
+ 
+-    /* Only one of them can be defined for a listener */
+-    assert(!(listener->log_sync && listener->log_sync_global));
+-
+     listener->address_space = as;
+     if (QTAILQ_EMPTY(&memory_listeners)
+         || listener->priority >= QTAILQ_LAST(&memory_listeners)->priority) {

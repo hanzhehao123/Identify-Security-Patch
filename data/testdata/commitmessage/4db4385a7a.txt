@@ -1,0 +1,33 @@
+commit 4db4385a7ab6512e9af08305f5725b26c8a980ee
+Author: Claudio Fontana <cfontana@suse.de>
+Date:   Thu Jun 3 14:30:01 2021 +0200
+
+    i386: run accel_cpu_instance_init as post_init
+    
+    This fixes host and max cpu initialization, by running the accel cpu
+    initialization only after all instance init functions are called for all
+    X86 cpu subclasses.
+    
+    The bug this is fixing is related to the "max" and "host" i386 cpu
+    subclasses, which set cpu->max_features, which is then used at cpu
+    realization time.
+    
+    In order to properly split the accel-specific max features code that
+    needs to be executed at cpu instance initialization time,
+    
+    we cannot call the accel cpu initialization at the end of the x86 base
+    class initialization, or we will have no way to specialize
+    "max features" cpu behavior, overriding the "max" cpu class defaults,
+    and checking for the "max features" flag itself.
+    
+    This patch moves the accel-specific cpu instance initialization to after
+    all x86 cpu instance code has been executed, including subclasses,
+    
+    so that proper initialization of cpu "host" and "max" can be restored.
+    
+    Fixes: f5cc5a5c ("i386: split cpu accelerators from cpu.c,"...)
+    Cc: Eduardo Habkost <ehabkost@redhat.com>
+    Cc: Paolo Bonzini <pbonzini@redhat.com>
+    Signed-off-by: Claudio Fontana <cfontana@suse.de>
+    Message-Id: <20210603123001.17843-3-cfontana@suse.de>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

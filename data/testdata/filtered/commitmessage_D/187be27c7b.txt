@@ -1,0 +1,12 @@
+commit 187be27c7bc66afaf8c90c3b8c302a55c8f9f7d6
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:11 2021 -0400
+
+    scripts/qom-fuse: Add docstrings
+    
+    The methods inherited from fuse don't need docstrings; that's up to
+    fusepy to handle.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210603003719.1321369-12-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

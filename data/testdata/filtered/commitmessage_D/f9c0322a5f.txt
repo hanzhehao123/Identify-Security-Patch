@@ -1,0 +1,19 @@
+commit f9c0322a5ff5dc28be41290a26d0133e86a6ea4c
+Author: Robert Hoo <robert.hu@linux.intel.com>
+Date:   Wed Apr 21 14:23:52 2021 +0800
+
+    i386/cpu_dump: support AVX512 ZMM regs dump
+    
+    Since commit fa4518741e (target-i386: Rename struct XMMReg to ZMMReg),
+    CPUX86State.xmm_regs[] has already been extended to 512bit to support
+    AVX512.
+    Also, other qemu level supports for AVX512 registers are there for
+    years.
+    But in x86_cpu_dump_state(), still only dump XMM registers no matter
+    YMM/ZMM is enabled.
+    This patch is to complement this, let it dump XMM/YMM/ZMM accordingly.
+    
+    Signed-off-by: Robert Hoo <robert.hu@linux.intel.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <1618986232-73826-1-git-send-email-robert.hu@linux.intel.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

@@ -1,0 +1,13 @@
+commit 587adaca55e825412e54cbc9f9f20e86a6d68a72
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:03 2021 -0400
+
+    python/qmp: add parse_address classmethod
+    
+    This takes the place of qmp-shell's __get_address function. It also
+    allows other utilities to share the same parser and syntax for
+    specifying QMP locations.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210603003719.1321369-4-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

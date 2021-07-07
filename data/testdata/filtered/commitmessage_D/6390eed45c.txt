@@ -1,0 +1,12 @@
+commit 6390eed45cab462320ceb4cbfc2cbd1c1552ed00
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 16:09:20 2021 +0100
+
+    target/arm: Add framework for MVE decode
+    
+    Add the framework for decoding MVE insns, with the necessary new
+    files and the meson.build rules, but no actual content yet.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210614151007.4545-11-peter.maydell@linaro.org

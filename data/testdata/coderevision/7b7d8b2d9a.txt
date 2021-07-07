@@ -1,0 +1,435 @@
+diff --git a/include/tcg/tcg.h b/include/tcg/tcg.h
+index 236315b682..064dab383b 100644
+--- a/include/tcg/tcg.h
++++ b/include/tcg/tcg.h
+@@ -52,7 +52,6 @@
+ #define MAX_OPC_PARAM (4 + (MAX_OPC_PARAM_PER_ARG * MAX_OPC_PARAM_ARGS))
+ 
+ #define CPU_TEMP_BUF_NLONGS 128
+-#define TCG_STATIC_FRAME_SIZE  (CPU_TEMP_BUF_NLONGS * sizeof(long))
+ 
+ /* Default target word size to pointer size.  */
+ #ifndef TCG_TARGET_REG_BITS
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index 6472c6a8f4..de1a593ce7 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -147,12 +147,7 @@ static void tcg_out_st(TCGContext *s, TCGType type, TCGReg arg, TCGReg arg1,
+                        intptr_t arg2);
+ static bool tcg_out_sti(TCGContext *s, TCGType type, TCGArg val,
+                         TCGReg base, intptr_t ofs);
+-#ifdef CONFIG_TCG_INTERPRETER
+-static void tcg_out_call(TCGContext *s, const tcg_insn_unit *target,
+-                         ffi_cif *cif);
+-#else
+ static void tcg_out_call(TCGContext *s, const tcg_insn_unit *target);
+-#endif
+ static bool tcg_target_const_match(int64_t val, TCGType type, int ct);
+ #ifdef TCG_TARGET_NEED_LDST_LABELS
+ static int tcg_out_ldst_finalize(TCGContext *s);
+@@ -1559,37 +1554,25 @@ void tcg_gen_callN(void *func, TCGTemp *ret, int nargs, TCGTemp **args)
+     for (i = 0; i < nargs; i++) {
+         int argtype = extract32(typemask, (i + 1) * 3, 3);
+         bool is_64bit = (argtype & ~1) == dh_typecode_i64;
+-        bool want_align = false;
+-
+-#if defined(CONFIG_TCG_INTERPRETER)
+-        /*
+-         * Align all arguments, so that they land in predictable places
+-         * for passing off to ffi_call.
+-         */
+-        want_align = true;
+-#elif defined(TCG_TARGET_CALL_ALIGN_ARGS)
+-        /* Some targets want aligned 64 bit args */
+-        want_align = is_64bit;
+-#endif
+-
+-        if (TCG_TARGET_REG_BITS < 64 && want_align && (real_args & 1)) {
+-            op->args[pi++] = TCG_CALL_DUMMY_ARG;
+-            real_args++;
+-        }
+ 
+         if (TCG_TARGET_REG_BITS < 64 && is_64bit) {
+-            /*
+-             * If stack grows up, then we will be placing successive
+-             * arguments at lower addresses, which means we need to
+-             * reverse the order compared to how we would normally
+-             * treat either big or little-endian.  For those arguments
+-             * that will wind up in registers, this still works for
+-             * HPPA (the only current STACK_GROWSUP target) since the
+-             * argument registers are *also* allocated in decreasing
+-             * order.  If another such target is added, this logic may
+-             * have to get more complicated to differentiate between
+-             * stack arguments and register arguments.
+-             */
++#ifdef TCG_TARGET_CALL_ALIGN_ARGS
++            /* some targets want aligned 64 bit args */
++            if (real_args & 1) {
++                op->args[pi++] = TCG_CALL_DUMMY_ARG;
++                real_args++;
++            }
++#endif
++           /* If stack grows up, then we will be placing successive
++              arguments at lower addresses, which means we need to
++              reverse the order compared to how we would normally
++              treat either big or little-endian.  For those arguments
++              that will wind up in registers, this still works for
++              HPPA (the only current STACK_GROWSUP target) since the
++              argument registers are *also* allocated in decreasing
++              order.  If another such target is added, this logic may
++              have to get more complicated to differentiate between
++              stack arguments and register arguments.  */
+ #if defined(HOST_WORDS_BIGENDIAN) != defined(TCG_TARGET_STACK_GROWSUP)
+             op->args[pi++] = temp_arg(args[i] + 1);
+             op->args[pi++] = temp_arg(args[i]);
+@@ -3853,7 +3836,6 @@ static void tcg_reg_alloc_call(TCGContext *s, TCGOp *op)
+     const int nb_oargs = TCGOP_CALLO(op);
+     const int nb_iargs = TCGOP_CALLI(op);
+     const TCGLifeData arg_life = op->life;
+-    const TCGHelperInfo *info;
+     int flags, nb_regs, i;
+     TCGReg reg;
+     TCGArg arg;
+@@ -3865,8 +3847,7 @@ static void tcg_reg_alloc_call(TCGContext *s, TCGOp *op)
+     TCGRegSet allocated_regs;
+ 
+     func_addr = tcg_call_func(op);
+-    info = tcg_call_info(op);
+-    flags = info->flags;
++    flags = tcg_call_flags(op);
+ 
+     nb_regs = ARRAY_SIZE(tcg_target_call_iarg_regs);
+     if (nb_regs > nb_iargs) {
+@@ -3958,16 +3939,7 @@ static void tcg_reg_alloc_call(TCGContext *s, TCGOp *op)
+         save_globals(s, allocated_regs);
+     }
+ 
+-#ifdef CONFIG_TCG_INTERPRETER
+-    {
+-        gpointer hash = (gpointer)(uintptr_t)info->typemask;
+-        ffi_cif *cif = g_hash_table_lookup(ffi_table, hash);
+-        assert(cif != NULL);
+-        tcg_out_call(s, func_addr, cif);
+-    }
+-#else
+     tcg_out_call(s, func_addr);
+-#endif
+ 
+     /* assign output registers and emit moves if needed */
+     for(i = 0; i < nb_oargs; i++) {
+diff --git a/tcg/tci.c b/tcg/tci.c
+index a3d23514cc..d68c5a4e55 100644
+--- a/tcg/tci.c
++++ b/tcg/tci.c
+@@ -18,26 +18,45 @@
+  */
+ 
+ #include "qemu/osdep.h"
++
++/* Enable TCI assertions only when debugging TCG (and without NDEBUG defined).
++ * Without assertions, the interpreter runs much faster. */
++#if defined(CONFIG_DEBUG_TCG)
++# define tci_assert(cond) assert(cond)
++#else
++# define tci_assert(cond) ((void)(cond))
++#endif
++
+ #include "qemu-common.h"
+ #include "tcg/tcg.h"           /* MAX_OPC_PARAM_IARGS */
+ #include "exec/cpu_ldst.h"
+ #include "tcg/tcg-op.h"
+ #include "qemu/compiler.h"
+-#include <ffi.h>
+ 
+-
+-/*
+- * Enable TCI assertions only when debugging TCG (and without NDEBUG defined).
+- * Without assertions, the interpreter runs much faster.
+- */
+-#if defined(CONFIG_DEBUG_TCG)
+-# define tci_assert(cond) assert(cond)
++#if MAX_OPC_PARAM_IARGS != 6
++# error Fix needed, number of supported input arguments changed!
++#endif
++#if TCG_TARGET_REG_BITS == 32
++typedef uint64_t (*helper_function)(tcg_target_ulong, tcg_target_ulong,
++                                    tcg_target_ulong, tcg_target_ulong,
++                                    tcg_target_ulong, tcg_target_ulong,
++                                    tcg_target_ulong, tcg_target_ulong,
++                                    tcg_target_ulong, tcg_target_ulong,
++                                    tcg_target_ulong, tcg_target_ulong);
+ #else
+-# define tci_assert(cond) ((void)(cond))
++typedef uint64_t (*helper_function)(tcg_target_ulong, tcg_target_ulong,
++                                    tcg_target_ulong, tcg_target_ulong,
++                                    tcg_target_ulong, tcg_target_ulong);
+ #endif
+ 
+ __thread uintptr_t tci_tb_ptr;
+ 
++static tcg_target_ulong tci_read_reg(const tcg_target_ulong *regs, TCGReg index)
++{
++    tci_assert(index < TCG_TARGET_NB_REGS);
++    return regs[index];
++}
++
+ static void
+ tci_write_reg(tcg_target_ulong *regs, TCGReg index, tcg_target_ulong value)
+ {
+@@ -114,7 +133,6 @@ static tcg_target_ulong tci_read_label(const uint8_t **tb_ptr)
+  *   I = immediate (tcg_target_ulong)
+  *   l = label or pointer
+  *   m = immediate (TCGMemOpIdx)
+- *   n = immediate (call return length)
+  *   r = register
+  *   s = signed ldst offset
+  */
+@@ -135,18 +153,6 @@ static void tci_args_l(const uint8_t **tb_ptr, void **l0)
+     check_size(start, tb_ptr);
+ }
+ 
+-static void tci_args_nll(const uint8_t **tb_ptr, uint8_t *n0,
+-                         void **l1, void **l2)
+-{
+-    const uint8_t *start = *tb_ptr;
+-
+-    *n0 = tci_read_b(tb_ptr);
+-    *l1 = (void *)tci_read_label(tb_ptr);
+-    *l2 = (void *)tci_read_label(tb_ptr);
+-
+-    check_size(start, tb_ptr);
+-}
+-
+ static void tci_args_rr(const uint8_t **tb_ptr,
+                         TCGReg *r0, TCGReg *r1)
+ {
+@@ -481,14 +487,11 @@ uintptr_t QEMU_DISABLE_CFI tcg_qemu_tb_exec(CPUArchState *env,
+ {
+     const uint8_t *tb_ptr = v_tb_ptr;
+     tcg_target_ulong regs[TCG_TARGET_NB_REGS];
+-    uint64_t stack[(TCG_STATIC_CALL_ARGS_SIZE + TCG_STATIC_FRAME_SIZE)
+-                   / sizeof(uint64_t)];
+-    void *call_slots[TCG_STATIC_CALL_ARGS_SIZE / sizeof(uint64_t)];
++    long tcg_temps[CPU_TEMP_BUF_NLONGS];
++    uintptr_t sp_value = (uintptr_t)(tcg_temps + CPU_TEMP_BUF_NLONGS);
+ 
+     regs[TCG_AREG0] = (tcg_target_ulong)env;
+-    regs[TCG_REG_CALL_STACK] = (uintptr_t)stack;
+-    /* Other call_slots entries initialized at first use (see below). */
+-    call_slots[0] = NULL;
++    regs[TCG_REG_CALL_STACK] = sp_value;
+     tci_assert(tb_ptr);
+ 
+     for (;;) {
+@@ -506,58 +509,40 @@ uintptr_t QEMU_DISABLE_CFI tcg_qemu_tb_exec(CPUArchState *env,
+ #endif
+         TCGMemOpIdx oi;
+         int32_t ofs;
+-        void *ptr, *cif;
++        void *ptr;
+ 
+         /* Skip opcode and size entry. */
+         tb_ptr += 2;
+ 
+         switch (opc) {
+         case INDEX_op_call:
+-            /*
+-             * Set up the ffi_avalue array once, delayed until now
+-             * because many TB's do not make any calls. In tcg_gen_callN,
+-             * we arranged for every real argument to be "left-aligned"
+-             * in each 64-bit slot.
+-             */
+-            if (unlikely(call_slots[0] == NULL)) {
+-                for (int i = 0; i < ARRAY_SIZE(call_slots); ++i) {
+-                    call_slots[i] = &stack[i];
+-                }
+-            }
+-
+-            tci_args_nll(&tb_ptr, &len, &ptr, &cif);
+-
+-            /* Helper functions may need to access the "return address" */
++            tci_args_l(&tb_ptr, &ptr);
+             tci_tb_ptr = (uintptr_t)tb_ptr;
+-
+-            ffi_call(cif, ptr, stack, call_slots);
+-
+-            /* Any result winds up "left-aligned" in the stack[0] slot. */
+-            switch (len) {
+-            case 0: /* void */
+-                break;
+-            case 1: /* uint32_t */
+-                /*
+-                 * Note that libffi has an odd special case in that it will
+-                 * always widen an integral result to ffi_arg.
+-                 */
+-                if (sizeof(ffi_arg) == 4) {
+-                    regs[TCG_REG_R0] = *(uint32_t *)stack;
+-                    break;
+-                }
+-                /* fall through */
+-            case 2: /* uint64_t */
+-                if (TCG_TARGET_REG_BITS == 32) {
+-                    tci_write_reg64(regs, TCG_REG_R1, TCG_REG_R0, stack[0]);
+-                } else {
+-                    regs[TCG_REG_R0] = stack[0];
+-                }
+-                break;
+-            default:
+-                g_assert_not_reached();
+-            }
++#if TCG_TARGET_REG_BITS == 32
++            tmp64 = ((helper_function)ptr)(tci_read_reg(regs, TCG_REG_R0),
++                                           tci_read_reg(regs, TCG_REG_R1),
++                                           tci_read_reg(regs, TCG_REG_R2),
++                                           tci_read_reg(regs, TCG_REG_R3),
++                                           tci_read_reg(regs, TCG_REG_R4),
++                                           tci_read_reg(regs, TCG_REG_R5),
++                                           tci_read_reg(regs, TCG_REG_R6),
++                                           tci_read_reg(regs, TCG_REG_R7),
++                                           tci_read_reg(regs, TCG_REG_R8),
++                                           tci_read_reg(regs, TCG_REG_R9),
++                                           tci_read_reg(regs, TCG_REG_R10),
++                                           tci_read_reg(regs, TCG_REG_R11));
++            tci_write_reg(regs, TCG_REG_R0, tmp64);
++            tci_write_reg(regs, TCG_REG_R1, tmp64 >> 32);
++#else
++            tmp64 = ((helper_function)ptr)(tci_read_reg(regs, TCG_REG_R0),
++                                           tci_read_reg(regs, TCG_REG_R1),
++                                           tci_read_reg(regs, TCG_REG_R2),
++                                           tci_read_reg(regs, TCG_REG_R3),
++                                           tci_read_reg(regs, TCG_REG_R4),
++                                           tci_read_reg(regs, TCG_REG_R5));
++            tci_write_reg(regs, TCG_REG_R0, tmp64);
++#endif
+             break;
+-
+         case INDEX_op_br:
+             tci_args_l(&tb_ptr, &ptr);
+             tb_ptr = ptr;
+@@ -1134,7 +1119,7 @@ int print_insn_tci(bfd_vma addr, disassemble_info *info)
+     TCGCond c;
+     TCGMemOpIdx oi;
+     uint8_t pos, len;
+-    void *ptr, *cif;
++    void *ptr;
+     const uint8_t *tb_ptr;
+ 
+     status = info->read_memory_func(addr, buf, 2, info);
+@@ -1162,18 +1147,13 @@ int print_insn_tci(bfd_vma addr, disassemble_info *info)
+ 
+     switch (op) {
+     case INDEX_op_br:
++    case INDEX_op_call:
+     case INDEX_op_exit_tb:
+     case INDEX_op_goto_tb:
+         tci_args_l(&tb_ptr, &ptr);
+         info->fprintf_func(info->stream, "%-12s  %p", op_name, ptr);
+         break;
+ 
+-    case INDEX_op_call:
+-        tci_args_nll(&tb_ptr, &len, &ptr, &cif);
+-        info->fprintf_func(info->stream, "%-12s  %d, %p, %p",
+-                           op_name, len, ptr, cif);
+-        break;
+-
+     case INDEX_op_brcond_i32:
+     case INDEX_op_brcond_i64:
+         tci_args_rrcl(&tb_ptr, &r0, &r1, &c, &ptr);
+diff --git a/tcg/tci/tcg-target.c.inc b/tcg/tci/tcg-target.c.inc
+index fa3de99445..d54c01b9de 100644
+--- a/tcg/tci/tcg-target.c.inc
++++ b/tcg/tci/tcg-target.c.inc
+@@ -192,8 +192,23 @@ static const int tcg_target_reg_alloc_order[] = {
+ # error Fix needed, number of supported input arguments changed!
+ #endif
+ 
+-/* No call arguments via registers.  All will be stored on the "stack". */
+-static const int tcg_target_call_iarg_regs[] = { };
++static const int tcg_target_call_iarg_regs[] = {
++    TCG_REG_R0,
++    TCG_REG_R1,
++    TCG_REG_R2,
++    TCG_REG_R3,
++    TCG_REG_R4,
++    TCG_REG_R5,
++#if TCG_TARGET_REG_BITS == 32
++    /* 32 bit hosts need 2 * MAX_OPC_PARAM_IARGS registers. */
++    TCG_REG_R6,
++    TCG_REG_R7,
++    TCG_REG_R8,
++    TCG_REG_R9,
++    TCG_REG_R10,
++    TCG_REG_R11,
++#endif
++};
+ 
+ static const int tcg_target_call_oarg_regs[] = {
+     TCG_REG_R0,
+@@ -277,9 +292,8 @@ static void tci_out_label(TCGContext *s, TCGLabel *label)
+ static void stack_bounds_check(TCGReg base, target_long offset)
+ {
+     if (base == TCG_REG_CALL_STACK) {
+-        tcg_debug_assert(offset >= 0);
+-        tcg_debug_assert(offset < (TCG_STATIC_CALL_ARGS_SIZE +
+-                                   TCG_STATIC_FRAME_SIZE));
++        tcg_debug_assert(offset < 0);
++        tcg_debug_assert(offset >= -(CPU_TEMP_BUF_NLONGS * sizeof(long)));
+     }
+ }
+ 
+@@ -579,25 +593,11 @@ static void tcg_out_movi(TCGContext *s, TCGType type,
+     }
+ }
+ 
+-static void tcg_out_call(TCGContext *s, const tcg_insn_unit *func,
+-                         ffi_cif *cif)
++static inline void tcg_out_call(TCGContext *s, const tcg_insn_unit *arg)
+ {
+     uint8_t *old_code_ptr = s->code_ptr;
+-    uint8_t which;
+-
+-    if (cif->rtype == &ffi_type_void) {
+-        which = 0;
+-    } else if (cif->rtype->size == 4) {
+-        which = 1;
+-    } else {
+-        tcg_debug_assert(cif->rtype->size == 8);
+-        which = 2;
+-    }
+     tcg_out_op_t(s, INDEX_op_call);
+-    tcg_out8(s, which);
+-    tcg_out_i(s, (uintptr_t)func);
+-    tcg_out_i(s, (uintptr_t)cif);
+-
++    tcg_out_i(s, (uintptr_t)arg);
+     old_code_ptr[1] = s->code_ptr - old_code_ptr;
+ }
+ 
+@@ -822,9 +822,11 @@ static void tcg_target_init(TCGContext *s)
+     s->reserved_regs = 0;
+     tcg_regset_set_reg(s->reserved_regs, TCG_REG_CALL_STACK);
+ 
+-    /* The call arguments come first, followed by the temp storage. */
+-    tcg_set_frame(s, TCG_REG_CALL_STACK, TCG_STATIC_CALL_ARGS_SIZE,
+-                  TCG_STATIC_FRAME_SIZE);
++    /* We use negative offsets from "sp" so that we can distinguish
++       stores that might pretend to be call arguments.  */
++    tcg_set_frame(s, TCG_REG_CALL_STACK,
++                  -CPU_TEMP_BUF_NLONGS * sizeof(long),
++                  CPU_TEMP_BUF_NLONGS * sizeof(long));
+ }
+ 
+ /* Generate global QEMU prologue and epilogue code. */
+diff --git a/tcg/tci/tcg-target.h b/tcg/tci/tcg-target.h
+index f2e5cba539..d0b5f3fa64 100644
+--- a/tcg/tci/tcg-target.h
++++ b/tcg/tci/tcg-target.h
+@@ -162,7 +162,7 @@ typedef enum {
+ 
+ /* Used for function call generation. */
+ #define TCG_TARGET_CALL_STACK_OFFSET    0
+-#define TCG_TARGET_STACK_ALIGN          8
++#define TCG_TARGET_STACK_ALIGN          16
+ 
+ #define HAVE_TCG_QEMU_TB_EXEC
+ 

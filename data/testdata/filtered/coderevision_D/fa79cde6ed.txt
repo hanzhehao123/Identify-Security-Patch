@@ -1,0 +1,118 @@
+diff --git a/accel/tcg/internal.h b/accel/tcg/internal.h
+index 881bc1ede0..e9c145e0fb 100644
+--- a/accel/tcg/internal.h
++++ b/accel/tcg/internal.h
+@@ -16,7 +16,5 @@ TranslationBlock *tb_gen_code(CPUState *cpu, target_ulong pc,
+                               int cflags);
+ 
+ void QEMU_NORETURN cpu_io_recompile(CPUState *cpu, uintptr_t retaddr);
+-void page_init(void);
+-void tb_htable_init(void);
+ 
+ #endif /* ACCEL_TCG_INTERNAL_H */
+diff --git a/accel/tcg/tcg-all.c b/accel/tcg/tcg-all.c
+index e990180c4b..30d81ff7f5 100644
+--- a/accel/tcg/tcg-all.c
++++ b/accel/tcg/tcg-all.c
+@@ -32,7 +32,6 @@
+ #include "qemu/error-report.h"
+ #include "qemu/accel.h"
+ #include "qapi/qapi-builtin-visit.h"
+-#include "internal.h"
+ 
+ struct TCGState {
+     AccelState parent_obj;
+@@ -110,21 +109,8 @@ static int tcg_init_machine(MachineState *ms)
+ {
+     TCGState *s = TCG_STATE(current_accel());
+ 
+-    tcg_allowed = true;
++    tcg_exec_init(s->tb_size * 1024 * 1024, s->splitwx_enabled);
+     mttcg_enabled = s->mttcg_enabled;
+-
+-    page_init();
+-    tb_htable_init();
+-    tcg_init(s->tb_size * 1024 * 1024, s->splitwx_enabled);
+-
+-#if defined(CONFIG_SOFTMMU)
+-    /*
+-     * There's no guest base to take into account, so go ahead and
+-     * initialize the prologue now.
+-     */
+-    tcg_prologue_init(tcg_ctx);
+-#endif
+-
+     return 0;
+ }
+ 
+diff --git a/accel/tcg/translate-all.c b/accel/tcg/translate-all.c
+index 59609d62d5..4f563b8724 100644
+--- a/accel/tcg/translate-all.c
++++ b/accel/tcg/translate-all.c
+@@ -408,7 +408,7 @@ bool cpu_restore_state(CPUState *cpu, uintptr_t host_pc, bool will_exit)
+     return false;
+ }
+ 
+-void page_init(void)
++static void page_init(void)
+ {
+     page_size_init();
+     page_table_config_init();
+@@ -907,13 +907,30 @@ static bool tb_cmp(const void *ap, const void *bp)
+         a->page_addr[1] == b->page_addr[1];
+ }
+ 
+-void tb_htable_init(void)
++static void tb_htable_init(void)
+ {
+     unsigned int mode = QHT_MODE_AUTO_RESIZE;
+ 
+     qht_init(&tb_ctx.htable, tb_cmp, CODE_GEN_HTABLE_SIZE, mode);
+ }
+ 
++/* Must be called before using the QEMU cpus. 'tb_size' is the size
++   (in bytes) allocated to the translation buffer. Zero means default
++   size. */
++void tcg_exec_init(unsigned long tb_size, int splitwx)
++{
++    tcg_allowed = true;
++    page_init();
++    tb_htable_init();
++    tcg_init(tb_size, splitwx);
++
++#if defined(CONFIG_SOFTMMU)
++    /* There's no guest base to take into account, so go ahead and
++       initialize the prologue now.  */
++    tcg_prologue_init(tcg_ctx);
++#endif
++}
++
+ /* call with @p->lock held */
+ static inline void invalidate_page_bitmap(PageDesc *p)
+ {
+diff --git a/bsd-user/main.c b/bsd-user/main.c
+index fe66204b6b..270cf2ca70 100644
+--- a/bsd-user/main.c
++++ b/bsd-user/main.c
+@@ -813,7 +813,7 @@ int main(int argc, char **argv)
+     envlist_free(envlist);
+ 
+     /*
+-     * Now that page sizes are configured we can do
++     * Now that page sizes are configured in tcg_exec_init() we can do
+      * proper page alignment for guest_base.
+      */
+     guest_base = HOST_PAGE_ALIGN(guest_base);
+diff --git a/include/sysemu/tcg.h b/include/sysemu/tcg.h
+index 53352450ff..00349fb18a 100644
+--- a/include/sysemu/tcg.h
++++ b/include/sysemu/tcg.h
+@@ -8,6 +8,8 @@
+ #ifndef SYSEMU_TCG_H
+ #define SYSEMU_TCG_H
+ 
++void tcg_exec_init(unsigned long tb_size, int splitwx);
++
+ #ifdef CONFIG_TCG
+ extern bool tcg_allowed;
+ #define tcg_enabled() (tcg_allowed)

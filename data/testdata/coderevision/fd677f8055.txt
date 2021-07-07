@@ -1,0 +1,158 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index c3cc6a0847..b7e2243a19 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -201,22 +201,6 @@ DEF_HELPER_FLAGS_4(mve_vqrshlub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vqrshluh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vqrshluw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ 
+-DEF_HELPER_FLAGS_4(mve_vqdmladhb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vqdmladhh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vqdmladhw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vqdmladhxb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vqdmladhxh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vqdmladhxw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vqrdmladhb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vqrdmladhh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vqrdmladhw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vqrdmladhxb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vqrdmladhxh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vqrdmladhxw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarb, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index d267c8838e..c30fb2c153 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -142,11 +142,6 @@ VQSHL_U          111 1 1111 0 . .. ... 0 ... 0 0100 . 1 . 1 ... 0 @2op_rev
+ VQRSHL_S         111 0 1111 0 . .. ... 0 ... 0 0101 . 1 . 1 ... 0 @2op_rev
+ VQRSHL_U         111 1 1111 0 . .. ... 0 ... 0 0101 . 1 . 1 ... 0 @2op_rev
+ 
+-VQDMLADH         1110 1110 0 . .. ... 0 ... 0 1110 . 0 . 0 ... 0 @2op
+-VQDMLADHX        1110 1110 0 . .. ... 0 ... 1 1110 . 0 . 0 ... 0 @2op
+-VQRDMLADH        1110 1110 0 . .. ... 0 ... 0 1110 . 0 . 0 ... 1 @2op
+-VQRDMLADHX       1110 1110 0 . .. ... 0 ... 1 1110 . 0 . 0 ... 1 @2op
+-
+ # Vector miscellaneous
+ 
+ VCLS             1111 1111 1 . 11 .. 00 ... 0 0100 01 . 0 ... 0 @1op
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index 2ae46ec481..770938d76c 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -627,95 +627,6 @@ DO_2OP_SAT_U(vqshlu, DO_UQSHL_OP)
+ DO_2OP_SAT_S(vqrshls, DO_SQRSHL_OP)
+ DO_2OP_SAT_U(vqrshlu, DO_UQRSHL_OP)
+ 
+-/*
+- * Multiply add dual returning high half
+- * The 'FN' here takes four inputs A, B, C, D, a 0/1 indicator of
+- * whether to add the rounding constant, and the pointer to the
+- * saturation flag, and should do "(A * B + C * D) * 2 + rounding constant",
+- * saturate to twice the input size and return the high half; or
+- * (A * B - C * D) etc for VQDMLSDH.
+- */
+-#define DO_VQDMLADH_OP(OP, ESIZE, TYPE, XCHG, ROUND, FN)                \
+-    void HELPER(glue(mve_, OP))(CPUARMState *env, void *vd, void *vn,   \
+-                                void *vm)                               \
+-    {                                                                   \
+-        TYPE *d = vd, *n = vn, *m = vm;                                 \
+-        uint16_t mask = mve_element_mask(env);                          \
+-        unsigned e;                                                     \
+-        bool qc = false;                                                \
+-        for (e = 0; e < 16 / ESIZE; e++, mask >>= ESIZE) {              \
+-            bool sat = false;                                           \
+-            if ((e & 1) == XCHG) {                                      \
+-                TYPE r = FN(n[H##ESIZE(e)],                             \
+-                            m[H##ESIZE(e - XCHG)],                      \
+-                            n[H##ESIZE(e + (1 - 2 * XCHG))],            \
+-                            m[H##ESIZE(e + (1 - XCHG))],                \
+-                            ROUND, &sat);                               \
+-                mergemask(&d[H##ESIZE(e)], r, mask);                    \
+-                qc |= sat & mask & 1;                                   \
+-            }                                                           \
+-        }                                                               \
+-        if (qc) {                                                       \
+-            env->vfp.qc[0] = qc;                                        \
+-        }                                                               \
+-        mve_advance_vpt(env);                                           \
+-    }
+-
+-static int8_t do_vqdmladh_b(int8_t a, int8_t b, int8_t c, int8_t d,
+-                            int round, bool *sat)
+-{
+-    int64_t r = ((int64_t)a * b + (int64_t)c * d) * 2 + (round << 7);
+-    return do_sat_bhw(r, INT16_MIN, INT16_MAX, sat) >> 8;
+-}
+-
+-static int16_t do_vqdmladh_h(int16_t a, int16_t b, int16_t c, int16_t d,
+-                             int round, bool *sat)
+-{
+-    int64_t r = ((int64_t)a * b + (int64_t)c * d) * 2 + (round << 15);
+-    return do_sat_bhw(r, INT32_MIN, INT32_MAX, sat) >> 16;
+-}
+-
+-static int32_t do_vqdmladh_w(int32_t a, int32_t b, int32_t c, int32_t d,
+-                             int round, bool *sat)
+-{
+-    int64_t m1 = (int64_t)a * b;
+-    int64_t m2 = (int64_t)c * d;
+-    int64_t r;
+-    /*
+-     * Architecturally we should do the entire add, double, round
+-     * and then check for saturation. We do three saturating adds,
+-     * but we need to be careful about the order. If the first
+-     * m1 + m2 saturates then it's impossible for the *2+rc to
+-     * bring it back into the non-saturated range. However, if
+-     * m1 + m2 is negative then it's possible that doing the doubling
+-     * would take the intermediate result below INT64_MAX and the
+-     * addition of the rounding constant then brings it back in range.
+-     * So we add half the rounding constant before doubling rather
+-     * than adding the rounding constant after the doubling.
+-     */
+-    if (sadd64_overflow(m1, m2, &r) ||
+-        sadd64_overflow(r, (round << 30), &r) ||
+-        sadd64_overflow(r, r, &r)) {
+-        *sat = true;
+-        return r < 0 ? INT32_MAX : INT32_MIN;
+-    }
+-    return r >> 32;
+-}
+-
+-DO_VQDMLADH_OP(vqdmladhb, 1, int8_t, 0, 0, do_vqdmladh_b)
+-DO_VQDMLADH_OP(vqdmladhh, 2, int16_t, 0, 0, do_vqdmladh_h)
+-DO_VQDMLADH_OP(vqdmladhw, 4, int32_t, 0, 0, do_vqdmladh_w)
+-DO_VQDMLADH_OP(vqdmladhxb, 1, int8_t, 1, 0, do_vqdmladh_b)
+-DO_VQDMLADH_OP(vqdmladhxh, 2, int16_t, 1, 0, do_vqdmladh_h)
+-DO_VQDMLADH_OP(vqdmladhxw, 4, int32_t, 1, 0, do_vqdmladh_w)
+-
+-DO_VQDMLADH_OP(vqrdmladhb, 1, int8_t, 0, 1, do_vqdmladh_b)
+-DO_VQDMLADH_OP(vqrdmladhh, 2, int16_t, 0, 1, do_vqdmladh_h)
+-DO_VQDMLADH_OP(vqrdmladhw, 4, int32_t, 0, 1, do_vqdmladh_w)
+-DO_VQDMLADH_OP(vqrdmladhxb, 1, int8_t, 1, 1, do_vqdmladh_b)
+-DO_VQDMLADH_OP(vqrdmladhxh, 2, int16_t, 1, 1, do_vqdmladh_h)
+-DO_VQDMLADH_OP(vqrdmladhxw, 4, int32_t, 1, 1, do_vqdmladh_w)
+-
+ #define DO_2OP_SCALAR(OP, ESIZE, TYPE, FN)                              \
+     void HELPER(glue(mve_, OP))(CPUARMState *env, void *vd, void *vn,   \
+                                 uint32_t rm)                            \
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index d830b42d5c..d75cc377fe 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -410,10 +410,6 @@ DO_2OP(VQSHL_S, vqshls)
+ DO_2OP(VQSHL_U, vqshlu)
+ DO_2OP(VQRSHL_S, vqrshls)
+ DO_2OP(VQRSHL_U, vqrshlu)
+-DO_2OP(VQDMLADH, vqdmladh)
+-DO_2OP(VQDMLADHX, vqdmladhx)
+-DO_2OP(VQRDMLADH, vqrdmladh)
+-DO_2OP(VQRDMLADHX, vqrdmladhx)
+ 
+ static bool do_2op_scalar(DisasContext *s, arg_2scalar *a,
+                           MVEGenTwoOpScalarFn fn)

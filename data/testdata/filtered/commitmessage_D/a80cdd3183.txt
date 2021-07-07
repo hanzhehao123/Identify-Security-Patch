@@ -1,0 +1,11 @@
+commit a80cdd3183ed85bc254cbe22ca240dc035fc6548
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Fri Jun 4 14:26:45 2021 -0700
+
+    tcg: Introduce tcg_remove_ops_after
+    
+    Introduce a function to remove everything emitted
+    since a given point.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

@@ -1,0 +1,39 @@
+commit 908a87706ec6214d4a72245c8a0c9d327baf436b
+Merge: 1cbd2d9149 49e987695a
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 4 17:27:29 2021 +0100
+
+    Merge remote-tracking branch 'remotes/bonzini-gitlab/tags/for-upstream' into staging
+    
+    * OpenBSD cleanup (Brad)
+    * fixes for the i386 accel/cpu refactoring (Claudio)
+    * unmap test for emulated SCSI (Kit)
+    * fix for iscsi module (myself)
+    * fix for -readconfig of objects (myself)
+    * fixes for x86 16-bit task switching (myself)
+    * fix for x86 MOV from/to CR8 (Richard)
+    
+    # gpg: Signature made Fri 04 Jun 2021 12:53:32 BST
+    # gpg:                using RSA key F13338574B662389866C7682BFFBD25F78C7AE83
+    # gpg:                issuer "pbonzini@redhat.com"
+    # gpg: Good signature from "Paolo Bonzini <bonzini@gnu.org>" [full]
+    # gpg:                 aka "Paolo Bonzini <pbonzini@redhat.com>" [full]
+    # Primary key fingerprint: 46F5 9FBD 57D6 12E7 BFD4  E2F7 7E15 100C CD36 69B1
+    #      Subkey fingerprint: F133 3857 4B66 2389 866C  7682 BFFB D25F 78C7 AE83
+    
+    * remotes/bonzini-gitlab/tags/for-upstream:
+      vl: plug -object back into -readconfig
+      vl: plumb keyval-based options into -readconfig
+      qemu-config: parse configuration files to a QDict
+      i386: run accel_cpu_instance_init as post_init
+      i386: reorder call to cpu_exec_realizefn
+      tests/qtest/virtio-scsi-test: add unmap large LBA with 4k blocks test
+      target/i386: Fix decode of cr8
+      target/i386: tcg: fix switching from 16-bit to 32-bit tasks or vice versa
+      target/i386: tcg: fix loading of registers from 16-bit TSS
+      target/i386: tcg: fix segment register offsets for 16-bit TSS
+      oslib-posix: Remove OpenBSD workaround for fcntl("/dev/null", F_SETFL, O_NONBLOCK) failure
+      iscsi: link libm into the module
+      meson: allow optional dependencies for block modules
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

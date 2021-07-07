@@ -1,0 +1,29 @@
+diff --git a/fpu/meson.build b/fpu/meson.build
+deleted file mode 100644
+index 1a9992ded5..0000000000
+--- a/fpu/meson.build
++++ /dev/null
+@@ -1 +0,0 @@
+-specific_ss.add(when: 'CONFIG_TCG', if_true: files('softfloat.c'))
+diff --git a/meson.build b/meson.build
+index a2311eda6e..b5b2cf9e04 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1968,6 +1968,9 @@ subdir('softmmu')
+ 
+ common_ss.add(capstone)
+ specific_ss.add(files('cpu.c', 'disas.c', 'gdbstub.c'), capstone)
++specific_ss.add(when: 'CONFIG_TCG', if_true: files(
++  'fpu/softfloat.c',
++))
+ 
+ # Work around a gcc bug/misfeature wherein constant propagation looks
+ # through an alias:
+@@ -1998,7 +2001,6 @@ subdir('replay')
+ subdir('semihosting')
+ subdir('hw')
+ subdir('tcg')
+-subdir('fpu')
+ subdir('accel')
+ subdir('plugins')
+ subdir('bsd-user')

@@ -1,0 +1,29 @@
+diff --git a/.gitlab-ci.d/crossbuilds.yml b/.gitlab-ci.d/crossbuilds.yml
+index edf3a62563..2198abb400 100644
+--- a/.gitlab-ci.d/crossbuilds.yml
++++ b/.gitlab-ci.d/crossbuilds.yml
+@@ -27,7 +27,7 @@
+     - PKG_CONFIG_PATH=$PKG_CONFIG_PATH
+       ../configure --enable-werror --disable-docs $QEMU_CONFIGURE_OPTS
+         --disable-tools --enable-${ACCEL:-kvm} $EXTRA_CONFIGURE_OPTS
+-    - make -j$(expr $(nproc) + 1) all check-build $MAKE_CHECK_ARGS
++    - make -j$(expr $(nproc) + 1) all check-build
+ 
+ .cross_user_build_job:
+   stage: build
+@@ -98,15 +98,6 @@ cross-i386-user:
+     IMAGE: fedora-i386-cross
+     MAKE_CHECK_ARGS: check
+ 
+-cross-i386-tci:
+-  extends: .cross_accel_build_job
+-  timeout: 60m
+-  variables:
+-    IMAGE: fedora-i386-cross
+-    ACCEL: tcg-interpreter
+-    EXTRA_CONFIGURE_OPTS: --target-list=i386-softmmu,i386-linux-user,aarch64-softmmu,aarch64-linux-user,ppc-softmmu,ppc-linux-user
+-    MAKE_CHECK_ARGS: check check-tcg
+-
+ cross-mips-system:
+   extends: .cross_system_build_job
+   needs:

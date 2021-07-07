@@ -1,0 +1,13 @@
+commit 39683553f9a66b735a003ad43bb4d1460cef4d64
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri Apr 30 12:59:06 2021 +0100
+
+    block: use GDateTime for formatting timestamp when dumping snapshot info
+    
+    The GDateTime APIs provided by GLib avoid portability pitfalls, such
+    as some platforms where 'struct timeval.tv_sec' field is still 'long'
+    instead of 'time_t'. When combined with automatic cleanup, GDateTime
+    often results in simpler code too.
+    
+    Reviewed-by: Max Reitz <mreitz@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>

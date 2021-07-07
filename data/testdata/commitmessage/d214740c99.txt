@@ -1,0 +1,15 @@
+commit d214740c994f51370112ceda33a9d5546ff21c84
+Author: Cleber Rosa <crosa@redhat.com>
+Date:   Mon Apr 12 00:46:44 2021 -0400
+
+    tests/acceptance/virtiofs_submounts.py: fix setup of SSH pubkey
+    
+    The public key argument should be a path to a file, and not the
+    public key data.
+    
+    Reported-by: Wainer dos Santos Moschetta <wainersm@redhat.com>
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Message-Id: <20210412044644.55083-12-crosa@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Reviewed-by: Wainer dos Santos Moschetta <wainersm@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>

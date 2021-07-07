@@ -1,0 +1,12 @@
+diff --git a/tests/acceptance/virtiofs_submounts.py b/tests/acceptance/virtiofs_submounts.py
+index 5b74ce2929..46fa65392a 100644
+--- a/tests/acceptance/virtiofs_submounts.py
++++ b/tests/acceptance/virtiofs_submounts.py
+@@ -70,7 +70,6 @@ def test_something_that_needs_cmd1_and_cmd2(self):
+ class VirtiofsSubmountsTest(LinuxTest):
+     """
+     :avocado: tags=arch:x86_64
+-    :avocado: tags=accel:kvm
+     """
+ 
+     def get_portfwd(self):

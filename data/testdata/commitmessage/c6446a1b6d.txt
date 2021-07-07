@@ -1,0 +1,10 @@
+commit c6446a1b6d8a89f4ab8fe85b5bc03bb05d337b82
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 21:24:27 2021 -0700
+
+    pc-bios: Update the palcode-clipper image
+    
+    Build a new palcode image with Jason Thorpe's patches
+    to support NetBSD.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

@@ -1,0 +1,96 @@
+diff --git a/python/PACKAGE.rst b/python/PACKAGE.rst
+deleted file mode 100644
+index 1bbfe1b58e..0000000000
+--- a/python/PACKAGE.rst
++++ /dev/null
+@@ -1,33 +0,0 @@
+-QEMU Python Tooling
+-===================
+-
+-This package provides QEMU tooling used by the QEMU project to build,
+-configure, and test QEMU. It is not a fully-fledged SDK and it is subject
+-to change at any time.
+-
+-Usage
+------
+-
+-The ``qemu.qmp`` subpackage provides a library for communicating with
+-QMP servers. The ``qemu.machine`` subpackage offers rudimentary
+-facilities for launching and managing QEMU processes. Refer to each
+-package's documentation
+-(``>>> help(qemu.qmp)``, ``>>> help(qemu.machine)``)
+-for more information.
+-
+-Contributing
+-------------
+-
+-This package is maintained by John Snow <jsnow@redhat.com> as part of
+-the QEMU source tree. Contributions are welcome and follow the `QEMU
+-patch submission process
+-<https://wiki.qemu.org/Contribute/SubmitAPatch>`_, which involves
+-sending patches to the QEMU development mailing list.
+-
+-John maintains a `GitLab staging branch
+-<https://gitlab.com/jsnow/qemu/-/tree/python>`_, and there is an
+-official `GitLab mirror <https://gitlab.com/qemu-project/qemu>`_.
+-
+-Please report bugs on the `QEMU issue tracker
+-<https://gitlab.com/qemu-project/qemu/-/issues>`_ and tag ``@jsnow`` in
+-the report.
+diff --git a/python/setup.cfg b/python/setup.cfg
+deleted file mode 100644
+index 3fa92a2e73..0000000000
+--- a/python/setup.cfg
++++ /dev/null
+@@ -1,22 +0,0 @@
+-[metadata]
+-name = qemu
+-maintainer = QEMU Developer Team
+-maintainer_email = qemu-devel@nongnu.org
+-url = https://www.qemu.org/
+-download_url = https://www.qemu.org/download/
+-description = QEMU Python Build, Debug and SDK tooling.
+-long_description = file:PACKAGE.rst
+-long_description_content_type = text/x-rst
+-classifiers =
+-    Development Status :: 3 - Alpha
+-    License :: OSI Approved :: GNU General Public License v2 (GPLv2)
+-    Natural Language :: English
+-    Operating System :: OS Independent
+-    Programming Language :: Python :: 3 :: Only
+-
+-[options]
+-python_requires = >= 3.6
+-packages =
+-    qemu.qmp
+-    qemu.machine
+-    qemu.utils
+diff --git a/python/setup.py b/python/setup.py
+deleted file mode 100755
+index 2014f81b75..0000000000
+--- a/python/setup.py
++++ /dev/null
+@@ -1,23 +0,0 @@
+-#!/usr/bin/env python3
+-"""
+-QEMU tooling installer script
+-Copyright (c) 2020-2021 John Snow for Red Hat, Inc.
+-"""
+-
+-import setuptools
+-import pkg_resources
+-
+-
+-def main():
+-    """
+-    QEMU tooling installer
+-    """
+-
+-    # https://medium.com/@daveshawley/safely-using-setup-cfg-for-metadata-1babbe54c108
+-    pkg_resources.require('setuptools>=39.2')
+-
+-    setuptools.setup()
+-
+-
+-if __name__ == '__main__':
+-    main()

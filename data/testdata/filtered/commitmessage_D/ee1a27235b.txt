@@ -1,0 +1,14 @@
+commit ee1a27235b7965bc5514555eec898f4d067fced2
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:16:45 2021 -0400
+
+    python/console_socket: avoid one-letter variable
+    
+    Fixes pylint warnings.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210527211715.394144-2-jsnow@redhat.com
+    Message-id: 20210517184808.3562549-2-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

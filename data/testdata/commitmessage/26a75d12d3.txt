@@ -1,0 +1,12 @@
+commit 26a75d12d33ff80ee797ca32373f6333da4f194f
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Mar 9 23:30:38 2021 -0600
+
+    tcg: Move MAX_CODE_GEN_BUFFER_SIZE to tcg-target.h
+    
+    Remove the ifdef ladder and move each define into the
+    appropriate header file.
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

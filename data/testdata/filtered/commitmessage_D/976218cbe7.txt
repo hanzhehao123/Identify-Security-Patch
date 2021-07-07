@@ -1,0 +1,25 @@
+commit 976218cbe792c37c1af7840ca5113e37b5a51d95
+Author: Cleber Rosa <crosa@redhat.com>
+Date:   Mon Apr 12 00:46:36 2021 -0400
+
+    Python: add utility function for retrieving port redirection
+    
+    Slightly different versions for the same utility code are currently
+    present on different locations.  This unifies them all, giving
+    preference to the version from virtiofs_submounts.py, because of the
+    last tweaks added to it.
+    
+    While at it, this adds a "qemu.utils" module to host the utility
+    function and a test.
+    
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Reviewed-by: Wainer dos Santos Moschetta <wainersm@redhat.com>
+    Reviewed-by: Eric Auger <eric.auger@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210412044644.55083-4-crosa@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    [Squashed in below fix. --js]
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Message-Id: <20210601154546.130870-2-crosa@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>

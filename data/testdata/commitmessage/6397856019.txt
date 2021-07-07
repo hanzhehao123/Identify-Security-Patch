@@ -1,0 +1,12 @@
+commit 639785601963af82eefa656ca41360e7266e73d6
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Wed Jun 2 19:07:58 2021 +0200
+
+    target/mips: Fix 'Uncoditional' typo
+    
+    Fix Uncoditional -> Unconditional typo.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Message-Id: <20210602170759.2500248-3-f4bug@amsat.org>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

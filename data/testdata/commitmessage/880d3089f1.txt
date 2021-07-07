@@ -1,0 +1,17 @@
+commit 880d3089f1c667d7c84730ba9e9a2518220f7caf
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Wed May 19 11:07:59 2021 +0100
+
+    esp: allow non-DMA callback in esp_transfer_data() initial transfer
+    
+    The current implementation only resumes DMA transfers when incoming data is
+    received from the target device, but this is also required for non-DMA transfers
+    with the next set of non-DMA changes.
+    
+    Rather than duplicate the DMA/non-DMA dispatch logic in the initial transfer
+    section, update the code so that the initial transfer section can just
+    fallthrough to the main DMA/non-DMA dispatch logic.
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Message-Id: <20210519100803.10293-2-mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

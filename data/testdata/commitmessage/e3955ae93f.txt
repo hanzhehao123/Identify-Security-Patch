@@ -1,0 +1,29 @@
+commit e3955ae93f5151ad2e982440b7c8d3776a9afee2
+Merge: 3593b8e0a2 3ef6434409
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 25 17:05:22 2021 +0100
+
+    Merge remote-tracking branch 'remotes/alistair/tags/pull-riscv-to-apply-20210624-2' into staging
+    
+    Third RISC-V PR for 6.1 release
+    
+     - Fix MISA in the DisasContext
+     - Fix GDB CSR XML generation
+     - QOMify the SiFive UART
+     - Add support for the OpenTitan timer
+    
+    # gpg: Signature made Thu 24 Jun 2021 13:00:26 BST
+    # gpg:                using RSA key F6C4AC46D4934868D3B8CE8F21E10D29DF977054
+    # gpg: Good signature from "Alistair Francis <alistair@alistair23.me>" [full]
+    # Primary key fingerprint: F6C4 AC46 D493 4868 D3B8  CE8F 21E1 0D29 DF97 7054
+    
+    * remotes/alistair/tags/pull-riscv-to-apply-20210624-2:
+      hw/riscv: OpenTitan: Connect the mtime and mtimecmp timer
+      hw/timer: Initial commit of Ibex Timer
+      hw/char/ibex_uart: Make the register layout private
+      hw/char: QOMify sifive_uart
+      hw/char: Consistent function names for sifive_uart
+      target/riscv: gdbstub: Fix dynamic CSR XML generation
+      target/riscv: Use target_ulong for the DisasContext misa
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

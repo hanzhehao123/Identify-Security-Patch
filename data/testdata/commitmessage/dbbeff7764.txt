@@ -1,0 +1,10 @@
+commit dbbeff77645242241fe2296b88a7b1d3b3614ffe
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Sep 5 12:44:06 2020 -0700
+
+    tcg/arm: Implement TCG_TARGET_HAS_minmax_vec
+    
+    This is minimum and maximum, signed and unsigned.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

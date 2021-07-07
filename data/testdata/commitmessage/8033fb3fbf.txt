@@ -1,0 +1,15 @@
+commit 8033fb3fbf1165569cfcdeac7fab257bb72740f5
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Tue May 25 08:53:54 2021 -0300
+
+    target/ppc: created tcg-stub.c file
+    
+    Created a file with stubs needed to compile disabling TCG. *_ppc_opcodes
+    were created to make cpu_init.c have a few less ifdefs, since they are
+    not needed. softmmu_resize_hpt_* have to be created because the compiler
+    can't automatically know they aren't used, but they should never be
+    reached.
+    
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Message-Id: <20210525115355.8254-4-bruno.larsen@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

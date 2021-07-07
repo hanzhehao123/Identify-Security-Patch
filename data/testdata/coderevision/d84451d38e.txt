@@ -1,0 +1,128 @@
+diff --git a/hw/i386/kvm/apic.c b/hw/i386/kvm/apic.c
+index 1e89ca0899..52ff490910 100644
+--- a/hw/i386/kvm/apic.c
++++ b/hw/i386/kvm/apic.c
+@@ -145,7 +145,7 @@ static void kvm_apic_put(CPUState *cs, run_on_cpu_data data)
+ 
+     ret = kvm_vcpu_ioctl(CPU(s->cpu), KVM_SET_LAPIC, &kapic);
+     if (ret < 0) {
+-        fprintf(stderr, "KVM_SET_LAPIC failed: %s\n", strerror(-ret));
++        fprintf(stderr, "KVM_SET_LAPIC failed: %s\n", strerror(ret));
+         abort();
+     }
+ }
+diff --git a/hw/i386/kvm/clock.c b/hw/i386/kvm/clock.c
+index df70b4a033..efbc1e0d12 100644
+--- a/hw/i386/kvm/clock.c
++++ b/hw/i386/kvm/clock.c
+@@ -105,7 +105,7 @@ static void kvm_update_clock(KVMClockState *s)
+ 
+     ret = kvm_vm_ioctl(kvm_state, KVM_GET_CLOCK, &data);
+     if (ret < 0) {
+-        fprintf(stderr, "KVM_GET_CLOCK failed: %s\n", strerror(-ret));
++        fprintf(stderr, "KVM_GET_CLOCK failed: %s\n", strerror(ret));
+                 abort();
+     }
+     s->clock = data.clock;
+@@ -189,7 +189,7 @@ static void kvmclock_vm_state_change(void *opaque, bool running,
+         data.clock = s->clock;
+         ret = kvm_vm_ioctl(kvm_state, KVM_SET_CLOCK, &data);
+         if (ret < 0) {
+-            fprintf(stderr, "KVM_SET_CLOCK failed: %s\n", strerror(-ret));
++            fprintf(stderr, "KVM_SET_CLOCK failed: %s\n", strerror(ret));
+             abort();
+         }
+ 
+diff --git a/hw/i386/kvm/i8254.c b/hw/i386/kvm/i8254.c
+index fa68669e8a..c558893961 100644
+--- a/hw/i386/kvm/i8254.c
++++ b/hw/i386/kvm/i8254.c
+@@ -104,7 +104,7 @@ static void kvm_pit_get(PITCommonState *pit)
+     if (kvm_has_pit_state2()) {
+         ret = kvm_vm_ioctl(kvm_state, KVM_GET_PIT2, &kpit);
+         if (ret < 0) {
+-            fprintf(stderr, "KVM_GET_PIT2 failed: %s\n", strerror(-ret));
++            fprintf(stderr, "KVM_GET_PIT2 failed: %s\n", strerror(ret));
+             abort();
+         }
+         pit->channels[0].irq_disabled = kpit.flags & KVM_PIT_FLAGS_HPET_LEGACY;
+@@ -115,7 +115,7 @@ static void kvm_pit_get(PITCommonState *pit)
+          */
+         ret = kvm_vm_ioctl(kvm_state, KVM_GET_PIT, &kpit);
+         if (ret < 0) {
+-            fprintf(stderr, "KVM_GET_PIT failed: %s\n", strerror(-ret));
++            fprintf(stderr, "KVM_GET_PIT failed: %s\n", strerror(ret));
+             abort();
+         }
+     }
+@@ -180,7 +180,7 @@ static void kvm_pit_put(PITCommonState *pit)
+     if (ret < 0) {
+         fprintf(stderr, "%s failed: %s\n",
+                 kvm_has_pit_state2() ? "KVM_SET_PIT2" : "KVM_SET_PIT",
+-                strerror(-ret));
++                strerror(ret));
+         abort();
+     }
+ }
+@@ -272,7 +272,7 @@ static void kvm_pit_realizefn(DeviceState *dev, Error **errp)
+     }
+     if (ret < 0) {
+         error_setg(errp, "Create kernel PIC irqchip failed: %s",
+-                   strerror(-ret));
++                   strerror(ret));
+         return;
+     }
+     switch (s->lost_tick_policy) {
+@@ -286,7 +286,7 @@ static void kvm_pit_realizefn(DeviceState *dev, Error **errp)
+             if (ret < 0) {
+                 error_setg(errp,
+                            "Can't disable in-kernel PIT reinjection: %s",
+-                           strerror(-ret));
++                           strerror(ret));
+                 return;
+             }
+         }
+diff --git a/hw/i386/kvm/i8259.c b/hw/i386/kvm/i8259.c
+index d61bae4dc3..3f8bf69e9c 100644
+--- a/hw/i386/kvm/i8259.c
++++ b/hw/i386/kvm/i8259.c
+@@ -43,7 +43,7 @@ static void kvm_pic_get(PICCommonState *s)
+     chip.chip_id = s->master ? KVM_IRQCHIP_PIC_MASTER : KVM_IRQCHIP_PIC_SLAVE;
+     ret = kvm_vm_ioctl(kvm_state, KVM_GET_IRQCHIP, &chip);
+     if (ret < 0) {
+-        fprintf(stderr, "KVM_GET_IRQCHIP failed: %s\n", strerror(-ret));
++        fprintf(stderr, "KVM_GET_IRQCHIP failed: %s\n", strerror(ret));
+         abort();
+     }
+ 
+@@ -96,7 +96,7 @@ static void kvm_pic_put(PICCommonState *s)
+ 
+     ret = kvm_vm_ioctl(kvm_state, KVM_SET_IRQCHIP, &chip);
+     if (ret < 0) {
+-        fprintf(stderr, "KVM_SET_IRQCHIP failed: %s\n", strerror(-ret));
++        fprintf(stderr, "KVM_SET_IRQCHIP failed: %s\n", strerror(ret));
+         abort();
+     }
+ }
+diff --git a/hw/i386/kvm/ioapic.c b/hw/i386/kvm/ioapic.c
+index ee7c8ef68b..71a563181e 100644
+--- a/hw/i386/kvm/ioapic.c
++++ b/hw/i386/kvm/ioapic.c
+@@ -62,7 +62,7 @@ static void kvm_ioapic_get(IOAPICCommonState *s)
+     chip.chip_id = KVM_IRQCHIP_IOAPIC;
+     ret = kvm_vm_ioctl(kvm_state, KVM_GET_IRQCHIP, &chip);
+     if (ret < 0) {
+-        fprintf(stderr, "KVM_GET_IRQCHIP failed: %s\n", strerror(-ret));
++        fprintf(stderr, "KVM_GET_IRQCHIP failed: %s\n", strerror(ret));
+         abort();
+     }
+ 
+@@ -95,7 +95,7 @@ static void kvm_ioapic_put(IOAPICCommonState *s)
+ 
+     ret = kvm_vm_ioctl(kvm_state, KVM_SET_IRQCHIP, &chip);
+     if (ret < 0) {
+-        fprintf(stderr, "KVM_SET_IRQCHIP failed: %s\n", strerror(-ret));
++        fprintf(stderr, "KVM_SET_IRQCHIP failed: %s\n", strerror(ret));
+         abort();
+     }
+ }

@@ -1,0 +1,11 @@
+commit feaf2e9c063001a5f9afac0cc1af4ed9dc2af9bc
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Fri May 7 18:40:28 2021 -0700
+
+    softfloat: Convert modrem operations to FloatParts
+    
+    Rename to parts$N_modrem.  This was the last use of a lot
+    of the legacy infrastructure, so remove it as required.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

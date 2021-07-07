@@ -1,0 +1,13 @@
+commit 83ec01b675a731910b3b2183091302ad31b3482b
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:34 2021 +0200
+
+    cpu: Move CPUClass::get_crash_info to SysemuCPUOps
+    
+    cpu_get_crash_info() is called on GUEST_PANICKED events,
+    which only occur in system emulation.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-18-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

@@ -1,0 +1,15 @@
+commit 115e4b70037ddf6014efa4ffcd01e7fa3497a741
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri May 14 13:04:07 2021 +0100
+
+    crypto: drop back compatibility typedefs for nettle
+    
+    Now that we only support modern nettle, we don't need to have local
+    typedefs to mask the real nettle types.
+    
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+    Message-Id: <20210514120415.1368922-5-berrange@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

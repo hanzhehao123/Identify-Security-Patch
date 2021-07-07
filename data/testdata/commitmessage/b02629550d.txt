@@ -1,0 +1,10 @@
+commit b02629550d7bdea405364124a356f88791c56260
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Mon May 17 07:36:56 2021 -0400
+
+    replication: move include out of root directory
+    
+    The replication.h file is included from migration/colo.c and tests/unit/test-replication.c,
+    so it should be in include/.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

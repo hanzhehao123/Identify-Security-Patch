@@ -1,0 +1,10 @@
+commit fc5200ee4583cb9110ee7bda71a65890d787882e
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue May 25 15:58:07 2021 -0700
+
+    target/arm: Unify unallocated path in disas_fp_1src
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210525225817.400336-3-richard.henderson@linaro.org
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

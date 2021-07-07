@@ -1,0 +1,61 @@
+diff --git a/nbd/client-connection.c b/nbd/client-connection.c
+index 883f9cf158..032b38ed3e 100644
+--- a/nbd/client-connection.c
++++ b/nbd/client-connection.c
+@@ -168,13 +168,9 @@ static void *connect_thread_func(void *opaque)
+     uint64_t timeout = 1;
+     uint64_t max_timeout = 16;
+ 
+-    qemu_mutex_lock(&conn->mutex);
+-    while (!conn->detached) {
+-        assert(!conn->sioc);
++    while (true) {
+         conn->sioc = qio_channel_socket_new();
+ 
+-        qemu_mutex_unlock(&conn->mutex);
+-
+         error_free(conn->err);
+         conn->err = NULL;
+         conn->updated_info = conn->initial_info;
+@@ -192,20 +188,14 @@ static void *connect_thread_func(void *opaque)
+         conn->updated_info.x_dirty_bitmap = NULL;
+         conn->updated_info.name = NULL;
+ 
+-        qemu_mutex_lock(&conn->mutex);
+-
+         if (ret < 0) {
+             object_unref(OBJECT(conn->sioc));
+             conn->sioc = NULL;
+-            if (conn->do_retry && !conn->detached) {
+-                qemu_mutex_unlock(&conn->mutex);
+-
++            if (conn->do_retry) {
+                 sleep(timeout);
+                 if (timeout < max_timeout) {
+                     timeout *= 2;
+                 }
+-
+-                qemu_mutex_lock(&conn->mutex);
+                 continue;
+             }
+         }
+@@ -213,7 +203,7 @@ static void *connect_thread_func(void *opaque)
+         break;
+     }
+ 
+-    /* mutex is locked */
++    qemu_mutex_lock(&conn->mutex);
+ 
+     assert(conn->running);
+     conn->running = false;
+@@ -247,10 +237,6 @@ void nbd_client_connection_release(NBDClientConnection *conn)
+         } else {
+             do_free = true;
+         }
+-        if (conn->sioc) {
+-            qio_channel_shutdown(QIO_CHANNEL(conn->sioc),
+-                                 QIO_CHANNEL_SHUTDOWN_BOTH, NULL);
+-        }
+     }
+ 
+     if (do_free) {

@@ -1,0 +1,15 @@
+commit 89bc4c4f78c2435fdf8dc10b650cfe73c75f1f2c
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:24 2021 +0100
+
+    target/arm: Implement MVE VADC, VSBC
+    
+    Implement the MVE VADC and VSBC insns.  These perform an
+    add-with-carry or subtract-with-carry of the 32-bit elements in each
+    lane of the input vectors, where the carry-out of each add is the
+    carry-in of the next.  The initial carry input is either 1 or is from
+    FPSCR.C; the carry out at the end is written back to FPSCR.C.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-41-peter.maydell@linaro.org

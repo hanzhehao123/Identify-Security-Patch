@@ -1,0 +1,23 @@
+diff --git a/python/qemu/machine/.flake8 b/python/qemu/machine/.flake8
+new file mode 100644
+index 0000000000..45d8146f3f
+--- /dev/null
++++ b/python/qemu/machine/.flake8
+@@ -0,0 +1,2 @@
++[flake8]
++extend-ignore = E722  # Pylint handles this, but smarter.
+\ No newline at end of file
+diff --git a/python/setup.cfg b/python/setup.cfg
+index 52a89a0a29..36b4253e93 100644
+--- a/python/setup.cfg
++++ b/python/setup.cfg
+@@ -22,9 +22,6 @@ packages =
+     qemu.machine
+     qemu.utils
+ 
+-[flake8]
+-extend-ignore = E722  # Prefer pylint's bare-except checks to flake8's
+-
+ [pylint.messages control]
+ # Disable the message, report, category or checker with the given id(s). You
+ # can either give multiple identifiers separated by comma (,) or put this

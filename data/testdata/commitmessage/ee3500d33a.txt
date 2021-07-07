@@ -1,0 +1,13 @@
+commit ee3500d33a7431fbcc357a35ce1a46fcf13128cc
+Author: Ilya Leoshkevich <iii@linux.ibm.com>
+Date:   Tue Jun 1 16:55:59 2021 +0200
+
+    linux-user: Let sigaction query SIGKILL/SIGSTOP
+    
+    The kernel allows doing this, so let's allow this in qemu as well.
+    Valgrind relies on this.
+    
+    Signed-off-by: Ilya Leoshkevich <iii@linux.ibm.com>
+    Reviewed-by: Laurent Vivier <laurent@vivier.eu>
+    Message-Id: <20210601145600.3131040-2-iii@linux.ibm.com>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

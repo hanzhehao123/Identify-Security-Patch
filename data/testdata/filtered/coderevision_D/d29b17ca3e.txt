@@ -1,0 +1,229 @@
+diff --git a/target/arm/helper-sve.h b/target/arm/helper-sve.h
+index dc629f851a..29a14a21f5 100644
+--- a/target/arm/helper-sve.h
++++ b/target/arm/helper-sve.h
+@@ -1197,8 +1197,6 @@ DEF_HELPER_FLAGS_5(sve_fcvt_hd, TCG_CALL_NO_RWG,
+                    void, ptr, ptr, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_5(sve_fcvt_sd, TCG_CALL_NO_RWG,
+                    void, ptr, ptr, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_5(sve_bfcvt, TCG_CALL_NO_RWG,
+-                   void, ptr, ptr, ptr, ptr, i32)
+ 
+ DEF_HELPER_FLAGS_5(sve_fcvtzs_hh, TCG_CALL_NO_RWG,
+                    void, ptr, ptr, ptr, ptr, i32)
+@@ -2754,8 +2752,6 @@ DEF_HELPER_FLAGS_5(sve2_fcvtnt_sh, TCG_CALL_NO_RWG,
+                    void, ptr, ptr, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_5(sve2_fcvtnt_ds, TCG_CALL_NO_RWG,
+                    void, ptr, ptr, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_5(sve_bfcvtnt, TCG_CALL_NO_RWG,
+-                   void, ptr, ptr, ptr, ptr, i32)
+ 
+ DEF_HELPER_FLAGS_5(sve2_fcvtlt_hs, TCG_CALL_NO_RWG,
+                    void, ptr, ptr, ptr, ptr, i32)
+diff --git a/target/arm/helper.h b/target/arm/helper.h
+index 8b4b7d92f3..9977a827e9 100644
+--- a/target/arm/helper.h
++++ b/target/arm/helper.h
+@@ -144,7 +144,6 @@ DEF_HELPER_3(vfp_cmped, void, f64, f64, env)
+ DEF_HELPER_2(vfp_fcvtds, f64, f32, env)
+ DEF_HELPER_2(vfp_fcvtsd, f32, f64, env)
+ DEF_HELPER_FLAGS_2(bfcvt, TCG_CALL_NO_RWG, i32, f32, ptr)
+-DEF_HELPER_FLAGS_2(bfcvt_pair, TCG_CALL_NO_RWG, i32, i64, ptr)
+ 
+ DEF_HELPER_2(vfp_uitoh, f16, i32, ptr)
+ DEF_HELPER_2(vfp_uitos, f32, i32, ptr)
+diff --git a/target/arm/neon-dp.decode b/target/arm/neon-dp.decode
+index fd3a01bfa0..ec83f10ab3 100644
+--- a/target/arm/neon-dp.decode
++++ b/target/arm/neon-dp.decode
+@@ -521,7 +521,6 @@ Vimm_1r          1111 001 . 1 . 000 ... .... cmode:4 0 . op:1 1 .... @1reg_imm
+     VRINTZ       1111 001 11 . 11 .. 10 .... 0 1011 . . 0 .... @2misc
+ 
+     VCVT_F16_F32 1111 001 11 . 11 .. 10 .... 0 1100 0 . 0 .... @2misc_q0
+-    VCVT_B16_F32 1111 001 11 . 11 .. 10 .... 0 1100 1 . 0 .... @2misc_q0
+ 
+     VRINTM       1111 001 11 . 11 .. 10 .... 0 1101 . . 0 .... @2misc
+ 
+diff --git a/target/arm/sve.decode b/target/arm/sve.decode
+index 18d1a0eecc..cb077bfde9 100644
+--- a/target/arm/sve.decode
++++ b/target/arm/sve.decode
+@@ -1036,7 +1036,6 @@ FNMLS_zpzzz     01100101 .. 1 ..... 111 ... ..... .....         @rdn_pg_rm_ra
+ # SVE floating-point convert precision
+ FCVT_sh         01100101 10 0010 00 101 ... ..... .....         @rd_pg_rn_e0
+ FCVT_hs         01100101 10 0010 01 101 ... ..... .....         @rd_pg_rn_e0
+-BFCVT           01100101 10 0010 10 101 ... ..... .....         @rd_pg_rn_e0
+ FCVT_dh         01100101 11 0010 00 101 ... ..... .....         @rd_pg_rn_e0
+ FCVT_hd         01100101 11 0010 01 101 ... ..... .....         @rd_pg_rn_e0
+ FCVT_ds         01100101 11 0010 10 101 ... ..... .....         @rd_pg_rn_e0
+@@ -1611,7 +1610,6 @@ RAX1            01000101 00 1 ..... 11110 1 ..... .....  @rd_rn_rm_e0
+ FCVTXNT_ds      01100100 00 0010 10 101 ... ..... .....  @rd_pg_rn_e0
+ FCVTX_ds        01100101 00 0010 10 101 ... ..... .....  @rd_pg_rn_e0
+ FCVTNT_sh       01100100 10 0010 00 101 ... ..... .....  @rd_pg_rn_e0
+-BFCVTNT         01100100 10 0010 10 101 ... ..... .....  @rd_pg_rn_e0
+ FCVTLT_hs       01100100 10 0010 01 101 ... ..... .....  @rd_pg_rn_e0
+ FCVTNT_ds       01100100 11 0010 10 101 ... ..... .....  @rd_pg_rn_e0
+ FCVTLT_sd       01100100 11 0010 11 101 ... ..... .....  @rd_pg_rn_e0
+diff --git a/target/arm/sve_helper.c b/target/arm/sve_helper.c
+index 46a957b6fb..40af3024df 100644
+--- a/target/arm/sve_helper.c
++++ b/target/arm/sve_helper.c
+@@ -4708,7 +4708,6 @@ static inline uint64_t vfp_float64_to_uint64_rtz(float64 f, float_status *s)
+ 
+ DO_ZPZ_FP(sve_fcvt_sh, uint32_t, H1_4, sve_f32_to_f16)
+ DO_ZPZ_FP(sve_fcvt_hs, uint32_t, H1_4, sve_f16_to_f32)
+-DO_ZPZ_FP(sve_bfcvt,   uint32_t, H1_4, float32_to_bfloat16)
+ DO_ZPZ_FP(sve_fcvt_dh, uint64_t,     , sve_f64_to_f16)
+ DO_ZPZ_FP(sve_fcvt_hd, uint64_t,     , sve_f16_to_f64)
+ DO_ZPZ_FP(sve_fcvt_ds, uint64_t,     , float64_to_float32)
+@@ -7741,7 +7740,6 @@ void HELPER(NAME)(void *vd, void *vn, void *vg, void *status, uint32_t desc)  \
+     } while (i != 0);                                                         \
+ }
+ 
+-DO_FCVTNT(sve_bfcvtnt,    uint32_t, uint16_t, H1_4, H1_2, float32_to_bfloat16)
+ DO_FCVTNT(sve2_fcvtnt_sh, uint32_t, uint16_t, H1_4, H1_2, sve_f32_to_f16)
+ DO_FCVTNT(sve2_fcvtnt_ds, uint64_t, uint32_t,     , H1_4, float64_to_float32)
+ 
+diff --git a/target/arm/translate-a64.c b/target/arm/translate-a64.c
+index 0f15fa42fc..b335ca8735 100644
+--- a/target/arm/translate-a64.c
++++ b/target/arm/translate-a64.c
+@@ -10353,13 +10353,6 @@ static void handle_2misc_narrow(DisasContext *s, bool scalar,
+                 tcg_temp_free_i32(ahp);
+             }
+             break;
+-        case 0x36: /* BFCVTN, BFCVTN2 */
+-            {
+-                TCGv_ptr fpst = fpstatus_ptr(FPST_FPCR);
+-                gen_helper_bfcvt_pair(tcg_res[pass], tcg_op, fpst);
+-                tcg_temp_free_ptr(fpst);
+-            }
+-            break;
+         case 0x56:  /* FCVTXN, FCVTXN2 */
+             /* 64 bit to 32 bit float conversion
+              * with von Neumann rounding (round to odd)
+@@ -12760,16 +12753,6 @@ static void disas_simd_two_reg_misc(DisasContext *s, uint32_t insn)
+             }
+             handle_2misc_narrow(s, false, opcode, 0, is_q, size - 1, rn, rd);
+             return;
+-        case 0x36: /* BFCVTN, BFCVTN2 */
+-            if (!dc_isar_feature(aa64_bf16, s) || size != 2) {
+-                unallocated_encoding(s);
+-                return;
+-            }
+-            if (!fp_access_check(s)) {
+-                return;
+-            }
+-            handle_2misc_narrow(s, false, opcode, 0, is_q, size - 1, rn, rd);
+-            return;
+         case 0x17: /* FCVTL, FCVTL2 */
+             if (!fp_access_check(s)) {
+                 return;
+diff --git a/target/arm/translate-neon.c b/target/arm/translate-neon.c
+index 6d94229c69..9e990b41ed 100644
+--- a/target/arm/translate-neon.c
++++ b/target/arm/translate-neon.c
+@@ -3422,51 +3422,6 @@ static bool trans_VSHLL(DisasContext *s, arg_2misc *a)
+     return true;
+ }
+ 
+-static bool trans_VCVT_B16_F32(DisasContext *s, arg_2misc *a)
+-{
+-    TCGv_ptr fpst;
+-    TCGv_i64 tmp;
+-    TCGv_i32 dst0, dst1;
+-
+-    if (!dc_isar_feature(aa32_bf16, s)) {
+-        return false;
+-    }
+-
+-    /* UNDEF accesses to D16-D31 if they don't exist. */
+-    if (!dc_isar_feature(aa32_simd_r32, s) &&
+-        ((a->vd | a->vm) & 0x10)) {
+-        return false;
+-    }
+-
+-    if ((a->vm & 1) || (a->size != 1)) {
+-        return false;
+-    }
+-
+-    if (!vfp_access_check(s)) {
+-        return true;
+-    }
+-
+-    fpst = fpstatus_ptr(FPST_STD);
+-    tmp = tcg_temp_new_i64();
+-    dst0 = tcg_temp_new_i32();
+-    dst1 = tcg_temp_new_i32();
+-
+-    read_neon_element64(tmp, a->vm, 0, MO_64);
+-    gen_helper_bfcvt_pair(dst0, tmp, fpst);
+-
+-    read_neon_element64(tmp, a->vm, 1, MO_64);
+-    gen_helper_bfcvt_pair(dst1, tmp, fpst);
+-
+-    write_neon_element32(dst0, a->vd, 0, MO_32);
+-    write_neon_element32(dst1, a->vd, 1, MO_32);
+-
+-    tcg_temp_free_i64(tmp);
+-    tcg_temp_free_i32(dst0);
+-    tcg_temp_free_i32(dst1);
+-    tcg_temp_free_ptr(fpst);
+-    return true;
+-}
+-
+ static bool trans_VCVT_F16_F32(DisasContext *s, arg_2misc *a)
+ {
+     TCGv_ptr fpst;
+diff --git a/target/arm/translate-sve.c b/target/arm/translate-sve.c
+index fb692a1835..9574efe957 100644
+--- a/target/arm/translate-sve.c
++++ b/target/arm/translate-sve.c
+@@ -4777,14 +4777,6 @@ static bool trans_FCVT_hs(DisasContext *s, arg_rpr_esz *a)
+     return do_zpz_ptr(s, a->rd, a->rn, a->pg, false, gen_helper_sve_fcvt_hs);
+ }
+ 
+-static bool trans_BFCVT(DisasContext *s, arg_rpr_esz *a)
+-{
+-    if (!dc_isar_feature(aa64_sve_bf16, s)) {
+-        return false;
+-    }
+-    return do_zpz_ptr(s, a->rd, a->rn, a->pg, false, gen_helper_sve_bfcvt);
+-}
+-
+ static bool trans_FCVT_dh(DisasContext *s, arg_rpr_esz *a)
+ {
+     return do_zpz_ptr(s, a->rd, a->rn, a->pg, false, gen_helper_sve_fcvt_dh);
+@@ -8480,14 +8472,6 @@ static bool trans_FCVTNT_sh(DisasContext *s, arg_rpr_esz *a)
+     return do_zpz_ptr(s, a->rd, a->rn, a->pg, false, gen_helper_sve2_fcvtnt_sh);
+ }
+ 
+-static bool trans_BFCVTNT(DisasContext *s, arg_rpr_esz *a)
+-{
+-    if (!dc_isar_feature(aa64_sve_bf16, s)) {
+-        return false;
+-    }
+-    return do_zpz_ptr(s, a->rd, a->rn, a->pg, false, gen_helper_sve_bfcvtnt);
+-}
+-
+ static bool trans_FCVTNT_ds(DisasContext *s, arg_rpr_esz *a)
+ {
+     if (!dc_isar_feature(aa64_sve2, s)) {
+diff --git a/target/arm/vfp_helper.c b/target/arm/vfp_helper.c
+index 496f003477..200439ad66 100644
+--- a/target/arm/vfp_helper.c
++++ b/target/arm/vfp_helper.c
+@@ -416,13 +416,6 @@ uint32_t HELPER(bfcvt)(float32 x, void *status)
+     return float32_to_bfloat16(x, status);
+ }
+ 
+-uint32_t HELPER(bfcvt_pair)(uint64_t pair, void *status)
+-{
+-    bfloat16 lo = float32_to_bfloat16(extract64(pair, 0, 32), status);
+-    bfloat16 hi = float32_to_bfloat16(extract64(pair, 32, 32), status);
+-    return deposit32(lo, 16, 16, hi);
+-}
+-
+ /*
+  * VFP3 fixed point conversion. The AArch32 versions of fix-to-float
+  * must always round-to-nearest; the AArch64 ones honour the FPSCR

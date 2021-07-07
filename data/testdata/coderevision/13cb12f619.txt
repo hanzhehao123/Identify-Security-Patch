@@ -1,0 +1,13 @@
+diff --git a/pc-bios/s390-ccw/dasd-ipl.c b/pc-bios/s390-ccw/dasd-ipl.c
+index 254bb1a15e..71cbae2f16 100644
+--- a/pc-bios/s390-ccw/dasd-ipl.c
++++ b/pc-bios/s390-ccw/dasd-ipl.c
+@@ -205,7 +205,7 @@ static void run_ipl2(SubChannelId schid, uint16_t cutype, uint32_t addr)
+ 
+ /*
+  * Limitations in vfio-ccw support complicate the IPL process. Details can
+- * be found in docs/devel/s390-dasd-ipl.rst
++ * be found in docs/devel/s390-dasd-ipl.txt
+  */
+ void dasd_ipl(SubChannelId schid, uint16_t cutype)
+ {

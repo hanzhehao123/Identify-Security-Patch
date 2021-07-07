@@ -1,0 +1,14 @@
+commit 7552823a36d3b99598ec53431ff43774ce11e6f2
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:10 2021 -0400
+
+    scripts/qom-fuse: Apply pylint rules
+    
+    - Catch specific exceptions from QMP
+    - Reraise errors with explicit context
+    - method parameters should match parent's names
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210603003719.1321369-11-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

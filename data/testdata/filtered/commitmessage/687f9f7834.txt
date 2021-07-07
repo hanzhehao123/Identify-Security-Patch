@@ -1,0 +1,44 @@
+commit 687f9f7834e30330fd952f1fe096518509ff8ff7
+Merge: 5d2d18ae39 f5c6ee0c6b
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 28 09:44:41 2021 +0100
+
+    Merge remote-tracking branch 'remotes/philmd/tags/mips-20210625' into staging
+    
+    MIPS patches queue
+    
+    Various fixes:
+    - Potential integer overflow (CID 1452921)
+    - Invalid emulation of nanoMIPS BPOSGE32 opcode
+    - Missing exception when DINSV opcode used with DSP disabled
+    - Do not abort but emit exception for invalid BRANCH opcodes
+    - TCG temporary leaks
+    
+    Housekeeping:
+    - Remove dead code / comments
+    - Restrict few files to TCG, declarations to sysemu
+    - Merge MSA32 and MSA64 decodetree definitions
+    
+    # gpg: Signature made Fri 25 Jun 2021 10:22:20 BST
+    # gpg:                using RSA key FAABE75E12917221DCFD6BB2E3E32C2CDEADC0DE
+    # gpg: Good signature from "Philippe Mathieu-Daudé (F4BUG) <f4bug@amsat.org>" [full]
+    # Primary key fingerprint: FAAB E75E 1291 7221 DCFD  6BB2 E3E3 2C2C DEAD C0DE
+    
+    * remotes/philmd/tags/mips-20210625:
+      target/mips: Merge msa32/msa64 decodetree definitions
+      target/mips: Remove pointless gen_msa()
+      target/mips: Optimize regnames[] arrays
+      target/mips: Constify host_to_mips_errno[]
+      target/mips: fix emulation of nanoMIPS BPOSGE32 instruction
+      target/mips: Remove microMIPS BPOSGE32 / BPOSGE64 unuseful cases
+      target/mips: Remove SmartMIPS / MDMX unuseful comments
+      target/mips: Restrict some system specific declarations to sysemu
+      target/mips: Move translate.h to tcg/ sub directory
+      target/mips: Move TCG trace events to tcg/ sub directory
+      target/mips: Do not abort on invalid instruction
+      target/mips: Raise exception when DINSV opcode used with DSP disabled
+      target/mips: Fix more TCG temporary leaks in gen_pool32a5_nanomips_insn
+      target/mips: Fix TCG temporary leaks in gen_pool32a5_nanomips_insn()
+      target/mips: Fix potential integer overflow (CID 1452921)
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

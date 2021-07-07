@@ -1,0 +1,9 @@
+commit 5255f48c1c8c39be8ad95ef7ec0da0557924c806
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Feb 2 17:01:57 2021 -0800
+
+    tcg/tci: Implement clz, ctz, ctpop
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

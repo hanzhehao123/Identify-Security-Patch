@@ -1,0 +1,153 @@
+diff --git a/backends/hostmem-ram.c b/backends/hostmem-ram.c
+index 741e701062..5cc53e76c9 100644
+--- a/backends/hostmem-ram.c
++++ b/backends/hostmem-ram.c
+@@ -19,7 +19,6 @@
+ static void
+ ram_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+ {
+-    uint32_t ram_flags;
+     char *name;
+ 
+     if (!backend->size) {
+@@ -28,9 +27,8 @@ ram_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+     }
+ 
+     name = host_memory_backend_get_name(backend);
+-    ram_flags = backend->share ? RAM_SHARED : 0;
+-    memory_region_init_ram_flags_nomigrate(&backend->mr, OBJECT(backend), name,
+-                                           backend->size, ram_flags, errp);
++    memory_region_init_ram_shared_nomigrate(&backend->mr, OBJECT(backend), name,
++                           backend->size, backend->share, errp);
+     g_free(name);
+ }
+ 
+diff --git a/hw/m68k/next-cube.c b/hw/m68k/next-cube.c
+index e0d4a94f9d..de951ffe5d 100644
+--- a/hw/m68k/next-cube.c
++++ b/hw/m68k/next-cube.c
+@@ -984,8 +984,8 @@ static void next_cube_init(MachineState *machine)
+     sysbus_mmio_map(SYS_BUS_DEVICE(pcdev), 1, 0x02100000);
+ 
+     /* BMAP memory */
+-    memory_region_init_ram_flags_nomigrate(bmapm1, NULL, "next.bmapmem", 64,
+-                                           RAM_SHARED, &error_fatal);
++    memory_region_init_ram_shared_nomigrate(bmapm1, NULL, "next.bmapmem", 64,
++                                            true, &error_fatal);
+     memory_region_add_subregion(sysmem, 0x020c0000, bmapm1);
+     /* The Rev_2.5_v66.bin firmware accesses it at 0x820c0020, too */
+     memory_region_init_alias(bmapm2, NULL, "next.bmapmem2", bmapm1, 0x0, 64);
+diff --git a/include/exec/memory.h b/include/exec/memory.h
+index b1f8fa1df0..8aa69a10d7 100644
+--- a/include/exec/memory.h
++++ b/include/exec/memory.h
+@@ -940,27 +940,27 @@ void memory_region_init_ram_nomigrate(MemoryRegion *mr,
+                                       Error **errp);
+ 
+ /**
+- * memory_region_init_ram_flags_nomigrate:  Initialize RAM memory region.
+- *                                          Accesses into the region will
+- *                                          modify memory directly.
++ * memory_region_init_ram_shared_nomigrate:  Initialize RAM memory region.
++ *                                           Accesses into the region will
++ *                                           modify memory directly.
+  *
+  * @mr: the #MemoryRegion to be initialized.
+  * @owner: the object that tracks the region's reference count
+  * @name: Region name, becomes part of RAMBlock name used in migration stream
+  *        must be unique within any device
+  * @size: size of the region.
+- * @ram_flags: RamBlock flags. Supported flags: RAM_SHARED.
++ * @share: allow remapping RAM to different addresses
+  * @errp: pointer to Error*, to store an error if it happens.
+  *
+- * Note that this function does not do anything to cause the data in the
+- * RAM memory region to be migrated; that is the responsibility of the caller.
++ * Note that this function is similar to memory_region_init_ram_nomigrate.
++ * The only difference is part of the RAM region can be remapped.
+  */
+-void memory_region_init_ram_flags_nomigrate(MemoryRegion *mr,
+-                                            Object *owner,
+-                                            const char *name,
+-                                            uint64_t size,
+-                                            uint32_t ram_flags,
+-                                            Error **errp);
++void memory_region_init_ram_shared_nomigrate(MemoryRegion *mr,
++                                             Object *owner,
++                                             const char *name,
++                                             uint64_t size,
++                                             bool share,
++                                             Error **errp);
+ 
+ /**
+  * memory_region_init_resizeable_ram:  Initialize memory region with resizeable
+diff --git a/scripts/coccinelle/memory-region-housekeeping.cocci b/scripts/coccinelle/memory-region-housekeeping.cocci
+index 29651ebde9..c768d8140a 100644
+--- a/scripts/coccinelle/memory-region-housekeeping.cocci
++++ b/scripts/coccinelle/memory-region-housekeeping.cocci
+@@ -127,8 +127,8 @@ static void device_fn(DeviceState *dev, ...)
+ - memory_region_init_rom(E1, NULL, E2, E3, E4);
+ + memory_region_init_rom(E1, obj, E2, E3, E4);
+ |
+-- memory_region_init_ram_flags_nomigrate(E1, NULL, E2, E3, E4, E5);
+-+ memory_region_init_ram_flags_nomigrate(E1, obj, E2, E3, E4, E5);
++- memory_region_init_ram_shared_nomigrate(E1, NULL, E2, E3, E4, E5);
+++ memory_region_init_ram_shared_nomigrate(E1, obj, E2, E3, E4, E5);
+ )
+   ...+>
+ }
+@@ -152,8 +152,8 @@ static void device_fn(DeviceState *dev, ...)
+ - memory_region_init_rom(E1, NULL, E2, E3, E4);
+ + memory_region_init_rom(E1, OBJECT(dev), E2, E3, E4);
+ |
+-- memory_region_init_ram_flags_nomigrate(E1, NULL, E2, E3, E4, E5);
+-+ memory_region_init_ram_flags_nomigrate(E1, OBJECT(dev), E2, E3, E4, E5);
++- memory_region_init_ram_shared_nomigrate(E1, NULL, E2, E3, E4, E5);
+++ memory_region_init_ram_shared_nomigrate(E1, OBJECT(dev), E2, E3, E4, E5);
+ )
+   ...+>
+ }
+diff --git a/softmmu/memory.c b/softmmu/memory.c
+index 5c0ff76c06..f777504ac5 100644
+--- a/softmmu/memory.c
++++ b/softmmu/memory.c
+@@ -1531,22 +1531,22 @@ void memory_region_init_ram_nomigrate(MemoryRegion *mr,
+                                       uint64_t size,
+                                       Error **errp)
+ {
+-    memory_region_init_ram_flags_nomigrate(mr, owner, name, size, 0, errp);
++    memory_region_init_ram_shared_nomigrate(mr, owner, name, size, false, errp);
+ }
+ 
+-void memory_region_init_ram_flags_nomigrate(MemoryRegion *mr,
+-                                            Object *owner,
+-                                            const char *name,
+-                                            uint64_t size,
+-                                            uint32_t ram_flags,
+-                                            Error **errp)
++void memory_region_init_ram_shared_nomigrate(MemoryRegion *mr,
++                                             Object *owner,
++                                             const char *name,
++                                             uint64_t size,
++                                             bool share,
++                                             Error **errp)
+ {
+     Error *err = NULL;
+     memory_region_init(mr, owner, name, size);
+     mr->ram = true;
+     mr->terminates = true;
+     mr->destructor = memory_region_destructor_ram;
+-    mr->ram_block = qemu_ram_alloc(size, ram_flags & RAM_SHARED, mr, &err);
++    mr->ram_block = qemu_ram_alloc(size, share, mr, &err);
+     if (err) {
+         mr->size = int128_zero();
+         object_unparent(OBJECT(mr));
+@@ -1682,7 +1682,7 @@ void memory_region_init_rom_nomigrate(MemoryRegion *mr,
+                                       uint64_t size,
+                                       Error **errp)
+ {
+-    memory_region_init_ram_flags_nomigrate(mr, owner, name, size, 0, errp);
++    memory_region_init_ram_shared_nomigrate(mr, owner, name, size, false, errp);
+     mr->readonly = true;
+ }
+ 

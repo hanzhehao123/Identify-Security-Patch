@@ -1,0 +1,15 @@
+diff --git a/block/file-posix.c b/block/file-posix.c
+index a26eab0ac3..74b8216077 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -1347,9 +1347,7 @@ static int handle_aiocb_ioctl(void *opaque)
+     RawPosixAIOData *aiocb = opaque;
+     int ret;
+ 
+-    do {
+-        ret = ioctl(aiocb->aio_fildes, aiocb->ioctl.cmd, aiocb->ioctl.buf);
+-    } while (ret == -1 && errno == EINTR);
++    ret = ioctl(aiocb->aio_fildes, aiocb->ioctl.cmd, aiocb->ioctl.buf);
+     if (ret == -1) {
+         return -errno;
+     }

@@ -1,0 +1,12 @@
+commit b050543b68308427792cc024fb2905b041ebc253
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:09 2021 +0100
+
+    target/arm: Implement MVE VBRSR
+    
+    Implement the MVE VBRSR insn, which reverses a specified
+    number of bits in each element, setting the rest to zero.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-26-peter.maydell@linaro.org

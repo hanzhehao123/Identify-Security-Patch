@@ -1,0 +1,121 @@
+diff --git a/configure b/configure
+index e799d908a3..02b0acc1f5 100755
+--- a/configure
++++ b/configure
+@@ -375,7 +375,7 @@ rbd="auto"
+ smartcard="auto"
+ u2f="auto"
+ libusb="auto"
+-usb_redir="auto"
++usb_redir="$default_feature"
+ opengl="$default_feature"
+ cpuid_h="no"
+ avx2_opt="$default_feature"
+@@ -1289,9 +1289,9 @@ for opt do
+   ;;
+   --enable-libusb) libusb="enabled"
+   ;;
+-  --disable-usb-redir) usb_redir="disabled"
++  --disable-usb-redir) usb_redir="no"
+   ;;
+-  --enable-usb-redir) usb_redir="enabled"
++  --enable-usb-redir) usb_redir="yes"
+   ;;
+   --disable-zlib-test)
+   ;;
+@@ -3980,6 +3980,20 @@ EOF
+   fi
+ fi
+ 
++# check for usbredirparser for usb network redirection support
++if test "$usb_redir" != "no" ; then
++    if $pkg_config --atleast-version=0.6 libusbredirparser-0.5; then
++        usb_redir="yes"
++        usb_redir_cflags=$($pkg_config --cflags libusbredirparser-0.5)
++        usb_redir_libs=$($pkg_config --libs libusbredirparser-0.5)
++    else
++        if test "$usb_redir" = "yes"; then
++            feature_not_found "usb-redir" "Install usbredir devel"
++        fi
++        usb_redir="no"
++    fi
++fi
++
+ ##########################################
+ # check if we have VSS SDK headers for win
+ 
+@@ -5583,6 +5597,12 @@ if test "$spice" = "yes" ; then
+   echo "SPICE_LIBS=$spice_libs" >> $config_host_mak
+ fi
+ 
++if test "$usb_redir" = "yes" ; then
++  echo "CONFIG_USB_REDIR=y" >> $config_host_mak
++  echo "USB_REDIR_CFLAGS=$usb_redir_cflags" >> $config_host_mak
++  echo "USB_REDIR_LIBS=$usb_redir_libs" >> $config_host_mak
++fi
++
+ if test "$opengl" = "yes" ; then
+   echo "CONFIG_OPENGL=y" >> $config_host_mak
+   echo "OPENGL_CFLAGS=$opengl_cflags" >> $config_host_mak
+@@ -6155,7 +6175,7 @@ if test "$skip_meson" = no; then
+         -Dkvm=$kvm -Dhax=$hax -Dwhpx=$whpx -Dhvf=$hvf -Dnvmm=$nvmm \
+         -Dxen=$xen -Dxen_pci_passthrough=$xen_pci_passthrough -Dtcg=$tcg \
+         -Dcocoa=$cocoa -Dgtk=$gtk -Dmpath=$mpath -Dsdl=$sdl -Dsdl_image=$sdl_image \
+-        -Dlibusb=$libusb -Dsmartcard=$smartcard -Dusb_redir=$usb_redir \
++        -Dlibusb=$libusb -Dsmartcard=$smartcard \
+         -Dvnc=$vnc -Dvnc_sasl=$vnc_sasl -Dvnc_jpeg=$vnc_jpeg -Dvnc_png=$vnc_png \
+         -Dgettext=$gettext -Dxkbcommon=$xkbcommon -Du2f=$u2f -Dvirtiofsd=$virtiofsd \
+         -Dcapstone=$capstone -Dslirp=$slirp -Dfdt=$fdt -Dbrlapi=$brlapi \
+diff --git a/hw/usb/meson.build b/hw/usb/meson.build
+index 4f24b5274d..df9effbb10 100644
+--- a/hw/usb/meson.build
++++ b/hw/usb/meson.build
+@@ -64,7 +64,7 @@ if u2f.found()
+ endif
+ 
+ # usb redirect
+-if usbredir.found()
++if config_host.has_key('CONFIG_USB_REDIR')
+   usbredir_ss = ss.source_set()
+   usbredir_ss.add(when: 'CONFIG_USB',
+                   if_true: [usbredir, files('redirect.c', 'quirks.c')])
+diff --git a/meson.build b/meson.build
+index 64e23175ab..afcfcb8c57 100644
+--- a/meson.build
++++ b/meson.build
+@@ -988,10 +988,9 @@ if have_system
+                    kwargs: static_kwargs)
+ endif
+ usbredir = not_found
+-if not get_option('usb_redir').auto() or have_system
+-  usbredir = dependency('libusbredirparser-0.5', required: get_option('usb_redir'),
+-                        version: '>=0.6', method: 'pkg-config',
+-                        kwargs: static_kwargs)
++if 'CONFIG_USB_REDIR' in config_host
++  usbredir = declare_dependency(compile_args: config_host['USB_REDIR_CFLAGS'].split(),
++                                link_args: config_host['USB_REDIR_LIBS'].split())
+ endif
+ libusb = not_found
+ if not get_option('libusb').auto() or have_system
+@@ -2786,7 +2785,7 @@ summary_info += {'xfsctl support':    config_host.has_key('CONFIG_XFS')}
+ summary_info += {'smartcard support': cacard.found()}
+ summary_info += {'U2F support':       u2f.found()}
+ summary_info += {'libusb':            libusb.found()}
+-summary_info += {'usb net redir':     usbredir.found()}
++summary_info += {'usb net redir':     config_host.has_key('CONFIG_USB_REDIR')}
+ summary_info += {'OpenGL support':    config_host.has_key('CONFIG_OPENGL')}
+ summary_info += {'GBM':               config_host.has_key('CONFIG_GBM')}
+ summary_info += {'libiscsi support':  libiscsi.found()}
+diff --git a/meson_options.txt b/meson_options.txt
+index f7ec9bee27..cd9374384e 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -108,8 +108,6 @@ option('snappy', type : 'feature', value : 'auto',
+        description: 'snappy compression support')
+ option('u2f', type : 'feature', value : 'auto',
+        description: 'U2F emulation support')
+-option('usb_redir', type : 'feature', value : 'auto',
+-       description: 'libusbredir support')
+ option('vnc', type : 'feature', value : 'enabled',
+        description: 'VNC server')
+ option('vnc_jpeg', type : 'feature', value : 'auto',

@@ -1,0 +1,13 @@
+commit cb8657f7f9fcc2ebe8dfb1cbc9e572670d2af568
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue May 25 15:58:11 2021 -0700
+
+    target/arm: Implement bfloat16 dot product (vector)
+    
+    This is BFDOT for both AArch64 AdvSIMD and SVE,
+    and VDOT.BF16 for AArch32 NEON.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210525225817.400336-7-richard.henderson@linaro.org
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

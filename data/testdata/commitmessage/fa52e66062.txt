@@ -1,0 +1,9 @@
+commit fa52e660620fbb2418868e337aee06427ceafdbb
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Thu Mar 18 16:40:07 2021 -0600
+
+    tcg: Add tcg_call_func
+    
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

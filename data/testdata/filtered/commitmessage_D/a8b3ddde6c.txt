@@ -1,0 +1,15 @@
+commit a8b3ddde6c756059c00663224c1ad9835d30eae5
+Author: Patrick Venture <venture@google.com>
+Date:   Tue Jun 8 12:36:04 2021 -0700
+
+    hw/arm: add quanta-gbs-bmc machine
+    
+    Adds initial quanta-gbs-bmc machine support.
+    
+    Tested: Boots to userspace.
+    Signed-off-by: Patrick Venture <venture@google.com>
+    Reviewed-by: Brandon Kim <brandonkim@google.com>
+    Reviewed-by: Hao Wu <wuhaotsh@google.com>
+    Message-id: 20210608193605.2611114-2-venture@google.com
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

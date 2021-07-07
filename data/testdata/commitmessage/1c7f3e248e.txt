@@ -1,0 +1,14 @@
+commit 1c7f3e248e0ac8fc53d1d40d7ef8c9852fefed8c
+Author: Patrick Venture <venture@google.com>
+Date:   Tue Jun 8 12:36:05 2021 -0700
+
+    hw/arm: quanta-gbs-bmc add i2c comments
+    
+    Add a comment and i2c method that describes the board layout.
+    
+    Tested: firmware booted to userspace.
+    Signed-off-by: Patrick Venture <venture@google.com>
+    Reviewed-by: Brandon Kim <brandonkim@google.com>
+    Reviewed-by: Hao Wu <wuhaotsh@google.com>
+    Message-id: 20210608193605.2611114-3-venture@google.com
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

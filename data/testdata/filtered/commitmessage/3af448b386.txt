@@ -1,0 +1,17 @@
+commit 3af448b38677e7be5ccda6a65e06150abd1005b6
+Author: Thomas Huth <thuth@redhat.com>
+Date:   Tue May 25 16:20:32 2021 +0200
+
+    configure: Check whether we can compile the s390-ccw bios with -msoft-float
+    
+    The -msoft-float switch is not available in older versions of Clang.
+    Since we rely on the compiler to not generate floating point instructions
+    unexpectedly, we block those old compilers now via a test in the configure
+    script. Note that for some weird reasons, the Clang compiler only complains
+    about the missing soft-float support if no other flags are passed via
+    "-Wl,..." to the linker. So we have to use "compile_object" instead of
+    "compile_prog" for this check.
+    
+    Signed-off-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210525142032.156989-1-thuth@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

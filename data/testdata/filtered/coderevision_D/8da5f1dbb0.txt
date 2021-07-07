@@ -1,0 +1,1013 @@
+diff --git a/fpu/softfloat.c b/fpu/softfloat.c
+index b6a50e5e95..741480c568 100644
+--- a/fpu/softfloat.c
++++ b/fpu/softfloat.c
+@@ -4342,10 +4342,10 @@ void normalizeFloatx80Subnormal(uint64_t aSig, int32_t *zExpPtr,
+ | a subnormal number, and the underflow and inexact exceptions are raised if
+ | the abstract input cannot be represented exactly as a subnormal extended
+ | double-precision floating-point number.
+-|     If `roundingPrecision' is floatx80_precision_s or floatx80_precision_d,
+-| the result is rounded to the same number of bits as single or double
+-| precision, respectively.  Otherwise, the result is rounded to the full
+-| precision of the extended double-precision format.
++|     If `roundingPrecision' is 32 or 64, the result is rounded to the same
++| number of bits as single or double precision, respectively.  Otherwise, the
++| result is rounded to the full precision of the extended double-precision
++| format.
+ |     The input significand must be normalized or smaller.  If the input
+ | significand is not normalized, `zExp' must be 0; in that case, the result
+ | returned is a subnormal number, and it must not require rounding.  The
+@@ -4353,29 +4353,27 @@ void normalizeFloatx80Subnormal(uint64_t aSig, int32_t *zExpPtr,
+ | Floating-Point Arithmetic.
+ *----------------------------------------------------------------------------*/
+ 
+-floatx80 roundAndPackFloatx80(FloatX80RoundPrec roundingPrecision, bool zSign,
++floatx80 roundAndPackFloatx80(int8_t roundingPrecision, bool zSign,
+                               int32_t zExp, uint64_t zSig0, uint64_t zSig1,
+                               float_status *status)
+ {
+-    FloatRoundMode roundingMode;
++    int8_t roundingMode;
+     bool roundNearestEven, increment, isTiny;
+     int64_t roundIncrement, roundMask, roundBits;
+ 
+     roundingMode = status->float_rounding_mode;
+     roundNearestEven = ( roundingMode == float_round_nearest_even );
+-    switch (roundingPrecision) {
+-    case floatx80_precision_x:
+-        goto precision80;
+-    case floatx80_precision_d:
++    if ( roundingPrecision == 80 ) goto precision80;
++    if ( roundingPrecision == 64 ) {
+         roundIncrement = UINT64_C(0x0000000000000400);
+         roundMask = UINT64_C(0x00000000000007FF);
+-        break;
+-    case floatx80_precision_s:
++    }
++    else if ( roundingPrecision == 32 ) {
+         roundIncrement = UINT64_C(0x0000008000000000);
+         roundMask = UINT64_C(0x000000FFFFFFFFFF);
+-        break;
+-    default:
+-        g_assert_not_reached();
++    }
++    else {
++        goto precision80;
+     }
+     zSig0 |= ( zSig1 != 0 );
+     switch (roundingMode) {
+@@ -4552,7 +4550,7 @@ floatx80 roundAndPackFloatx80(FloatX80RoundPrec roundingPrecision, bool zSign,
+ | normalized.
+ *----------------------------------------------------------------------------*/
+ 
+-floatx80 normalizeRoundAndPackFloatx80(FloatX80RoundPrec roundingPrecision,
++floatx80 normalizeRoundAndPackFloatx80(int8_t roundingPrecision,
+                                        bool zSign, int32_t zExp,
+                                        uint64_t zSig0, uint64_t zSig1,
+                                        float_status *status)
+@@ -6205,7 +6203,7 @@ floatx80 floatx80_modrem(floatx80 a, floatx80 b, bool mod, uint64_t *quotient,
+     }
+     return
+         normalizeRoundAndPackFloatx80(
+-            floatx80_precision_x, zSign, bExp + expDiff, aSig0, aSig1, status);
++            80, zSign, bExp + expDiff, aSig0, aSig1, status);
+ 
+ }
+ 
+diff --git a/include/fpu/softfloat-helpers.h b/include/fpu/softfloat-helpers.h
+index 34f4cf92ae..2f0674fbdd 100644
+--- a/include/fpu/softfloat-helpers.h
++++ b/include/fpu/softfloat-helpers.h
+@@ -69,7 +69,7 @@ static inline void set_float_exception_flags(int val, float_status *status)
+     status->float_exception_flags = val;
+ }
+ 
+-static inline void set_floatx80_rounding_precision(FloatX80RoundPrec val,
++static inline void set_floatx80_rounding_precision(int val,
+                                                    float_status *status)
+ {
+     status->floatx80_rounding_precision = val;
+@@ -120,8 +120,7 @@ static inline int get_float_exception_flags(float_status *status)
+     return status->float_exception_flags;
+ }
+ 
+-static inline FloatX80RoundPrec
+-get_floatx80_rounding_precision(float_status *status)
++static inline int get_floatx80_rounding_precision(float_status *status)
+ {
+     return status->floatx80_rounding_precision;
+ }
+diff --git a/include/fpu/softfloat-types.h b/include/fpu/softfloat-types.h
+index 5bcbd041f7..3b757c3d6a 100644
+--- a/include/fpu/softfloat-types.h
++++ b/include/fpu/softfloat-types.h
+@@ -154,14 +154,6 @@ enum {
+     float_flag_output_denormal = 128
+ };
+ 
+-/*
+- * Rounding precision for floatx80.
+- */
+-typedef enum __attribute__((__packed__)) {
+-    floatx80_precision_x,
+-    floatx80_precision_d,
+-    floatx80_precision_s,
+-} FloatX80RoundPrec;
+ 
+ /*
+  * Floating Point Status. Individual architectures may maintain
+@@ -173,7 +165,7 @@ typedef enum __attribute__((__packed__)) {
+ typedef struct float_status {
+     FloatRoundMode float_rounding_mode;
+     uint8_t     float_exception_flags;
+-    FloatX80RoundPrec floatx80_rounding_precision;
++    signed char floatx80_rounding_precision;
+     bool tininess_before_rounding;
+     /* should denormalised results go to zero and set the inexact flag? */
+     bool flush_to_zero;
+diff --git a/include/fpu/softfloat.h b/include/fpu/softfloat.h
+index ec7dca0960..ed32040aa9 100644
+--- a/include/fpu/softfloat.h
++++ b/include/fpu/softfloat.h
+@@ -1152,7 +1152,7 @@ floatx80 propagateFloatx80NaN(floatx80 a, floatx80 b, float_status *status);
+ | Floating-Point Arithmetic.
+ *----------------------------------------------------------------------------*/
+ 
+-floatx80 roundAndPackFloatx80(FloatX80RoundPrec roundingPrecision, bool zSign,
++floatx80 roundAndPackFloatx80(int8_t roundingPrecision, bool zSign,
+                               int32_t zExp, uint64_t zSig0, uint64_t zSig1,
+                               float_status *status);
+ 
+@@ -1165,7 +1165,7 @@ floatx80 roundAndPackFloatx80(FloatX80RoundPrec roundingPrecision, bool zSign,
+ | normalized.
+ *----------------------------------------------------------------------------*/
+ 
+-floatx80 normalizeRoundAndPackFloatx80(FloatX80RoundPrec roundingPrecision,
++floatx80 normalizeRoundAndPackFloatx80(int8_t roundingPrecision,
+                                        bool zSign, int32_t zExp,
+                                        uint64_t zSig0, uint64_t zSig1,
+                                        float_status *status);
+diff --git a/linux-user/arm/nwfpe/fpa11.c b/linux-user/arm/nwfpe/fpa11.c
+index 9a93610d24..f6f8163eab 100644
+--- a/linux-user/arm/nwfpe/fpa11.c
++++ b/linux-user/arm/nwfpe/fpa11.c
+@@ -97,38 +97,37 @@ void SetRoundingMode(const unsigned int opcode)
+ 
+ void SetRoundingPrecision(const unsigned int opcode)
+ {
+-    FloatX80RoundPrec rounding_precision;
+-    FPA11 *fpa11 = GET_FPA11();
++    int rounding_precision;
++   FPA11 *fpa11 = GET_FPA11();
+ #ifdef MAINTAIN_FPCR
+-    fpa11->fpcr &= ~MASK_ROUNDING_PRECISION;
++   fpa11->fpcr &= ~MASK_ROUNDING_PRECISION;
+ #endif
+-    switch (opcode & MASK_ROUNDING_PRECISION) {
+-    case ROUND_SINGLE:
+-        rounding_precision = floatx80_precision_s;
++   switch (opcode & MASK_ROUNDING_PRECISION)
++   {
++      case ROUND_SINGLE:
++         rounding_precision = 32;
+ #ifdef MAINTAIN_FPCR
+-        fpa11->fpcr |= ROUND_SINGLE;
++         fpa11->fpcr |= ROUND_SINGLE;
+ #endif
+-        break;
++      break;
+ 
+-    case ROUND_DOUBLE:
+-        rounding_precision = floatx80_precision_d;
++      case ROUND_DOUBLE:
++         rounding_precision = 64;
+ #ifdef MAINTAIN_FPCR
+-        fpa11->fpcr |= ROUND_DOUBLE;
++         fpa11->fpcr |= ROUND_DOUBLE;
+ #endif
+-        break;
++      break;
+ 
+-    case ROUND_EXTENDED:
+-        rounding_precision = floatx80_precision_x;
++      case ROUND_EXTENDED:
++         rounding_precision = 80;
+ #ifdef MAINTAIN_FPCR
+-        fpa11->fpcr |= ROUND_EXTENDED;
++         fpa11->fpcr |= ROUND_EXTENDED;
+ #endif
+-        break;
++      break;
+ 
+-    default:
+-        rounding_precision = floatx80_precision_x;
+-        break;
+-    }
+-    set_floatx80_rounding_precision(rounding_precision, &fpa11->fp_status);
++      default: rounding_precision = 80;
++  }
++   set_floatx80_rounding_precision(rounding_precision, &fpa11->fp_status);
+ }
+ 
+ /* Emulate the instruction in the opcode. */
+diff --git a/target/i386/tcg/fpu_helper.c b/target/i386/tcg/fpu_helper.c
+index 4e11965067..1b30f1bb73 100644
+--- a/target/i386/tcg/fpu_helper.c
++++ b/target/i386/tcg/fpu_helper.c
+@@ -673,40 +673,38 @@ uint32_t helper_fnstcw(CPUX86State *env)
+ 
+ void update_fp_status(CPUX86State *env)
+ {
+-    FloatRoundMode rnd_mode;
+-    FloatX80RoundPrec rnd_prec;
++    int rnd_type;
+ 
+     /* set rounding mode */
+     switch (env->fpuc & FPU_RC_MASK) {
+     default:
+     case FPU_RC_NEAR:
+-        rnd_mode = float_round_nearest_even;
++        rnd_type = float_round_nearest_even;
+         break;
+     case FPU_RC_DOWN:
+-        rnd_mode = float_round_down;
++        rnd_type = float_round_down;
+         break;
+     case FPU_RC_UP:
+-        rnd_mode = float_round_up;
++        rnd_type = float_round_up;
+         break;
+     case FPU_RC_CHOP:
+-        rnd_mode = float_round_to_zero;
++        rnd_type = float_round_to_zero;
+         break;
+     }
+-    set_float_rounding_mode(rnd_mode, &env->fp_status);
+-
++    set_float_rounding_mode(rnd_type, &env->fp_status);
+     switch ((env->fpuc >> 8) & 3) {
+     case 0:
+-        rnd_prec = floatx80_precision_s;
++        rnd_type = 32;
+         break;
+     case 2:
+-        rnd_prec = floatx80_precision_d;
++        rnd_type = 64;
+         break;
+     case 3:
+     default:
+-        rnd_prec = floatx80_precision_x;
++        rnd_type = 80;
+         break;
+     }
+-    set_floatx80_rounding_precision(rnd_prec, &env->fp_status);
++    set_floatx80_rounding_precision(rnd_type, &env->fp_status);
+ }
+ 
+ void helper_fldcw(CPUX86State *env, uint32_t val)
+@@ -1076,8 +1074,7 @@ void helper_f2xm1(CPUX86State *env)
+                             &sig2);
+             /* This result is inexact.  */
+             sig1 |= 1;
+-            ST0 = normalizeRoundAndPackFloatx80(floatx80_precision_x,
+-                                                sign, exp, sig0, sig1,
++            ST0 = normalizeRoundAndPackFloatx80(80, sign, exp, sig0, sig1,
+                                                 &env->fp_status);
+         }
+     } else {
+@@ -1086,10 +1083,9 @@ void helper_f2xm1(CPUX86State *env)
+         int32_t n, aexp, bexp;
+         uint64_t asig0, asig1, asig2, bsig0, bsig1;
+         FloatRoundMode save_mode = env->fp_status.float_rounding_mode;
+-        FloatX80RoundPrec save_prec =
+-            env->fp_status.floatx80_rounding_precision;
++        signed char save_prec = env->fp_status.floatx80_rounding_precision;
+         env->fp_status.float_rounding_mode = float_round_nearest_even;
+-        env->fp_status.floatx80_rounding_precision = floatx80_precision_x;
++        env->fp_status.floatx80_rounding_precision = 80;
+ 
+         /* Find the nearest multiple of 1/32 to the argument.  */
+         tmp = floatx80_scalbn(ST0, 5, &env->fp_status);
+@@ -1187,8 +1183,7 @@ void helper_f2xm1(CPUX86State *env)
+             env->fp_status.float_rounding_mode = save_mode;
+             /* This result is inexact.  */
+             asig1 |= 1;
+-            ST0 = normalizeRoundAndPackFloatx80(floatx80_precision_x,
+-                                                asign, aexp, asig0, asig1,
++            ST0 = normalizeRoundAndPackFloatx80(80, asign, aexp, asig0, asig1,
+                                                 &env->fp_status);
+         }
+ 
+@@ -1306,9 +1301,8 @@ void helper_fpatan(CPUX86State *env)
+          * division is exact, the result of fpatan is still inexact
+          * (and underflowing where appropriate).
+          */
+-        FloatX80RoundPrec save_prec =
+-            env->fp_status.floatx80_rounding_precision;
+-        env->fp_status.floatx80_rounding_precision = floatx80_precision_x;
++        signed char save_prec = env->fp_status.floatx80_rounding_precision;
++        env->fp_status.floatx80_rounding_precision = 80;
+         ST1 = floatx80_div(ST1, ST0, &env->fp_status);
+         env->fp_status.floatx80_rounding_precision = save_prec;
+         if (!floatx80_is_zero(ST1) &&
+@@ -1327,8 +1321,7 @@ void helper_fpatan(CPUX86State *env)
+             if (exp == 0) {
+                 normalizeFloatx80Subnormal(sig, &exp, &sig);
+             }
+-            ST1 = normalizeRoundAndPackFloatx80(floatx80_precision_x,
+-                                                sign, exp, sig - 1,
++            ST1 = normalizeRoundAndPackFloatx80(80, sign, exp, sig - 1,
+                                                 -1, &env->fp_status);
+         }
+     } else {
+@@ -1384,10 +1377,9 @@ void helper_fpatan(CPUX86State *env)
+             uint64_t azsig2, azsig3, axsig0, axsig1;
+             floatx80 x8;
+             FloatRoundMode save_mode = env->fp_status.float_rounding_mode;
+-            FloatX80RoundPrec save_prec =
+-                env->fp_status.floatx80_rounding_precision;
++            signed char save_prec = env->fp_status.floatx80_rounding_precision;
+             env->fp_status.float_rounding_mode = float_round_nearest_even;
+-            env->fp_status.floatx80_rounding_precision = floatx80_precision_x;
++            env->fp_status.floatx80_rounding_precision = 80;
+ 
+             if (arg0_exp == 0) {
+                 normalizeFloatx80Subnormal(arg0_sig, &arg0_exp, &arg0_sig);
+@@ -1456,8 +1448,7 @@ void helper_fpatan(CPUX86State *env)
+              * Split x as x = t + y, where t = n/8 is the nearest
+              * multiple of 1/8 to x.
+              */
+-            x8 = normalizeRoundAndPackFloatx80(floatx80_precision_x,
+-                                               false, xexp + 3, xsig0,
++            x8 = normalizeRoundAndPackFloatx80(80, false, xexp + 3, xsig0,
+                                                xsig1, &env->fp_status);
+             n = floatx80_to_int32(x8, &env->fp_status);
+             if (n == 0) {
+@@ -1578,7 +1569,7 @@ void helper_fpatan(CPUX86State *env)
+                 /* Compute z^2.  */
+                 mul128To256(zsig0, zsig1, zsig0, zsig1,
+                             &z2sig0, &z2sig1, &z2sig2, &z2sig3);
+-                z2 = normalizeRoundAndPackFloatx80(floatx80_precision_x, false,
++                z2 = normalizeRoundAndPackFloatx80(80, false,
+                                                    zexp + zexp - 0x3ffe,
+                                                    z2sig0, z2sig1,
+                                                    &env->fp_status);
+@@ -1698,7 +1689,7 @@ void helper_fpatan(CPUX86State *env)
+         }
+         /* This result is inexact.  */
+         rsig1 |= 1;
+-        ST1 = normalizeRoundAndPackFloatx80(floatx80_precision_x, rsign, rexp,
++        ST1 = normalizeRoundAndPackFloatx80(80, rsign, rexp,
+                                             rsig0, rsig1, &env->fp_status);
+     }
+ 
+@@ -1899,8 +1890,7 @@ static void helper_fyl2x_common(CPUX86State *env, floatx80 arg, int32_t *exp,
+      */
+     mul128To256(tsig0, tsig1, tsig0, tsig1,
+                 &t2sig0, &t2sig1, &t2sig2, &t2sig3);
+-    t2 = normalizeRoundAndPackFloatx80(floatx80_precision_x, false,
+-                                       texp + texp - 0x3ffe,
++    t2 = normalizeRoundAndPackFloatx80(80, false, texp + texp - 0x3ffe,
+                                        t2sig0, t2sig1, &env->fp_status);
+ 
+     /* Compute the lower parts of the polynomial expansion.  */
+@@ -2014,17 +2004,15 @@ void helper_fyl2xp1(CPUX86State *env)
+         exp += arg1_exp - 0x3ffe;
+         /* This result is inexact.  */
+         sig1 |= 1;
+-        ST1 = normalizeRoundAndPackFloatx80(floatx80_precision_x,
+-                                            arg0_sign ^ arg1_sign, exp,
++        ST1 = normalizeRoundAndPackFloatx80(80, arg0_sign ^ arg1_sign, exp,
+                                             sig0, sig1, &env->fp_status);
+     } else {
+         int32_t aexp;
+         uint64_t asig0, asig1, asig2;
+         FloatRoundMode save_mode = env->fp_status.float_rounding_mode;
+-        FloatX80RoundPrec save_prec =
+-            env->fp_status.floatx80_rounding_precision;
++        signed char save_prec = env->fp_status.floatx80_rounding_precision;
+         env->fp_status.float_rounding_mode = float_round_nearest_even;
+-        env->fp_status.floatx80_rounding_precision = floatx80_precision_x;
++        env->fp_status.floatx80_rounding_precision = 80;
+ 
+         helper_fyl2x_common(env, ST0, &aexp, &asig0, &asig1);
+         /*
+@@ -2039,8 +2027,7 @@ void helper_fyl2xp1(CPUX86State *env)
+         /* This result is inexact.  */
+         asig1 |= 1;
+         env->fp_status.float_rounding_mode = save_mode;
+-        ST1 = normalizeRoundAndPackFloatx80(floatx80_precision_x,
+-                                            arg0_sign ^ arg1_sign, aexp,
++        ST1 = normalizeRoundAndPackFloatx80(80, arg0_sign ^ arg1_sign, aexp,
+                                             asig0, asig1, &env->fp_status);
+         env->fp_status.floatx80_rounding_precision = save_prec;
+     }
+@@ -2124,10 +2111,9 @@ void helper_fyl2x(CPUX86State *env)
+         int32_t int_exp;
+         floatx80 arg0_m1;
+         FloatRoundMode save_mode = env->fp_status.float_rounding_mode;
+-        FloatX80RoundPrec save_prec =
+-            env->fp_status.floatx80_rounding_precision;
++        signed char save_prec = env->fp_status.floatx80_rounding_precision;
+         env->fp_status.float_rounding_mode = float_round_nearest_even;
+-        env->fp_status.floatx80_rounding_precision = floatx80_precision_x;
++        env->fp_status.floatx80_rounding_precision = 80;
+ 
+         if (arg0_exp == 0) {
+             normalizeFloatx80Subnormal(arg0_sig, &arg0_exp, &arg0_sig);
+@@ -2184,8 +2170,7 @@ void helper_fyl2x(CPUX86State *env)
+             /* This result is inexact.  */
+             asig1 |= 1;
+             env->fp_status.float_rounding_mode = save_mode;
+-            ST1 = normalizeRoundAndPackFloatx80(floatx80_precision_x,
+-                                                asign ^ arg1_sign, aexp,
++            ST1 = normalizeRoundAndPackFloatx80(80, asign ^ arg1_sign, aexp,
+                                                 asig0, asig1, &env->fp_status);
+         }
+ 
+@@ -2267,12 +2252,12 @@ void helper_fscale(CPUX86State *env)
+         }
+     } else {
+         int n;
+-        FloatX80RoundPrec save = env->fp_status.floatx80_rounding_precision;
++        signed char save = env->fp_status.floatx80_rounding_precision;
+         uint8_t save_flags = get_float_exception_flags(&env->fp_status);
+         set_float_exception_flags(0, &env->fp_status);
+         n = floatx80_to_int32_round_to_zero(ST1, &env->fp_status);
+         set_float_exception_flags(save_flags, &env->fp_status);
+-        env->fp_status.floatx80_rounding_precision = floatx80_precision_x;
++        env->fp_status.floatx80_rounding_precision = 80;
+         ST0 = floatx80_scalbn(ST0, n, &env->fp_status);
+         env->fp_status.floatx80_rounding_precision = save;
+     }
+diff --git a/target/m68k/fpu_helper.c b/target/m68k/fpu_helper.c
+index fdc4937e29..797000e748 100644
+--- a/target/m68k/fpu_helper.c
++++ b/target/m68k/fpu_helper.c
+@@ -94,13 +94,13 @@ static void m68k_restore_precision_mode(CPUM68KState *env)
+ {
+     switch (env->fpcr & FPCR_PREC_MASK) {
+     case FPCR_PREC_X: /* extended */
+-        set_floatx80_rounding_precision(floatx80_precision_x, &env->fp_status);
++        set_floatx80_rounding_precision(80, &env->fp_status);
+         break;
+     case FPCR_PREC_S: /* single */
+-        set_floatx80_rounding_precision(floatx80_precision_s, &env->fp_status);
++        set_floatx80_rounding_precision(32, &env->fp_status);
+         break;
+     case FPCR_PREC_D: /* double */
+-        set_floatx80_rounding_precision(floatx80_precision_d, &env->fp_status);
++        set_floatx80_rounding_precision(64, &env->fp_status);
+         break;
+     case FPCR_PREC_U: /* undefined */
+     default:
+@@ -111,9 +111,9 @@ static void m68k_restore_precision_mode(CPUM68KState *env)
+ static void cf_restore_precision_mode(CPUM68KState *env)
+ {
+     if (env->fpcr & FPCR_PREC_S) { /* single */
+-        set_floatx80_rounding_precision(floatx80_precision_s, &env->fp_status);
++        set_floatx80_rounding_precision(32, &env->fp_status);
+     } else { /* double */
+-        set_floatx80_rounding_precision(floatx80_precision_d, &env->fp_status);
++        set_floatx80_rounding_precision(64, &env->fp_status);
+     }
+ }
+ 
+@@ -166,8 +166,8 @@ void HELPER(set_fpcr)(CPUM68KState *env, uint32_t val)
+ 
+ #define PREC_BEGIN(prec)                                        \
+     do {                                                        \
+-        FloatX80RoundPrec old =                                 \
+-            get_floatx80_rounding_precision(&env->fp_status);   \
++        int old;                                                \
++        old = get_floatx80_rounding_precision(&env->fp_status); \
+         set_floatx80_rounding_precision(prec, &env->fp_status)  \
+ 
+ #define PREC_END()                                              \
+@@ -176,14 +176,14 @@ void HELPER(set_fpcr)(CPUM68KState *env, uint32_t val)
+ 
+ void HELPER(fsround)(CPUM68KState *env, FPReg *res, FPReg *val)
+ {
+-    PREC_BEGIN(floatx80_precision_s);
++    PREC_BEGIN(32);
+     res->d = floatx80_round(val->d, &env->fp_status);
+     PREC_END();
+ }
+ 
+ void HELPER(fdround)(CPUM68KState *env, FPReg *res, FPReg *val)
+ {
+-    PREC_BEGIN(floatx80_precision_d);
++    PREC_BEGIN(64);
+     res->d = floatx80_round(val->d, &env->fp_status);
+     PREC_END();
+ }
+@@ -195,14 +195,14 @@ void HELPER(fsqrt)(CPUM68KState *env, FPReg *res, FPReg *val)
+ 
+ void HELPER(fssqrt)(CPUM68KState *env, FPReg *res, FPReg *val)
+ {
+-    PREC_BEGIN(floatx80_precision_s);
++    PREC_BEGIN(32);
+     res->d = floatx80_sqrt(val->d, &env->fp_status);
+     PREC_END();
+ }
+ 
+ void HELPER(fdsqrt)(CPUM68KState *env, FPReg *res, FPReg *val)
+ {
+-    PREC_BEGIN(floatx80_precision_d);
++    PREC_BEGIN(64);
+     res->d = floatx80_sqrt(val->d, &env->fp_status);
+     PREC_END();
+ }
+@@ -214,14 +214,14 @@ void HELPER(fabs)(CPUM68KState *env, FPReg *res, FPReg *val)
+ 
+ void HELPER(fsabs)(CPUM68KState *env, FPReg *res, FPReg *val)
+ {
+-    PREC_BEGIN(floatx80_precision_s);
++    PREC_BEGIN(32);
+     res->d = floatx80_round(floatx80_abs(val->d), &env->fp_status);
+     PREC_END();
+ }
+ 
+ void HELPER(fdabs)(CPUM68KState *env, FPReg *res, FPReg *val)
+ {
+-    PREC_BEGIN(floatx80_precision_d);
++    PREC_BEGIN(64);
+     res->d = floatx80_round(floatx80_abs(val->d), &env->fp_status);
+     PREC_END();
+ }
+@@ -233,14 +233,14 @@ void HELPER(fneg)(CPUM68KState *env, FPReg *res, FPReg *val)
+ 
+ void HELPER(fsneg)(CPUM68KState *env, FPReg *res, FPReg *val)
+ {
+-    PREC_BEGIN(floatx80_precision_s);
++    PREC_BEGIN(32);
+     res->d = floatx80_round(floatx80_chs(val->d), &env->fp_status);
+     PREC_END();
+ }
+ 
+ void HELPER(fdneg)(CPUM68KState *env, FPReg *res, FPReg *val)
+ {
+-    PREC_BEGIN(floatx80_precision_d);
++    PREC_BEGIN(64);
+     res->d = floatx80_round(floatx80_chs(val->d), &env->fp_status);
+     PREC_END();
+ }
+@@ -252,14 +252,14 @@ void HELPER(fadd)(CPUM68KState *env, FPReg *res, FPReg *val0, FPReg *val1)
+ 
+ void HELPER(fsadd)(CPUM68KState *env, FPReg *res, FPReg *val0, FPReg *val1)
+ {
+-    PREC_BEGIN(floatx80_precision_s);
++    PREC_BEGIN(32);
+     res->d = floatx80_add(val0->d, val1->d, &env->fp_status);
+     PREC_END();
+ }
+ 
+ void HELPER(fdadd)(CPUM68KState *env, FPReg *res, FPReg *val0, FPReg *val1)
+ {
+-    PREC_BEGIN(floatx80_precision_d);
++    PREC_BEGIN(64);
+     res->d = floatx80_add(val0->d, val1->d, &env->fp_status);
+     PREC_END();
+ }
+@@ -271,14 +271,14 @@ void HELPER(fsub)(CPUM68KState *env, FPReg *res, FPReg *val0, FPReg *val1)
+ 
+ void HELPER(fssub)(CPUM68KState *env, FPReg *res, FPReg *val0, FPReg *val1)
+ {
+-    PREC_BEGIN(floatx80_precision_s);
++    PREC_BEGIN(32);
+     res->d = floatx80_sub(val1->d, val0->d, &env->fp_status);
+     PREC_END();
+ }
+ 
+ void HELPER(fdsub)(CPUM68KState *env, FPReg *res, FPReg *val0, FPReg *val1)
+ {
+-    PREC_BEGIN(floatx80_precision_d);
++    PREC_BEGIN(64);
+     res->d = floatx80_sub(val1->d, val0->d, &env->fp_status);
+     PREC_END();
+ }
+@@ -290,14 +290,14 @@ void HELPER(fmul)(CPUM68KState *env, FPReg *res, FPReg *val0, FPReg *val1)
+ 
+ void HELPER(fsmul)(CPUM68KState *env, FPReg *res, FPReg *val0, FPReg *val1)
+ {
+-    PREC_BEGIN(floatx80_precision_s);
++    PREC_BEGIN(32);
+     res->d = floatx80_mul(val0->d, val1->d, &env->fp_status);
+     PREC_END();
+ }
+ 
+ void HELPER(fdmul)(CPUM68KState *env, FPReg *res, FPReg *val0, FPReg *val1)
+ {
+-    PREC_BEGIN(floatx80_precision_d);
++    PREC_BEGIN(64);
+     res->d = floatx80_mul(val0->d, val1->d, &env->fp_status);
+     PREC_END();
+ }
+@@ -307,7 +307,7 @@ void HELPER(fsglmul)(CPUM68KState *env, FPReg *res, FPReg *val0, FPReg *val1)
+     FloatRoundMode rounding_mode = get_float_rounding_mode(&env->fp_status);
+     floatx80 a, b;
+ 
+-    PREC_BEGIN(floatx80_precision_s);
++    PREC_BEGIN(32);
+     set_float_rounding_mode(float_round_to_zero, &env->fp_status);
+     a = floatx80_round(val0->d, &env->fp_status);
+     b = floatx80_round(val1->d, &env->fp_status);
+@@ -323,14 +323,14 @@ void HELPER(fdiv)(CPUM68KState *env, FPReg *res, FPReg *val0, FPReg *val1)
+ 
+ void HELPER(fsdiv)(CPUM68KState *env, FPReg *res, FPReg *val0, FPReg *val1)
+ {
+-    PREC_BEGIN(floatx80_precision_s);
++    PREC_BEGIN(32);
+     res->d = floatx80_div(val1->d, val0->d, &env->fp_status);
+     PREC_END();
+ }
+ 
+ void HELPER(fddiv)(CPUM68KState *env, FPReg *res, FPReg *val0, FPReg *val1)
+ {
+-    PREC_BEGIN(floatx80_precision_d);
++    PREC_BEGIN(64);
+     res->d = floatx80_div(val1->d, val0->d, &env->fp_status);
+     PREC_END();
+ }
+@@ -340,7 +340,7 @@ void HELPER(fsgldiv)(CPUM68KState *env, FPReg *res, FPReg *val0, FPReg *val1)
+     FloatRoundMode rounding_mode = get_float_rounding_mode(&env->fp_status);
+     floatx80 a, b;
+ 
+-    PREC_BEGIN(floatx80_precision_s);
++    PREC_BEGIN(32);
+     set_float_rounding_mode(float_round_to_zero, &env->fp_status);
+     a = floatx80_round(val1->d, &env->fp_status);
+     b = floatx80_round(val0->d, &env->fp_status);
+diff --git a/target/m68k/softfloat.c b/target/m68k/softfloat.c
+index 02dcc03d15..b6d0ed7acf 100644
+--- a/target/m68k/softfloat.c
++++ b/target/m68k/softfloat.c
+@@ -227,8 +227,7 @@ floatx80 floatx80_lognp1(floatx80 a, float_status *status)
+     int32_t aExp;
+     uint64_t aSig, fSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact, j, k;
+     floatx80 fp0, fp1, fp2, fp3, f, logof2, klog2, saveu;
+@@ -271,7 +270,7 @@ floatx80 floatx80_lognp1(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     compact = floatx80_make_compact(aExp, aSig);
+ 
+@@ -427,8 +426,7 @@ floatx80 floatx80_logn(floatx80 a, float_status *status)
+     int32_t aExp;
+     uint64_t aSig, fSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact, j, k, adjk;
+     floatx80 fp0, fp1, fp2, fp3, f, logof2, klog2, saveu;
+@@ -471,7 +469,7 @@ floatx80 floatx80_logn(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     compact = floatx80_make_compact(aExp, aSig);
+ 
+@@ -596,8 +594,7 @@ floatx80 floatx80_log10(floatx80 a, float_status *status)
+     int32_t aExp;
+     uint64_t aSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     floatx80 fp0, fp1;
+ 
+@@ -629,7 +626,7 @@ floatx80 floatx80_log10(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     fp0 = floatx80_logn(a, status);
+     fp1 = packFloatx80(0, 0x3FFD, UINT64_C(0xDE5BD8A937287195)); /* INV_L10 */
+@@ -654,8 +651,7 @@ floatx80 floatx80_log2(floatx80 a, float_status *status)
+     int32_t aExp;
+     uint64_t aSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     floatx80 fp0, fp1;
+ 
+@@ -690,7 +686,7 @@ floatx80 floatx80_log2(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     if (aSig == one_sig) { /* X is 2^k */
+         status->float_rounding_mode = user_rnd_mode;
+@@ -722,8 +718,7 @@ floatx80 floatx80_etox(floatx80 a, float_status *status)
+     int32_t aExp;
+     uint64_t aSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact, n, j, k, m, m1;
+     floatx80 fp0, fp1, fp2, fp3, l2, scale, adjscale;
+@@ -751,7 +746,7 @@ floatx80 floatx80_etox(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     adjflag = 0;
+ 
+@@ -907,8 +902,7 @@ floatx80 floatx80_twotox(floatx80 a, float_status *status)
+     int32_t aExp;
+     uint64_t aSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact, n, j, l, m, m1;
+     floatx80 fp0, fp1, fp2, fp3, adjfact, fact1, fact2;
+@@ -935,7 +929,7 @@ floatx80 floatx80_twotox(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     fp0 = a;
+ 
+@@ -1058,8 +1052,7 @@ floatx80 floatx80_tentox(floatx80 a, float_status *status)
+     int32_t aExp;
+     uint64_t aSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact, n, j, l, m, m1;
+     floatx80 fp0, fp1, fp2, fp3, adjfact, fact1, fact2;
+@@ -1086,7 +1079,7 @@ floatx80 floatx80_tentox(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     fp0 = a;
+ 
+@@ -1214,8 +1207,7 @@ floatx80 floatx80_tan(floatx80 a, float_status *status)
+     int32_t aExp, xExp;
+     uint64_t aSig, xSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact, l, n, j;
+     floatx80 fp0, fp1, fp2, fp3, fp4, fp5, invtwopi, twopi1, twopi2;
+@@ -1241,7 +1233,7 @@ floatx80 floatx80_tan(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     compact = floatx80_make_compact(aExp, aSig);
+ 
+@@ -1425,8 +1417,7 @@ floatx80 floatx80_sin(floatx80 a, float_status *status)
+     int32_t aExp, xExp;
+     uint64_t aSig, xSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact, l, n, j;
+     floatx80 fp0, fp1, fp2, fp3, fp4, fp5, x, invtwopi, twopi1, twopi2;
+@@ -1452,7 +1443,7 @@ floatx80 floatx80_sin(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     compact = floatx80_make_compact(aExp, aSig);
+ 
+@@ -1665,8 +1656,7 @@ floatx80 floatx80_cos(floatx80 a, float_status *status)
+     int32_t aExp, xExp;
+     uint64_t aSig, xSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact, l, n, j;
+     floatx80 fp0, fp1, fp2, fp3, fp4, fp5, x, invtwopi, twopi1, twopi2;
+@@ -1692,7 +1682,7 @@ floatx80 floatx80_cos(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     compact = floatx80_make_compact(aExp, aSig);
+ 
+@@ -1903,8 +1893,7 @@ floatx80 floatx80_atan(floatx80 a, float_status *status)
+     int32_t aExp;
+     uint64_t aSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact, tbl_index;
+     floatx80 fp0, fp1, fp2, fp3, xsave;
+@@ -1931,7 +1920,7 @@ floatx80 floatx80_atan(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     if (compact < 0x3FFB8000 || compact > 0x4002FFFF) {
+         /* |X| >= 16 or |X| < 1/16 */
+@@ -2101,8 +2090,7 @@ floatx80 floatx80_asin(floatx80 a, float_status *status)
+     int32_t aExp;
+     uint64_t aSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact;
+     floatx80 fp0, fp1, fp2, one;
+@@ -2136,7 +2124,7 @@ floatx80 floatx80_asin(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     one = packFloatx80(0, one_exp, one_sig);
+     fp0 = a;
+@@ -2167,8 +2155,7 @@ floatx80 floatx80_acos(floatx80 a, float_status *status)
+     int32_t aExp;
+     uint64_t aSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact;
+     floatx80 fp0, fp1, one;
+@@ -2206,7 +2193,7 @@ floatx80 floatx80_acos(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     one = packFloatx80(0, one_exp, one_sig);
+     fp0 = a;
+@@ -2237,8 +2224,7 @@ floatx80 floatx80_atanh(floatx80 a, float_status *status)
+     int32_t aExp;
+     uint64_t aSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact;
+     floatx80 fp0, fp1, fp2, one;
+@@ -2271,7 +2257,7 @@ floatx80 floatx80_atanh(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     one = packFloatx80(0, one_exp, one_sig);
+     fp2 = packFloatx80(aSign, 0x3FFE, one_sig); /* SIGN(X) * (1/2) */
+@@ -2303,8 +2289,7 @@ floatx80 floatx80_etoxm1(floatx80 a, float_status *status)
+     int32_t aExp;
+     uint64_t aSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact, n, j, m, m1;
+     floatx80 fp0, fp1, fp2, fp3, l2, sc, onebysc;
+@@ -2331,7 +2316,7 @@ floatx80 floatx80_etoxm1(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     if (aExp >= 0x3FFD) { /* |X| >= 1/4 */
+         compact = floatx80_make_compact(aExp, aSig);
+@@ -2556,8 +2541,7 @@ floatx80 floatx80_tanh(floatx80 a, float_status *status)
+     int32_t aExp, vExp;
+     uint64_t aSig, vSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact;
+     floatx80 fp0, fp1;
+@@ -2581,7 +2565,7 @@ floatx80 floatx80_tanh(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     compact = floatx80_make_compact(aExp, aSig);
+ 
+@@ -2672,8 +2656,7 @@ floatx80 floatx80_sinh(floatx80 a, float_status *status)
+     int32_t aExp;
+     uint64_t aSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact;
+     floatx80 fp0, fp1, fp2;
+@@ -2698,7 +2681,7 @@ floatx80 floatx80_sinh(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     compact = floatx80_make_compact(aExp, aSig);
+ 
+@@ -2761,8 +2744,7 @@ floatx80 floatx80_cosh(floatx80 a, float_status *status)
+     int32_t aExp;
+     uint64_t aSig;
+ 
+-    FloatRoundMode user_rnd_mode;
+-    FloatX80RoundPrec user_rnd_prec;
++    int8_t user_rnd_mode, user_rnd_prec;
+ 
+     int32_t compact;
+     floatx80 fp0, fp1;
+@@ -2785,7 +2767,7 @@ floatx80 floatx80_cosh(floatx80 a, float_status *status)
+     user_rnd_mode = status->float_rounding_mode;
+     user_rnd_prec = status->floatx80_rounding_precision;
+     status->float_rounding_mode = float_round_nearest_even;
+-    status->floatx80_rounding_precision = floatx80_precision_x;
++    status->floatx80_rounding_precision = 80;
+ 
+     compact = floatx80_make_compact(aExp, aSig);
+ 
+diff --git a/tests/fp/fp-test.c b/tests/fp/fp-test.c
+index 1be3a9788a..ff131afbde 100644
+--- a/tests/fp/fp-test.c
++++ b/tests/fp/fp-test.c
+@@ -963,21 +963,18 @@ static void QEMU_NORETURN run_test(void)
+             verCases_usesExact = !!(attrs & FUNC_ARG_EXACT);
+ 
+             for (k = 0; k < 3; k++) {
+-                FloatX80RoundPrec qsf_prec80 = floatx80_precision_s;
+                 int prec80 = 32;
+                 int l;
+ 
+                 if (k == 1) {
+                     prec80 = 64;
+-                    qsf_prec80 = floatx80_precision_d;
+                 } else if (k == 2) {
+                     prec80 = 80;
+-                    qsf_prec80 = floatx80_precision_x;
+                 }
+ 
+                 verCases_roundingPrecision = 0;
+                 slow_extF80_roundingPrecision = prec80;
+-                qsf.floatx80_rounding_precision = qsf_prec80;
++                qsf.floatx80_rounding_precision = prec80;
+ 
+                 if (attrs & FUNC_EFF_ROUNDINGPRECISION) {
+                     verCases_roundingPrecision = prec80;

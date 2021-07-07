@@ -1,0 +1,16 @@
+commit 7bde6b18575dd79c26ce1616e0c33151e83d9d7e
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Mon Apr 12 09:39:52 2021 +0200
+
+    target/i386: Add CPU model versions supporting 'xsaves'
+    
+    Hyper-V 2016 refuses to boot on Skylake+ CPU models because they lack
+    'xsaves'/'vmx-xsaves' features and this diverges from real hardware. The
+    same issue emerges with AMD "EPYC" CPU model prior to version 3 which got
+    'xsaves' added. EPYC-Rome/EPYC-Milan CPU models have 'xsaves' enabled from
+    the very beginning so the comment blaming KVM to explain why other CPUs
+    lack 'xsaves' is likely outdated.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Message-Id: <20210412073952.860944-1-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

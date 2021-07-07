@@ -1,0 +1,13 @@
+commit 961889f00c958e5500ec13eba71fbc5ccd243fd0
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Tue May 25 09:03:17 2021 +0200
+
+    gitlab: Extract cross-container jobs to container-cross.yml
+    
+    Extract the jobs preparing the cross containers into a new file
+    (container-cross.yml).
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210525082556.4011380-5-f4bug@amsat.org>

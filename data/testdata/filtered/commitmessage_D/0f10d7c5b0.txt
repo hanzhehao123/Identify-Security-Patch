@@ -1,0 +1,9 @@
+commit 0f10d7c5b0f16b73b47165196a0b366e011c94be
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Feb 2 16:48:48 2021 -0800
+
+    tcg/tci: Implement extract, sextract
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

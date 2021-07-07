@@ -1,0 +1,31 @@
+diff --git a/hw/ppc/pef.c b/hw/ppc/pef.c
+index cc44d5e339..573be3ed79 100644
+--- a/hw/ppc/pef.c
++++ b/hw/ppc/pef.c
+@@ -41,7 +41,7 @@ struct PefGuest {
+     ConfidentialGuestSupport parent_obj;
+ };
+ 
+-static int kvmppc_svm_init(ConfidentialGuestSupport *cgs, Error **errp)
++static int kvmppc_svm_init(Error **errp)
+ {
+ #ifdef CONFIG_KVM
+     static Error *pef_mig_blocker;
+@@ -65,8 +65,6 @@ static int kvmppc_svm_init(ConfidentialGuestSupport *cgs, Error **errp)
+     /* NB: This can fail if --only-migratable is used */
+     migrate_add_blocker(pef_mig_blocker, &error_fatal);
+ 
+-    cgs->ready = true;
+-
+     return 0;
+ #else
+     g_assert_not_reached();
+@@ -104,7 +102,7 @@ int pef_kvm_init(ConfidentialGuestSupport *cgs, Error **errp)
+         return -1;
+     }
+ 
+-    return kvmppc_svm_init(cgs, errp);
++    return kvmppc_svm_init(errp);
+ }
+ 
+ int pef_kvm_reset(ConfidentialGuestSupport *cgs, Error **errp)

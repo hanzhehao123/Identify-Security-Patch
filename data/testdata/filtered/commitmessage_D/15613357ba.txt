@@ -1,0 +1,20 @@
+commit 15613357ba53a4763594f64476058b85b3014757
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:24:38 2021 +0100
+
+    target/arm: Use acpi_ghes_present() to see if we report ACPI memory errors
+    
+    The virt_is_acpi_enabled() function is specific to the virt board, as
+    is the check for its 'ras' property.  Use the new acpi_ghes_present()
+    function to check whether we should report memory errors via
+    acpi_ghes_record_errors().
+    
+    This avoids a link error if QEMU was built without support for the
+    virt board, and provides a mechanism that can be used by any future
+    board models that want to add ACPI memory error reporting support
+    (they only need to call acpi_ghes_add_fw_cfg()).
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Dongjiu Geng <gengdongjiu1@gmail.com>
+    Message-id: 20210603171259.27962-4-peter.maydell@linaro.org

@@ -1,0 +1,21 @@
+commit 24b36e9813ec15da7db62e3b3621730710c5f020
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 3 10:34:23 2021 +0200
+
+    block: add max_hw_transfer to BlockLimits
+    
+    For block host devices, I/O can happen through either the kernel file
+    descriptor I/O system calls (preadv/pwritev, io_submit, io_uring)
+    or the SCSI passthrough ioctl SG_IO.
+    
+    In the latter case, the size of each transfer can be limited by the
+    HBA, while for file descriptor I/O the kernel is able to split and
+    merge I/O in smaller pieces as needed.  Applying the HBA limits to
+    file descriptor I/O results in more system calls and suboptimal
+    performance, so this patch splits the max_transfer limit in two:
+    max_transfer remains valid and is used in general, while max_hw_transfer
+    is limited to the maximum hardware size.  max_hw_transfer can then be
+    included by the scsi-generic driver in the block limits page, to ensure
+    that the stricter hardware limit is used.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

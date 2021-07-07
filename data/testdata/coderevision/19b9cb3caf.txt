@@ -1,0 +1,30 @@
+diff --git a/configure b/configure
+index 00e7dd749a..38704b4e11 100755
+--- a/configure
++++ b/configure
+@@ -406,7 +406,9 @@ gtk="auto"
+ tls_priority="NORMAL"
+ gnutls="$default_feature"
+ nettle="$default_feature"
++nettle_xts="no"
+ gcrypt="$default_feature"
++gcrypt_xts="no"
+ qemu_private_xts="yes"
+ auth_pam="$default_feature"
+ vte="$default_feature"
+@@ -2895,6 +2897,7 @@ int main(void) {
+ }
+ EOF
+         if compile_prog "$nettle_cflags" "$nettle_libs" ; then
++            nettle_xts=yes
+             qemu_private_xts=no
+         fi
+     fi
+@@ -2935,6 +2938,7 @@ int main(void) {
+ }
+ EOF
+         if compile_prog "$gcrypt_cflags" "$gcrypt_libs" ; then
++            gcrypt_xts=yes
+             qemu_private_xts=no
+         fi
+     elif test "$gcrypt" = "yes"; then

@@ -1,0 +1,14 @@
+commit e4697fabb58133c3cfa5d3afe727db80beda5af7
+Author: Volker Rümelin <vr_qemu@t-online.de>
+Date:   Tue May 25 20:14:38 2021 +0200
+
+    pckbd: add function kbd_pending()
+    
+    Replace reads of the variable s->pending with a call to a new
+    function kbd_pending() to ease the review of the next patch.
+    There is no functional change.
+    
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Signed-off-by: Volker Rümelin <vr_qemu@t-online.de>
+    Message-Id: <20210525181441.27768-9-vr_qemu@t-online.de>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

@@ -1,0 +1,12 @@
+commit e2d301780953dea5f0065bcfccf261c2bf3f7e98
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Tue May 25 10:25:53 2021 +0200
+
+    gitlab-ci: Split gprof-gcov job
+    
+    This job is hitting the 70min limit, so split it in 2 tasks.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210525082556.4011380-7-f4bug@amsat.org>

@@ -1,0 +1,16 @@
+diff --git a/docs/system/removed-features.rst b/docs/system/removed-features.rst
+index 1d22195b1d..5a462ac568 100644
+--- a/docs/system/removed-features.rst
++++ b/docs/system/removed-features.rst
+@@ -249,11 +249,6 @@ Use ``migrate-set-parameters`` and ``info migrate-parameters`` instead.
+ 
+ Use ``migrate-set-parameters`` instead.
+ 
+-``info cpustats`` (removed in 6.1)
+-''''''''''''''''''''''''''''''''''
+-
+-This command didn't produce any output already. Removed with no replacement.
+-
+ Guest Emulator ISAs
+ -------------------
+ 

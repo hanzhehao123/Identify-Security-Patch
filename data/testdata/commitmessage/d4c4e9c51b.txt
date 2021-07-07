@@ -1,0 +1,10 @@
+commit d4c4e9c51b91d413cf3020ce80ba4914186bfbb4
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Sep 5 12:24:28 2020 -0700
+
+    tcg/arm: Implement TCG_TARGET_HAS_shi_vec
+    
+    This consists of the three immediate shifts: shli, shri, sari.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

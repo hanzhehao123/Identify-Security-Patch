@@ -1,0 +1,12 @@
+commit 463e50da8bf81bb3eff108e4bdd8fa7aadb12f4c
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:37 2021 +0200
+
+    s390x/cpumodel: Bump up QEMU model to a stripped-down IBM z14 GA2
+    
+    TCG implements everything we need to run basic z14 OS+software.
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-27-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

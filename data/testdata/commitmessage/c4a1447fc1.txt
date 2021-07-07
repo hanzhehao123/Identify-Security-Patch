@@ -1,0 +1,11 @@
+commit c4a1447fc13fd71df3813bfd451b98137f12b434
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:14 2021 -0400
+
+    scripts/qmp-shell: use @classmethod where appropriate
+    
+    Methods with no self-use should belong to the class.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-8-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

@@ -1,0 +1,11 @@
+commit 4ab4aef01830ad733a2552307630a1699d8caf72
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 14 14:21:16 2020 -0800
+
+    softfloat: Move round_to_uint_and_pack to softfloat-parts.c.inc
+    
+    Rename to parts$N_float_to_uint.  Reimplement
+    float128_to_uint{32,64}{_round_to_zero} with FloatParts128.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

@@ -1,0 +1,17 @@
+commit d3327a38cda104dd292105b6b9d140f2158209f9
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Jun 12 12:57:07 2021 -0700
+
+    target/arm: Fix mte page crossing test
+    
+    The test was off-by-one, because tag_last points to the
+    last byte of the tag to check, thus tag_last - prev_page
+    will equal TARGET_PAGE_SIZE when we use the first byte
+    of the next page.
+    
+    Resolves: https://gitlab.com/qemu-project/qemu/-/issues/403
+    Reported-by: Peter Collingbourne <pcc@google.com>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210612195707.840217-1-richard.henderson@linaro.org
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

@@ -1,0 +1,16 @@
+commit 5a5d2f3d260a5c3a2f00675c90744c0903fed116
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Mon Jun 14 21:32:17 2021 +0200
+
+    hw/block/fdc: Declare shared prototypes in fdc-internal.h
+    
+    We want to extract ISA/SysBus code from the generic fdc.c file.
+    First, declare the prototypes we will access from the new units
+    into a new local header: "fdc-internal.h".
+    
+    Acked-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Reviewed-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Acked-by: Paolo Bonzini <pbonzini@redhat.com>
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210614193220.2007159-4-philmd@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

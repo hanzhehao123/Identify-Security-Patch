@@ -1,0 +1,50 @@
+diff --git a/target/riscv/insn32.decode b/target/riscv/insn32.decode
+index 81dfdfbafd..9b2fd4b6fe 100644
+--- a/target/riscv/insn32.decode
++++ b/target/riscv/insn32.decode
+@@ -669,10 +669,6 @@ xnor       0100000 .......... 100 ..... 0110011 @r
+ pack       0000100 .......... 100 ..... 0110011 @r
+ packu      0100100 .......... 100 ..... 0110011 @r
+ packh      0000100 .......... 111 ..... 0110011 @r
+-min        0000101 .......... 100 ..... 0110011 @r
+-minu       0000101 .......... 101 ..... 0110011 @r
+-max        0000101 .......... 110 ..... 0110011 @r
+-maxu       0000101 .......... 111 ..... 0110011 @r
+ 
+ # *** RV64B Standard Extension (in addition to RV32B) ***
+ clzw       0110000 00000 ..... 001 ..... 0011011 @r2
+diff --git a/target/riscv/insn_trans/trans_rvb.c.inc b/target/riscv/insn_trans/trans_rvb.c.inc
+index 5a4fc02f70..770205f96f 100644
+--- a/target/riscv/insn_trans/trans_rvb.c.inc
++++ b/target/riscv/insn_trans/trans_rvb.c.inc
+@@ -71,30 +71,6 @@ static bool trans_packh(DisasContext *ctx, arg_packh *a)
+     return gen_arith(ctx, a, gen_packh);
+ }
+ 
+-static bool trans_min(DisasContext *ctx, arg_min *a)
+-{
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_arith(ctx, a, tcg_gen_smin_tl);
+-}
+-
+-static bool trans_max(DisasContext *ctx, arg_max *a)
+-{
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_arith(ctx, a, tcg_gen_smax_tl);
+-}
+-
+-static bool trans_minu(DisasContext *ctx, arg_minu *a)
+-{
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_arith(ctx, a, tcg_gen_umin_tl);
+-}
+-
+-static bool trans_maxu(DisasContext *ctx, arg_maxu *a)
+-{
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_arith(ctx, a, tcg_gen_umax_tl);
+-}
+-
+ static bool trans_clzw(DisasContext *ctx, arg_clzw *a)
+ {
+     REQUIRE_64BIT(ctx);

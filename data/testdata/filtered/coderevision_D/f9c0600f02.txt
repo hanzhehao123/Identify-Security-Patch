@@ -1,0 +1,21 @@
+diff --git a/python/.gitignore b/python/.gitignore
+deleted file mode 100644
+index 4ed144ceac..0000000000
+--- a/python/.gitignore
++++ /dev/null
+@@ -1,15 +0,0 @@
+-# linter/tooling cache
+-.mypy_cache/
+-.cache/
+-
+-# python packaging
+-build/
+-dist/
+-qemu.egg-info/
+-
+-# editor config
+-.idea/
+-.vscode/
+-
+-# virtual environments (pipenv et al)
+-.venv/

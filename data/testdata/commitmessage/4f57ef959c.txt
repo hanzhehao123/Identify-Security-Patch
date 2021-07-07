@@ -1,0 +1,24 @@
+commit 4f57ef959cf83cc780658c7e97ba5f737aa666f2
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:28 2021 +0100
+
+    target/arm: Make VMOV scalar <-> gpreg beatwise for MVE
+    
+    In a CPU with MVE, the VMOV (vector lane to general-purpose register)
+    and VMOV (general-purpose register to vector lane) insns are not
+    predicated, but they are subject to beatwise execution if they
+    are not in an IT block.
+    
+    Since our implementation always executes all 4 beats in one tick,
+    this means only that we need to handle PSR.ECI:
+     * we must do the usual check for bad ECI state
+     * we must advance ECI state if the insn succeeds
+     * if ECI says we should not be executing the beat corresponding
+       to the lane of the vector register being accessed then we
+       should skip performing the move
+    
+    Note that if PSR.ECI is non-zero then we cannot be in an IT block.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-45-peter.maydell@linaro.org

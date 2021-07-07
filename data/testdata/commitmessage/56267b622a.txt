@@ -1,0 +1,9 @@
+commit 56267b622a3c376a183f3a8ddbbcb2e81f667934
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Wed May 12 06:58:21 2021 +0200
+
+    configure: Only clone softfloat-3 repositories if TCG is enabled
+    
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210512045821.3257963-1-philmd@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

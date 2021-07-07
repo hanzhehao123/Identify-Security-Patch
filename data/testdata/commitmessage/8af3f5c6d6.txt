@@ -1,0 +1,13 @@
+commit 8af3f5c6d66ac203000c2d8ebebd3b751f575008
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Thu Apr 15 14:33:51 2021 +0100
+
+    softmmu: add trace point when bdrv_flush_all fails
+    
+    The VM stop process has to flush outstanding I/O and this is a critical
+    failure scenario that is hard to diagnose. Add a probe point that
+    records the flush return code.
+    
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>

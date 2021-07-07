@@ -1,0 +1,19 @@
+commit f548f20176cb5f440693120f9bde911dd3639748
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu May 27 10:51:52 2021 +0100
+
+    arm: Consistently use "Cortex-Axx", not "Cortex Axx"
+    
+    The official punctuation for Arm CPU names uses a hyphen, like
+    "Cortex-A9". We mostly follow this, but in a few places usage
+    without the hyphen has crept in. Fix those so we consistently
+    use the same way of writing the CPU name.
+    
+    This commit was created with:
+      git grep -z -l 'Cortex ' | xargs -0 sed -i 's/Cortex /Cortex-/'
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-id: 20210527095152.10968-1-peter.maydell@linaro.org

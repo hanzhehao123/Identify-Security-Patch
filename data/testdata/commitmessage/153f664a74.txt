@@ -1,0 +1,8 @@
+commit 153f664a74dbda82ed0896ce46a4648818a55e37
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 21 12:42:02 2020 -0800
+
+    softfloat: Convert floatx80_mul to FloatParts
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

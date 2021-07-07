@@ -1,0 +1,13 @@
+commit 0147af69abb17a1ab5780821659c2e71d081c1e2
+Author: Bin Meng <bin.meng@windriver.com>
+Date:   Fri Apr 30 15:13:00 2021 +0800
+
+    docs/system/riscv: sifive_u: Document '-dtb' usage
+    
+    Update the 'sifive_u' machine documentation to mention the '-dtb'
+    option that can be used to pass a custom DTB to QEMU.
+    
+    Signed-off-by: Bin Meng <bin.meng@windriver.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210430071302.1489082-6-bmeng.cn@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

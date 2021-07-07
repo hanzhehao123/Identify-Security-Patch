@@ -1,0 +1,12 @@
+commit f2aabda8ac9889db9449ddc0ca31627922e5a572
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Jun 1 16:35:20 2021 -0300
+
+    target/ppc: Move D/DS/X-form integer loads to decodetree
+    
+    These are all connected by macros in the legacy decoding.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Matheus Ferst <matheus.ferst@eldorado.org.br>
+    Message-Id: <20210601193528.2533031-7-matheus.ferst@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

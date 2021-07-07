@@ -1,0 +1,29 @@
+commit 0542a4c95767b2370cb6622efe723bb6197aa04c
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:17:06 2021 -0400
+
+    python: add mypy to pipenv
+    
+    0.730 appears to be about the oldest version that works with the
+    features we want, including nice human readable output (to make sure
+    iotest 297 passes), and type-parameterized Popen generics.
+    
+    0.770, however, supports adding 'strict' to the config file, so require
+    at least 0.770.
+    
+    Now that we are checking a namespace package, we need to tell mypy to
+    allow PEP420 namespaces, so modify the mypy config as part of the move.
+    
+    mypy can now be run from the python root by typing 'mypy -p qemu'.
+    
+    A note on mypy invocation: Running it as "mypy qemu/" changes the import
+    path detection mechanisms in mypy slightly, and it will fail. See
+    https://github.com/python/mypy/issues/8584 for a decent entry point with
+    more breadcrumbs on the various behaviors that contribute to this subtle
+    difference.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Tested-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-23-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

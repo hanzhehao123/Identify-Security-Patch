@@ -1,0 +1,27 @@
+diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
+index 4cd4df223f..7849e84e9a 100644
+--- a/target/i386/kvm/kvm.c
++++ b/target/i386/kvm/kvm.c
+@@ -1208,6 +1208,9 @@ static int hyperv_handle_properties(CPUState *cs,
+     }
+ 
+     if (cpu->hyperv_passthrough) {
++        memcpy(cpuid_ent, &cpuid->entries[0],
++               cpuid->nent * sizeof(cpuid->entries[0]));
++
+         c = cpuid_find_entry(cpuid, HV_CPUID_VENDOR_AND_MAX_FUNCTIONS, 0);
+         if (c) {
+             cpu->hyperv_vendor_id[0] = c->ebx;
+@@ -1307,6 +1310,12 @@ static int hyperv_handle_properties(CPUState *cs,
+         goto free;
+     }
+ 
++    if (cpu->hyperv_passthrough) {
++        /* We already copied all feature words from KVM as is */
++        r = cpuid->nent;
++        goto free;
++    }
++
+     c = &cpuid_ent[cpuid_i++];
+     c->function = HV_CPUID_VENDOR_AND_MAX_FUNCTIONS;
+     c->eax = hyperv_feat_enabled(cpu, HYPERV_FEAT_EVMCS) ?

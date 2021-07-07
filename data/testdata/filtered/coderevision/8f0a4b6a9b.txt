@@ -1,0 +1,151 @@
+diff --git a/target/ppc/insn32.decode b/target/ppc/insn32.decode
+index 9fd8d6b817..93e5d44d9e 100644
+--- a/target/ppc/insn32.decode
++++ b/target/ppc/insn32.decode
+@@ -20,10 +20,6 @@
+ &D              rt ra si:int64_t
+ @D              ...... rt:5 ra:5 si:s16                 &D
+ 
+-&D_bf           bf l:bool ra imm
+-@D_bfs          ...... bf:3 - l:1 ra:5 imm:s16          &D_bf
+-@D_bfu          ...... bf:3 - l:1 ra:5 imm:16           &D_bf
+-
+ %ds_si          2:s14  !function=times_4
+ @DS             ...... rt:5 ra:5 .............. ..      &D si=%ds_si
+ 
+@@ -40,9 +36,6 @@
+ &X_bi           rt bi
+ @X_bi           ...... rt:5 bi:5 ----- .......... -     &X_bi
+ 
+-&X_bfl          bf l:bool ra rb
+-@X_bfl          ...... bf:3 - l:1 ra:5 rb:5 ..........- &X_bfl
+-
+ ### Fixed-Point Load Instructions
+ 
+ LBZ             100010 ..... ..... ................     @D
+@@ -96,13 +89,6 @@ STDU            111110 ..... ..... ..............01     @DS
+ STDX            011111 ..... ..... ..... 0010010101 -   @X
+ STDUX           011111 ..... ..... ..... 0010110101 -   @X
+ 
+-### Fixed-Point Compare Instructions
+-
+-CMP             011111 ... - . ..... ..... 0000000000 - @X_bfl
+-CMPL            011111 ... - . ..... ..... 0000100000 - @X_bfl
+-CMPI            001011 ... - . ..... ................   @D_bfs
+-CMPLI           001010 ... - . ..... ................   @D_bfu
+-
+ ### Fixed-Point Arithmetic Instructions
+ 
+ ADDI            001110 ..... ..... ................     @D
+diff --git a/target/ppc/translate.c b/target/ppc/translate.c
+index 95e4d9b815..35d8831d44 100644
+--- a/target/ppc/translate.c
++++ b/target/ppc/translate.c
+@@ -1489,6 +1489,54 @@ static inline void gen_set_Rc0(DisasContext *ctx, TCGv reg)
+     }
+ }
+ 
++/* cmp */
++static void gen_cmp(DisasContext *ctx)
++{
++    if ((ctx->opcode & 0x00200000) && (ctx->insns_flags & PPC_64B)) {
++        gen_op_cmp(cpu_gpr[rA(ctx->opcode)], cpu_gpr[rB(ctx->opcode)],
++                   1, crfD(ctx->opcode));
++    } else {
++        gen_op_cmp32(cpu_gpr[rA(ctx->opcode)], cpu_gpr[rB(ctx->opcode)],
++                     1, crfD(ctx->opcode));
++    }
++}
++
++/* cmpi */
++static void gen_cmpi(DisasContext *ctx)
++{
++    if ((ctx->opcode & 0x00200000) && (ctx->insns_flags & PPC_64B)) {
++        gen_op_cmpi(cpu_gpr[rA(ctx->opcode)], SIMM(ctx->opcode),
++                    1, crfD(ctx->opcode));
++    } else {
++        gen_op_cmpi32(cpu_gpr[rA(ctx->opcode)], SIMM(ctx->opcode),
++                      1, crfD(ctx->opcode));
++    }
++}
++
++/* cmpl */
++static void gen_cmpl(DisasContext *ctx)
++{
++    if ((ctx->opcode & 0x00200000) && (ctx->insns_flags & PPC_64B)) {
++        gen_op_cmp(cpu_gpr[rA(ctx->opcode)], cpu_gpr[rB(ctx->opcode)],
++                   0, crfD(ctx->opcode));
++    } else {
++        gen_op_cmp32(cpu_gpr[rA(ctx->opcode)], cpu_gpr[rB(ctx->opcode)],
++                     0, crfD(ctx->opcode));
++    }
++}
++
++/* cmpli */
++static void gen_cmpli(DisasContext *ctx)
++{
++    if ((ctx->opcode & 0x00200000) && (ctx->insns_flags & PPC_64B)) {
++        gen_op_cmpi(cpu_gpr[rA(ctx->opcode)], UIMM(ctx->opcode),
++                    0, crfD(ctx->opcode));
++    } else {
++        gen_op_cmpi32(cpu_gpr[rA(ctx->opcode)], UIMM(ctx->opcode),
++                      0, crfD(ctx->opcode));
++    }
++}
++
+ /* cmprb - range comparison: isupper, isaplha, islower*/
+ static void gen_cmprb(DisasContext *ctx)
+ {
+@@ -7591,6 +7639,10 @@ GEN_HANDLER_E(brw, 0x1F, 0x1B, 0x04, 0x0000F801, PPC_NONE, PPC2_ISA310),
+ GEN_HANDLER_E(brh, 0x1F, 0x1B, 0x06, 0x0000F801, PPC_NONE, PPC2_ISA310),
+ #endif
+ GEN_HANDLER(invalid, 0x00, 0x00, 0x00, 0xFFFFFFFF, PPC_NONE),
++GEN_HANDLER(cmp, 0x1F, 0x00, 0x00, 0x00400000, PPC_INTEGER),
++GEN_HANDLER(cmpi, 0x0B, 0xFF, 0xFF, 0x00400000, PPC_INTEGER),
++GEN_HANDLER(cmpl, 0x1F, 0x00, 0x01, 0x00400001, PPC_INTEGER),
++GEN_HANDLER(cmpli, 0x0A, 0xFF, 0xFF, 0x00400000, PPC_INTEGER),
+ #if defined(TARGET_PPC64)
+ GEN_HANDLER_E(cmpeqb, 0x1F, 0x00, 0x07, 0x00600000, PPC_NONE, PPC2_ISA300),
+ #endif
+diff --git a/target/ppc/translate/fixedpoint-impl.c.inc b/target/ppc/translate/fixedpoint-impl.c.inc
+index 8864ac4516..2713366791 100644
+--- a/target/ppc/translate/fixedpoint-impl.c.inc
++++ b/target/ppc/translate/fixedpoint-impl.c.inc
+@@ -165,37 +165,6 @@ TRANS64(STDU, do_ldst_D, true, true, MO_Q)
+ TRANS64(STDUX, do_ldst_X, true, true, MO_Q)
+ TRANS64(PSTD, do_ldst_PLS_D, false, true, MO_Q)
+ 
+-/*
+- * Fixed-Point Compare Instructions
+- */
+-
+-static bool do_cmp_X(DisasContext *ctx, arg_X_bfl *a, bool s)
+-{
+-    if (a->l) {
+-        REQUIRE_64BIT(ctx);
+-        gen_op_cmp(cpu_gpr[a->ra], cpu_gpr[a->rb], s, a->bf);
+-    } else {
+-        gen_op_cmp32(cpu_gpr[a->ra], cpu_gpr[a->rb], s, a->bf);
+-    }
+-    return true;
+-}
+-
+-static bool do_cmp_D(DisasContext *ctx, arg_D_bf *a, bool s)
+-{
+-    if (a->l) {
+-        REQUIRE_64BIT(ctx);
+-        gen_op_cmp(cpu_gpr[a->ra], tcg_constant_tl(a->imm), s, a->bf);
+-    } else {
+-        gen_op_cmp32(cpu_gpr[a->ra], tcg_constant_tl(a->imm), s, a->bf);
+-    }
+-    return true;
+-}
+-
+-TRANS(CMP, do_cmp_X, true);
+-TRANS(CMPL, do_cmp_X, false);
+-TRANS(CMPI, do_cmp_D, true);
+-TRANS(CMPLI, do_cmp_D, false);
+-
+ /*
+  * Fixed-Point Arithmetic Instructions
+  */

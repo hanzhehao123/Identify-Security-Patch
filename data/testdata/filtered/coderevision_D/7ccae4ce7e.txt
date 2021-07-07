@@ -1,0 +1,25 @@
+diff --git a/tests/fp/fp-test.c b/tests/fp/fp-test.c
+index 352dd71c44..1be3a9788a 100644
+--- a/tests/fp/fp-test.c
++++ b/tests/fp/fp-test.c
+@@ -963,16 +963,16 @@ static void QEMU_NORETURN run_test(void)
+             verCases_usesExact = !!(attrs & FUNC_ARG_EXACT);
+ 
+             for (k = 0; k < 3; k++) {
+-                FloatX80RoundPrec qsf_prec80 = floatx80_precision_x;
+-                int prec80 = 80;
++                FloatX80RoundPrec qsf_prec80 = floatx80_precision_s;
++                int prec80 = 32;
+                 int l;
+ 
+                 if (k == 1) {
+                     prec80 = 64;
+                     qsf_prec80 = floatx80_precision_d;
+                 } else if (k == 2) {
+-                    prec80 = 32;
+-                    qsf_prec80 = floatx80_precision_s;
++                    prec80 = 80;
++                    qsf_prec80 = floatx80_precision_x;
+                 }
+ 
+                 verCases_roundingPrecision = 0;

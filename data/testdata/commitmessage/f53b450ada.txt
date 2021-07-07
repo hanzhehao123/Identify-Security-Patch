@@ -1,0 +1,12 @@
+commit f53b450ada3bf7fa1c88fbf4f13b864af7795bd3
+Author: Li Zhijian <lizhijian@cn.fujitsu.com>
+Date:   Tue May 25 16:05:50 2021 +0800
+
+    migration/rdma: Fix rdma_addrinfo res leaks
+    
+    rdma_freeaddrinfo() is the reverse operation of rdma_getaddrinfo()
+    
+    Signed-off-by: Li Zhijian <lizhijian@cn.fujitsu.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Message-Id: <20210525080552.28259-2-lizhijian@cn.fujitsu.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

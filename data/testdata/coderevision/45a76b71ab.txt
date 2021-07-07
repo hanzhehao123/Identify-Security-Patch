@@ -1,0 +1,21 @@
+diff --git a/fpu/softfloat.c b/fpu/softfloat.c
+index 74787d5a6e..5a320e5302 100644
+--- a/fpu/softfloat.c
++++ b/fpu/softfloat.c
+@@ -5792,12 +5792,10 @@ float128 floatx80_to_float128(floatx80 a, float_status *status)
+ 
+ floatx80 floatx80_round(floatx80 a, float_status *status)
+ {
+-    FloatParts128 p;
+-
+-    if (!floatx80_unpack_canonical(&p, a, status)) {
+-        return floatx80_default_nan(status);
+-    }
+-    return floatx80_round_pack_canonical(&p, status);
++    return roundAndPackFloatx80(status->floatx80_rounding_precision,
++                                extractFloatx80Sign(a),
++                                extractFloatx80Exp(a),
++                                extractFloatx80Frac(a), 0, status);
+ }
+ 
+ /*----------------------------------------------------------------------------

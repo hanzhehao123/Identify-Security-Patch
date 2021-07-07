@@ -1,0 +1,121 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 34a46ed38e..61f8082e0e 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -233,11 +233,6 @@ DEF_HELPER_FLAGS_4(mve_vqrdmlsdhxb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vqrdmlsdhxh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vqrdmlsdhxw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ 
+-DEF_HELPER_FLAGS_4(mve_vqdmullbh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vqdmullbw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vqdmullth, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vqdmulltw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarb, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index 3a2a7e75a3..fa4fb1b203 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -39,8 +39,6 @@
+ @1op_nosz .... .... .... .... .... .... .... .... &1op qd=%qd qm=%qm size=0
+ @2op .... .... .. size:2 .... .... .... .... .... &2op qd=%qd qm=%qm qn=%qn
+ @2op_nosz .... .... .... .... .... .... .... .... &2op qd=%qd qm=%qm qn=%qn size=0
+-@2op_sz28 .... .... .... .... .... .... .... .... &2op qd=%qd qm=%qm qn=%qn \
+-     size=%size_28
+ 
+ # The _rev suffix indicates that Vn and Vm are reversed. This is
+ # the case for shifts. In the Arm ARM these insns are documented
+@@ -154,9 +152,6 @@ VQDMLSDHX        1111 1110 0 . .. ... 0 ... 1 1110 . 0 . 0 ... 0 @2op
+ VQRDMLSDH        1111 1110 0 . .. ... 0 ... 0 1110 . 0 . 0 ... 1 @2op
+ VQRDMLSDHX       1111 1110 0 . .. ... 0 ... 1 1110 . 0 . 0 ... 1 @2op
+ 
+-VQDMULLB         111 . 1110 0 . 11 ... 0 ... 0 1111 . 0 . 0 ... 1 @2op_sz28
+-VQDMULLT         111 . 1110 0 . 11 ... 0 ... 1 1111 . 0 . 0 ... 1 @2op_sz28
+-
+ # Vector miscellaneous
+ 
+ VCLS             1111 1111 1 . 11 .. 00 ... 0 0100 01 . 0 ... 0 @1op
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index fb8933a9da..5703748c4a 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -899,36 +899,6 @@ DO_2OP_SAT_SCALAR_L(vqdmullt_scalarh, 1, 2, int16_t, 4, int32_t, \
+ DO_2OP_SAT_SCALAR_L(vqdmullt_scalarw, 1, 4, int32_t, 8, int64_t, \
+                     do_qdmullw, SATMASK32)
+ 
+-/*
+- * Long saturating ops
+- */
+-#define DO_2OP_SAT_L(OP, TOP, ESIZE, TYPE, LESIZE, LTYPE, FN, SATMASK)  \
+-    void HELPER(glue(mve_, OP))(CPUARMState *env, void *vd, void *vn,   \
+-                                void *vm)                               \
+-    {                                                                   \
+-        LTYPE *d = vd;                                                  \
+-        TYPE *n = vn, *m = vm;                                          \
+-        uint16_t mask = mve_element_mask(env);                          \
+-        unsigned le;                                                    \
+-        bool qc = false;                                                \
+-        for (le = 0; le < 16 / LESIZE; le++, mask >>= LESIZE) {         \
+-            bool sat = false;                                           \
+-            LTYPE op1 = n[H##ESIZE(le * 2 + TOP)];                      \
+-            LTYPE op2 = m[H##ESIZE(le * 2 + TOP)];                      \
+-            mergemask(&d[H##LESIZE(le)], FN(op1, op2, &sat), mask);     \
+-            qc |= sat && (mask & SATMASK);                              \
+-        }                                                               \
+-        if (qc) {                                                       \
+-            env->vfp.qc[0] = qc;                                        \
+-        }                                                               \
+-        mve_advance_vpt(env);                                           \
+-    }
+-
+-DO_2OP_SAT_L(vqdmullbh, 0, 2, int16_t, 4, int32_t, do_qdmullh, SATMASK16B)
+-DO_2OP_SAT_L(vqdmullbw, 0, 4, int32_t, 8, int64_t, do_qdmullw, SATMASK32)
+-DO_2OP_SAT_L(vqdmullth, 1, 2, int16_t, 4, int32_t, do_qdmullh, SATMASK16T)
+-DO_2OP_SAT_L(vqdmulltw, 1, 4, int32_t, 8, int64_t, do_qdmullw, SATMASK32)
+-
+ static inline uint32_t do_vbrsrb(uint32_t n, uint32_t m)
+ {
+     m &= 0xff;
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index 05789a1981..27b3e378ac 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -419,36 +419,6 @@ DO_2OP(VQDMLSDHX, vqdmlsdhx)
+ DO_2OP(VQRDMLSDH, vqrdmlsdh)
+ DO_2OP(VQRDMLSDHX, vqrdmlsdhx)
+ 
+-static bool trans_VQDMULLB(DisasContext *s, arg_2op *a)
+-{
+-    static MVEGenTwoOpFn * const fns[] = {
+-        NULL,
+-        gen_helper_mve_vqdmullbh,
+-        gen_helper_mve_vqdmullbw,
+-        NULL,
+-    };
+-    if (a->size == MO_32 && (a->qd == a->qm || a->qd == a->qn)) {
+-        /* UNPREDICTABLE; we choose to undef */
+-        return false;
+-    }
+-    return do_2op(s, a, fns[a->size]);
+-}
+-
+-static bool trans_VQDMULLT(DisasContext *s, arg_2op *a)
+-{
+-    static MVEGenTwoOpFn * const fns[] = {
+-        NULL,
+-        gen_helper_mve_vqdmullth,
+-        gen_helper_mve_vqdmulltw,
+-        NULL,
+-    };
+-    if (a->size == MO_32 && (a->qd == a->qm || a->qd == a->qn)) {
+-        /* UNPREDICTABLE; we choose to undef */
+-        return false;
+-    }
+-    return do_2op(s, a, fns[a->size]);
+-}
+-
+ static bool do_2op_scalar(DisasContext *s, arg_2scalar *a,
+                           MVEGenTwoOpScalarFn fn)
+ {

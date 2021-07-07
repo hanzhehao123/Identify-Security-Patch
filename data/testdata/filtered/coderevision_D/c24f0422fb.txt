@@ -1,0 +1,138 @@
+diff --git a/target/riscv/bitmanip_helper.c b/target/riscv/bitmanip_helper.c
+index 5b2f795d03..c625adaded 100644
+--- a/target/riscv/bitmanip_helper.c
++++ b/target/riscv/bitmanip_helper.c
+@@ -62,29 +62,3 @@ target_ulong HELPER(grevw)(target_ulong rs1, target_ulong rs2)
+ {
+     return do_grev(rs1, rs2, 32);
+ }
+-
+-static target_ulong do_gorc(target_ulong rs1,
+-                            target_ulong rs2,
+-                            int bits)
+-{
+-    target_ulong x = rs1;
+-    int i, shift;
+-
+-    for (i = 0, shift = 1; shift < bits; i++, shift <<= 1) {
+-        if (rs2 & shift) {
+-            x |= do_swap(x, adjacent_masks[i], shift);
+-        }
+-    }
+-
+-    return x;
+-}
+-
+-target_ulong HELPER(gorc)(target_ulong rs1, target_ulong rs2)
+-{
+-    return do_gorc(rs1, rs2, TARGET_LONG_BITS);
+-}
+-
+-target_ulong HELPER(gorcw)(target_ulong rs1, target_ulong rs2)
+-{
+-    return do_gorc(rs1, rs2, 32);
+-}
+diff --git a/target/riscv/helper.h b/target/riscv/helper.h
+index 415e37bc37..f81b8faf3b 100644
+--- a/target/riscv/helper.h
++++ b/target/riscv/helper.h
+@@ -61,8 +61,6 @@ DEF_HELPER_FLAGS_1(fclass_d, TCG_CALL_NO_RWG_SE, tl, i64)
+ /* Bitmanip */
+ DEF_HELPER_FLAGS_2(grev, TCG_CALL_NO_RWG_SE, tl, tl, tl)
+ DEF_HELPER_FLAGS_2(grevw, TCG_CALL_NO_RWG_SE, tl, tl, tl)
+-DEF_HELPER_FLAGS_2(gorc, TCG_CALL_NO_RWG_SE, tl, tl, tl)
+-DEF_HELPER_FLAGS_2(gorcw, TCG_CALL_NO_RWG_SE, tl, tl, tl)
+ 
+ /* Special functions */
+ DEF_HELPER_3(csrrw, tl, env, tl, tl)
+diff --git a/target/riscv/insn32.decode b/target/riscv/insn32.decode
+index e6dab8dbbc..6b5e276a9f 100644
+--- a/target/riscv/insn32.decode
++++ b/target/riscv/insn32.decode
+@@ -685,7 +685,6 @@ sro        0010000 .......... 101 ..... 0110011 @r
+ ror        0110000 .......... 101 ..... 0110011 @r
+ rol        0110000 .......... 001 ..... 0110011 @r
+ grev       0110100 .......... 101 ..... 0110011 @r
+-gorc       0010100 .......... 101 ..... 0110011 @r
+ 
+ bseti      00101. ........... 001 ..... 0010011 @sh
+ bclri      01001. ........... 001 ..... 0010011 @sh
+@@ -695,7 +694,6 @@ sloi       00100. ........... 001 ..... 0010011 @sh
+ sroi       00100. ........... 101 ..... 0010011 @sh
+ rori       01100. ........... 101 ..... 0010011 @sh
+ grevi      01101. ........... 101 ..... 0010011 @sh
+-gorci      00101. ........... 101 ..... 0010011 @sh
+ 
+ # *** RV64B Standard Extension (in addition to RV32B) ***
+ clzw       0110000 00000 ..... 001 ..... 0011011 @r2
+@@ -713,7 +711,6 @@ srow       0010000 .......... 101 ..... 0111011 @r
+ rorw       0110000 .......... 101 ..... 0111011 @r
+ rolw       0110000 .......... 001 ..... 0111011 @r
+ grevw      0110100 .......... 101 ..... 0111011 @r
+-gorcw      0010100 .......... 101 ..... 0111011 @r
+ 
+ bsetiw     0010100 .......... 001 ..... 0011011 @sh5
+ bclriw     0100100 .......... 001 ..... 0011011 @sh5
+@@ -722,4 +719,3 @@ sloiw      0010000 .......... 001 ..... 0011011 @sh5
+ sroiw      0010000 .......... 101 ..... 0011011 @sh5
+ roriw      0110000 .......... 101 ..... 0011011 @sh5
+ greviw     0110100 .......... 101 ..... 0011011 @sh5
+-gorciw     0010100 .......... 101 ..... 0011011 @sh5
+diff --git a/target/riscv/insn_trans/trans_rvb.c.inc b/target/riscv/insn_trans/trans_rvb.c.inc
+index ec9f9d2ef2..281e0ffae9 100644
+--- a/target/riscv/insn_trans/trans_rvb.c.inc
++++ b/target/riscv/insn_trans/trans_rvb.c.inc
+@@ -214,18 +214,6 @@ static bool trans_grevi(DisasContext *ctx, arg_grevi *a)
+     return gen_grevi(ctx, a);
+ }
+ 
+-static bool trans_gorc(DisasContext *ctx, arg_gorc *a)
+-{
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_shift(ctx, a, gen_helper_gorc);
+-}
+-
+-static bool trans_gorci(DisasContext *ctx, arg_gorci *a)
+-{
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_shifti(ctx, a, gen_helper_gorc);
+-}
+-
+ static bool trans_clzw(DisasContext *ctx, arg_clzw *a)
+ {
+     REQUIRE_64BIT(ctx);
+@@ -372,17 +360,3 @@ static bool trans_greviw(DisasContext *ctx, arg_greviw *a)
+     REQUIRE_EXT(ctx, RVB);
+     return gen_shiftiw(ctx, a, gen_grevw);
+ }
+-
+-static bool trans_gorcw(DisasContext *ctx, arg_gorcw *a)
+-{
+-    REQUIRE_64BIT(ctx);
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_shiftw(ctx, a, gen_gorcw);
+-}
+-
+-static bool trans_gorciw(DisasContext *ctx, arg_gorciw *a)
+-{
+-    REQUIRE_64BIT(ctx);
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_shiftiw(ctx, a, gen_gorcw);
+-}
+diff --git a/target/riscv/translate.c b/target/riscv/translate.c
+index 35d4d36eef..8deb05add4 100644
+--- a/target/riscv/translate.c
++++ b/target/riscv/translate.c
+@@ -727,12 +727,6 @@ static void gen_grevw(TCGv ret, TCGv arg1, TCGv arg2)
+     gen_helper_grev(ret, arg1, arg2);
+ }
+ 
+-static void gen_gorcw(TCGv ret, TCGv arg1, TCGv arg2)
+-{
+-    tcg_gen_ext32u_tl(arg1, arg1);
+-    gen_helper_gorcw(ret, arg1, arg2);
+-}
+-
+ static bool gen_arith(DisasContext *ctx, arg_r *a,
+                       void(*func)(TCGv, TCGv, TCGv))
+ {

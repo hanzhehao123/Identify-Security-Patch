@@ -1,0 +1,19 @@
+diff --git a/qapi/machine.json b/qapi/machine.json
+index eb14364819..58a9c86b36 100644
+--- a/qapi/machine.json
++++ b/qapi/machine.json
+@@ -790,11 +790,11 @@
+ #
+ # @size: memory backend size
+ #
+-# @merge: whether memory merge support is enabled
++# @merge: enables or disables memory merge support
+ #
+-# @dump: whether memory backend's memory is included in a core dump
++# @dump: includes memory backend's memory in a core dump or not
+ #
+-# @prealloc: whether memory was preallocated
++# @prealloc: enables or disables memory preallocation
+ #
+ # @host-nodes: host nodes for its memory policy
+ #

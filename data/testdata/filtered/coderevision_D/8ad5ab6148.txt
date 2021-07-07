@@ -1,0 +1,22 @@
+diff --git a/block/file-posix.c b/block/file-posix.c
+index b8dc19ce1a..b3fbb9bd63 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -1178,17 +1178,6 @@ static int sg_get_max_segments(int fd)
+         goto out;
+     }
+ 
+-    if (S_ISCHR(st.st_mode)) {
+-        if (ioctl(fd, SG_GET_SG_TABLESIZE, &ret) == 0) {
+-            return ret;
+-        }
+-        return -ENOTSUP;
+-    }
+-
+-    if (!S_ISBLK(st.st_mode)) {
+-        return -ENOTSUP;
+-    }
+-
+     sysfspath = g_strdup_printf("/sys/dev/block/%u:%u/queue/max_segments",
+                                 major(st.st_rdev), minor(st.st_rdev));
+     sysfd = open(sysfspath, O_RDONLY);

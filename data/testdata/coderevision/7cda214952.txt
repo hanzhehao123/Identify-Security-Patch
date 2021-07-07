@@ -1,0 +1,86 @@
+diff --git a/hw/arm/armv7m.c b/hw/arm/armv7m.c
+index 9ce5c30cd5..af0d935bf7 100644
+--- a/hw/arm/armv7m.c
++++ b/hw/arm/armv7m.c
+@@ -176,12 +176,6 @@ static void armv7m_realize(DeviceState *dev, Error **errp)
+             return;
+         }
+     }
+-    if (object_property_find(OBJECT(s->cpu), "init-nsvtor")) {
+-        if (!object_property_set_uint(OBJECT(s->cpu), "init-nsvtor",
+-                                      s->init_nsvtor, errp)) {
+-            return;
+-        }
+-    }
+     if (object_property_find(OBJECT(s->cpu), "start-powered-off")) {
+         if (!object_property_set_bool(OBJECT(s->cpu), "start-powered-off",
+                                       s->start_powered_off, errp)) {
+@@ -260,7 +254,6 @@ static Property armv7m_properties[] = {
+                      MemoryRegion *),
+     DEFINE_PROP_LINK("idau", ARMv7MState, idau, TYPE_IDAU_INTERFACE, Object *),
+     DEFINE_PROP_UINT32("init-svtor", ARMv7MState, init_svtor, 0),
+-    DEFINE_PROP_UINT32("init-nsvtor", ARMv7MState, init_nsvtor, 0),
+     DEFINE_PROP_BOOL("enable-bitband", ARMv7MState, enable_bitband, false),
+     DEFINE_PROP_BOOL("start-powered-off", ARMv7MState, start_powered_off,
+                      false),
+diff --git a/include/hw/arm/armv7m.h b/include/hw/arm/armv7m.h
+index bc6733c518..189b23a8ce 100644
+--- a/include/hw/arm/armv7m.h
++++ b/include/hw/arm/armv7m.h
+@@ -46,7 +46,6 @@ OBJECT_DECLARE_SIMPLE_TYPE(ARMv7MState, ARMV7M)
+  *   devices will be automatically layered on top of this view.)
+  * + Property "idau": IDAU interface (forwarded to CPU object)
+  * + Property "init-svtor": secure VTOR reset value (forwarded to CPU object)
+- * + Property "init-nsvtor": non-secure VTOR reset value (forwarded to CPU object)
+  * + Property "vfp": enable VFP (forwarded to CPU object)
+  * + Property "dsp": enable DSP (forwarded to CPU object)
+  * + Property "enable-bitband": expose bitbanded IO
+@@ -70,7 +69,6 @@ struct ARMv7MState {
+     MemoryRegion *board_memory;
+     Object *idau;
+     uint32_t init_svtor;
+-    uint32_t init_nsvtor;
+     bool enable_bitband;
+     bool start_powered_off;
+     bool vfp;
+diff --git a/target/arm/cpu.c b/target/arm/cpu.c
+index 9ad6f5911b..ad65b60b04 100644
+--- a/target/arm/cpu.c
++++ b/target/arm/cpu.c
+@@ -327,7 +327,6 @@ static void arm_cpu_reset(DeviceState *dev)
+         env->regs[14] = 0xffffffff;
+ 
+         env->v7m.vecbase[M_REG_S] = cpu->init_svtor & 0xffffff80;
+-        env->v7m.vecbase[M_REG_NS] = cpu->init_nsvtor & 0xffffff80;
+ 
+         /* Load the initial SP and PC from offset 0 and 4 in the vector table */
+         vecbase = env->v7m.vecbase[env->v7m.secure];
+@@ -1273,15 +1272,6 @@ void arm_cpu_post_init(Object *obj)
+                                        &cpu->init_svtor,
+                                        OBJ_PROP_FLAG_READWRITE);
+     }
+-    if (arm_feature(&cpu->env, ARM_FEATURE_M)) {
+-        /*
+-         * Initial value of the NS VTOR (for cores without the Security
+-         * extension, this is the only VTOR)
+-         */
+-        object_property_add_uint32_ptr(obj, "init-nsvtor",
+-                                       &cpu->init_nsvtor,
+-                                       OBJ_PROP_FLAG_READWRITE);
+-    }
+ 
+     qdev_property_add_static(DEVICE(obj), &arm_cpu_cfgend_property);
+ 
+diff --git a/target/arm/cpu.h b/target/arm/cpu.h
+index 5f234834c0..c389b1e969 100644
+--- a/target/arm/cpu.h
++++ b/target/arm/cpu.h
+@@ -869,8 +869,6 @@ struct ARMCPU {
+ 
+     /* For v8M, initial value of the Secure VTOR */
+     uint32_t init_svtor;
+-    /* For v8M, initial value of the Non-secure VTOR */
+-    uint32_t init_nsvtor;
+ 
+     /* [QEMU_]KVM_ARM_TARGET_* constant for this CPU, or
+      * QEMU_KVM_ARM_TARGET_NONE if the kernel doesn't support this CPU type.

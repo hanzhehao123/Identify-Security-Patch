@@ -1,0 +1,13 @@
+commit 77f96148f3f6c4106a2a3cee8146690f954fd6cd
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 16:09:23 2021 +0100
+
+    target/arm: Move expand_pred_b() data to vec_helper.c
+    
+    For MVE, we want to re-use the large data table from expand_pred_b().
+    Move the data table to vec_helper.c so it is no longer in an SVE
+    specific source file.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210614151007.4545-14-peter.maydell@linaro.org

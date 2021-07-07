@@ -1,0 +1,12 @@
+commit 9dc868c41d8c630f3c13040e2732b4df6d4739de
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:17 2021 +0100
+
+    target/arm: Implement MVE VQRSHL
+    
+    Implement the MV VQRSHL (vector) insn.  Again, the code to perform
+    the actual shifts is borrowed from neon_helper.c.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-34-peter.maydell@linaro.org

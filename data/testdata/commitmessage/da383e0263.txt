@@ -1,0 +1,12 @@
+commit da383e0263f7d711eddd4f050ca95fd5ab8d2a87
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:33 2021 +0200
+
+    cpu: Move CPUClass::virtio_is_big_endian to SysemuCPUOps
+    
+    VirtIO devices are only meaningful with system emulation.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-17-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

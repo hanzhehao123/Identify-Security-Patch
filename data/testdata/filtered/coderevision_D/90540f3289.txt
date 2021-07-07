@@ -1,0 +1,130 @@
+diff --git a/configure b/configure
+index e54d06b99e..237e99c3d0 100755
+--- a/configure
++++ b/configure
+@@ -374,7 +374,7 @@ spice_protocol="auto"
+ rbd="auto"
+ smartcard="$default_feature"
+ u2f="auto"
+-libusb="auto"
++libusb="$default_feature"
+ usb_redir="$default_feature"
+ opengl="$default_feature"
+ cpuid_h="no"
+@@ -1285,9 +1285,9 @@ for opt do
+   ;;
+   --enable-u2f) u2f="enabled"
+   ;;
+-  --disable-libusb) libusb="disabled"
++  --disable-libusb) libusb="no"
+   ;;
+-  --enable-libusb) libusb="enabled"
++  --enable-libusb) libusb="yes"
+   ;;
+   --disable-usb-redir) usb_redir="no"
+   ;;
+@@ -3994,6 +3994,20 @@ if test "$smartcard" != "no"; then
+     fi
+ fi
+ 
++# check for libusb
++if test "$libusb" != "no" ; then
++    if $pkg_config --atleast-version=1.0.13 libusb-1.0; then
++        libusb="yes"
++        libusb_cflags=$($pkg_config --cflags libusb-1.0)
++        libusb_libs=$($pkg_config --libs libusb-1.0)
++    else
++        if test "$libusb" = "yes"; then
++            feature_not_found "libusb" "Install libusb devel >= 1.0.13"
++        fi
++        libusb="no"
++    fi
++fi
++
+ # check for usbredirparser for usb network redirection support
+ if test "$usb_redir" != "no" ; then
+     if $pkg_config --atleast-version=0.6 libusbredirparser-0.5; then
+@@ -5617,6 +5631,12 @@ if test "$smartcard" = "yes" ; then
+   echo "SMARTCARD_LIBS=$libcacard_libs" >> $config_host_mak
+ fi
+ 
++if test "$libusb" = "yes" ; then
++  echo "CONFIG_USB_LIBUSB=y" >> $config_host_mak
++  echo "LIBUSB_CFLAGS=$libusb_cflags" >> $config_host_mak
++  echo "LIBUSB_LIBS=$libusb_libs" >> $config_host_mak
++fi
++
+ if test "$usb_redir" = "yes" ; then
+   echo "CONFIG_USB_REDIR=y" >> $config_host_mak
+   echo "USB_REDIR_CFLAGS=$usb_redir_cflags" >> $config_host_mak
+@@ -6195,7 +6215,6 @@ if test "$skip_meson" = no; then
+         -Dkvm=$kvm -Dhax=$hax -Dwhpx=$whpx -Dhvf=$hvf -Dnvmm=$nvmm \
+         -Dxen=$xen -Dxen_pci_passthrough=$xen_pci_passthrough -Dtcg=$tcg \
+         -Dcocoa=$cocoa -Dgtk=$gtk -Dmpath=$mpath -Dsdl=$sdl -Dsdl_image=$sdl_image \
+-        -Dlibusb=$libusb \
+         -Dvnc=$vnc -Dvnc_sasl=$vnc_sasl -Dvnc_jpeg=$vnc_jpeg -Dvnc_png=$vnc_png \
+         -Dgettext=$gettext -Dxkbcommon=$xkbcommon -Du2f=$u2f -Dvirtiofsd=$virtiofsd \
+         -Dcapstone=$capstone -Dslirp=$slirp -Dfdt=$fdt -Dbrlapi=$brlapi \
+diff --git a/hw/usb/meson.build b/hw/usb/meson.build
+index bd3f8735b9..f357270d0b 100644
+--- a/hw/usb/meson.build
++++ b/hw/usb/meson.build
+@@ -72,7 +72,7 @@ if config_host.has_key('CONFIG_USB_REDIR')
+ endif
+ 
+ # usb pass-through
+-softmmu_ss.add(when: ['CONFIG_USB', libusb],
++softmmu_ss.add(when: ['CONFIG_USB', 'CONFIG_USB_LIBUSB', libusb],
+                if_true: files('host-libusb.c'),
+                if_false: files('host-stub.c'))
+ softmmu_ss.add(when: 'CONFIG_ALL', if_true: files('host-stub.c'))
+diff --git a/meson.build b/meson.build
+index 0b4b55b9da..d3025e05fc 100644
+--- a/meson.build
++++ b/meson.build
+@@ -992,12 +992,10 @@ if 'CONFIG_USB_REDIR' in config_host
+                                 link_args: config_host['USB_REDIR_LIBS'].split())
+ endif
+ libusb = not_found
+-if not get_option('libusb').auto() or have_system
+-  libusb = dependency('libusb-1.0', required: get_option('libusb'),
+-                      version: '>=1.0.13', method: 'pkg-config',
+-                      kwargs: static_kwargs)
++if 'CONFIG_USB_LIBUSB' in config_host
++  libusb = declare_dependency(compile_args: config_host['LIBUSB_CFLAGS'].split(),
++                              link_args: config_host['LIBUSB_LIBS'].split())
+ endif
+-
+ libpmem = not_found
+ if 'CONFIG_LIBPMEM' in config_host
+   libpmem = declare_dependency(compile_args: config_host['LIBPMEM_CFLAGS'].split(),
+@@ -1213,7 +1211,6 @@ config_host_data.set('CONFIG_SDL', sdl.found())
+ config_host_data.set('CONFIG_SDL_IMAGE', sdl_image.found())
+ config_host_data.set('CONFIG_SECCOMP', seccomp.found())
+ config_host_data.set('CONFIG_SNAPPY', snappy.found())
+-config_host_data.set('CONFIG_USB_LIBUSB', libusb.found())
+ config_host_data.set('CONFIG_VHOST_USER_BLK_SERVER', have_vhost_user_blk_server)
+ config_host_data.set('CONFIG_VNC', vnc.found())
+ config_host_data.set('CONFIG_VNC_JPEG', jpeg.found())
+@@ -2783,7 +2780,7 @@ summary_info += {'rbd support':       rbd.found()}
+ summary_info += {'xfsctl support':    config_host.has_key('CONFIG_XFS')}
+ summary_info += {'smartcard support': config_host.has_key('CONFIG_SMARTCARD')}
+ summary_info += {'U2F support':       u2f.found()}
+-summary_info += {'libusb':            libusb.found()}
++summary_info += {'libusb':            config_host.has_key('CONFIG_USB_LIBUSB')}
+ summary_info += {'usb net redir':     config_host.has_key('CONFIG_USB_REDIR')}
+ summary_info += {'OpenGL support':    config_host.has_key('CONFIG_OPENGL')}
+ summary_info += {'GBM':               config_host.has_key('CONFIG_GBM')}
+diff --git a/meson_options.txt b/meson_options.txt
+index 02c14d4751..ac6e90da07 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -86,8 +86,6 @@ option('gcrypt', type : 'feature', value : 'auto',
+        description: 'libgcrypt cryptography support')
+ option('libudev', type : 'feature', value : 'auto',
+        description: 'Use libudev to enumerate host devices')
+-option('libusb', type : 'feature', value : 'auto',
+-       description: 'libusb support for USB passthrough')
+ option('lzfse', type : 'feature', value : 'auto',
+        description: 'lzfse support for DMG images')
+ option('lzo', type : 'feature', value : 'auto',

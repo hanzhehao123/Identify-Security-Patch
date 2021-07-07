@@ -1,0 +1,20 @@
+commit a648df38898ddbad1bd6d71a6680b3788f6528b2
+Merge: 62c0ac5041 4f8a39494a
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri May 28 22:55:56 2021 +0100
+
+    Merge remote-tracking branch 'remotes/jasowang/tags/net-pull-request' into staging
+    
+    # gpg: Signature made Thu 27 May 2021 04:06:17 BST
+    # gpg:                using RSA key EF04965B398D6211
+    # gpg: Good signature from "Jason Wang (Jason Wang on RedHat) <jasowang@redhat.com>" [marginal]
+    # gpg: WARNING: This key is not certified with sufficiently trusted signatures!
+    # gpg:          It is not certain that the signature belongs to the owner.
+    # Primary key fingerprint: 215D 46F4 8246 689E C77F  3562 EF04 965B 398D 6211
+    
+    * remotes/jasowang/tags/net-pull-request:
+      tap-bsd: Remove special casing for older OpenBSD releases
+      virtio-net: failover: add missing remove_migration_state_change_notifier()
+      hw/net/imx_fec: return 0xffff when accessing non-existing PHY
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

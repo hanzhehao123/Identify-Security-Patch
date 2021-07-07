@@ -1,0 +1,20 @@
+commit dcaf5e8f2fab7426194f3d656cf272accd28518b
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri May 14 13:04:04 2021 +0100
+
+    gitlab: Drop linux user build job for CentOS 7
+    
+    It has been over two years since RHEL-8 was released, and thus per the
+    platform build policy, we no longer need to support RHEL-7 as a build
+    target.
+    
+    The build-user-centos7 job was to detect a failure specific to CentOS
+    7 and there are already other linux user jobs for other platforms.
+    Thus we can drop this job rather than move it to CentOS 8.
+    
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210514120415.1368922-2-berrange@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>

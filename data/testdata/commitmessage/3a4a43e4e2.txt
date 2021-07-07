@@ -1,0 +1,11 @@
+commit 3a4a43e4e213a18d1ee4ed97090a5e86401c85bc
+Author: Kito Cheng <kito.cheng@sifive.com>
+Date:   Thu May 6 00:06:16 2021 +0800
+
+    target/riscv: rvb: add/shift with prefix zero-extend
+    
+    Signed-off-by: Kito Cheng <kito.cheng@sifive.com>
+    Signed-off-by: Frank Chang <frank.chang@sifive.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210505160620.15723-16-frank.chang@sifive.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

@@ -1,0 +1,30 @@
+commit 061817a7ccd9e1c028153f308c541c299a009ef8
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:18 2021 +0200
+
+    i386: drop FEAT_HYPERV feature leaves
+    
+    Hyper-V feature leaves are weird. We have some of them in
+    feature_word_info[] array but we don't use feature_word_info
+    magic to enable them. Neither do we use feature_dependencies[]
+    mechanism to validate the configuration as it doesn't allign
+    well with Hyper-V's many-to-many dependency chains. Some of
+    the feature leaves hold not only feature bits, but also values.
+    E.g. FEAT_HV_NESTED_EAX contains both features and the supported
+    Enlightened VMCS range.
+    
+    Hyper-V features are already represented in 'struct X86CPU' with
+    uint64_t hyperv_features so duplicating them in env->features adds
+    little (or zero) benefits. THe other half of Hyper-V emulation features
+    is also stored with values in hyperv_vendor_id[], hyperv_limits[],...
+    so env->features[] is already incomplete.
+    
+    Remove Hyper-V feature leaves from env->features[] completely.
+    kvm_hyperv_properties[] is converted to using raw CPUID func/reg
+    pairs for features, this allows us to get rid of hv_cpuid_get_fw()
+    conversion.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-8-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

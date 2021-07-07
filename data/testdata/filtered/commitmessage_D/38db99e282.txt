@@ -1,0 +1,8 @@
+commit 38db99e2820e42b9eef90773a0a6bdb53b3d4dd1
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 21 12:44:47 2020 -0800
+
+    softfloat: Convert floatx80_div to FloatParts
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

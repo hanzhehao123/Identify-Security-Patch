@@ -1,0 +1,20 @@
+diff --git a/hw/usb/hcd-xhci-pci.c b/hw/usb/hcd-xhci-pci.c
+index b6acd1790c..9421734d0f 100644
+--- a/hw/usb/hcd-xhci-pci.c
++++ b/hw/usb/hcd-xhci-pci.c
+@@ -67,13 +67,12 @@ static void xhci_pci_intr_raise(XHCIState *xhci, int n, bool level)
+          msi_enabled(pci_dev))) {
+         pci_set_irq(pci_dev, level);
+     }
+-
+-    if (msix_enabled(pci_dev) && level) {
++    if (msix_enabled(pci_dev)) {
+         msix_notify(pci_dev, n);
+         return;
+     }
+ 
+-    if (msi_enabled(pci_dev) && level) {
++    if (msi_enabled(pci_dev)) {
+         msi_notify(pci_dev, n);
+         return;
+     }

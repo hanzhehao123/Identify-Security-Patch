@@ -1,0 +1,13 @@
+commit 75228f0522be9708c227c4572b8a1851c39300a7
+Author: Heinrich Schuchardt <xypron.glpk@gmx.de>
+Date:   Thu Jun 10 20:34:59 2021 +0200
+
+    hw: virt: consider hw_compat_6_0
+    
+    virt-6.0 must consider hw_compat_6_0.
+    
+    Fixes: da7e13c00b59 ("hw: add compat machines for 6.1")
+    Signed-off-by: Heinrich Schuchardt <xypron.glpk@gmx.de>
+    Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+    Message-id: 20210610183500.54207-1-xypron.glpk@gmx.de
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

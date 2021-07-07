@@ -1,0 +1,24 @@
+commit 37701411397c7b7d709ae92abd347cc593940ee5
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Mon May 24 06:57:50 2021 -0400
+
+    qemu-config: parse configuration files to a QDict
+    
+    Change the parser to put the values into a QDict and pass them
+    to a callback.  qemu_config_parse's QemuOpts creation is
+    itself turned into a callback function.
+    
+    This is useful for -readconfig to support keyval-based options;
+    getting a QDict from the parser removes a roundtrip from
+    QDict to QemuOpts and then back to QDict.
+    
+    Unfortunately there is a disadvantage in that semantic errors will
+    point to the last line of the group, because the entries of the QDict
+    do not have a location attached.
+    
+    Cc: Kevin Wolf <kwolf@redhat.com>
+    Cc: Markus Armbruster <armbru@redhat.com>
+    Cc: qemu-stable@nongnu.org
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Message-Id: <20210524105752.3318299-2-pbonzini@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

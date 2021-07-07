@@ -1,0 +1,12 @@
+commit 00718208c127315d82f1f1f8383ef29bc478628e
+Author: Kito Cheng <kito.cheng@sifive.com>
+Date:   Thu May 6 00:06:02 2021 +0800
+
+    target/riscv: reformat @sh format encoding for B-extension
+    
+    Signed-off-by: Kito Cheng <kito.cheng@sifive.com>
+    Signed-off-by: Frank Chang <frank.chang@sifive.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210505160620.15723-2-frank.chang@sifive.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

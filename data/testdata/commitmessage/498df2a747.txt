@@ -1,0 +1,13 @@
+commit 498df2a7470e09d6cb0204f45eeb30d7ae796465
+Author: Lara Lazier <laramglazier@gmail.com>
+Date:   Wed Jun 16 14:39:06 2021 +0200
+
+    target/i386: Added consistency checks for CR0
+    
+    The combination of unset CD and set NW bit in CR0 is illegal.
+    CR0[63:32] are also reserved and need to be zero.
+    (AMD64 Architecture Programmer's Manual, V2, 15.5)
+    
+    Signed-off-by: Lara Lazier <laramglazier@gmail.com>
+    Message-Id: <20210616123907.17765-4-laramglazier@gmail.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

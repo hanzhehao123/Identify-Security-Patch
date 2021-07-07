@@ -1,0 +1,10 @@
+commit 6c47a9053cc2255ec444e0f964abd496fdce6433
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue May 25 15:58:16 2021 -0700
+
+    linux-user/aarch64: Enable hwcap bits for bfloat16
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210525225817.400336-12-richard.henderson@linaro.org
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

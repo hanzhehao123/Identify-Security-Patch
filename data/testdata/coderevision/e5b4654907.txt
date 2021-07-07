@@ -1,0 +1,31 @@
+diff --git a/configure b/configure
+index 55b85e256d..262ab71802 100755
+--- a/configure
++++ b/configure
+@@ -5803,9 +5803,6 @@ fi
+ if test "$optreset" = "yes" ; then
+   echo "HAVE_OPTRESET=y" >> $config_host_mak
+ fi
+-if test "$tcg" = "enabled" -a "$tcg_interpreter" = "true" ; then
+-  echo "CONFIG_TCG_INTERPRETER=y" >> $config_host_mak
+-fi
+ if test "$fdatasync" = "yes" ; then
+   echo "CONFIG_FDATASYNC=y" >> $config_host_mak
+ fi
+diff --git a/tests/tcg/Makefile.target b/tests/tcg/Makefile.target
+index 63cf1b2573..b29fae4630 100644
+--- a/tests/tcg/Makefile.target
++++ b/tests/tcg/Makefile.target
+@@ -81,10 +81,8 @@ LDFLAGS=
+ QEMU_OPTS=
+ 
+ 
+-# If TCG debugging, or TCI is enabled things are a lot slower
+-ifneq ($(CONFIG_TCG_INTERPRETER),)
+-TIMEOUT=90
+-else ifneq ($(CONFIG_DEBUG_TCG),)
++# If TCG debugging is enabled things are a lot slower
++ifeq ($(CONFIG_DEBUG_TCG),y)
+ TIMEOUT=60
+ else
+ TIMEOUT=15

@@ -1,0 +1,14 @@
+commit 6cd5251b407ab1ec7f5b8dbdc5d030ca48e4ed5c
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Wed May 19 20:55:01 2021 +0200
+
+    gitlab: Extract default build/test jobs templates
+    
+    To be able to reuse the mainstream build/test jobs templates,
+    extract them into a new file (buildtest-template.yml).
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210519185504.2198573-8-f4bug@amsat.org>
+    [thuth: Keep the "acceptance_test_job_template" name for now]
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

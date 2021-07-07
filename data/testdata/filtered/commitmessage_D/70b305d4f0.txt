@@ -1,0 +1,18 @@
+commit 70b305d4f0f0e024b6c1adeb0630be8491bbae6a
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu May 20 16:28:34 2021 +0100
+
+    target/arm: Move fpsp/fpdp isar check into callers of do_vfp_2op_sp/dp
+    
+    The do_vfp_2op_sp() and do_vfp_2op_dp() functions currently check
+    whether floating point is supported via the aa32_fpdp_v2 and
+    aa32_fpsp_v2 isar checks.  For v8.1M MVE support, the VMOV_reg trans
+    functions (but not any of the others) need to update this to also
+    allow the insn if MVE is implemented.  Move the check out of the do_
+    function and into its callsites (which are all implemented via the
+    DO_VFP_2OP macro), so we have a place to change the check for the
+    VMOV insns.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210520152840.24453-4-peter.maydell@linaro.org

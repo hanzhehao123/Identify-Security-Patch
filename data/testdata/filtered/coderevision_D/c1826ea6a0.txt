@@ -1,0 +1,35 @@
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index 9e211ac2ce..c496bfa1c2 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -940,7 +940,7 @@ FeatureWordInfo feature_word_info[FEATURE_WORDS] = {
+         .type = CPUID_FEATURE_WORD,
+         .feat_names = {
+             NULL, NULL, NULL, NULL,
+-            "avx-vnni", "avx512-bf16", NULL, NULL,
++            NULL, "avx512-bf16", NULL, NULL,
+             NULL, NULL, NULL, NULL,
+             NULL, NULL, NULL, NULL,
+             NULL, NULL, NULL, NULL,
+@@ -3194,7 +3194,7 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             MSR_ARCH_CAP_SKIP_L1DFL_VMENTRY | MSR_ARCH_CAP_MDS_NO |
+             MSR_ARCH_CAP_PSCHANGE_MC_NO | MSR_ARCH_CAP_TAA_NO,
+         .features[FEAT_7_1_EAX] =
+-            CPUID_7_1_EAX_AVX_VNNI | CPUID_7_1_EAX_AVX512_BF16,
++            CPUID_7_1_EAX_AVX512_BF16,
+         /*
+          * Missing: XSAVES (not supported by some Linux versions,
+          * including v4.1 to v4.12).
+diff --git a/target/i386/cpu.h b/target/i386/cpu.h
+index da72aa5228..e6836393f7 100644
+--- a/target/i386/cpu.h
++++ b/target/i386/cpu.h
+@@ -817,8 +817,6 @@ typedef uint64_t FeatureWordArray[FEATURE_WORDS];
+ /* Speculative Store Bypass Disable */
+ #define CPUID_7_0_EDX_SPEC_CTRL_SSBD    (1U << 31)
+ 
+-/* AVX VNNI Instruction */
+-#define CPUID_7_1_EAX_AVX_VNNI          (1U << 4)
+ /* AVX512 BFloat16 Instruction */
+ #define CPUID_7_1_EAX_AVX512_BF16       (1U << 5)
+ 

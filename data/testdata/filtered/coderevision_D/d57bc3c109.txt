@@ -1,0 +1,172 @@
+diff --git a/MAINTAINERS b/MAINTAINERS
+index de5426f672..96a4eeb5a5 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -436,15 +436,7 @@ M: Roman Bolshakov <r.bolshakov@yadro.com>
+ W: https://wiki.qemu.org/Features/HVF
+ S: Maintained
+ F: target/i386/hvf/
+-
+-HVF
+-M: Cameron Esfahani <dirty@apple.com>
+-M: Roman Bolshakov <r.bolshakov@yadro.com>
+-W: https://wiki.qemu.org/Features/HVF
+-S: Maintained
+-F: accel/hvf/
+ F: include/sysemu/hvf.h
+-F: include/sysemu/hvf_int.h
+ 
+ WHPX CPUs
+ M: Sunil Muthuswamy <sunilmut@microsoft.com>
+diff --git a/accel/hvf/hvf-all.c b/accel/hvf/hvf-all.c
+deleted file mode 100644
+index f185b0830a..0000000000
+--- a/accel/hvf/hvf-all.c
++++ /dev/null
+@@ -1,47 +0,0 @@
+-/*
+- * QEMU Hypervisor.framework support
+- *
+- * This work is licensed under the terms of the GNU GPL, version 2.  See
+- * the COPYING file in the top-level directory.
+- *
+- * Contributions after 2012-01-13 are licensed under the terms of the
+- * GNU GPL, version 2 or (at your option) any later version.
+- */
+-
+-#include "qemu/osdep.h"
+-#include "qemu-common.h"
+-#include "qemu/error-report.h"
+-#include "sysemu/hvf.h"
+-#include "sysemu/hvf_int.h"
+-
+-void assert_hvf_ok(hv_return_t ret)
+-{
+-    if (ret == HV_SUCCESS) {
+-        return;
+-    }
+-
+-    switch (ret) {
+-    case HV_ERROR:
+-        error_report("Error: HV_ERROR");
+-        break;
+-    case HV_BUSY:
+-        error_report("Error: HV_BUSY");
+-        break;
+-    case HV_BAD_ARGUMENT:
+-        error_report("Error: HV_BAD_ARGUMENT");
+-        break;
+-    case HV_NO_RESOURCES:
+-        error_report("Error: HV_NO_RESOURCES");
+-        break;
+-    case HV_NO_DEVICE:
+-        error_report("Error: HV_NO_DEVICE");
+-        break;
+-    case HV_UNSUPPORTED:
+-        error_report("Error: HV_UNSUPPORTED");
+-        break;
+-    default:
+-        error_report("Unknown Error");
+-    }
+-
+-    abort();
+-}
+diff --git a/accel/hvf/meson.build b/accel/hvf/meson.build
+deleted file mode 100644
+index 227b11cd71..0000000000
+--- a/accel/hvf/meson.build
++++ /dev/null
+@@ -1,6 +0,0 @@
+-hvf_ss = ss.source_set()
+-hvf_ss.add(files(
+-  'hvf-all.c',
+-))
+-
+-specific_ss.add_all(when: 'CONFIG_HVF', if_true: hvf_ss)
+diff --git a/accel/meson.build b/accel/meson.build
+index dfd808d2c8..b44ba30c86 100644
+--- a/accel/meson.build
++++ b/accel/meson.build
+@@ -2,7 +2,6 @@ specific_ss.add(files('accel-common.c'))
+ softmmu_ss.add(files('accel-softmmu.c'))
+ user_ss.add(files('accel-user.c'))
+ 
+-subdir('hvf')
+ subdir('qtest')
+ subdir('kvm')
+ subdir('tcg')
+diff --git a/include/sysemu/hvf_int.h b/include/sysemu/hvf_int.h
+deleted file mode 100644
+index 3deb4cfacc..0000000000
+--- a/include/sysemu/hvf_int.h
++++ /dev/null
+@@ -1,18 +0,0 @@
+-/*
+- * QEMU Hypervisor.framework (HVF) support
+- *
+- * This work is licensed under the terms of the GNU GPL, version 2 or later.
+- * See the COPYING file in the top-level directory.
+- *
+- */
+-
+-/* header to be included in HVF-specific code */
+-
+-#ifndef HVF_INT_H
+-#define HVF_INT_H
+-
+-#include <Hypervisor/hv.h>
+-
+-void assert_hvf_ok(hv_return_t ret);
+-
+-#endif
+diff --git a/target/i386/hvf/hvf.c b/target/i386/hvf/hvf.c
+index 32f42f1592..f044181d06 100644
+--- a/target/i386/hvf/hvf.c
++++ b/target/i386/hvf/hvf.c
+@@ -51,7 +51,6 @@
+ #include "qemu/error-report.h"
+ 
+ #include "sysemu/hvf.h"
+-#include "sysemu/hvf_int.h"
+ #include "sysemu/runstate.h"
+ #include "hvf-i386.h"
+ #include "vmcs.h"
+@@ -77,6 +76,38 @@
+ 
+ HVFState *hvf_state;
+ 
++static void assert_hvf_ok(hv_return_t ret)
++{
++    if (ret == HV_SUCCESS) {
++        return;
++    }
++
++    switch (ret) {
++    case HV_ERROR:
++        error_report("Error: HV_ERROR");
++        break;
++    case HV_BUSY:
++        error_report("Error: HV_BUSY");
++        break;
++    case HV_BAD_ARGUMENT:
++        error_report("Error: HV_BAD_ARGUMENT");
++        break;
++    case HV_NO_RESOURCES:
++        error_report("Error: HV_NO_RESOURCES");
++        break;
++    case HV_NO_DEVICE:
++        error_report("Error: HV_NO_DEVICE");
++        break;
++    case HV_UNSUPPORTED:
++        error_report("Error: HV_UNSUPPORTED");
++        break;
++    default:
++        error_report("Unknown Error");
++    }
++
++    abort();
++}
++
+ /* Memory slots */
+ hvf_slot *hvf_find_overlap_slot(uint64_t start, uint64_t size)
+ {

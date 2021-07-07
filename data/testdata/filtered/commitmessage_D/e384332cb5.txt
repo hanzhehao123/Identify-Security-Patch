@@ -1,0 +1,13 @@
+commit e384332cb53bd5b4d813cc38b5d19b3648047e14
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:26 2021 +0200
+
+    s390x/tcg: Implement 32/128 bit for VECTOR FP COMPARE *
+    
+    In addition to 32/128bit variants, we also have to support the
+    "Signal-on-QNaN (SQ)" bit.
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-16-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

@@ -1,0 +1,203 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index 62a6377e06..a00efe6fea 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -88,7 +88,6 @@ class QMPCompleter(list):
+                 else:
+                     state -= 1
+ 
+-
+ class QMPShellError(Exception):
+     pass
+ 
+@@ -106,7 +105,6 @@ class FuzzyJSON(ast.NodeTransformer):
+             node.id = 'None'
+         return node
+ 
+-
+ # TODO: QMPShell's interface is a bit ugly (eg. _fill_completion() and
+ #       _execute_cmd()). Let's design a better one.
+ class QMPShell(qmp.QEMUMonitorProtocol):
+@@ -133,8 +131,8 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         readline.set_history_length(1024)
+         readline.set_completer(self._completer.complete)
+         readline.parse_and_bind("tab: complete")
+-        # NB: default delimiters conflict with some command names
+-        # (eg. query-), clearing everything as it doesn't seem to matter
++        # XXX: default delimiters conflict with some command names (eg. query-),
++        # clearing everything as it doesn't seem to matter
+         readline.set_completer_delims('')
+         try:
+             readline.read_history_file(self._histfile)
+@@ -182,9 +180,7 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         for arg in tokens:
+             (key, sep, val) = arg.partition('=')
+             if sep != '=':
+-                raise QMPShellError(
+-                    f"Expected a key=value pair, got '{arg!s}'"
+-                )
++                raise QMPShellError("Expected a key=value pair, got '%s'" % arg)
+ 
+             value = self.__parse_value(val)
+             optpath = key.split('.')
+@@ -193,16 +189,14 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+                 curpath.append(p)
+                 d = parent.get(p, {})
+                 if type(d) is not dict:
+-                    msg = 'Cannot use "{:s}" as both leaf and non-leaf key'
+-                    raise QMPShellError(msg.format('.'.join(curpath)))
++                    raise QMPShellError('Cannot use "%s" as both leaf and non-leaf key' % '.'.join(curpath))
+                 parent[p] = d
+                 parent = d
+             if optpath[-1] in parent:
+                 if type(parent[optpath[-1]]) is dict:
+-                    msg = 'Cannot use "{:s}" as both leaf and non-leaf key'
+-                    raise QMPShellError(msg.format('.'.join(curpath)))
++                    raise QMPShellError('Cannot use "%s" as both leaf and non-leaf key' % '.'.join(curpath))
+                 else:
+-                    raise QMPShellError(f'Cannot set "{key}" multiple times')
++                    raise QMPShellError('Cannot set "%s" multiple times' % key)
+             parent[optpath[-1]] = value
+ 
+     def __build_cmd(self, cmdline):
+@@ -212,8 +206,7 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+ 
+             < command-name > [ arg-name1=arg1 ] ... [ arg-nameN=argN ]
+         """
+-        argument_regex = r'''(?:[^\s"']|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')+'''
+-        cmdargs = re.findall(argument_regex, cmdline)
++        cmdargs = re.findall(r'''(?:[^\s"']|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')+''', cmdline)
+ 
+         # Transactional CLI entry/exit:
+         if cmdargs[0] == 'transaction(':
+@@ -222,12 +215,9 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         elif cmdargs[0] == ')' and self._transmode:
+             self._transmode = False
+             if len(cmdargs) > 1:
+-                msg = 'Unexpected input after close of Transaction sub-shell'
+-                raise QMPShellError(msg)
+-            qmpcmd = {
+-                'execute': 'transaction',
+-                'arguments': {'actions': self._actions}
+-            }
++                raise QMPShellError("Unexpected input after close of Transaction sub-shell")
++            qmpcmd = { 'execute': 'transaction',
++                       'arguments': { 'actions': self._actions } }
+             self._actions = list()
+             return qmpcmd
+ 
+@@ -238,7 +228,7 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+         # Parse and then cache this Transactional Action
+         if self._transmode:
+             finalize = False
+-            action = {'type': cmdargs[0], 'data': {}}
++            action = { 'type': cmdargs[0], 'data': {} }
+             if cmdargs[-1] == ')':
+                 cmdargs.pop(-1)
+                 finalize = True
+@@ -247,7 +237,7 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+             return self.__build_cmd(')') if finalize else None
+ 
+         # Standard command: parse and return it to be executed.
+-        qmpcmd = {'execute': cmdargs[0], 'arguments': {}}
++        qmpcmd = { 'execute': cmdargs[0], 'arguments': {} }
+         self.__cli_expr(cmdargs[1:], qmpcmd['arguments'])
+         return qmpcmd
+ 
+@@ -288,7 +278,7 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+             print('Connected')
+             return
+         version = self._greeting['QMP']['version']['qemu']
+-        print("Connected to QEMU {major}.{minor}.{micro}\n".format(**version))
++        print('Connected to QEMU %d.%d.%d\n' % (version['major'],version['minor'],version['micro']))
+ 
+     def get_prompt(self):
+         if self._transmode:
+@@ -317,7 +307,6 @@ class QMPShell(qmp.QEMUMonitorProtocol):
+     def set_verbosity(self, verbose):
+         self._verbose = verbose
+ 
+-
+ class HMPShell(QMPShell):
+     def __init__(self, address):
+         QMPShell.__init__(self, address)
+@@ -326,7 +315,7 @@ class HMPShell(QMPShell):
+     def __cmd_completion(self):
+         for cmd in self.__cmd_passthrough('help')['return'].split('\r\n'):
+             if cmd and cmd[0] != '[' and cmd[0] != '\t':
+-                name = cmd.split()[0]  # drop help text
++                name = cmd.split()[0] # drop help text
+                 if name == 'info':
+                     continue
+                 if name.find('|') != -1:
+@@ -338,7 +327,7 @@ class HMPShell(QMPShell):
+                     else:
+                         name = opt[0]
+                 self._completer.append(name)
+-                self._completer.append('help ' + name)  # help completion
++                self._completer.append('help ' + name) # help completion
+ 
+     def __info_completion(self):
+         for cmd in self.__cmd_passthrough('info')['return'].split('\r\n'):
+@@ -354,21 +343,17 @@ class HMPShell(QMPShell):
+         self.__info_completion()
+         self.__other_completion()
+ 
+-    def __cmd_passthrough(self, cmdline, cpu_index=0):
+-        return self.cmd_obj({
+-            'execute': 'human-monitor-command',
+-            'arguments': {
+-                'command-line': cmdline,
+-                'cpu-index': cpu_index
+-            }
+-        })
++    def __cmd_passthrough(self, cmdline, cpu_index = 0):
++        return self.cmd_obj({ 'execute': 'human-monitor-command', 'arguments':
++                              { 'command-line': cmdline,
++                                'cpu-index': cpu_index } })
+ 
+     def _execute_cmd(self, cmdline):
+         if cmdline.split()[0] == "cpu":
+             # trap the cpu command, it requires special setting
+             try:
+                 idx = int(cmdline.split()[1])
+-                if 'return' not in self.__cmd_passthrough('info version', idx):
++                if not 'return' in self.__cmd_passthrough('info version', idx):
+                     print('bad CPU index')
+                     return True
+                 self.__cpu_index = idx
+@@ -392,26 +377,20 @@ class HMPShell(QMPShell):
+     def show_banner(self):
+         QMPShell.show_banner(self, msg='Welcome to the HMP shell!')
+ 
+-
+ def die(msg):
+     sys.stderr.write('ERROR: %s\n' % msg)
+     sys.exit(1)
+ 
+-
+ def fail_cmdline(option=None):
+     if option:
+         sys.stderr.write('ERROR: bad command-line option \'%s\'\n' % option)
+-    sys.stderr.write(
+-        'qmp-shell [ -v ] [ -p ] [ -H ] [ -N ] '
+-        '< UNIX socket path> | < TCP address:port >\n'
+-    )
++    sys.stderr.write('qmp-shell [ -v ] [ -p ] [ -H ] [ -N ] < UNIX socket path> | < TCP address:port >\n')
+     sys.stderr.write('    -v     Verbose (echo command sent and received)\n')
+     sys.stderr.write('    -p     Pretty-print JSON\n')
+     sys.stderr.write('    -H     Use HMP interface\n')
+     sys.stderr.write('    -N     Skip negotiate (for qemu-ga)\n')
+     sys.exit(1)
+ 
+-
+ def main():
+     addr = ''
+     qemu = None
+@@ -461,6 +440,5 @@ def main():
+         pass
+     qemu.close()
+ 
+-
+ if __name__ == '__main__':
+     main()

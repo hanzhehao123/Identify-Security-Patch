@@ -1,0 +1,98 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index b8ad3df9cc..459c8eebdd 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -251,14 +251,6 @@ DEF_HELPER_FLAGS_4(mve_vadci, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vsbc, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vsbci, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ 
+-DEF_HELPER_FLAGS_4(mve_vcadd90b, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vcadd90h, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vcadd90w, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vcadd270b, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vcadd270h, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vcadd270w, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarb, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vadd_scalarw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index afe6007864..79915f45d7 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -161,14 +161,9 @@ VRHADD_S         111 0 1111 0 . .. ... 0 ... 0 0001 . 1 . 0 ... 0 @2op
+ VRHADD_U         111 1 1111 0 . .. ... 0 ... 0 0001 . 1 . 0 ... 0 @2op
+ 
+ VADC             1110 1110 0 . 11 ... 0 ... 0 1111 . 0 . 0 ... 0 @2op_nosz
++VSBC             1111 1110 0 . 11 ... 0 ... 0 1111 . 0 . 0 ... 0 @2op_nosz
+ VADCI            1110 1110 0 . 11 ... 0 ... 1 1111 . 0 . 0 ... 0 @2op_nosz
+-
+-{
+-  VSBC           1111 1110 0 . 11 ... 0 ... 0 1111 . 0 . 0 ... 0 @2op_nosz
+-  VSBCI          1111 1110 0 . 11 ... 0 ... 1 1111 . 0 . 0 ... 0 @2op_nosz
+-  VCADD90        1111 1110 0 . .. ... 0 ... 0 1111 . 0 . 0 ... 0 @2op
+-  VCADD270       1111 1110 0 . .. ... 0 ... 1 1111 . 0 . 0 ... 0 @2op
+-}
++VSBCI            1111 1110 0 . 11 ... 0 ... 1 1111 . 0 . 0 ... 0 @2op_nosz
+ 
+ # Vector miscellaneous
+ 
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index 620b659fec..8f55f70659 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -589,35 +589,6 @@ void HELPER(mve_vsbci)(CPUARMState *env, void *vd, void *vn, void *vm)
+     do_vadc(env, vd, vn, vm, -1, 1, true);
+ }
+ 
+-#define DO_VCADD(OP, ESIZE, TYPE, FN0, FN1)                             \
+-    void HELPER(glue(mve_, OP))(CPUARMState *env, void *vd, void *vn, void *vm) \
+-    {                                                                   \
+-        TYPE *d = vd, *n = vn, *m = vm;                                 \
+-        uint16_t mask = mve_element_mask(env);                          \
+-        unsigned e;                                                     \
+-        TYPE r[16 / ESIZE];                                             \
+-        /* Calculate all results first to avoid overwriting inputs */   \
+-        for (e = 0; e < 16 / ESIZE; e++) {                              \
+-            if (!(e & 1)) {                                             \
+-                r[e] = FN0(n[H##ESIZE(e)], m[H##ESIZE(e + 1)]);         \
+-            } else {                                                    \
+-                r[e] = FN1(n[H##ESIZE(e)], m[H##ESIZE(e - 1)]);         \
+-            }                                                           \
+-        }                                                               \
+-        for (e = 0; e < 16 / ESIZE; e++, mask >>= ESIZE) {              \
+-            mergemask(&d[H##ESIZE(e)], r[e], mask);                     \
+-        }                                                               \
+-        mve_advance_vpt(env);                                           \
+-    }
+-
+-#define DO_VCADD_ALL(OP, FN0, FN1)              \
+-    DO_VCADD(OP##b, 1, int8_t, FN0, FN1)        \
+-    DO_VCADD(OP##h, 2, int16_t, FN0, FN1)       \
+-    DO_VCADD(OP##w, 4, int32_t, FN0, FN1)
+-
+-DO_VCADD_ALL(vcadd90, DO_SUB, DO_ADD)
+-DO_VCADD_ALL(vcadd270, DO_ADD, DO_SUB)
+-
+ static inline int32_t do_sat_bhw(int64_t val, int64_t min, int64_t max, bool *s)
+ {
+     if (val > max) {
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index b164907426..f8cc6080c9 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -420,13 +420,6 @@ DO_2OP(VQRDMLSDH, vqrdmlsdh)
+ DO_2OP(VQRDMLSDHX, vqrdmlsdhx)
+ DO_2OP(VRHADD_S, vrhadds)
+ DO_2OP(VRHADD_U, vrhaddu)
+-/*
+- * VCADD Qd == Qm at size MO_32 is UNPREDICTABLE; we choose not to diagnose
+- * so we can reuse the DO_2OP macro. (Our implementation calculates the
+- * "expected" results in this case.)
+- */
+-DO_2OP(VCADD90, vcadd90)
+-DO_2OP(VCADD270, vcadd270)
+ 
+ static bool trans_VQDMULLB(DisasContext *s, arg_2op *a)
+ {

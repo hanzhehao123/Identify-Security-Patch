@@ -1,0 +1,19 @@
+commit 5d15c9b875d2102143835ac989954a59a53d2b20
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:02 2021 -0400
+
+    python/qmp: Fix type of SocketAddrT
+    
+    In porting the qom tools, qmp-shell, etc; it becomes evident that this
+    type is wrong.
+    
+    This is an integer, not a string. We didn't catch this before because
+    none of QEMUMonitorProtocol's *users* happen to be checked, and the
+    internal logic of this class is otherwise self-consistent. Additionally,
+    mypy was not introspecting into the socket() interface to realize we
+    were passing a bad type for AF_INET. Fixed now.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210603003719.1321369-3-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

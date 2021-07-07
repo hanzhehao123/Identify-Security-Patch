@@ -1,0 +1,20 @@
+commit a454ea1e6d40bbd4632e4e66de90e802ae47a68e
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 16:09:19 2021 +0100
+
+    target/arm: Implement MVE LETP insn
+    
+    Implement the MVE LETP insn.  This is like the existing LE loop-end
+    insn, but it must perform an FPU-enabled check, and on loop-exit it
+    resets LTPSIZE to 4.
+    
+    To accommodate the requirement to do something on loop-exit, we drop
+    the use of condlabel and instead manage both the TB exits manually,
+    in the same way we already do in trans_WLS().
+    
+    The other MVE-specific change to the LE insn is that we must raise an
+    INVSTATE UsageFault insn if LTPSIZE is not 4.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210614151007.4545-10-peter.maydell@linaro.org

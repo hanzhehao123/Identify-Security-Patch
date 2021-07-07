@@ -1,0 +1,130 @@
+diff --git a/hw/display/virtio-gpu-udmabuf.c b/hw/display/virtio-gpu-udmabuf.c
+index 3c01a415e7..71c4672e32 100644
+--- a/hw/display/virtio-gpu-udmabuf.c
++++ b/hw/display/virtio-gpu-udmabuf.c
+@@ -156,68 +156,3 @@ void virtio_gpu_fini_udmabuf(struct virtio_gpu_simple_resource *res)
+         virtio_gpu_destroy_udmabuf(res);
+     }
+ }
+-
+-static void virtio_gpu_free_dmabuf(VirtIOGPU *g, VGPUDMABuf *dmabuf)
+-{
+-    struct virtio_gpu_scanout *scanout;
+-
+-    scanout = &g->parent_obj.scanout[dmabuf->scanout_id];
+-    dpy_gl_release_dmabuf(scanout->con, &dmabuf->buf);
+-    QTAILQ_REMOVE(&g->dmabuf.bufs, dmabuf, next);
+-    g_free(dmabuf);
+-}
+-
+-static VGPUDMABuf
+-*virtio_gpu_create_dmabuf(VirtIOGPU *g,
+-                          uint32_t scanout_id,
+-                          struct virtio_gpu_simple_resource *res,
+-                          struct virtio_gpu_framebuffer *fb)
+-{
+-    VGPUDMABuf *dmabuf;
+-
+-    if (res->dmabuf_fd < 0) {
+-        return NULL;
+-    }
+-
+-    dmabuf = g_new0(VGPUDMABuf, 1);
+-    dmabuf->buf.width = fb->width;
+-    dmabuf->buf.height = fb->height;
+-    dmabuf->buf.stride = fb->stride;
+-    dmabuf->buf.fourcc = qemu_pixman_to_drm_format(fb->format);
+-    dmabuf->buf.fd = res->dmabuf_fd;
+-
+-    dmabuf->scanout_id = scanout_id;
+-    QTAILQ_INSERT_HEAD(&g->dmabuf.bufs, dmabuf, next);
+-
+-    return dmabuf;
+-}
+-
+-int virtio_gpu_update_dmabuf(VirtIOGPU *g,
+-                             uint32_t scanout_id,
+-                             struct virtio_gpu_simple_resource *res,
+-                             struct virtio_gpu_framebuffer *fb)
+-{
+-    struct virtio_gpu_scanout *scanout = &g->parent_obj.scanout[scanout_id];
+-    VGPUDMABuf *new_primary, *old_primary = NULL;
+-
+-    new_primary = virtio_gpu_create_dmabuf(g, scanout_id, res, fb);
+-    if (!new_primary) {
+-        return -EINVAL;
+-    }
+-
+-    if (g->dmabuf.primary) {
+-        old_primary = g->dmabuf.primary;
+-    }
+-
+-    g->dmabuf.primary = new_primary;
+-    qemu_console_resize(scanout->con,
+-                        new_primary->buf.width,
+-                        new_primary->buf.height);
+-    dpy_gl_scanout_dmabuf(scanout->con, &new_primary->buf);
+-
+-    if (old_primary) {
+-        virtio_gpu_free_dmabuf(g, old_primary);
+-    }
+-
+-    return 0;
+-}
+diff --git a/include/hw/virtio/virtio-gpu.h b/include/hw/virtio/virtio-gpu.h
+index bcf54d970f..66e7aaad0e 100644
+--- a/include/hw/virtio/virtio-gpu.h
++++ b/include/hw/virtio/virtio-gpu.h
+@@ -150,12 +150,6 @@ struct VirtIOGPUBaseClass {
+     DEFINE_PROP_UINT32("xres", _state, _conf.xres, 1024), \
+     DEFINE_PROP_UINT32("yres", _state, _conf.yres, 768)
+ 
+-typedef struct VGPUDMABuf {
+-    QemuDmaBuf buf;
+-    uint32_t scanout_id;
+-    QTAILQ_ENTRY(VGPUDMABuf) next;
+-} VGPUDMABuf;
+-
+ struct VirtIOGPU {
+     VirtIOGPUBase parent_obj;
+ 
+@@ -184,11 +178,6 @@ struct VirtIOGPU {
+         uint32_t req_3d;
+         uint32_t bytes_3d;
+     } stats;
+-
+-    struct {
+-        QTAILQ_HEAD(, VGPUDMABuf) bufs;
+-        VGPUDMABuf *primary;
+-    } dmabuf;
+ };
+ 
+ struct VirtIOGPUClass {
+@@ -270,10 +259,6 @@ void virtio_gpu_update_cursor_data(VirtIOGPU *g,
+ bool virtio_gpu_have_udmabuf(void);
+ void virtio_gpu_init_udmabuf(struct virtio_gpu_simple_resource *res);
+ void virtio_gpu_fini_udmabuf(struct virtio_gpu_simple_resource *res);
+-int virtio_gpu_update_dmabuf(VirtIOGPU *g,
+-                             uint32_t scanout_id,
+-                             struct virtio_gpu_simple_resource *res,
+-                             struct virtio_gpu_framebuffer *fb);
+ 
+ /* virtio-gpu-3d.c */
+ void virtio_gpu_virgl_process_cmd(VirtIOGPU *g,
+diff --git a/stubs/virtio-gpu-udmabuf.c b/stubs/virtio-gpu-udmabuf.c
+index 81f661441a..e962e00d86 100644
+--- a/stubs/virtio-gpu-udmabuf.c
++++ b/stubs/virtio-gpu-udmabuf.c
+@@ -16,12 +16,3 @@ void virtio_gpu_fini_udmabuf(struct virtio_gpu_simple_resource *res)
+ {
+     /* nothing (stub) */
+ }
+-
+-int virtio_gpu_update_dmabuf(VirtIOGPU *g,
+-                             uint32_t scanout_id,
+-                             struct virtio_gpu_simple_resource *res,
+-                             struct virtio_gpu_framebuffer *fb)
+-{
+-    /* nothing (stub) */
+-    return 0;
+-}

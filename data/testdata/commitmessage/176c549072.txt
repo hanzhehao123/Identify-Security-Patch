@@ -1,0 +1,13 @@
+commit 176c5490724b813704bd5b083b9f5c9b857fdaad
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:19 2021 -0400
+
+    python/qmp: add fuse command to 'qom' tools
+    
+    The 'fuse' command will be unavailable if 'fusepy' is not installed. It
+    will simply not load and subsequently be unavailable as a subcommand.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210603003719.1321369-20-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

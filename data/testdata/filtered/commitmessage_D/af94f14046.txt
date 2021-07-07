@@ -1,0 +1,14 @@
+commit af94f14046e29e667edb6f802a108162b4890972
+Author: Thomas Huth <thuth@redhat.com>
+Date:   Mon Jun 7 20:00:15 2021 +0200
+
+    docs/tools/virtiofsd: Fix bad rst syntax
+    
+    For literal blocks, there has to be an empty line after the two colons,
+    and the block itself should be indented.
+    
+    Signed-off-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+    Message-Id: <20210607180015.924571-1-thuth@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

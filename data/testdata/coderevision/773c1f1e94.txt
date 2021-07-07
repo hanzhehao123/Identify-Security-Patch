@@ -1,0 +1,26 @@
+diff --git a/hw/acpi/tpm.c b/hw/acpi/tpm.c
+index cdc0227536..b96459e45b 100644
+--- a/hw/acpi/tpm.c
++++ b/hw/acpi/tpm.c
+@@ -57,7 +57,7 @@ void tpm_build_ppi_acpi(TPMIf *tpm, Aml *dev)
+                aml_operation_region(
+                    "TPP3", AML_SYSTEM_MEMORY,
+                    aml_int(TPM_PPI_ADDR_BASE +
+-                           0x15a /* movv, docs/specs/tpm.rst */),
++                           0x15a /* movv, docs/specs/tpm.txt */),
+                            0x1));
+     field = aml_field("TPP3", AML_BYTE_ACC, AML_NOLOCK, AML_PRESERVE);
+     aml_append(field, aml_named_field("MOVV", 8));
+diff --git a/hw/tpm/tpm_ppi.c b/hw/tpm/tpm_ppi.c
+index 362edcc5c9..72d7a3d926 100644
+--- a/hw/tpm/tpm_ppi.c
++++ b/hw/tpm/tpm_ppi.c
+@@ -23,7 +23,7 @@
+ 
+ void tpm_ppi_reset(TPMPPI *tpmppi)
+ {
+-    if (tpmppi->buf[0x15a /* movv, docs/specs/tpm.rst */] & 0x1) {
++    if (tpmppi->buf[0x15a /* movv, docs/specs/tpm.txt */] & 0x1) {
+         GuestPhysBlockList guest_phys_blocks;
+         GuestPhysBlock *block;
+ 

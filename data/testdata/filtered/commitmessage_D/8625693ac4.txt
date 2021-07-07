@@ -1,0 +1,12 @@
+commit 8625693ac48f54e87f663736c0bbde7ea450f1f7
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:26 2021 +0100
+
+    target/arm: Implement MVE VHCADD
+    
+    Implement the MVE VHCADD insn, which is similar to VCADD
+    but performs a halving step. This one overlaps with VADC.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-43-peter.maydell@linaro.org

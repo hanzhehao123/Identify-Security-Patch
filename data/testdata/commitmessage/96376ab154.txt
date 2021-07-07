@@ -1,0 +1,12 @@
+commit 96376ab154cfb7a8f0b985e26db5b0074b86c2ee
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Thu May 13 19:12:44 2021 +0200
+
+    hw/input/ps2: Use ps2_raise_irq() instead of open coding it
+    
+    Inspired-by: Volker Rümelin <vr_qemu@t-online.de>
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Volker Rümelin <vr_qemu@t-online.de>
+    Reviewed-by: Bin Meng <bmeng.cn@gmail.com>
+    Message-Id: <20210513171244.3940519-1-f4bug@amsat.org>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

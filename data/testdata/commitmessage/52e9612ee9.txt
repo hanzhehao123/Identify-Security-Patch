@@ -1,0 +1,19 @@
+commit 52e9612ee94b58a1bc57242427b4dbe6c766d8f3
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Tue May 25 08:53:52 2021 -0300
+
+    target/ppc: used ternary operator when registering MAS
+    
+    The write calback decision when registering the MAS SPR has been turned
+    into a ternary operation, rather than an if-then-else block.
+    
+    This was done because when building without TCG, even though the
+    compiler will optimize away the pointers to spr_write_generic*, it
+    doesn't optimize away the decision and assignment to the local pointer,
+    creating compiler errors. This cleanup looked better than using ifdefs,
+    so  we decided to with it.
+    
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210525115355.8254-2-bruno.larsen@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

@@ -1,0 +1,11 @@
+commit 9e33013bd494b43c81a2730b9f5cba2b5743343b
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Tue Nov 3 04:39:02 2020 -0500
+
+    object: add more commands to preconfig mode
+    
+    Creating and destroying QOM objects does not require a fully constructed
+    machine.  Allow running object-add and object-del before machine
+    initialization has concluded.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

@@ -1,0 +1,20 @@
+commit 05ece98f965997649b8d922d224240459bcc1403
+Author: Dennis Wölfing <denniswoelfing@gmx.de>
+Date:   Mon Jun 7 13:53:03 2021 +0200
+
+    vga: Allow writing VBE_DISPI_ID5 to ID register
+    
+    The highest VBE_DISPI_INDEX_ID version supported by QEMU is
+    VBE_DISPI_ID5. But currently QEMU only allows writing values up to
+    VBE_DISPI_ID4 to the VBE_DISPI_INDEX_ID register.
+    
+    As a result of this when a lower version is written to this register and
+    later VBE_DISPI_ID5 is written back, reads from the register will
+    continue to report the lower version.
+    
+    Indeed SeaBIOS is doing that during VGA initialization which causes
+    guests to always read VBE_DISPI_ID0 instead of the correct version.
+    
+    Signed-off-by: Dennis Wölfing <denniswoelfing@gmx.de>
+    Message-Id: <20210607115303.228659-1-denniswoelfing@gmx.de>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

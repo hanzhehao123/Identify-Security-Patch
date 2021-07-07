@@ -1,0 +1,16 @@
+diff --git a/python/qemu/qmp/qemu_ga_client.py b/scripts/qmp/qemu-ga-client
+similarity index 99%
+rename from python/qemu/qmp/qemu_ga_client.py
+rename to scripts/qmp/qemu-ga-client
+index d2938ad47c..a7d0ef8347 100755
+--- a/python/qemu/qmp/qemu_ga_client.py
++++ b/scripts/qmp/qemu-ga-client
+@@ -52,6 +52,8 @@
+     Sequence,
+ )
+ 
++
++sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
+ from qemu import qmp
+ from qemu.qmp import SocketAddrT
+ 

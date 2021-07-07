@@ -1,0 +1,14 @@
+commit e18a6ec8c4516f2c2b973f452207e74c1b608414
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Jun 1 20:55:11 2021 -0700
+
+    target/i386: Fix decode of cr8
+    
+    A recent cleanup did not recognize that there are two ways
+    to encode cr8: one via the LOCK and the other via REX.
+    
+    Fixes: 7eff2e7c
+    Resolves: https://gitlab.com/qemu-project/qemu/-/issues/380
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210602035511.96834-1-richard.henderson@linaro.org>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

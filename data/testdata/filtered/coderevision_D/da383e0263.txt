@@ -1,0 +1,108 @@
+diff --git a/hw/core/cpu-sysemu.c b/hw/core/cpu-sysemu.c
+index bad7d2cb01..aa68ca281e 100644
+--- a/hw/core/cpu-sysemu.c
++++ b/hw/core/cpu-sysemu.c
+@@ -21,7 +21,6 @@
+ #include "qemu/osdep.h"
+ #include "qapi/error.h"
+ #include "hw/core/cpu.h"
+-#include "hw/core/sysemu-cpu-ops.h"
+ 
+ bool cpu_paging_enabled(const CPUState *cpu)
+ {
+@@ -127,8 +126,8 @@ bool cpu_virtio_is_big_endian(CPUState *cpu)
+ {
+     CPUClass *cc = CPU_GET_CLASS(cpu);
+ 
+-    if (cc->sysemu_ops->virtio_is_big_endian) {
+-        return cc->sysemu_ops->virtio_is_big_endian(cpu);
++    if (cc->virtio_is_big_endian) {
++        return cc->virtio_is_big_endian(cpu);
+     }
+     return target_words_bigendian();
+ }
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index dd3f5f996e..c8d4a8a642 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -90,6 +90,10 @@ struct SysemuCPUOps;
+  * @parse_features: Callback to parse command line arguments.
+  * @reset_dump_flags: #CPUDumpFlags to use for reset logging.
+  * @has_work: Callback for checking if there is work to do.
++ * @virtio_is_big_endian: Callback to return %true if a CPU which supports
++ * runtime configurable endianness is currently big-endian. Non-configurable
++ * CPUs can use the default implementation of this method. This method should
++ * not be used by any callers other than the pre-1.0 virtio devices.
+  * @memory_rw_debug: Callback for GDB memory access.
+  * @dump_state: Callback for dumping state.
+  * @dump_statistics: Callback for dumping statistics.
+@@ -148,6 +152,7 @@ struct CPUClass {
+ 
+     int reset_dump_flags;
+     bool (*has_work)(CPUState *cpu);
++    bool (*virtio_is_big_endian)(CPUState *cpu);
+     int (*memory_rw_debug)(CPUState *cpu, vaddr addr,
+                            uint8_t *buf, int len, bool is_write);
+     void (*dump_state)(CPUState *cpu, FILE *, int flags);
+diff --git a/include/hw/core/sysemu-cpu-ops.h b/include/hw/core/sysemu-cpu-ops.h
+index 8fa98bf2a7..0370ac1519 100644
+--- a/include/hw/core/sysemu-cpu-ops.h
++++ b/include/hw/core/sysemu-cpu-ops.h
+@@ -16,15 +16,6 @@
+  * struct SysemuCPUOps: System operations specific to a CPU class
+  */
+ typedef struct SysemuCPUOps {
+-    /**
+-     * @virtio_is_big_endian: Callback to return %true if a CPU which supports
+-     * runtime configurable endianness is currently big-endian.
+-     * Non-configurable CPUs can use the default implementation of this method.
+-     * This method should not be used by any callers other than the pre-1.0
+-     * virtio devices.
+-     */
+-    bool (*virtio_is_big_endian)(CPUState *cpu);
+-
+     /**
+      * @legacy_vmsd: Legacy state for migration.
+      *               Do not use in new targets, use #DeviceClass::vmsd instead.
+diff --git a/target/arm/cpu.c b/target/arm/cpu.c
+index 0111201235..bd623a4961 100644
+--- a/target/arm/cpu.c
++++ b/target/arm/cpu.c
+@@ -1948,7 +1948,6 @@ static gchar *arm_gdb_arch_name(CPUState *cs)
+ #include "hw/core/sysemu-cpu-ops.h"
+ 
+ static const struct SysemuCPUOps arm_sysemu_ops = {
+-    .virtio_is_big_endian = arm_cpu_virtio_is_big_endian,
+     .legacy_vmsd = &vmstate_arm_cpu,
+ };
+ #endif
+@@ -1992,6 +1991,7 @@ static void arm_cpu_class_init(ObjectClass *oc, void *data)
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_attrs_debug = arm_cpu_get_phys_page_attrs_debug;
+     cc->asidx_from_attrs = arm_asidx_from_attrs;
++    cc->virtio_is_big_endian = arm_cpu_virtio_is_big_endian;
+     cc->write_elf64_note = arm_cpu_write_elf64_note;
+     cc->write_elf32_note = arm_cpu_write_elf32_note;
+     cc->sysemu_ops = &arm_sysemu_ops;
+diff --git a/target/ppc/cpu_init.c b/target/ppc/cpu_init.c
+index 108e0c6580..5121f9cfd4 100644
+--- a/target/ppc/cpu_init.c
++++ b/target/ppc/cpu_init.c
+@@ -9267,7 +9267,6 @@ static Property ppc_cpu_properties[] = {
+ #include "hw/core/sysemu-cpu-ops.h"
+ 
+ static const struct SysemuCPUOps ppc_sysemu_ops = {
+-    .virtio_is_big_endian = ppc_cpu_is_big_endian,
+     .legacy_vmsd = &vmstate_ppc_cpu,
+ };
+ #endif
+@@ -9336,6 +9335,9 @@ static void ppc_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_core_xml_file = "power64-core.xml";
+ #else
+     cc->gdb_core_xml_file = "power-core.xml";
++#endif
++#ifndef CONFIG_USER_ONLY
++    cc->virtio_is_big_endian = ppc_cpu_is_big_endian;
+ #endif
+     cc->disas_set_info = ppc_disas_set_info;
+ 

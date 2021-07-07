@@ -1,0 +1,15 @@
+commit 909e4a0826cde069555d90a9797590c5988d9b7e
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue May 25 14:44:56 2021 +0100
+
+    tests/qtest/pflash-cfi02-test: Avoid potential integer overflow
+    
+    Coverity points out that we calculate a 64-bit value using 32-bit
+    arithmetic; add the cast to force the multiply to be done as 64-bits.
+    (The overflow will never happen with the current test data.)
+    
+    Fixes: Coverity CID 1432320
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Stefan Berger <stefanb@linux.ibm.com>
+    Message-id: 20210525134458.6675-5-peter.maydell@linaro.org

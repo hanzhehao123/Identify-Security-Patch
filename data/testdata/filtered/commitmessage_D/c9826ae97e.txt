@@ -1,0 +1,13 @@
+commit c9826ae97e4df418eb44290a9c68983f723a21af
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Jun 1 16:35:15 2021 -0300
+
+    target/ppc: Introduce macros to check isa extensions
+    
+    These will be used by the decodetree trans_* functions
+    to early-exit when the instruction set is not enabled.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Matheus Ferst <matheus.ferst@eldorado.org.br>
+    Message-Id: <20210601193528.2533031-2-matheus.ferst@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

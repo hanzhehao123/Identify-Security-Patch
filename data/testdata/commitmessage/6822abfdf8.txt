@@ -1,0 +1,13 @@
+commit 6822abfdf8b382be4fc84066fa1087e5fef81360
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 16:09:17 2021 +0100
+
+    target/arm: Implement MVE WLSTP insn
+    
+    Implement the MVE WLSTP insn; this is like the existing WLS insn,
+    except that it specifies a size value which is used to set
+    FPSCR.LTPSIZE.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210614151007.4545-8-peter.maydell@linaro.org

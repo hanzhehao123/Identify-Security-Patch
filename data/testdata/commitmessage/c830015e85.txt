@@ -1,0 +1,15 @@
+commit c830015e85103790dc06c434c246f2e8f5d15046
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:15 2021 +0200
+
+    i386: stop using env->features[] for filling Hyper-V CPUIDs
+    
+    As a preparatory patch to dropping Hyper-V CPUID leaves from
+    feature_word_info[] stop using env->features[] as a temporary
+    storage of Hyper-V CPUIDs, just build Hyper-V CPUID leaves directly
+    from kvm_hyperv_properties[] data.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-5-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

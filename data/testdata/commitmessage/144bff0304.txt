@@ -1,0 +1,22 @@
+commit 144bff0304b8f93cf0eb9ed432434644302dc6d5
+Author: Michael Forney <mforney@mforney.org>
+Date:   Wed May 26 12:02:03 2021 -0700
+
+    linux-user: Disable static assert involving __SIGRTMAX if it is missing
+    
+    This check is to ensure that the loop in signal_table_init() from
+    SIGRTMIN to SIGRTMAX falls within the bounds of host_to_target_signal_table
+    (_NSIG). However, it is not critical, since _NSIG is already defined
+    to be the one larger than the largest signal supported by the system
+    (as specified in the upcoming POSIX revision[0]).
+    
+    musl libc does not define __SIGRTMAX, so disabling this check when
+    it is missing fixes one of the last remaining errors when building
+    qemu.
+    
+    [0] https://www.austingroupbugs.net/view.php?id=741
+    
+    Signed-off-by: Michael Forney <mforney@mforney.org>
+    Reviewed-by: Laurent Vivier <laurent@vivier.eu>
+    Message-Id: <20210526190203.4255-1-mforney@mforney.org>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

@@ -1,0 +1,192 @@
+diff --git a/hw/display/trace-events b/hw/display/trace-events
+index e47264af5d..f3f77b6984 100644
+--- a/hw/display/trace-events
++++ b/hw/display/trace-events
+@@ -30,7 +30,6 @@ virtio_gpu_features(bool virgl) "virgl %d"
+ virtio_gpu_cmd_get_display_info(void) ""
+ virtio_gpu_cmd_get_edid(uint32_t scanout) "scanout %d"
+ virtio_gpu_cmd_set_scanout(uint32_t id, uint32_t res, uint32_t w, uint32_t h, uint32_t x, uint32_t y) "id %d, res 0x%x, w %d, h %d, x %d, y %d"
+-virtio_gpu_cmd_set_scanout_blob(uint32_t id, uint32_t res, uint32_t w, uint32_t h, uint32_t x, uint32_t y) "id %d, res 0x%x, w %d, h %d, x %d, y %d"
+ virtio_gpu_cmd_res_create_2d(uint32_t res, uint32_t fmt, uint32_t w, uint32_t h) "res 0x%x, fmt 0x%x, w %d, h %d"
+ virtio_gpu_cmd_res_create_3d(uint32_t res, uint32_t fmt, uint32_t w, uint32_t h, uint32_t d) "res 0x%x, fmt 0x%x, w %d, h %d, d %d"
+ virtio_gpu_cmd_res_create_blob(uint32_t res, uint64_t size) "res 0x%x, size %" PRId64
+diff --git a/hw/display/virtio-gpu.c b/hw/display/virtio-gpu.c
+index 8cee6cb3e5..0af08edde8 100644
+--- a/hw/display/virtio-gpu.c
++++ b/hw/display/virtio-gpu.c
+@@ -403,7 +403,7 @@ static void virtio_gpu_resource_destroy(VirtIOGPU *g,
+         }
+     }
+ 
+-    qemu_pixman_image_unref(res->image);
++    pixman_image_unref(res->image);
+     virtio_gpu_cleanup_mapping(g, res);
+     QTAILQ_REMOVE(&g->reslist, res, next);
+     g->hostmem -= res->hostmem;
+@@ -492,7 +492,6 @@ static void virtio_gpu_resource_flush(VirtIOGPU *g,
+ {
+     struct virtio_gpu_simple_resource *res;
+     struct virtio_gpu_resource_flush rf;
+-    struct virtio_gpu_scanout *scanout;
+     pixman_region16_t flush_region;
+     int i;
+ 
+@@ -503,29 +502,16 @@ static void virtio_gpu_resource_flush(VirtIOGPU *g,
+ 
+     res = virtio_gpu_find_check_resource(g, rf.resource_id, false,
+                                          __func__, &cmd->error);
+-    if (!res) {
++    if (!res || res->blob) {
+         return;
+     }
+ 
+-    if (res->blob) {
+-        for (i = 0; i < g->parent_obj.conf.max_outputs; i++) {
+-            scanout = &g->parent_obj.scanout[i];
+-            if (scanout->resource_id == res->resource_id &&
+-                console_has_gl(scanout->con)) {
+-                dpy_gl_update(scanout->con, 0, 0, scanout->width,
+-                              scanout->height);
+-                return;
+-            }
+-        }
+-    }
+-
+-    if (!res->blob &&
+-        (rf.r.x > res->width ||
++    if (rf.r.x > res->width ||
+         rf.r.y > res->height ||
+         rf.r.width > res->width ||
+         rf.r.height > res->height ||
+         rf.r.x + rf.r.width > res->width ||
+-        rf.r.y + rf.r.height > res->height)) {
++        rf.r.y + rf.r.height > res->height) {
+         qemu_log_mask(LOG_GUEST_ERROR, "%s: flush bounds outside resource"
+                       " bounds for resource %d: %d %d %d %d vs %d %d\n",
+                       __func__, rf.resource_id, rf.r.x, rf.r.y,
+@@ -537,6 +523,7 @@ static void virtio_gpu_resource_flush(VirtIOGPU *g,
+     pixman_region_init_rect(&flush_region,
+                             rf.r.x, rf.r.y, rf.r.width, rf.r.height);
+     for (i = 0; i < g->parent_obj.conf.max_outputs; i++) {
++        struct virtio_gpu_scanout *scanout;
+         pixman_region16_t region, finalregion;
+         pixman_box16_t *extents;
+ 
+@@ -627,23 +614,10 @@ static void virtio_gpu_do_set_scanout(VirtIOGPU *g,
+     }
+ 
+     g->parent_obj.enable = 1;
+-
+-    if (res->blob) {
+-        if (console_has_gl(scanout->con)) {
+-            if (!virtio_gpu_update_dmabuf(g, scanout_id, res, fb)) {
+-                virtio_gpu_update_scanout(g, scanout_id, res, r);
+-                return;
+-            }
+-        }
+-
+-        data = res->blob;
+-    } else {
+-        data = (uint8_t *)pixman_image_get_data(res->image);
+-    }
++    data = (uint8_t *)pixman_image_get_data(res->image);
+ 
+     /* create a surface for this scanout */
+-    if ((res->blob && !console_has_gl(scanout->con)) ||
+-        !scanout->ds ||
++    if (!scanout->ds ||
+         surface_data(scanout->ds) != data + fb->offset ||
+         scanout->width != r->width ||
+         scanout->height != r->height) {
+@@ -707,61 +681,6 @@ static void virtio_gpu_set_scanout(VirtIOGPU *g,
+                               &fb, res, &ss.r, &cmd->error);
+ }
+ 
+-static void virtio_gpu_set_scanout_blob(VirtIOGPU *g,
+-                                        struct virtio_gpu_ctrl_command *cmd)
+-{
+-    struct virtio_gpu_simple_resource *res;
+-    struct virtio_gpu_framebuffer fb = { 0 };
+-    struct virtio_gpu_set_scanout_blob ss;
+-    uint64_t fbend;
+-
+-    VIRTIO_GPU_FILL_CMD(ss);
+-    virtio_gpu_scanout_blob_bswap(&ss);
+-    trace_virtio_gpu_cmd_set_scanout_blob(ss.scanout_id, ss.resource_id,
+-                                          ss.r.width, ss.r.height, ss.r.x,
+-                                          ss.r.y);
+-
+-    if (ss.resource_id == 0) {
+-        virtio_gpu_disable_scanout(g, ss.scanout_id);
+-        return;
+-    }
+-
+-    res = virtio_gpu_find_check_resource(g, ss.resource_id, true,
+-                                         __func__, &cmd->error);
+-    if (!res) {
+-        return;
+-    }
+-
+-    fb.format = virtio_gpu_get_pixman_format(ss.format);
+-    if (!fb.format) {
+-        qemu_log_mask(LOG_GUEST_ERROR,
+-                      "%s: host couldn't handle guest format %d\n",
+-                      __func__, ss.format);
+-        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
+-        return;
+-    }
+-
+-    fb.bytes_pp = DIV_ROUND_UP(PIXMAN_FORMAT_BPP(fb.format), 8);
+-    fb.width = ss.width;
+-    fb.height = ss.height;
+-    fb.stride = ss.strides[0];
+-    fb.offset = ss.offsets[0] + ss.r.x * fb.bytes_pp + ss.r.y * fb.stride;
+-
+-    fbend = fb.offset;
+-    fbend += fb.stride * (ss.r.height - 1);
+-    fbend += fb.bytes_pp * ss.r.width;
+-    if (fbend > res->blob_size) {
+-        qemu_log_mask(LOG_GUEST_ERROR,
+-                      "%s: fb end out of range\n",
+-                      __func__);
+-        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
+-        return;
+-    }
+-
+-    virtio_gpu_do_set_scanout(g, ss.scanout_id,
+-                              &fb, res, &ss.r, &cmd->error);
+-}
+-
+ int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
+                                   uint32_t nr_entries, uint32_t offset,
+                                   struct virtio_gpu_ctrl_command *cmd,
+@@ -956,13 +875,6 @@ void virtio_gpu_simple_process_cmd(VirtIOGPU *g,
+     case VIRTIO_GPU_CMD_SET_SCANOUT:
+         virtio_gpu_set_scanout(g, cmd);
+         break;
+-    case VIRTIO_GPU_CMD_SET_SCANOUT_BLOB:
+-        if (!virtio_gpu_blob_enabled(g->parent_obj.conf)) {
+-            cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
+-            break;
+-        }
+-        virtio_gpu_set_scanout_blob(g, cmd);
+-        break;
+     case VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING:
+         virtio_gpu_resource_attach_backing(g, cmd);
+         break;
+diff --git a/include/hw/virtio/virtio-gpu-bswap.h b/include/hw/virtio/virtio-gpu-bswap.h
+index e2bee8f595..d23ac5cc4a 100644
+--- a/include/hw/virtio/virtio-gpu-bswap.h
++++ b/include/hw/virtio/virtio-gpu-bswap.h
+@@ -68,11 +68,4 @@ virtio_gpu_create_blob_bswap(struct virtio_gpu_resource_create_blob *cblob)
+     le64_to_cpus(&cblob->size);
+ }
+ 
+-static inline void
+-virtio_gpu_scanout_blob_bswap(struct virtio_gpu_set_scanout_blob *ssb)
+-{
+-    virtio_gpu_bswap_32(ssb, sizeof(*ssb) - sizeof(ssb->offsets[3]));
+-    le32_to_cpus(&ssb->offsets[3]);
+-}
+-
+ #endif

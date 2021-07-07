@@ -1,0 +1,15 @@
+commit a3f5c315396b86468487f303a044b26801015090
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Fri May 21 17:17:52 2021 -0300
+
+    target/ppc: moved ppc_store_lpcr and ppc_store_msr to cpu.c
+    
+    These functions are used in hw/ppc logic, during machine startup, which
+    means it must be compiled when --disable-tcg is selected, and so it has
+    been moved into a common code file
+    
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: David Gibson <david@gibson.dropbear.id.au>
+    Message-Id: <20210521201759.85475-3-bruno.larsen@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

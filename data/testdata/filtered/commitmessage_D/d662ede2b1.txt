@@ -1,0 +1,14 @@
+commit d662ede2b1eb033883b7c96866e84e8b54524ccb
+Author: Alexander Graf <agraf@csgraf.de>
+Date:   Thu Jun 3 14:09:33 2021 +0100
+
+    hvf: Remove hvf-accel-ops.h
+    
+    We can move the definition of hvf_vcpu_exec() into our internal
+    hvf header, obsoleting the need for hvf-accel-ops.h.
+    
+    Signed-off-by: Alexander Graf <agraf@csgraf.de>
+    Reviewed-by: Sergio Lopez <slp@redhat.com>
+    Message-id: 20210519202253.76782-11-agraf@csgraf.de
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

@@ -1,0 +1,14 @@
+commit 0af4d13b3114a87e53cb9e2ee0c5588c513f4b1a
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 16:34:06 2021 +0100
+
+    target/arm: Remove fprintf from disas_simd_mod_imm
+    
+    The default of this switch is truly unreachable.
+    The switch selector is 3 bits, and all 8 cases are present.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Message-id: 20210604183506.916654-3-richard.henderson@linaro.org
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

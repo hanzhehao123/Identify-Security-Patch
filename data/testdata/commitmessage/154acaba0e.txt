@@ -1,0 +1,14 @@
+commit 154acaba0ea9675f175118787b9ca44cbbbc23b7
+Author: Jamie Iles <jamie@nuviainc.com>
+Date:   Wed May 26 13:18:45 2021 +0100
+
+    target/arm: fold do_raise_exception into raise_exception
+    
+    Now that there are no other users of do_raise_exception, fold it into
+    raise_exception.
+    
+    Cc: Richard Henderson <richard.henderson@linaro.org>
+    Cc: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Jamie Iles <jamie@nuviainc.com>
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

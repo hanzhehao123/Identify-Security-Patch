@@ -1,0 +1,25 @@
+commit bed9523471c13a44cdc15ed9ba0fb78cadf8c142
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Fri May 28 17:16:28 2021 +0300
+
+    block-copy: refactor copy_range handling
+    
+    Currently we update s->use_copy_range and s->copy_size in
+    block_copy_do_copy().
+    
+    It's not very good:
+    
+    1. block_copy_do_copy() is intended to be a simple function, that wraps
+    bdrv_co_<io> functions for need of block copy. That's why we don't pass
+    BlockCopyTask into it. So, block_copy_do_copy() is bad place for
+    manipulation with generic state of block-copy process
+    
+    2. We are going to make block-copy thread-safe. So, it's good to move
+    manipulation with state of block-copy to the places where we'll need
+    critical sections anyway, to not introduce extra synchronization
+    primitives in block_copy_do_copy().
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210528141628.44287-3-vsementsov@virtuozzo.com>
+    Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

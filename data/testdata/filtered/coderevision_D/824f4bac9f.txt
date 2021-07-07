@@ -1,0 +1,3147 @@
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index 6a0d311cf4..1c46392b2f 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -27,9 +27,9 @@ include:
+     - cd build
+     - if test -n "$TARGETS";
+       then
+-        ../configure --enable-werror --disable-docs ${LD_JOBS:+--meson=internal} $CONFIGURE_ARGS --target-list="$TARGETS" ;
++        ../configure --enable-werror --disable-docs ${LD_JOBS:+--meson=git} $CONFIGURE_ARGS --target-list="$TARGETS" ;
+       else
+-        ../configure --enable-werror --disable-docs ${LD_JOBS:+--meson=internal} $CONFIGURE_ARGS ;
++        ../configure --enable-werror --disable-docs ${LD_JOBS:+--meson=git} $CONFIGURE_ARGS ;
+       fi || { cat config.log meson-logs/meson-log.txt && exit 1; }
+     - if test -n "$LD_JOBS";
+       then
+diff --git a/Makefile b/Makefile
+index 4cab10a2a4..30f19d33bb 100644
+--- a/Makefile
++++ b/Makefile
+@@ -48,9 +48,11 @@ Makefile: .git-submodule-status
+ 
+ .PHONY: git-submodule-update
+ git-submodule-update:
++ifneq ($(GIT_SUBMODULES_ACTION),ignore)
+ 	$(call quiet-command, \
+ 		(GIT="$(GIT)" "$(SRC_PATH)/scripts/git-submodule.sh" $(GIT_SUBMODULES_ACTION) $(GIT_SUBMODULES)), \
+ 		"GIT","$(GIT_SUBMODULES)")
++endif
+ 
+ # 0. ensure the build tree is okay
+ 
+diff --git a/accel/kvm/kvm-all.c b/accel/kvm/kvm-all.c
+index 4e0168e88b..c7ec538850 100644
+--- a/accel/kvm/kvm-all.c
++++ b/accel/kvm/kvm-all.c
+@@ -15,6 +15,7 @@
+ 
+ #include "qemu/osdep.h"
+ #include <sys/ioctl.h>
++#include <poll.h>
+ 
+ #include <linux/kvm.h>
+ 
+@@ -78,6 +79,25 @@ struct KVMParkedVcpu {
+     QLIST_ENTRY(KVMParkedVcpu) node;
+ };
+ 
++enum KVMDirtyRingReaperState {
++    KVM_DIRTY_RING_REAPER_NONE = 0,
++    /* The reaper is sleeping */
++    KVM_DIRTY_RING_REAPER_WAIT,
++    /* The reaper is reaping for dirty pages */
++    KVM_DIRTY_RING_REAPER_REAPING,
++};
++
++/*
++ * KVM reaper instance, responsible for collecting the KVM dirty bits
++ * via the dirty ring.
++ */
++struct KVMDirtyRingReaper {
++    /* The reaper thread */
++    QemuThread reaper_thr;
++    volatile uint64_t reaper_iteration; /* iteration number of reaper thr */
++    volatile enum KVMDirtyRingReaperState reaper_state; /* reap thr state */
++};
++
+ struct KVMState
+ {
+     AccelState parent_obj;
+@@ -126,6 +146,9 @@ struct KVMState
+         KVMMemoryListener *ml;
+         AddressSpace *as;
+     } *as;
++    uint64_t kvm_dirty_ring_bytes;  /* Size of the per-vcpu dirty ring */
++    uint32_t kvm_dirty_ring_size;   /* Number of dirty GFNs per ring */
++    struct KVMDirtyRingReaper reaper;
+ };
+ 
+ KVMState *kvm_state;
+@@ -172,8 +195,12 @@ typedef struct KVMResampleFd KVMResampleFd;
+ static QLIST_HEAD(, KVMResampleFd) kvm_resample_fd_list =
+     QLIST_HEAD_INITIALIZER(kvm_resample_fd_list);
+ 
+-#define kvm_slots_lock(kml)      qemu_mutex_lock(&(kml)->slots_lock)
+-#define kvm_slots_unlock(kml)    qemu_mutex_unlock(&(kml)->slots_lock)
++static QemuMutex kml_slots_lock;
++
++#define kvm_slots_lock()    qemu_mutex_lock(&kml_slots_lock)
++#define kvm_slots_unlock()  qemu_mutex_unlock(&kml_slots_lock)
++
++static void kvm_slot_init_dirty_bitmap(KVMSlot *mem);
+ 
+ static inline void kvm_resample_fd_remove(int gsi)
+ {
+@@ -239,9 +266,9 @@ bool kvm_has_free_slot(MachineState *ms)
+     bool result;
+     KVMMemoryListener *kml = &s->memory_listener;
+ 
+-    kvm_slots_lock(kml);
++    kvm_slots_lock();
+     result = !!kvm_get_free_slot(kml);
+-    kvm_slots_unlock(kml);
++    kvm_slots_unlock();
+ 
+     return result;
+ }
+@@ -307,7 +334,7 @@ int kvm_physical_memory_addr_from_host(KVMState *s, void *ram,
+     KVMMemoryListener *kml = &s->memory_listener;
+     int i, ret = 0;
+ 
+-    kvm_slots_lock(kml);
++    kvm_slots_lock();
+     for (i = 0; i < s->nr_slots; i++) {
+         KVMSlot *mem = &kml->slots[i];
+ 
+@@ -317,7 +344,7 @@ int kvm_physical_memory_addr_from_host(KVMState *s, void *ram,
+             break;
+         }
+     }
+-    kvm_slots_unlock(kml);
++    kvm_slots_unlock();
+ 
+     return ret;
+ }
+@@ -383,6 +410,13 @@ static int do_kvm_destroy_vcpu(CPUState *cpu)
+         goto err;
+     }
+ 
++    if (cpu->kvm_dirty_gfns) {
++        ret = munmap(cpu->kvm_dirty_gfns, s->kvm_dirty_ring_size);
++        if (ret < 0) {
++            goto err;
++        }
++    }
++
+     vcpu = g_malloc0(sizeof(*vcpu));
+     vcpu->vcpu_id = kvm_arch_vcpu_id(cpu);
+     vcpu->kvm_fd = cpu->kvm_fd;
+@@ -459,6 +493,19 @@ int kvm_init_vcpu(CPUState *cpu, Error **errp)
+             (void *)cpu->kvm_run + s->coalesced_mmio * PAGE_SIZE;
+     }
+ 
++    if (s->kvm_dirty_ring_size) {
++        /* Use MAP_SHARED to share pages with the kernel */
++        cpu->kvm_dirty_gfns = mmap(NULL, s->kvm_dirty_ring_size,
++                                   PROT_READ | PROT_WRITE, MAP_SHARED,
++                                   cpu->kvm_fd,
++                                   PAGE_SIZE * KVM_DIRTY_LOG_PAGE_OFFSET);
++        if (cpu->kvm_dirty_gfns == MAP_FAILED) {
++            ret = -errno;
++            DPRINTF("mmap'ing vcpu dirty gfns failed: %d\n", ret);
++            goto err;
++        }
++    }
++
+     ret = kvm_arch_init_vcpu(cpu);
+     if (ret < 0) {
+         error_setg_errno(errp, -ret,
+@@ -498,6 +545,7 @@ static int kvm_slot_update_flags(KVMMemoryListener *kml, KVMSlot *mem,
+         return 0;
+     }
+ 
++    kvm_slot_init_dirty_bitmap(mem);
+     return kvm_set_user_memory_region(kml, mem, false);
+ }
+ 
+@@ -513,7 +561,7 @@ static int kvm_section_update_flags(KVMMemoryListener *kml,
+         return 0;
+     }
+ 
+-    kvm_slots_lock(kml);
++    kvm_slots_lock();
+ 
+     while (size && !ret) {
+         slot_size = MIN(kvm_max_slot_size, size);
+@@ -529,7 +577,7 @@ static int kvm_section_update_flags(KVMMemoryListener *kml,
+     }
+ 
+ out:
+-    kvm_slots_unlock(kml);
++    kvm_slots_unlock();
+     return ret;
+ }
+ 
+@@ -568,22 +616,28 @@ static void kvm_log_stop(MemoryListener *listener,
+ }
+ 
+ /* get kvm's dirty pages bitmap and update qemu's */
+-static int kvm_get_dirty_pages_log_range(MemoryRegionSection *section,
+-                                         unsigned long *bitmap)
++static void kvm_slot_sync_dirty_pages(KVMSlot *slot)
+ {
+-    ram_addr_t start = section->offset_within_region +
+-                       memory_region_get_ram_addr(section->mr);
+-    ram_addr_t pages = int128_get64(section->size) / qemu_real_host_page_size;
++    ram_addr_t start = slot->ram_start_offset;
++    ram_addr_t pages = slot->memory_size / qemu_real_host_page_size;
+ 
+-    cpu_physical_memory_set_dirty_lebitmap(bitmap, start, pages);
+-    return 0;
++    cpu_physical_memory_set_dirty_lebitmap(slot->dirty_bmap, start, pages);
++}
++
++static void kvm_slot_reset_dirty_pages(KVMSlot *slot)
++{
++    memset(slot->dirty_bmap, 0, slot->dirty_bmap_size);
+ }
+ 
+ #define ALIGN(x, y)  (((x)+(y)-1) & ~((y)-1))
+ 
+ /* Allocate the dirty bitmap for a slot  */
+-static void kvm_memslot_init_dirty_bitmap(KVMSlot *mem)
++static void kvm_slot_init_dirty_bitmap(KVMSlot *mem)
+ {
++    if (!(mem->flags & KVM_MEM_LOG_DIRTY_PAGES) || mem->dirty_bmap) {
++        return;
++    }
++
+     /*
+      * XXX bad kernel interface alert
+      * For dirty bitmap, kernel allocates array of size aligned to
+@@ -604,6 +658,196 @@ static void kvm_memslot_init_dirty_bitmap(KVMSlot *mem)
+     hwaddr bitmap_size = ALIGN(mem->memory_size / qemu_real_host_page_size,
+                                         /*HOST_LONG_BITS*/ 64) / 8;
+     mem->dirty_bmap = g_malloc0(bitmap_size);
++    mem->dirty_bmap_size = bitmap_size;
++}
++
++/*
++ * Sync dirty bitmap from kernel to KVMSlot.dirty_bmap, return true if
++ * succeeded, false otherwise
++ */
++static bool kvm_slot_get_dirty_log(KVMState *s, KVMSlot *slot)
++{
++    struct kvm_dirty_log d = {};
++    int ret;
++
++    d.dirty_bitmap = slot->dirty_bmap;
++    d.slot = slot->slot | (slot->as_id << 16);
++    ret = kvm_vm_ioctl(s, KVM_GET_DIRTY_LOG, &d);
++
++    if (ret == -ENOENT) {
++        /* kernel does not have dirty bitmap in this slot */
++        ret = 0;
++    }
++    if (ret) {
++        error_report_once("%s: KVM_GET_DIRTY_LOG failed with %d",
++                          __func__, ret);
++    }
++    return ret == 0;
++}
++
++/* Should be with all slots_lock held for the address spaces. */
++static void kvm_dirty_ring_mark_page(KVMState *s, uint32_t as_id,
++                                     uint32_t slot_id, uint64_t offset)
++{
++    KVMMemoryListener *kml;
++    KVMSlot *mem;
++
++    if (as_id >= s->nr_as) {
++        return;
++    }
++
++    kml = s->as[as_id].ml;
++    mem = &kml->slots[slot_id];
++
++    if (!mem->memory_size || offset >=
++        (mem->memory_size / qemu_real_host_page_size)) {
++        return;
++    }
++
++    set_bit(offset, mem->dirty_bmap);
++}
++
++static bool dirty_gfn_is_dirtied(struct kvm_dirty_gfn *gfn)
++{
++    return gfn->flags == KVM_DIRTY_GFN_F_DIRTY;
++}
++
++static void dirty_gfn_set_collected(struct kvm_dirty_gfn *gfn)
++{
++    gfn->flags = KVM_DIRTY_GFN_F_RESET;
++}
++
++/*
++ * Should be with all slots_lock held for the address spaces.  It returns the
++ * dirty page we've collected on this dirty ring.
++ */
++static uint32_t kvm_dirty_ring_reap_one(KVMState *s, CPUState *cpu)
++{
++    struct kvm_dirty_gfn *dirty_gfns = cpu->kvm_dirty_gfns, *cur;
++    uint32_t ring_size = s->kvm_dirty_ring_size;
++    uint32_t count = 0, fetch = cpu->kvm_fetch_index;
++
++    assert(dirty_gfns && ring_size);
++    trace_kvm_dirty_ring_reap_vcpu(cpu->cpu_index);
++
++    while (true) {
++        cur = &dirty_gfns[fetch % ring_size];
++        if (!dirty_gfn_is_dirtied(cur)) {
++            break;
++        }
++        kvm_dirty_ring_mark_page(s, cur->slot >> 16, cur->slot & 0xffff,
++                                 cur->offset);
++        dirty_gfn_set_collected(cur);
++        trace_kvm_dirty_ring_page(cpu->cpu_index, fetch, cur->offset);
++        fetch++;
++        count++;
++    }
++    cpu->kvm_fetch_index = fetch;
++
++    return count;
++}
++
++/* Must be with slots_lock held */
++static uint64_t kvm_dirty_ring_reap_locked(KVMState *s)
++{
++    int ret;
++    CPUState *cpu;
++    uint64_t total = 0;
++    int64_t stamp;
++
++    stamp = get_clock();
++
++    CPU_FOREACH(cpu) {
++        total += kvm_dirty_ring_reap_one(s, cpu);
++    }
++
++    if (total) {
++        ret = kvm_vm_ioctl(s, KVM_RESET_DIRTY_RINGS);
++        assert(ret == total);
++    }
++
++    stamp = get_clock() - stamp;
++
++    if (total) {
++        trace_kvm_dirty_ring_reap(total, stamp / 1000);
++    }
++
++    return total;
++}
++
++/*
++ * Currently for simplicity, we must hold BQL before calling this.  We can
++ * consider to drop the BQL if we're clear with all the race conditions.
++ */
++static uint64_t kvm_dirty_ring_reap(KVMState *s)
++{
++    uint64_t total;
++
++    /*
++     * We need to lock all kvm slots for all address spaces here,
++     * because:
++     *
++     * (1) We need to mark dirty for dirty bitmaps in multiple slots
++     *     and for tons of pages, so it's better to take the lock here
++     *     once rather than once per page.  And more importantly,
++     *
++     * (2) We must _NOT_ publish dirty bits to the other threads
++     *     (e.g., the migration thread) via the kvm memory slot dirty
++     *     bitmaps before correctly re-protect those dirtied pages.
++     *     Otherwise we can have potential risk of data corruption if
++     *     the page data is read in the other thread before we do
++     *     reset below.
++     */
++    kvm_slots_lock();
++    total = kvm_dirty_ring_reap_locked(s);
++    kvm_slots_unlock();
++
++    return total;
++}
++
++static void do_kvm_cpu_synchronize_kick(CPUState *cpu, run_on_cpu_data arg)
++{
++    /* No need to do anything */
++}
++
++/*
++ * Kick all vcpus out in a synchronized way.  When returned, we
++ * guarantee that every vcpu has been kicked and at least returned to
++ * userspace once.
++ */
++static void kvm_cpu_synchronize_kick_all(void)
++{
++    CPUState *cpu;
++
++    CPU_FOREACH(cpu) {
++        run_on_cpu(cpu, do_kvm_cpu_synchronize_kick, RUN_ON_CPU_NULL);
++    }
++}
++
++/*
++ * Flush all the existing dirty pages to the KVM slot buffers.  When
++ * this call returns, we guarantee that all the touched dirty pages
++ * before calling this function have been put into the per-kvmslot
++ * dirty bitmap.
++ *
++ * This function must be called with BQL held.
++ */
++static void kvm_dirty_ring_flush(void)
++{
++    trace_kvm_dirty_ring_flush(0);
++    /*
++     * The function needs to be serialized.  Since this function
++     * should always be with BQL held, serialization is guaranteed.
++     * However, let's be sure of it.
++     */
++    assert(qemu_mutex_iothread_locked());
++    /*
++     * First make sure to flush the hardware buffers by kicking all
++     * vcpus out in a synchronous way.
++     */
++    kvm_cpu_synchronize_kick_all();
++    kvm_dirty_ring_reap(kvm_state);
++    trace_kvm_dirty_ring_flush(1);
+ }
+ 
+ /**
+@@ -617,53 +861,28 @@ static void kvm_memslot_init_dirty_bitmap(KVMSlot *mem)
+  * @kml: the KVM memory listener object
+  * @section: the memory section to sync the dirty bitmap with
+  */
+-static int kvm_physical_sync_dirty_bitmap(KVMMemoryListener *kml,
+-                                          MemoryRegionSection *section)
++static void kvm_physical_sync_dirty_bitmap(KVMMemoryListener *kml,
++                                           MemoryRegionSection *section)
+ {
+     KVMState *s = kvm_state;
+-    struct kvm_dirty_log d = {};
+     KVMSlot *mem;
+     hwaddr start_addr, size;
+-    hwaddr slot_size, slot_offset = 0;
+-    int ret = 0;
++    hwaddr slot_size;
+ 
+     size = kvm_align_section(section, &start_addr);
+     while (size) {
+-        MemoryRegionSection subsection = *section;
+-
+         slot_size = MIN(kvm_max_slot_size, size);
+         mem = kvm_lookup_matching_slot(kml, start_addr, slot_size);
+         if (!mem) {
+             /* We don't have a slot if we want to trap every access. */
+-            goto out;
+-        }
+-
+-        if (!mem->dirty_bmap) {
+-            /* Allocate on the first log_sync, once and for all */
+-            kvm_memslot_init_dirty_bitmap(mem);
++            return;
+         }
+-
+-        d.dirty_bitmap = mem->dirty_bmap;
+-        d.slot = mem->slot | (kml->as_id << 16);
+-        ret = kvm_vm_ioctl(s, KVM_GET_DIRTY_LOG, &d);
+-        if (ret == -ENOENT) {
+-            /* kernel does not have dirty bitmap in this slot */
+-            ret = 0;
+-        } else if (ret < 0) {
+-            error_report("ioctl KVM_GET_DIRTY_LOG failed: %d", errno);
+-            goto out;
+-        } else {
+-            subsection.offset_within_region += slot_offset;
+-            subsection.size = int128_make64(slot_size);
+-            kvm_get_dirty_pages_log_range(&subsection, d.dirty_bitmap);
++        if (kvm_slot_get_dirty_log(s, mem)) {
++            kvm_slot_sync_dirty_pages(mem);
+         }
+-
+-        slot_offset += slot_size;
+         start_addr += slot_size;
+         size -= slot_size;
+     }
+-out:
+-    return ret;
+ }
+ 
+ /* Alignment requirement for KVM_CLEAR_DIRTY_LOG - 64 pages */
+@@ -810,7 +1029,7 @@ static int kvm_physical_log_clear(KVMMemoryListener *kml,
+         return ret;
+     }
+ 
+-    kvm_slots_lock(kml);
++    kvm_slots_lock();
+ 
+     for (i = 0; i < s->nr_slots; i++) {
+         mem = &kml->slots[i];
+@@ -836,7 +1055,7 @@ static int kvm_physical_log_clear(KVMMemoryListener *kml,
+         }
+     }
+ 
+-    kvm_slots_unlock(kml);
++    kvm_slots_unlock();
+ 
+     return ret;
+ }
+@@ -1119,7 +1338,8 @@ static void kvm_set_phys_mem(KVMMemoryListener *kml,
+     int err;
+     MemoryRegion *mr = section->mr;
+     bool writeable = !mr->readonly && !mr->rom_device;
+-    hwaddr start_addr, size, slot_size;
++    hwaddr start_addr, size, slot_size, mr_offset;
++    ram_addr_t ram_start_offset;
+     void *ram;
+ 
+     if (!memory_region_is_ram(mr)) {
+@@ -1137,11 +1357,15 @@ static void kvm_set_phys_mem(KVMMemoryListener *kml,
+         return;
+     }
+ 
+-    /* use aligned delta to align the ram address */
+-    ram = memory_region_get_ram_ptr(mr) + section->offset_within_region +
+-          (start_addr - section->offset_within_address_space);
++    /* The offset of the kvmslot within the memory region */
++    mr_offset = section->offset_within_region + start_addr -
++        section->offset_within_address_space;
+ 
+-    kvm_slots_lock(kml);
++    /* use aligned delta to align the ram address and offset */
++    ram = memory_region_get_ram_ptr(mr) + mr_offset;
++    ram_start_offset = memory_region_get_ram_addr(mr) + mr_offset;
++
++    kvm_slots_lock();
+ 
+     if (!add) {
+         do {
+@@ -1151,7 +1375,25 @@ static void kvm_set_phys_mem(KVMMemoryListener *kml,
+                 goto out;
+             }
+             if (mem->flags & KVM_MEM_LOG_DIRTY_PAGES) {
+-                kvm_physical_sync_dirty_bitmap(kml, section);
++                /*
++                 * NOTE: We should be aware of the fact that here we're only
++                 * doing a best effort to sync dirty bits.  No matter whether
++                 * we're using dirty log or dirty ring, we ignored two facts:
++                 *
++                 * (1) dirty bits can reside in hardware buffers (PML)
++                 *
++                 * (2) after we collected dirty bits here, pages can be dirtied
++                 * again before we do the final KVM_SET_USER_MEMORY_REGION to
++                 * remove the slot.
++                 *
++                 * Not easy.  Let's cross the fingers until it's fixed.
++                 */
++                if (kvm_state->kvm_dirty_ring_size) {
++                    kvm_dirty_ring_reap_locked(kvm_state);
++                } else {
++                    kvm_slot_get_dirty_log(kvm_state, mem);
++                }
++                kvm_slot_sync_dirty_pages(mem);
+             }
+ 
+             /* unregister the slot */
+@@ -1175,18 +1417,13 @@ static void kvm_set_phys_mem(KVMMemoryListener *kml,
+     do {
+         slot_size = MIN(kvm_max_slot_size, size);
+         mem = kvm_alloc_slot(kml);
++        mem->as_id = kml->as_id;
+         mem->memory_size = slot_size;
+         mem->start_addr = start_addr;
++        mem->ram_start_offset = ram_start_offset;
+         mem->ram = ram;
+         mem->flags = kvm_mem_flags(mr);
+-
+-        if (mem->flags & KVM_MEM_LOG_DIRTY_PAGES) {
+-            /*
+-             * Reallocate the bmap; it means it doesn't disappear in
+-             * middle of a migrate.
+-             */
+-            kvm_memslot_init_dirty_bitmap(mem);
+-        }
++        kvm_slot_init_dirty_bitmap(mem);
+         err = kvm_set_user_memory_region(kml, mem, true);
+         if (err) {
+             fprintf(stderr, "%s: error registering slot: %s\n", __func__,
+@@ -1194,12 +1431,58 @@ static void kvm_set_phys_mem(KVMMemoryListener *kml,
+             abort();
+         }
+         start_addr += slot_size;
++        ram_start_offset += slot_size;
+         ram += slot_size;
+         size -= slot_size;
+     } while (size);
+ 
+ out:
+-    kvm_slots_unlock(kml);
++    kvm_slots_unlock();
++}
++
++static void *kvm_dirty_ring_reaper_thread(void *data)
++{
++    KVMState *s = data;
++    struct KVMDirtyRingReaper *r = &s->reaper;
++
++    rcu_register_thread();
++
++    trace_kvm_dirty_ring_reaper("init");
++
++    while (true) {
++        r->reaper_state = KVM_DIRTY_RING_REAPER_WAIT;
++        trace_kvm_dirty_ring_reaper("wait");
++        /*
++         * TODO: provide a smarter timeout rather than a constant?
++         */
++        sleep(1);
++
++        trace_kvm_dirty_ring_reaper("wakeup");
++        r->reaper_state = KVM_DIRTY_RING_REAPER_REAPING;
++
++        qemu_mutex_lock_iothread();
++        kvm_dirty_ring_reap(s);
++        qemu_mutex_unlock_iothread();
++
++        r->reaper_iteration++;
++    }
++
++    trace_kvm_dirty_ring_reaper("exit");
++
++    rcu_unregister_thread();
++
++    return NULL;
++}
++
++static int kvm_dirty_ring_reaper_init(KVMState *s)
++{
++    struct KVMDirtyRingReaper *r = &s->reaper;
++
++    qemu_thread_create(&r->reaper_thr, "kvm-reaper",
++                       kvm_dirty_ring_reaper_thread,
++                       s, QEMU_THREAD_JOINABLE);
++
++    return 0;
+ }
+ 
+ static void kvm_region_add(MemoryListener *listener,
+@@ -1224,14 +1507,40 @@ static void kvm_log_sync(MemoryListener *listener,
+                          MemoryRegionSection *section)
+ {
+     KVMMemoryListener *kml = container_of(listener, KVMMemoryListener, listener);
+-    int r;
+ 
+-    kvm_slots_lock(kml);
+-    r = kvm_physical_sync_dirty_bitmap(kml, section);
+-    kvm_slots_unlock(kml);
+-    if (r < 0) {
+-        abort();
++    kvm_slots_lock();
++    kvm_physical_sync_dirty_bitmap(kml, section);
++    kvm_slots_unlock();
++}
++
++static void kvm_log_sync_global(MemoryListener *l)
++{
++    KVMMemoryListener *kml = container_of(l, KVMMemoryListener, listener);
++    KVMState *s = kvm_state;
++    KVMSlot *mem;
++    int i;
++
++    /* Flush all kernel dirty addresses into KVMSlot dirty bitmap */
++    kvm_dirty_ring_flush();
++
++    /*
++     * TODO: make this faster when nr_slots is big while there are
++     * only a few used slots (small VMs).
++     */
++    kvm_slots_lock();
++    for (i = 0; i < s->nr_slots; i++) {
++        mem = &kml->slots[i];
++        if (mem->memory_size && mem->flags & KVM_MEM_LOG_DIRTY_PAGES) {
++            kvm_slot_sync_dirty_pages(mem);
++            /*
++             * This is not needed by KVM_GET_DIRTY_LOG because the
++             * ioctl will unconditionally overwrite the whole region.
++             * However kvm dirty ring has no such side effect.
++             */
++            kvm_slot_reset_dirty_pages(mem);
++        }
+     }
++    kvm_slots_unlock();
+ }
+ 
+ static void kvm_log_clear(MemoryListener *listener,
+@@ -1328,7 +1637,6 @@ void kvm_memory_listener_register(KVMState *s, KVMMemoryListener *kml,
+ {
+     int i;
+ 
+-    qemu_mutex_init(&kml->slots_lock);
+     kml->slots = g_malloc0(s->nr_slots * sizeof(KVMSlot));
+     kml->as_id = as_id;
+ 
+@@ -1340,10 +1648,15 @@ void kvm_memory_listener_register(KVMState *s, KVMMemoryListener *kml,
+     kml->listener.region_del = kvm_region_del;
+     kml->listener.log_start = kvm_log_start;
+     kml->listener.log_stop = kvm_log_stop;
+-    kml->listener.log_sync = kvm_log_sync;
+-    kml->listener.log_clear = kvm_log_clear;
+     kml->listener.priority = 10;
+ 
++    if (s->kvm_dirty_ring_size) {
++        kml->listener.log_sync_global = kvm_log_sync_global;
++    } else {
++        kml->listener.log_sync = kvm_log_sync;
++        kml->listener.log_clear = kvm_log_clear;
++    }
++
+     memory_listener_register(&kml->listener, as);
+ 
+     for (i = 0; i < s->nr_as; ++i) {
+@@ -2001,6 +2314,8 @@ static int kvm_init(MachineState *ms)
+     int type = 0;
+     uint64_t dirty_log_manual_caps;
+ 
++    qemu_mutex_init(&kml_slots_lock);
++
+     s = KVM_STATE(ms->accelerator);
+ 
+     /*
+@@ -2017,7 +2332,6 @@ static int kvm_init(MachineState *ms)
+     QTAILQ_INIT(&s->kvm_sw_breakpoints);
+ #endif
+     QLIST_INIT(&s->kvm_parked_vcpus);
+-    s->vmfd = -1;
+     s->fd = qemu_open_old("/dev/kvm", O_RDWR);
+     if (s->fd == -1) {
+         fprintf(stderr, "Could not access KVM kernel module: %m\n");
+@@ -2125,20 +2439,70 @@ static int kvm_init(MachineState *ms)
+     s->coalesced_pio = s->coalesced_mmio &&
+                        kvm_check_extension(s, KVM_CAP_COALESCED_PIO);
+ 
+-    dirty_log_manual_caps =
+-        kvm_check_extension(s, KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2);
+-    dirty_log_manual_caps &= (KVM_DIRTY_LOG_MANUAL_PROTECT_ENABLE |
+-                              KVM_DIRTY_LOG_INITIALLY_SET);
+-    s->manual_dirty_log_protect = dirty_log_manual_caps;
+-    if (dirty_log_manual_caps) {
+-        ret = kvm_vm_enable_cap(s, KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2, 0,
+-                                   dirty_log_manual_caps);
+-        if (ret) {
+-            warn_report("Trying to enable capability %"PRIu64" of "
+-                        "KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2 but failed. "
+-                        "Falling back to the legacy mode. ",
+-                        dirty_log_manual_caps);
+-            s->manual_dirty_log_protect = 0;
++    /*
++     * Enable KVM dirty ring if supported, otherwise fall back to
++     * dirty logging mode
++     */
++    if (s->kvm_dirty_ring_size > 0) {
++        uint64_t ring_bytes;
++
++        ring_bytes = s->kvm_dirty_ring_size * sizeof(struct kvm_dirty_gfn);
++
++        /* Read the max supported pages */
++        ret = kvm_vm_check_extension(s, KVM_CAP_DIRTY_LOG_RING);
++        if (ret > 0) {
++            if (ring_bytes > ret) {
++                error_report("KVM dirty ring size %" PRIu32 " too big "
++                             "(maximum is %ld).  Please use a smaller value.",
++                             s->kvm_dirty_ring_size,
++                             (long)ret / sizeof(struct kvm_dirty_gfn));
++                ret = -EINVAL;
++                goto err;
++            }
++
++            ret = kvm_vm_enable_cap(s, KVM_CAP_DIRTY_LOG_RING, 0, ring_bytes);
++            if (ret) {
++                error_report("Enabling of KVM dirty ring failed: %s. "
++                             "Suggested mininum value is 1024.", strerror(-ret));
++                goto err;
++            }
++
++            s->kvm_dirty_ring_bytes = ring_bytes;
++         } else {
++             warn_report("KVM dirty ring not available, using bitmap method");
++             s->kvm_dirty_ring_size = 0;
++        }
++    }
++
++    /*
++     * KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2 is not needed when dirty ring is
++     * enabled.  More importantly, KVM_DIRTY_LOG_INITIALLY_SET will assume no
++     * page is wr-protected initially, which is against how kvm dirty ring is
++     * usage - kvm dirty ring requires all pages are wr-protected at the very
++     * beginning.  Enabling this feature for dirty ring causes data corruption.
++     *
++     * TODO: Without KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2 and kvm clear dirty log,
++     * we may expect a higher stall time when starting the migration.  In the
++     * future we can enable KVM_CLEAR_DIRTY_LOG to work with dirty ring too:
++     * instead of clearing dirty bit, it can be a way to explicitly wr-protect
++     * guest pages.
++     */
++    if (!s->kvm_dirty_ring_size) {
++        dirty_log_manual_caps =
++            kvm_check_extension(s, KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2);
++        dirty_log_manual_caps &= (KVM_DIRTY_LOG_MANUAL_PROTECT_ENABLE |
++                                  KVM_DIRTY_LOG_INITIALLY_SET);
++        s->manual_dirty_log_protect = dirty_log_manual_caps;
++        if (dirty_log_manual_caps) {
++            ret = kvm_vm_enable_cap(s, KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2, 0,
++                                    dirty_log_manual_caps);
++            if (ret) {
++                warn_report("Trying to enable capability %"PRIu64" of "
++                            "KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2 but failed. "
++                            "Falling back to the legacy mode. ",
++                            dirty_log_manual_caps);
++                s->manual_dirty_log_protect = 0;
++            }
+         }
+     }
+ 
+@@ -2224,6 +2588,14 @@ static int kvm_init(MachineState *ms)
+         ret = ram_block_discard_disable(true);
+         assert(!ret);
+     }
++
++    if (s->kvm_dirty_ring_size) {
++        ret = kvm_dirty_ring_reaper_init(s);
++        if (ret) {
++            goto err;
++        }
++    }
++
+     return 0;
+ 
+ err:
+@@ -2536,6 +2908,17 @@ int kvm_cpu_exec(CPUState *cpu)
+         case KVM_EXIT_INTERNAL_ERROR:
+             ret = kvm_handle_internal_error(cpu, run);
+             break;
++        case KVM_EXIT_DIRTY_RING_FULL:
++            /*
++             * We shouldn't continue if the dirty ring of this vcpu is
++             * still full.  Got kicked by KVM_RESET_DIRTY_RINGS.
++             */
++            trace_kvm_dirty_ring_full(cpu->cpu_index);
++            qemu_mutex_lock_iothread();
++            kvm_dirty_ring_reap(kvm_state);
++            qemu_mutex_unlock_iothread();
++            ret = 0;
++            break;
+         case KVM_EXIT_SYSTEM_EVENT:
+             switch (run->system_event.type) {
+             case KVM_SYSTEM_EVENT_SHUTDOWN:
+@@ -3112,6 +3495,11 @@ static void kvm_set_kvm_shadow_mem(Object *obj, Visitor *v,
+     KVMState *s = KVM_STATE(obj);
+     int64_t value;
+ 
++    if (s->fd != -1) {
++        error_setg(errp, "Cannot set properties after the accelerator has been initialized");
++        return;
++    }
++
+     if (!visit_type_int(v, name, &value, errp)) {
+         return;
+     }
+@@ -3126,6 +3514,11 @@ static void kvm_set_kernel_irqchip(Object *obj, Visitor *v,
+     KVMState *s = KVM_STATE(obj);
+     OnOffSplit mode;
+ 
++    if (s->fd != -1) {
++        error_setg(errp, "Cannot set properties after the accelerator has been initialized");
++        return;
++    }
++
+     if (!visit_type_OnOffSplit(v, name, &mode, errp)) {
+         return;
+     }
+@@ -3168,13 +3561,53 @@ bool kvm_kernel_irqchip_split(void)
+     return kvm_state->kernel_irqchip_split == ON_OFF_AUTO_ON;
+ }
+ 
++static void kvm_get_dirty_ring_size(Object *obj, Visitor *v,
++                                    const char *name, void *opaque,
++                                    Error **errp)
++{
++    KVMState *s = KVM_STATE(obj);
++    uint32_t value = s->kvm_dirty_ring_size;
++
++    visit_type_uint32(v, name, &value, errp);
++}
++
++static void kvm_set_dirty_ring_size(Object *obj, Visitor *v,
++                                    const char *name, void *opaque,
++                                    Error **errp)
++{
++    KVMState *s = KVM_STATE(obj);
++    Error *error = NULL;
++    uint32_t value;
++
++    if (s->fd != -1) {
++        error_setg(errp, "Cannot set properties after the accelerator has been initialized");
++        return;
++    }
++
++    visit_type_uint32(v, name, &value, &error);
++    if (error) {
++        error_propagate(errp, error);
++        return;
++    }
++    if (value & (value - 1)) {
++        error_setg(errp, "dirty-ring-size must be a power of two.");
++        return;
++    }
++
++    s->kvm_dirty_ring_size = value;
++}
++
+ static void kvm_accel_instance_init(Object *obj)
+ {
+     KVMState *s = KVM_STATE(obj);
+ 
++    s->fd = -1;
++    s->vmfd = -1;
+     s->kvm_shadow_mem = -1;
+     s->kernel_irqchip_allowed = true;
+     s->kernel_irqchip_split = ON_OFF_AUTO_AUTO;
++    /* KVM dirty ring is by default off */
++    s->kvm_dirty_ring_size = 0;
+ }
+ 
+ static void kvm_accel_class_init(ObjectClass *oc, void *data)
+@@ -3196,6 +3629,12 @@ static void kvm_accel_class_init(ObjectClass *oc, void *data)
+         NULL, NULL);
+     object_class_property_set_description(oc, "kvm-shadow-mem",
+         "KVM shadow MMU size");
++
++    object_class_property_add(oc, "dirty-ring-size", "uint32",
++        kvm_get_dirty_ring_size, kvm_set_dirty_ring_size,
++        NULL, NULL);
++    object_class_property_set_description(oc, "dirty-ring-size",
++        "Size of KVM dirty page ring buffer (default: 0, i.e. use bitmap)");
+ }
+ 
+ static const TypeInfo kvm_accel_type = {
+diff --git a/accel/kvm/trace-events b/accel/kvm/trace-events
+index e15ae8980d..72a01320a1 100644
+--- a/accel/kvm/trace-events
++++ b/accel/kvm/trace-events
+@@ -18,4 +18,11 @@ kvm_set_ioeventfd_pio(int fd, uint16_t addr, uint32_t val, bool assign, uint32_t
+ kvm_set_user_memory(uint32_t slot, uint32_t flags, uint64_t guest_phys_addr, uint64_t memory_size, uint64_t userspace_addr, int ret) "Slot#%d flags=0x%x gpa=0x%"PRIx64 " size=0x%"PRIx64 " ua=0x%"PRIx64 " ret=%d"
+ kvm_clear_dirty_log(uint32_t slot, uint64_t start, uint32_t size) "slot#%"PRId32" start 0x%"PRIx64" size 0x%"PRIx32
+ kvm_resample_fd_notify(int gsi) "gsi %d"
++kvm_dirty_ring_full(int id) "vcpu %d"
++kvm_dirty_ring_reap_vcpu(int id) "vcpu %d"
++kvm_dirty_ring_page(int vcpu, uint32_t slot, uint64_t offset) "vcpu %d fetch %"PRIu32" offset 0x%"PRIx64
++kvm_dirty_ring_reaper(const char *s) "%s"
++kvm_dirty_ring_reap(uint64_t count, int64_t t) "reaped %"PRIu64" pages (took %"PRIi64" us)"
++kvm_dirty_ring_reaper_kick(const char *reason) "%s"
++kvm_dirty_ring_flush(int finished) "%d"
+ 
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index 10e11f27bb..0dc5271715 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -31,7 +31,6 @@
+ #include "qemu/rcu.h"
+ #include "exec/tb-hash.h"
+ #include "exec/tb-lookup.h"
+-#include "exec/tb-context.h"
+ #include "exec/log.h"
+ #include "qemu/main-loop.h"
+ #if defined(TARGET_I386) && !defined(CONFIG_USER_ONLY)
+diff --git a/accel/tcg/translate-all.c b/accel/tcg/translate-all.c
+index e9f4de5190..640ff6e3e7 100644
+--- a/accel/tcg/translate-all.c
++++ b/accel/tcg/translate-all.c
+@@ -48,7 +48,6 @@
+ 
+ #include "exec/cputlb.h"
+ #include "exec/tb-hash.h"
+-#include "exec/tb-context.h"
+ #include "exec/translate-all.h"
+ #include "qemu/bitmap.h"
+ #include "qemu/error-report.h"
+diff --git a/block/replication.c b/block/replication.c
+index 97be7ef4de..52163f2d1f 100644
+--- a/block/replication.c
++++ b/block/replication.c
+@@ -22,7 +22,7 @@
+ #include "sysemu/block-backend.h"
+ #include "qapi/error.h"
+ #include "qapi/qmp/qdict.h"
+-#include "replication.h"
++#include "block/replication.h"
+ 
+ typedef enum {
+     BLOCK_REPLICATION_NONE,             /* block replication is not started */
+diff --git a/configure b/configure
+index 676239c697..90c0807347 100755
+--- a/configure
++++ b/configure
+@@ -256,31 +256,11 @@ gdb_bin=$(command -v "gdb-multiarch" || command -v "gdb")
+ if test -e "$source_path/.git"
+ then
+     git_submodules_action="update"
+-    git_submodules="ui/keycodemapdb"
+-    git_submodules="$git_submodules tests/fp/berkeley-testfloat-3"
+-    git_submodules="$git_submodules tests/fp/berkeley-softfloat-3"
+ else
+     git_submodules_action="ignore"
+-    git_submodules=""
+-
+-    if ! test -f "$source_path/ui/keycodemapdb/README"
+-    then
+-        echo
+-        echo "ERROR: missing file $source_path/ui/keycodemapdb/README"
+-        echo
+-        echo "This is not a GIT checkout but module content appears to"
+-        echo "be missing. Do not use 'git archive' or GitHub download links"
+-        echo "to acquire QEMU source archives. Non-GIT builds are only"
+-        echo "supported with source archives linked from:"
+-        echo
+-        echo "  https://www.qemu.org/download/#source"
+-        echo
+-        echo "Developers working with GIT can use scripts/archive-source.sh"
+-        echo "if they need to create valid source archives."
+-        echo
+-        exit 1
+-    fi
+ fi
++
++git_submodules="ui/keycodemapdb"
+ git="git"
+ 
+ # Don't accept a target_list environment variable.
+@@ -1593,6 +1573,28 @@ case $git_submodules_action in
+         fi
+     ;;
+     ignore)
++        if ! test -f "$source_path/ui/keycodemapdb/README"
++        then
++            echo
++            echo "ERROR: missing GIT submodules"
++            echo
++            if test -e "$source_path/.git"; then
++                echo "--with-git-submodules=ignore specified but submodules were not"
++                echo "checked out.  Please initialize and update submodules."
++            else
++                echo "This is not a GIT checkout but module content appears to"
++                echo "be missing. Do not use 'git archive' or GitHub download links"
++                echo "to acquire QEMU source archives. Non-GIT builds are only"
++                echo "supported with source archives linked from:"
++                echo
++                echo "  https://www.qemu.org/download/#source"
++                echo
++                echo "Developers working with GIT can use scripts/archive-source.sh"
++                echo "if they need to create valid source archives."
++            fi
++            echo
++            exit 1
++        fi
+     ;;
+     *)
+         echo "ERROR: invalid --with-git-submodules= value '$git_submodules_action'"
+@@ -2281,6 +2283,11 @@ if test "$solaris" = "yes" ; then
+   fi
+ fi
+ 
++if test "$tcg" = "enabled"; then
++    git_submodules="$git_submodules tests/fp/berkeley-testfloat-3"
++    git_submodules="$git_submodules tests/fp/berkeley-softfloat-3"
++fi
++
+ if test -z "${target_list+xxx}" ; then
+     default_targets=yes
+     for target in $default_target_list; do
+@@ -3620,9 +3627,7 @@ fi
+ case "$fdt" in
+   auto | enabled | internal)
+     # Simpler to always update submodule, even if not needed.
+-    if test "$git_submodules_action" != "ignore"; then
+-      git_submodules="${git_submodules} dtc"
+-    fi
++    git_submodules="${git_submodules} dtc"
+     ;;
+ esac
+ 
+@@ -4344,9 +4349,7 @@ fi
+ case "$capstone" in
+   auto | enabled | internal)
+     # Simpler to always update submodule, even if not needed.
+-    if test "$git_submodules_action" != "ignore"; then
+-      git_submodules="${git_submodules} capstone"
+-    fi
++    git_submodules="${git_submodules} capstone"
+     ;;
+ esac
+ 
+@@ -5276,9 +5279,7 @@ fi
+ case "$slirp" in
+   auto | enabled | internal)
+     # Simpler to always update submodule, even if not needed.
+-    if test "$git_submodules_action" != "ignore"; then
+-      git_submodules="${git_submodules} slirp"
+-    fi
++    git_submodules="${git_submodules} slirp"
+     ;;
+ esac
+ 
+@@ -5470,9 +5471,7 @@ if test "$cpu" = "s390x" ; then
+     roms="$roms s390-ccw"
+     # SLOF is required for building the s390-ccw firmware on s390x,
+     # since it is using the libnet code from SLOF for network booting.
+-    if test "$git_submodules_action" != "ignore"; then
+-      git_submodules="${git_submodules} roms/SLOF"
+-    fi
++    git_submodules="${git_submodules} roms/SLOF"
+   fi
+ fi
+ 
+@@ -6504,10 +6503,14 @@ fi
+ 
+ # Create list of config switches that should be poisoned in common code...
+ # but filter out CONFIG_TCG and CONFIG_USER_ONLY which are special.
+-sed -n -e '/CONFIG_TCG/d' -e '/CONFIG_USER_ONLY/d' \
+-    -e '/^#define / { s///; s/ .*//; s/^/#pragma GCC poison /p; }' \
+-    *-config-devices.h *-config-target.h | \
+-    sort -u > config-poison.h
++target_configs_h=$(ls *-config-devices.h *-config-target.h 2>/dev/null)
++if test -n "$target_configs_h" ; then
++    sed -n -e '/CONFIG_TCG/d' -e '/CONFIG_USER_ONLY/d' \
++        -e '/^#define / { s///; s/ .*//; s/^/#pragma GCC poison /p; }' \
++        $target_configs_h | sort -u > config-poison.h
++else
++    :> config-poison.h
++fi
+ 
+ # Save the configure command line for later reuse.
+ cat <<EOD >config.status
+diff --git a/default-configs/devices/ppc64-softmmu.mak b/default-configs/devices/ppc64-softmmu.mak
+index ae0841fa3a..cca52665d9 100644
+--- a/default-configs/devices/ppc64-softmmu.mak
++++ b/default-configs/devices/ppc64-softmmu.mak
+@@ -8,4 +8,3 @@ CONFIG_POWERNV=y
+ 
+ # For pSeries
+ CONFIG_PSERIES=y
+-CONFIG_NVDIMM=y
+diff --git a/hmp-commands.hx b/hmp-commands.hx
+index 5ee9cfd520..2d21fe5ad4 100644
+--- a/hmp-commands.hx
++++ b/hmp-commands.hx
+@@ -1297,6 +1297,7 @@ ERST
+         .help       = "create QOM object",
+         .cmd        = hmp_object_add,
+         .command_completion = object_add_completion,
++        .flags      = "p",
+     },
+ 
+ SRST
+@@ -1311,6 +1312,7 @@ ERST
+         .help       = "destroy QOM object",
+         .cmd        = hmp_object_del,
+         .command_completion = object_del_completion,
++        .flags      = "p",
+     },
+ 
+ SRST
+diff --git a/hw/arm/Kconfig b/hw/arm/Kconfig
+index b887f6a5b1..67723d9ea6 100644
+--- a/hw/arm/Kconfig
++++ b/hw/arm/Kconfig
+@@ -6,6 +6,7 @@ config ARM_VIRT
+     imply VFIO_PLATFORM
+     imply VFIO_XGMAC
+     imply TPM_TIS_SYSBUS
++    imply NVDIMM
+     select ARM_GIC
+     select ACPI
+     select ARM_SMMUV3
+diff --git a/hw/core/machine.c b/hw/core/machine.c
+index 1bf0e687b9..55b9bc7817 100644
+--- a/hw/core/machine.c
++++ b/hw/core/machine.c
+@@ -38,6 +38,7 @@
+ 
+ GlobalProperty hw_compat_6_0[] = {
+     { "gpex-pcihost", "allow-unmapped-accesses", "false" },
++    { "i8042", "extended-state", "false"},
+ };
+ const size_t hw_compat_6_0_len = G_N_ELEMENTS(hw_compat_6_0);
+ 
+diff --git a/hw/i386/Kconfig b/hw/i386/Kconfig
+index 7f91f30877..66838fa397 100644
+--- a/hw/i386/Kconfig
++++ b/hw/i386/Kconfig
+@@ -23,6 +23,7 @@ config PC
+     imply TPM_TIS_ISA
+     imply VGA_PCI
+     imply VIRTIO_VGA
++    imply NVDIMM
+     select FDC
+     select I8259
+     select I8254
+diff --git a/hw/input/pckbd.c b/hw/input/pckbd.c
+index dde85ba6c6..baba62f357 100644
+--- a/hw/input/pckbd.c
++++ b/hw/input/pckbd.c
+@@ -23,13 +23,16 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#include "qemu/error-report.h"
+ #include "qemu/log.h"
++#include "qemu/timer.h"
+ #include "hw/isa/isa.h"
+ #include "migration/vmstate.h"
+ #include "hw/acpi/aml-build.h"
+ #include "hw/input/ps2.h"
+ #include "hw/irq.h"
+ #include "hw/input/i8042.h"
++#include "hw/qdev-properties.h"
+ #include "sysemu/reset.h"
+ #include "sysemu/runstate.h"
+ 
+@@ -59,21 +62,6 @@
+ #define KBD_CCMD_RESET          0xFE    /* Pulse bit 0 of the output port P2 = CPU reset. */
+ #define KBD_CCMD_NO_OP          0xFF    /* Pulse no bits of the output port P2. */
+ 
+-/* Keyboard Commands */
+-#define KBD_CMD_SET_LEDS	0xED	/* Set keyboard leds */
+-#define KBD_CMD_ECHO     	0xEE
+-#define KBD_CMD_GET_ID 	        0xF2	/* get keyboard ID */
+-#define KBD_CMD_SET_RATE	0xF3	/* Set typematic rate */
+-#define KBD_CMD_ENABLE		0xF4	/* Enable scanning */
+-#define KBD_CMD_RESET_DISABLE	0xF5	/* reset and disable scanning */
+-#define KBD_CMD_RESET_ENABLE   	0xF6    /* reset and enable scanning */
+-#define KBD_CMD_RESET		0xFF	/* Reset */
+-
+-/* Keyboard Replies */
+-#define KBD_REPLY_POR		0xAA	/* Power on reset */
+-#define KBD_REPLY_ACK		0xFA	/* Command ACK */
+-#define KBD_REPLY_RESEND	0xFE	/* Command NACK, send the cmd again */
+-
+ /* Status Register Bits */
+ #define KBD_STAT_OBF 		0x01	/* Keyboard output buffer full */
+ #define KBD_STAT_IBF 		0x02	/* Keyboard input buffer full */
+@@ -106,41 +94,37 @@
+  */
+ #define KBD_OUT_ONES            0xcc
+ 
+-/* Mouse Commands */
+-#define AUX_SET_SCALE11		0xE6	/* Set 1:1 scaling */
+-#define AUX_SET_SCALE21		0xE7	/* Set 2:1 scaling */
+-#define AUX_SET_RES		0xE8	/* Set resolution */
+-#define AUX_GET_SCALE		0xE9	/* Get scaling factor */
+-#define AUX_SET_STREAM		0xEA	/* Set stream mode */
+-#define AUX_POLL		0xEB	/* Poll */
+-#define AUX_RESET_WRAP		0xEC	/* Reset wrap mode */
+-#define AUX_SET_WRAP		0xEE	/* Set wrap mode */
+-#define AUX_SET_REMOTE		0xF0	/* Set remote mode */
+-#define AUX_GET_TYPE		0xF2	/* Get type */
+-#define AUX_SET_SAMPLE		0xF3	/* Set sample rate */
+-#define AUX_ENABLE_DEV		0xF4	/* Enable aux device */
+-#define AUX_DISABLE_DEV		0xF5	/* Disable aux device */
+-#define AUX_SET_DEFAULT		0xF6
+-#define AUX_RESET		0xFF	/* Reset aux device */
+-#define AUX_ACK			0xFA	/* Command byte ACK. */
+-
+-#define MOUSE_STATUS_REMOTE     0x40
+-#define MOUSE_STATUS_ENABLED    0x20
+-#define MOUSE_STATUS_SCALE21    0x10
+-
+-#define KBD_PENDING_KBD         1
+-#define KBD_PENDING_AUX         2
++#define KBD_PENDING_KBD_COMPAT  0x01
++#define KBD_PENDING_AUX_COMPAT  0x02
++#define KBD_PENDING_CTRL_KBD    0x04
++#define KBD_PENDING_CTRL_AUX    0x08
++#define KBD_PENDING_KBD         KBD_MODE_DISABLE_KBD    /* 0x10 */
++#define KBD_PENDING_AUX         KBD_MODE_DISABLE_MOUSE  /* 0x20 */
++
++#define KBD_MIGR_TIMER_PENDING  0x1
++
++#define KBD_OBSRC_KBD           0x01
++#define KBD_OBSRC_MOUSE         0x02
++#define KBD_OBSRC_CTRL          0x04
+ 
+ typedef struct KBDState {
+     uint8_t write_cmd; /* if non zero, write data to port 60 is expected */
+     uint8_t status;
+     uint8_t mode;
+     uint8_t outport;
++    uint32_t migration_flags;
++    uint32_t obsrc;
+     bool outport_present;
++    bool extended_state;
++    bool extended_state_loaded;
+     /* Bitmask of devices with data available.  */
+     uint8_t pending;
++    uint8_t obdata;
++    uint8_t cbdata;
++    uint8_t pending_tmp;
+     void *kbd;
+     void *mouse;
++    QEMUTimer *throttle_timer;
+ 
+     qemu_irq irq_kbd;
+     qemu_irq irq_mouse;
+@@ -148,56 +132,123 @@ typedef struct KBDState {
+     hwaddr mask;
+ } KBDState;
+ 
+-/* update irq and KBD_STAT_[MOUSE_]OBF */
+ /* XXX: not generating the irqs if KBD_MODE_DISABLE_KBD is set may be
+    incorrect, but it avoids having to simulate exact delays */
+-static void kbd_update_irq(KBDState *s)
++static void kbd_update_irq_lines(KBDState *s)
+ {
+     int irq_kbd_level, irq_mouse_level;
+ 
+     irq_kbd_level = 0;
+     irq_mouse_level = 0;
++
++    if (s->status & KBD_STAT_OBF) {
++        if (s->status & KBD_STAT_MOUSE_OBF) {
++            if (s->mode & KBD_MODE_MOUSE_INT) {
++                irq_mouse_level = 1;
++            }
++        } else {
++            if ((s->mode & KBD_MODE_KBD_INT) &&
++                !(s->mode & KBD_MODE_DISABLE_KBD)) {
++                irq_kbd_level = 1;
++            }
++        }
++    }
++    qemu_set_irq(s->irq_kbd, irq_kbd_level);
++    qemu_set_irq(s->irq_mouse, irq_mouse_level);
++}
++
++static void kbd_deassert_irq(KBDState *s)
++{
++    s->status &= ~(KBD_STAT_OBF | KBD_STAT_MOUSE_OBF);
++    s->outport &= ~(KBD_OUT_OBF | KBD_OUT_MOUSE_OBF);
++    kbd_update_irq_lines(s);
++}
++
++static uint8_t kbd_pending(KBDState *s)
++{
++    if (s->extended_state) {
++        return s->pending & (~s->mode | ~(KBD_PENDING_KBD | KBD_PENDING_AUX));
++    } else {
++        return s->pending;
++    }
++}
++
++/* update irq and KBD_STAT_[MOUSE_]OBF */
++static void kbd_update_irq(KBDState *s)
++{
++    uint8_t pending = kbd_pending(s);
++
+     s->status &= ~(KBD_STAT_OBF | KBD_STAT_MOUSE_OBF);
+     s->outport &= ~(KBD_OUT_OBF | KBD_OUT_MOUSE_OBF);
+-    if (s->pending) {
++    if (pending) {
+         s->status |= KBD_STAT_OBF;
+         s->outport |= KBD_OUT_OBF;
+-        /* kbd data takes priority over aux data.  */
+-        if (s->pending == KBD_PENDING_AUX) {
++        if (pending & KBD_PENDING_CTRL_KBD) {
++            s->obsrc = KBD_OBSRC_CTRL;
++        } else if (pending & KBD_PENDING_CTRL_AUX) {
+             s->status |= KBD_STAT_MOUSE_OBF;
+             s->outport |= KBD_OUT_MOUSE_OBF;
+-            if (s->mode & KBD_MODE_MOUSE_INT)
+-                irq_mouse_level = 1;
++            s->obsrc = KBD_OBSRC_CTRL;
++        } else if (pending & KBD_PENDING_KBD) {
++            s->obsrc = KBD_OBSRC_KBD;
+         } else {
+-            if ((s->mode & KBD_MODE_KBD_INT) &&
+-                !(s->mode & KBD_MODE_DISABLE_KBD))
+-                irq_kbd_level = 1;
++            s->status |= KBD_STAT_MOUSE_OBF;
++            s->outport |= KBD_OUT_MOUSE_OBF;
++            s->obsrc = KBD_OBSRC_MOUSE;
+         }
+     }
+-    qemu_set_irq(s->irq_kbd, irq_kbd_level);
+-    qemu_set_irq(s->irq_mouse, irq_mouse_level);
++    kbd_update_irq_lines(s);
++}
++
++static void kbd_safe_update_irq(KBDState *s)
++{
++    /*
++     * with KBD_STAT_OBF set, a call to kbd_read_data() will eventually call
++     * kbd_update_irq()
++     */
++    if (s->status & KBD_STAT_OBF) {
++        return;
++    }
++    /* the throttle timer is pending and will call kbd_update_irq() */
++    if (s->throttle_timer && timer_pending(s->throttle_timer)) {
++        return;
++    }
++    if (kbd_pending(s)) {
++        kbd_update_irq(s);
++    }
+ }
+ 
+ static void kbd_update_kbd_irq(void *opaque, int level)
+ {
+-    KBDState *s = (KBDState *)opaque;
++    KBDState *s = opaque;
+ 
+-    if (level)
++    if (level) {
+         s->pending |= KBD_PENDING_KBD;
+-    else
++    } else {
+         s->pending &= ~KBD_PENDING_KBD;
+-    kbd_update_irq(s);
++    }
++    kbd_safe_update_irq(s);
+ }
+ 
+ static void kbd_update_aux_irq(void *opaque, int level)
+ {
+-    KBDState *s = (KBDState *)opaque;
++    KBDState *s = opaque;
+ 
+-    if (level)
++    if (level) {
+         s->pending |= KBD_PENDING_AUX;
+-    else
++    } else {
+         s->pending &= ~KBD_PENDING_AUX;
+-    kbd_update_irq(s);
++    }
++    kbd_safe_update_irq(s);
++}
++
++static void kbd_throttle_timeout(void *opaque)
++{
++    KBDState *s = opaque;
++
++    if (kbd_pending(s)) {
++        kbd_update_irq(s);
++    }
+ }
+ 
+ static uint64_t kbd_read_status(void *opaque, hwaddr addr,
+@@ -212,10 +263,25 @@ static uint64_t kbd_read_status(void *opaque, hwaddr addr,
+ 
+ static void kbd_queue(KBDState *s, int b, int aux)
+ {
+-    if (aux)
+-        ps2_queue(s->mouse, b);
+-    else
+-        ps2_queue(s->kbd, b);
++    if (s->extended_state) {
++        s->cbdata = b;
++        s->pending &= ~KBD_PENDING_CTRL_KBD & ~KBD_PENDING_CTRL_AUX;
++        s->pending |= aux ? KBD_PENDING_CTRL_AUX : KBD_PENDING_CTRL_KBD;
++        kbd_safe_update_irq(s);
++    } else {
++        ps2_queue(aux ? s->mouse : s->kbd, b);
++    }
++}
++
++static uint8_t kbd_dequeue(KBDState *s)
++{
++    uint8_t b = s->cbdata;
++
++    s->pending &= ~KBD_PENDING_CTRL_KBD & ~KBD_PENDING_CTRL_AUX;
++    if (kbd_pending(s)) {
++        kbd_update_irq(s);
++    }
++    return b;
+ }
+ 
+ static void outport_write(KBDState *s, uint32_t val)
+@@ -265,6 +331,7 @@ static void kbd_write_command(void *opaque, hwaddr addr,
+         break;
+     case KBD_CCMD_MOUSE_ENABLE:
+         s->mode &= ~KBD_MODE_DISABLE_MOUSE;
++        kbd_safe_update_irq(s);
+         break;
+     case KBD_CCMD_TEST_MOUSE:
+         kbd_queue(s, 0x00, 0);
+@@ -278,11 +345,10 @@ static void kbd_write_command(void *opaque, hwaddr addr,
+         break;
+     case KBD_CCMD_KBD_DISABLE:
+         s->mode |= KBD_MODE_DISABLE_KBD;
+-        kbd_update_irq(s);
+         break;
+     case KBD_CCMD_KBD_ENABLE:
+         s->mode &= ~KBD_MODE_DISABLE_KBD;
+-        kbd_update_irq(s);
++        kbd_safe_update_irq(s);
+         break;
+     case KBD_CCMD_READ_INPORT:
+         kbd_queue(s, 0x80, 0);
+@@ -315,15 +381,24 @@ static uint64_t kbd_read_data(void *opaque, hwaddr addr,
+                               unsigned size)
+ {
+     KBDState *s = opaque;
+-    uint32_t val;
+ 
+-    if (s->pending == KBD_PENDING_AUX)
+-        val = ps2_read_data(s->mouse);
+-    else
+-        val = ps2_read_data(s->kbd);
++    if (s->status & KBD_STAT_OBF) {
++        kbd_deassert_irq(s);
++        if (s->obsrc & KBD_OBSRC_KBD) {
++            if (s->throttle_timer) {
++                timer_mod(s->throttle_timer,
++                          qemu_clock_get_us(QEMU_CLOCK_VIRTUAL) + 1000);
++            }
++            s->obdata = ps2_read_data(s->kbd);
++        } else if (s->obsrc & KBD_OBSRC_MOUSE) {
++            s->obdata = ps2_read_data(s->mouse);
++        } else if (s->obsrc & KBD_OBSRC_CTRL) {
++            s->obdata = kbd_dequeue(s);
++        }
++    }
+ 
+-    trace_pckbd_kbd_read_data(val);
+-    return val;
++    trace_pckbd_kbd_read_data(s->obdata);
++    return s->obdata;
+ }
+ 
+ static void kbd_write_data(void *opaque, hwaddr addr,
+@@ -336,12 +411,23 @@ static void kbd_write_data(void *opaque, hwaddr addr,
+     switch(s->write_cmd) {
+     case 0:
+         ps2_write_keyboard(s->kbd, val);
++        /* sending data to the keyboard reenables PS/2 communication */
++        s->mode &= ~KBD_MODE_DISABLE_KBD;
++        kbd_safe_update_irq(s);
+         break;
+     case KBD_CCMD_WRITE_MODE:
+         s->mode = val;
+         ps2_keyboard_set_translation(s->kbd, (s->mode & KBD_MODE_KCC) != 0);
+-        /* ??? */
+-        kbd_update_irq(s);
++        /*
++         * a write to the mode byte interrupt enable flags directly updates
++         * the irq lines
++         */
++        kbd_update_irq_lines(s);
++        /*
++         * a write to the mode byte disable interface flags may raise
++         * an irq if there is pending data in the PS/2 queues.
++         */
++        kbd_safe_update_irq(s);
+         break;
+     case KBD_CCMD_WRITE_OBUF:
+         kbd_queue(s, val, 0);
+@@ -354,6 +440,9 @@ static void kbd_write_data(void *opaque, hwaddr addr,
+         break;
+     case KBD_CCMD_WRITE_MOUSE:
+         ps2_write_mouse(s->mouse, val);
++        /* sending data to the mouse reenables PS/2 communication */
++        s->mode &= ~KBD_MODE_DISABLE_MOUSE;
++        kbd_safe_update_irq(s);
+         break;
+     default:
+         break;
+@@ -368,7 +457,11 @@ static void kbd_reset(void *opaque)
+     s->mode = KBD_MODE_KBD_INT | KBD_MODE_MOUSE_INT;
+     s->status = KBD_STAT_CMD | KBD_STAT_UNLOCKED;
+     s->outport = KBD_OUT_RESET | KBD_OUT_A20 | KBD_OUT_ONES;
+-    s->outport_present = false;
++    s->pending = 0;
++    kbd_deassert_irq(s);
++    if (s->throttle_timer) {
++        timer_del(s->throttle_timer);
++    }
+ }
+ 
+ static uint8_t kbd_outport_default(KBDState *s)
+@@ -403,13 +496,99 @@ static const VMStateDescription vmstate_kbd_outport = {
+     }
+ };
+ 
++static int kbd_extended_state_pre_save(void *opaque)
++{
++    KBDState *s = opaque;
++
++    s->migration_flags = 0;
++    if (s->throttle_timer && timer_pending(s->throttle_timer)) {
++        s->migration_flags |= KBD_MIGR_TIMER_PENDING;
++    }
++
++    return 0;
++}
++
++static int kbd_extended_state_post_load(void *opaque, int version_id)
++{
++    KBDState *s = opaque;
++
++    if (s->migration_flags & KBD_MIGR_TIMER_PENDING) {
++        kbd_throttle_timeout(s);
++    }
++    s->extended_state_loaded = true;
++
++    return 0;
++}
++
++static bool kbd_extended_state_needed(void *opaque)
++{
++    KBDState *s = opaque;
++
++    return s->extended_state;
++}
++
++static const VMStateDescription vmstate_kbd_extended_state = {
++    .name = "pckbd/extended_state",
++    .post_load = kbd_extended_state_post_load,
++    .pre_save = kbd_extended_state_pre_save,
++    .needed = kbd_extended_state_needed,
++    .fields = (VMStateField[]) {
++        VMSTATE_UINT32(migration_flags, KBDState),
++        VMSTATE_UINT32(obsrc, KBDState),
++        VMSTATE_UINT8(obdata, KBDState),
++        VMSTATE_UINT8(cbdata, KBDState),
++        VMSTATE_END_OF_LIST()
++    }
++};
++
++static int kbd_pre_save(void *opaque)
++{
++    KBDState *s = opaque;
++
++    if (s->extended_state) {
++        s->pending_tmp = s->pending;
++    } else {
++        s->pending_tmp = 0;
++        if (s->pending & KBD_PENDING_KBD) {
++            s->pending_tmp |= KBD_PENDING_KBD_COMPAT;
++        }
++        if (s->pending & KBD_PENDING_AUX) {
++            s->pending_tmp |= KBD_PENDING_AUX_COMPAT;
++        }
++    }
++    return 0;
++}
++
++static int kbd_pre_load(void *opaque)
++{
++    KBDState *s = opaque;
++
++    s->outport_present = false;
++    s->extended_state_loaded = false;
++    return 0;
++}
++
+ static int kbd_post_load(void *opaque, int version_id)
+ {
+     KBDState *s = opaque;
+     if (!s->outport_present) {
+         s->outport = kbd_outport_default(s);
+     }
+-    s->outport_present = false;
++    s->pending = s->pending_tmp;
++    if (!s->extended_state_loaded) {
++        s->obsrc = s->status & KBD_STAT_OBF ?
++            (s->status & KBD_STAT_MOUSE_OBF ? KBD_OBSRC_MOUSE : KBD_OBSRC_KBD) :
++            0;
++        if (s->pending & KBD_PENDING_KBD_COMPAT) {
++            s->pending |= KBD_PENDING_KBD;
++        }
++        if (s->pending & KBD_PENDING_AUX_COMPAT) {
++            s->pending |= KBD_PENDING_AUX;
++        }
++    }
++    /* clear all unused flags */
++    s->pending &= KBD_PENDING_CTRL_KBD | KBD_PENDING_CTRL_AUX |
++                  KBD_PENDING_KBD | KBD_PENDING_AUX;
+     return 0;
+ }
+ 
+@@ -417,16 +596,19 @@ static const VMStateDescription vmstate_kbd = {
+     .name = "pckbd",
+     .version_id = 3,
+     .minimum_version_id = 3,
++    .pre_load = kbd_pre_load,
+     .post_load = kbd_post_load,
++    .pre_save = kbd_pre_save,
+     .fields = (VMStateField[]) {
+         VMSTATE_UINT8(write_cmd, KBDState),
+         VMSTATE_UINT8(status, KBDState),
+         VMSTATE_UINT8(mode, KBDState),
+-        VMSTATE_UINT8(pending, KBDState),
++        VMSTATE_UINT8(pending_tmp, KBDState),
+         VMSTATE_END_OF_LIST()
+     },
+     .subsections = (const VMStateDescription*[]) {
+         &vmstate_kbd_outport,
++        &vmstate_kbd_extended_state,
+         NULL
+     }
+ };
+@@ -472,6 +654,8 @@ void i8042_mm_init(qemu_irq kbd_irq, qemu_irq mouse_irq,
+     s->irq_mouse = mouse_irq;
+     s->mask = mask;
+ 
++    s->extended_state = true;
++
+     vmstate_register(NULL, 0, &vmstate_kbd, s);
+ 
+     memory_region_init_io(region, NULL, &i8042_mmio_ops, s, "i8042", size);
+@@ -485,6 +669,7 @@ struct ISAKBDState {
+     ISADevice parent_obj;
+ 
+     KBDState kbd;
++    bool kbd_throttle;
+     MemoryRegion io[2];
+ };
+ 
+@@ -557,6 +742,13 @@ static void i8042_realizefn(DeviceState *dev, Error **errp)
+ 
+     s->kbd = ps2_kbd_init(kbd_update_kbd_irq, s);
+     s->mouse = ps2_mouse_init(kbd_update_aux_irq, s);
++    if (isa_s->kbd_throttle && !isa_s->kbd.extended_state) {
++        warn_report(TYPE_I8042 ": can't enable kbd-throttle without"
++                    " extended-state, disabling kbd-throttle");
++    } else if (isa_s->kbd_throttle) {
++        s->throttle_timer = timer_new_us(QEMU_CLOCK_VIRTUAL,
++                                         kbd_throttle_timeout, s);
++    }
+     qemu_register_reset(kbd_reset, s);
+ }
+ 
+@@ -588,11 +780,18 @@ static void i8042_build_aml(ISADevice *isadev, Aml *scope)
+     aml_append(scope, mou);
+ }
+ 
++static Property i8042_properties[] = {
++    DEFINE_PROP_BOOL("extended-state", ISAKBDState, kbd.extended_state, true),
++    DEFINE_PROP_BOOL("kbd-throttle", ISAKBDState, kbd_throttle, false),
++    DEFINE_PROP_END_OF_LIST(),
++};
++
+ static void i8042_class_initfn(ObjectClass *klass, void *data)
+ {
+     DeviceClass *dc = DEVICE_CLASS(klass);
+     ISADeviceClass *isa = ISA_DEVICE_CLASS(klass);
+ 
++    device_class_set_props(dc, i8042_properties);
+     dc->realize = i8042_realizefn;
+     dc->vmsd = &vmstate_kbd_isa;
+     isa->build_aml = i8042_build_aml;
+diff --git a/hw/input/ps2.c b/hw/input/ps2.c
+index 72cdb80ae1..8dd482c1f6 100644
+--- a/hw/input/ps2.c
++++ b/hw/input/ps2.c
+@@ -212,8 +212,12 @@ void ps2_raise_irq(PS2State *s)
+ 
+ void ps2_queue(PS2State *s, int b)
+ {
++    if (PS2_QUEUE_SIZE - s->queue.count < 1) {
++        return;
++    }
++
+     ps2_queue_noirq(s, b);
+-    s->update_irq(s->update_arg, 1);
++    ps2_raise_irq(s);
+ }
+ 
+ void ps2_queue_2(PS2State *s, int b1, int b2)
+@@ -224,7 +228,7 @@ void ps2_queue_2(PS2State *s, int b1, int b2)
+ 
+     ps2_queue_noirq(s, b1);
+     ps2_queue_noirq(s, b2);
+-    s->update_irq(s->update_arg, 1);
++    ps2_raise_irq(s);
+ }
+ 
+ void ps2_queue_3(PS2State *s, int b1, int b2, int b3)
+@@ -236,7 +240,7 @@ void ps2_queue_3(PS2State *s, int b1, int b2, int b3)
+     ps2_queue_noirq(s, b1);
+     ps2_queue_noirq(s, b2);
+     ps2_queue_noirq(s, b3);
+-    s->update_irq(s->update_arg, 1);
++    ps2_raise_irq(s);
+ }
+ 
+ void ps2_queue_4(PS2State *s, int b1, int b2, int b3, int b4)
+@@ -249,7 +253,7 @@ void ps2_queue_4(PS2State *s, int b1, int b2, int b3, int b4)
+     ps2_queue_noirq(s, b2);
+     ps2_queue_noirq(s, b3);
+     ps2_queue_noirq(s, b4);
+-    s->update_irq(s->update_arg, 1);
++    ps2_raise_irq(s);
+ }
+ 
+ /* keycode is the untranslated scancode in the current scancode set. */
+@@ -293,7 +297,8 @@ static void ps2_keyboard_event(DeviceState *dev, QemuConsole *src,
+     qcode = qemu_input_key_value_to_qcode(key->key);
+ 
+     mod = ps2_modifier_bit(qcode);
+-    trace_ps2_keyboard_event(s, qcode, key->down, mod, s->modifiers);
++    trace_ps2_keyboard_event(s, qcode, key->down, mod,
++                             s->modifiers, s->scancode_set, s->translate);
+     if (key->down) {
+         s->modifiers |= mod;
+     } else {
+@@ -515,7 +520,9 @@ uint32_t ps2_read_data(PS2State *s)
+         /* reading deasserts IRQ */
+         s->update_irq(s->update_arg, 0);
+         /* reassert IRQs if data left */
+-        s->update_irq(s->update_arg, q->count != 0);
++        if (q->count) {
++            s->update_irq(s->update_arg, 1);
++        }
+     }
+     return val;
+ }
+@@ -645,7 +652,8 @@ void ps2_keyboard_set_translation(void *opaque, int mode)
+ 
+ static int ps2_mouse_send_packet(PS2MouseState *s)
+ {
+-    const int needed = 3 + (s->mouse_type - 2);
++    /* IMPS/2 and IMEX send 4 bytes, PS2 sends 3 bytes */
++    const int needed = s->mouse_type ? 4 : 3;
+     unsigned int b;
+     int dx1, dy1, dz1;
+ 
+diff --git a/hw/input/trace-events b/hw/input/trace-events
+index 33741e74f5..109bdf7a18 100644
+--- a/hw/input/trace-events
++++ b/hw/input/trace-events
+@@ -30,7 +30,7 @@ pckbd_kbd_write_data(uint64_t val) "0x%02"PRIx64
+ 
+ # ps2.c
+ ps2_put_keycode(void *opaque, int keycode) "%p keycode 0x%02x"
+-ps2_keyboard_event(void *opaque, int qcode, int down, unsigned int modifier, unsigned int modifiers) "%p qcode %d down %d modifier 0x%x modifiers 0x%x"
++ps2_keyboard_event(void *opaque, int qcode, int down, unsigned int modifier, unsigned int modifiers, int set, int xlate) "%p qcode %d down %d modifier 0x%x modifiers 0x%x set %d xlate %d"
+ ps2_read_data(void *opaque) "%p"
+ ps2_set_ledstate(void *s, int ledstate) "%p ledstate %d"
+ ps2_reset_keyboard(void *s) "%p"
+diff --git a/hw/mem/Kconfig b/hw/mem/Kconfig
+index a0ef2cf648..8b19fdc49f 100644
+--- a/hw/mem/Kconfig
++++ b/hw/mem/Kconfig
+@@ -7,6 +7,4 @@ config MEM_DEVICE
+ 
+ config NVDIMM
+     bool
+-    default y
+-    depends on (PC || PSERIES || ARM_VIRT)
+     select MEM_DEVICE
+diff --git a/hw/ppc/Kconfig b/hw/ppc/Kconfig
+index e51e0e5e5a..66e0b15d9e 100644
+--- a/hw/ppc/Kconfig
++++ b/hw/ppc/Kconfig
+@@ -3,6 +3,7 @@ config PSERIES
+     imply PCI_DEVICES
+     imply TEST_DEVICES
+     imply VIRTIO_VGA
++    imply NVDIMM
+     select DIMM
+     select PCI
+     select SPAPR_VSCSI
+diff --git a/hw/scsi/scsi-disk.c b/hw/scsi/scsi-disk.c
+index 3580e7ee61..e8a547dbb7 100644
+--- a/hw/scsi/scsi-disk.c
++++ b/hw/scsi/scsi-disk.c
+@@ -1582,6 +1582,7 @@ invalid_field:
+     scsi_check_condition(r, SENSE_CODE(INVALID_FIELD));
+ }
+ 
++/* sector_num and nb_sectors expected to be in qdev blocksize */
+ static inline bool check_lba_range(SCSIDiskState *s,
+                                    uint64_t sector_num, uint32_t nb_sectors)
+ {
+@@ -1614,11 +1615,12 @@ static void scsi_unmap_complete_noio(UnmapCBData *data, int ret)
+     assert(r->req.aiocb == NULL);
+ 
+     if (data->count > 0) {
+-        r->sector = ldq_be_p(&data->inbuf[0])
+-            * (s->qdev.blocksize / BDRV_SECTOR_SIZE);
+-        r->sector_count = (ldl_be_p(&data->inbuf[8]) & 0xffffffffULL)
+-            * (s->qdev.blocksize / BDRV_SECTOR_SIZE);
+-        if (!check_lba_range(s, r->sector, r->sector_count)) {
++        uint64_t sector_num = ldq_be_p(&data->inbuf[0]);
++        uint32_t nb_sectors = ldl_be_p(&data->inbuf[8]) & 0xffffffffULL;
++        r->sector = sector_num * (s->qdev.blocksize / BDRV_SECTOR_SIZE);
++        r->sector_count = nb_sectors * (s->qdev.blocksize / BDRV_SECTOR_SIZE);
++
++        if (!check_lba_range(s, sector_num, nb_sectors)) {
+             block_acct_invalid(blk_get_stats(s->qdev.conf.blk),
+                                BLOCK_ACCT_UNMAP);
+             scsi_check_condition(r, SENSE_CODE(LBA_OUT_OF_RANGE));
+diff --git a/replication.h b/include/block/replication.h
+similarity index 98%
+rename from replication.h
+rename to include/block/replication.h
+index d49fc22cb9..21931b4f0c 100644
+--- a/replication.h
++++ b/include/block/replication.h
+@@ -23,7 +23,7 @@ typedef struct ReplicationOps ReplicationOps;
+ typedef struct ReplicationState ReplicationState;
+ 
+ /**
+- * SECTION:replication.h
++ * SECTION:block/replication.h
+  * @title:Base Replication System
+  * @short_description: interfaces for handling replication
+  *
+@@ -32,7 +32,7 @@ typedef struct ReplicationState ReplicationState;
+  * <example>
+  *   <title>How to use replication interfaces</title>
+  *   <programlisting>
+- * #include "replication.h"
++ * #include "block/replication.h"
+  *
+  * typedef struct BDRVReplicationState {
+  *     ReplicationState *rs;
+diff --git a/include/exec/exec-all.h b/include/exec/exec-all.h
+index 754f4130c9..8021adf38f 100644
+--- a/include/exec/exec-all.h
++++ b/include/exec/exec-all.h
+@@ -21,6 +21,7 @@
+ #define EXEC_ALL_H
+ 
+ #include "cpu.h"
++#include "exec/tb-context.h"
+ #ifdef CONFIG_TCG
+ #include "exec/cpu_ldst.h"
+ #endif
+diff --git a/include/exec/memory.h b/include/exec/memory.h
+index 175d7151a5..e38b7e3dce 100644
+--- a/include/exec/memory.h
++++ b/include/exec/memory.h
+@@ -616,6 +616,18 @@ struct MemoryListener {
+      */
+     void (*log_sync)(MemoryListener *listener, MemoryRegionSection *section);
+ 
++    /**
++     * @log_sync_global:
++     *
++     * This is the global version of @log_sync when the listener does
++     * not have a way to synchronize the log with finer granularity.
++     * When the listener registers with @log_sync_global defined, then
++     * its @log_sync must be NULL.  Vice versa.
++     *
++     * @listener: The #MemoryListener.
++     */
++    void (*log_sync_global)(MemoryListener *listener);
++
+     /**
+      * @log_clear:
+      *
+@@ -2305,7 +2317,7 @@ static inline uint8_t address_space_ldub_cached(MemoryRegionCache *cache,
+ }
+ 
+ static inline void address_space_stb_cached(MemoryRegionCache *cache,
+-    hwaddr addr, uint8_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     assert(addr < cache->len);
+     if (likely(cache->ptr)) {
+diff --git a/include/exec/memory_ldst.h.inc b/include/exec/memory_ldst.h.inc
+index 7c3a641f7e..46e6c220d3 100644
+--- a/include/exec/memory_ldst.h.inc
++++ b/include/exec/memory_ldst.h.inc
+@@ -20,7 +20,7 @@
+  */
+ 
+ #ifdef TARGET_ENDIANNESS
+-extern uint16_t glue(address_space_lduw, SUFFIX)(ARG1_DECL,
++extern uint32_t glue(address_space_lduw, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+ extern uint32_t glue(address_space_ldl, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+@@ -29,17 +29,17 @@ extern uint64_t glue(address_space_ldq, SUFFIX)(ARG1_DECL,
+ extern void glue(address_space_stl_notdirty, SUFFIX)(ARG1_DECL,
+     hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stw, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result);
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stl, SUFFIX)(ARG1_DECL,
+     hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stq, SUFFIX)(ARG1_DECL,
+     hwaddr addr, uint64_t val, MemTxAttrs attrs, MemTxResult *result);
+ #else
+-extern uint8_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
++extern uint32_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+-extern uint16_t glue(address_space_lduw_le, SUFFIX)(ARG1_DECL,
++extern uint32_t glue(address_space_lduw_le, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+-extern uint16_t glue(address_space_lduw_be, SUFFIX)(ARG1_DECL,
++extern uint32_t glue(address_space_lduw_be, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+ extern uint32_t glue(address_space_ldl_le, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+@@ -50,11 +50,11 @@ extern uint64_t glue(address_space_ldq_le, SUFFIX)(ARG1_DECL,
+ extern uint64_t glue(address_space_ldq_be, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stb, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint8_t val, MemTxAttrs attrs, MemTxResult *result);
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stw_le, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result);
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stw_be, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result);
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stl_le, SUFFIX)(ARG1_DECL,
+     hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stl_be, SUFFIX)(ARG1_DECL,
+diff --git a/include/exec/memory_ldst_cached.h.inc b/include/exec/memory_ldst_cached.h.inc
+index d7834f852c..7bc8790d34 100644
+--- a/include/exec/memory_ldst_cached.h.inc
++++ b/include/exec/memory_ldst_cached.h.inc
+@@ -24,18 +24,6 @@
+ #define LD_P(size) \
+     glue(glue(ld, size), glue(ENDIANNESS, _p))
+ 
+-static inline uint16_t ADDRESS_SPACE_LD_CACHED(uw)(MemoryRegionCache *cache,
+-    hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+-{
+-    assert(addr < cache->len && 2 <= cache->len - addr);
+-    fuzz_dma_read_cb(cache->xlat + addr, 2, cache->mrs.mr);
+-    if (likely(cache->ptr)) {
+-        return LD_P(uw)(cache->ptr + addr);
+-    } else {
+-        return ADDRESS_SPACE_LD_CACHED_SLOW(uw)(cache, addr, attrs, result);
+-    }
+-}
+-
+ static inline uint32_t ADDRESS_SPACE_LD_CACHED(l)(MemoryRegionCache *cache,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+@@ -60,6 +48,18 @@ static inline uint64_t ADDRESS_SPACE_LD_CACHED(q)(MemoryRegionCache *cache,
+     }
+ }
+ 
++static inline uint32_t ADDRESS_SPACE_LD_CACHED(uw)(MemoryRegionCache *cache,
++    hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
++{
++    assert(addr < cache->len && 2 <= cache->len - addr);
++    fuzz_dma_read_cb(cache->xlat + addr, 2, cache->mrs.mr);
++    if (likely(cache->ptr)) {
++        return LD_P(uw)(cache->ptr + addr);
++    } else {
++        return ADDRESS_SPACE_LD_CACHED_SLOW(uw)(cache, addr, attrs, result);
++    }
++}
++
+ #undef ADDRESS_SPACE_LD_CACHED
+ #undef ADDRESS_SPACE_LD_CACHED_SLOW
+ #undef LD_P
+@@ -71,25 +71,25 @@ static inline uint64_t ADDRESS_SPACE_LD_CACHED(q)(MemoryRegionCache *cache,
+ #define ST_P(size) \
+     glue(glue(st, size), glue(ENDIANNESS, _p))
+ 
+-static inline void ADDRESS_SPACE_ST_CACHED(w)(MemoryRegionCache *cache,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result)
++static inline void ADDRESS_SPACE_ST_CACHED(l)(MemoryRegionCache *cache,
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+-    assert(addr < cache->len && 2 <= cache->len - addr);
++    assert(addr < cache->len && 4 <= cache->len - addr);
+     if (likely(cache->ptr)) {
+-        ST_P(w)(cache->ptr + addr, val);
++        ST_P(l)(cache->ptr + addr, val);
+     } else {
+-        ADDRESS_SPACE_ST_CACHED_SLOW(w)(cache, addr, val, attrs, result);
++        ADDRESS_SPACE_ST_CACHED_SLOW(l)(cache, addr, val, attrs, result);
+     }
+ }
+ 
+-static inline void ADDRESS_SPACE_ST_CACHED(l)(MemoryRegionCache *cache,
++static inline void ADDRESS_SPACE_ST_CACHED(w)(MemoryRegionCache *cache,
+     hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+-    assert(addr < cache->len && 4 <= cache->len - addr);
++    assert(addr < cache->len && 2 <= cache->len - addr);
+     if (likely(cache->ptr)) {
+-        ST_P(l)(cache->ptr + addr, val);
++        ST_P(w)(cache->ptr + addr, val);
+     } else {
+-        ADDRESS_SPACE_ST_CACHED_SLOW(l)(cache, addr, val, attrs, result);
++        ADDRESS_SPACE_ST_CACHED_SLOW(w)(cache, addr, val, attrs, result);
+     }
+ }
+ 
+diff --git a/include/exec/memory_ldst_phys.h.inc b/include/exec/memory_ldst_phys.h.inc
+index ecd678610d..b9dd53c389 100644
+--- a/include/exec/memory_ldst_phys.h.inc
++++ b/include/exec/memory_ldst_phys.h.inc
+@@ -20,12 +20,6 @@
+  */
+ 
+ #ifdef TARGET_ENDIANNESS
+-static inline uint16_t glue(lduw_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+-{
+-    return glue(address_space_lduw, SUFFIX)(ARG1, addr,
+-                                            MEMTXATTRS_UNSPECIFIED, NULL);
+-}
+-
+ static inline uint32_t glue(ldl_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+ {
+     return glue(address_space_ldl, SUFFIX)(ARG1, addr,
+@@ -38,10 +32,10 @@ static inline uint64_t glue(ldq_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+                                            MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline void glue(stw_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint16_t val)
++static inline uint32_t glue(lduw_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+ {
+-    glue(address_space_stw, SUFFIX)(ARG1, addr, val,
+-                                    MEMTXATTRS_UNSPECIFIED, NULL);
++    return glue(address_space_lduw, SUFFIX)(ARG1, addr,
++                                            MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+ static inline void glue(stl_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+@@ -50,30 +44,18 @@ static inline void glue(stl_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+                                     MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline void glue(stq_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint64_t val)
++static inline void glue(stw_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+ {
+-    glue(address_space_stq, SUFFIX)(ARG1, addr, val,
++    glue(address_space_stw, SUFFIX)(ARG1, addr, val,
+                                     MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+-#else
+-static inline uint8_t glue(ldub_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+-{
+-    return glue(address_space_ldub, SUFFIX)(ARG1, addr,
+-                                            MEMTXATTRS_UNSPECIFIED, NULL);
+-}
+-
+-static inline uint16_t glue(lduw_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+-{
+-    return glue(address_space_lduw_le, SUFFIX)(ARG1, addr,
+-                                               MEMTXATTRS_UNSPECIFIED, NULL);
+-}
+ 
+-static inline uint16_t glue(lduw_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
++static inline void glue(stq_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint64_t val)
+ {
+-    return glue(address_space_lduw_be, SUFFIX)(ARG1, addr,
+-                                               MEMTXATTRS_UNSPECIFIED, NULL);
++    glue(address_space_stq, SUFFIX)(ARG1, addr, val,
++                                    MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+-
++#else
+ static inline uint32_t glue(ldl_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+ {
+     return glue(address_space_ldl_le, SUFFIX)(ARG1, addr,
+@@ -98,22 +80,22 @@ static inline uint64_t glue(ldq_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+                                               MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline void glue(stb_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint8_t val)
++static inline uint32_t glue(ldub_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+ {
+-    glue(address_space_stb, SUFFIX)(ARG1, addr, val,
+-                                    MEMTXATTRS_UNSPECIFIED, NULL);
++    return glue(address_space_ldub, SUFFIX)(ARG1, addr,
++                                            MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline void glue(stw_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint16_t val)
++static inline uint32_t glue(lduw_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+ {
+-    glue(address_space_stw_le, SUFFIX)(ARG1, addr, val,
+-                                       MEMTXATTRS_UNSPECIFIED, NULL);
++    return glue(address_space_lduw_le, SUFFIX)(ARG1, addr,
++                                               MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline void glue(stw_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint16_t val)
++static inline uint32_t glue(lduw_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+ {
+-    glue(address_space_stw_be, SUFFIX)(ARG1, addr, val,
+-                                       MEMTXATTRS_UNSPECIFIED, NULL);
++    return glue(address_space_lduw_be, SUFFIX)(ARG1, addr,
++                                               MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+ static inline void glue(stl_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+@@ -128,6 +110,24 @@ static inline void glue(stl_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t va
+                                        MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
++static inline void glue(stb_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
++{
++    glue(address_space_stb, SUFFIX)(ARG1, addr, val,
++                                    MEMTXATTRS_UNSPECIFIED, NULL);
++}
++
++static inline void glue(stw_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
++{
++    glue(address_space_stw_le, SUFFIX)(ARG1, addr, val,
++                                       MEMTXATTRS_UNSPECIFIED, NULL);
++}
++
++static inline void glue(stw_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
++{
++    glue(address_space_stw_be, SUFFIX)(ARG1, addr, val,
++                                       MEMTXATTRS_UNSPECIFIED, NULL);
++}
++
+ static inline void glue(stq_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint64_t val)
+ {
+     glue(address_space_stq_le, SUFFIX)(ARG1, addr, val,
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index d45f78290e..753ca90668 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -329,6 +329,10 @@ struct qemu_work_item;
+  * @ignore_memory_transaction_failures: Cached copy of the MachineState
+  *    flag of the same name: allows the board to suppress calling of the
+  *    CPU do_transaction_failed hook function.
++ * @kvm_dirty_gfns: Points to the KVM dirty ring for this CPU when KVM dirty
++ *    ring is enabled.
++ * @kvm_fetch_index: Keeps the index that we last fetched from the per-vCPU
++ *    dirty ring structure.
+  *
+  * State of one CPU core or thread.
+  */
+@@ -400,9 +404,12 @@ struct CPUState {
+      */
+     uintptr_t mem_io_pc;
+ 
++    /* Only used in KVM */
+     int kvm_fd;
+     struct KVMState *kvm_state;
+     struct kvm_run *kvm_run;
++    struct kvm_dirty_gfn *kvm_dirty_gfns;
++    uint32_t kvm_fetch_index;
+ 
+     /* Used for events with 'vcpu' and *without* the 'disabled' properties */
+     DECLARE_BITMAP(trace_dstate_delayed, CPU_TRACE_DSTATE_MAX_EVENTS);
+diff --git a/include/qemu/config-file.h b/include/qemu/config-file.h
+index 8d3e53ae4d..0500b3668d 100644
+--- a/include/qemu/config-file.h
++++ b/include/qemu/config-file.h
+@@ -1,7 +1,7 @@
+ #ifndef QEMU_CONFIG_FILE_H
+ #define QEMU_CONFIG_FILE_H
+ 
+-
++void qemu_load_module_for_opts(const char *group);
+ QemuOptsList *qemu_find_opts(const char *group);
+ QemuOptsList *qemu_find_opts_err(const char *group, Error **errp);
+ QemuOpts *qemu_find_opts_singleton(const char *group);
+diff --git a/qemu-options.h b/include/qemu/qemu-options.h
+similarity index 88%
+rename from qemu-options.h
+rename to include/qemu/qemu-options.h
+index b4ee63cd60..4a62c83c45 100644
+--- a/qemu-options.h
++++ b/include/qemu/qemu-options.h
+@@ -29,8 +29,13 @@
+ #define QEMU_OPTIONS_H
+ 
+ enum {
+-#define QEMU_OPTIONS_GENERATE_ENUM
+-#include "qemu-options-wrapper.h"
++
++#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)     \
++    opt_enum,
++#define DEFHEADING(text)
++#define ARCHHEADING(text, arch_mask)
++
++#include "qemu-options.def"
+ };
+ 
+ #endif
+diff --git a/include/sysemu/kvm_int.h b/include/sysemu/kvm_int.h
+index ccb8869f01..c788452cd9 100644
+--- a/include/sysemu/kvm_int.h
++++ b/include/sysemu/kvm_int.h
+@@ -23,12 +23,15 @@ typedef struct KVMSlot
+     int old_flags;
+     /* Dirty bitmap cache for the slot */
+     unsigned long *dirty_bmap;
++    unsigned long dirty_bmap_size;
++    /* Cache of the address space ID */
++    int as_id;
++    /* Cache of the offset in ram address space */
++    ram_addr_t ram_start_offset;
+ } KVMSlot;
+ 
+ typedef struct KVMMemoryListener {
+     MemoryListener listener;
+-    /* Protects the slots and all inside them */
+-    QemuMutex slots_lock;
+     KVMSlot *slots;
+     int as_id;
+ } KVMMemoryListener;
+diff --git a/include/tcg/tcg.h b/include/tcg/tcg.h
+index 74cb345308..0f0695e90d 100644
+--- a/include/tcg/tcg.h
++++ b/include/tcg/tcg.h
+@@ -27,6 +27,7 @@
+ 
+ #include "cpu.h"
+ #include "exec/memop.h"
++#include "exec/tb-context.h"
+ #include "qemu/bitops.h"
+ #include "qemu/plugin.h"
+ #include "qemu/queue.h"
+diff --git a/memory_ldst.c.inc b/memory_ldst.c.inc
+index 84b868f294..b56e961967 100644
+--- a/memory_ldst.c.inc
++++ b/memory_ldst.c.inc
+@@ -157,7 +157,7 @@ uint64_t glue(address_space_ldq_be, SUFFIX)(ARG1_DECL,
+                                                     DEVICE_BIG_ENDIAN);
+ }
+ 
+-uint8_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
++uint32_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+     uint8_t *ptr;
+@@ -193,7 +193,7 @@ uint8_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
+ }
+ 
+ /* warning: addr must be aligned */
+-static inline uint16_t glue(address_space_lduw_internal, SUFFIX)(ARG1_DECL,
++static inline uint32_t glue(address_space_lduw_internal, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result,
+     enum device_endian endian)
+ {
+@@ -240,21 +240,21 @@ static inline uint16_t glue(address_space_lduw_internal, SUFFIX)(ARG1_DECL,
+     return val;
+ }
+ 
+-uint16_t glue(address_space_lduw, SUFFIX)(ARG1_DECL,
++uint32_t glue(address_space_lduw, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+     return glue(address_space_lduw_internal, SUFFIX)(ARG1, addr, attrs, result,
+                                                      DEVICE_NATIVE_ENDIAN);
+ }
+ 
+-uint16_t glue(address_space_lduw_le, SUFFIX)(ARG1_DECL,
++uint32_t glue(address_space_lduw_le, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+     return glue(address_space_lduw_internal, SUFFIX)(ARG1, addr, attrs, result,
+                                                      DEVICE_LITTLE_ENDIAN);
+ }
+ 
+-uint16_t glue(address_space_lduw_be, SUFFIX)(ARG1_DECL,
++uint32_t glue(address_space_lduw_be, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+     return glue(address_space_lduw_internal, SUFFIX)(ARG1, addr, attrs, result,
+@@ -366,7 +366,7 @@ void glue(address_space_stl_be, SUFFIX)(ARG1_DECL,
+ }
+ 
+ void glue(address_space_stb, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint8_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     uint8_t *ptr;
+     MemoryRegion *mr;
+@@ -398,7 +398,7 @@ void glue(address_space_stb, SUFFIX)(ARG1_DECL,
+ 
+ /* warning: addr must be aligned */
+ static inline void glue(address_space_stw_internal, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs,
++    hwaddr addr, uint32_t val, MemTxAttrs attrs,
+     MemTxResult *result, enum device_endian endian)
+ {
+     uint8_t *ptr;
+@@ -441,21 +441,21 @@ static inline void glue(address_space_stw_internal, SUFFIX)(ARG1_DECL,
+ }
+ 
+ void glue(address_space_stw, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     glue(address_space_stw_internal, SUFFIX)(ARG1, addr, val, attrs, result,
+                                              DEVICE_NATIVE_ENDIAN);
+ }
+ 
+ void glue(address_space_stw_le, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     glue(address_space_stw_internal, SUFFIX)(ARG1, addr, val, attrs, result,
+                                              DEVICE_LITTLE_ENDIAN);
+ }
+ 
+ void glue(address_space_stw_be, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     glue(address_space_stw_internal, SUFFIX)(ARG1, addr, val, attrs, result,
+                                DEVICE_BIG_ENDIAN);
+diff --git a/meson.build b/meson.build
+index 632b380738..20d7035e44 100644
+--- a/meson.build
++++ b/meson.build
+@@ -2145,6 +2145,7 @@ common_all = common_ss.apply(config_all, strict: false)
+ common_all = static_library('common',
+                             build_by_default: false,
+                             sources: common_all.sources() + genh,
++                            implicit_include_directories: false,
+                             dependencies: common_all.dependencies(),
+                             name_suffix: 'fa')
+ 
+diff --git a/migration/colo.c b/migration/colo.c
+index de27662cab..e498fdb125 100644
+--- a/migration/colo.c
++++ b/migration/colo.c
+@@ -28,7 +28,7 @@
+ #include "migration/failover.h"
+ #include "migration/ram.h"
+ #ifdef CONFIG_REPLICATION
+-#include "replication.h"
++#include "block/replication.h"
+ #endif
+ #include "net/colo-compare.h"
+ #include "net/colo.h"
+diff --git a/os-posix.c b/os-posix.c
+index a6846f51c1..ae6c9f2a5e 100644
+--- a/os-posix.c
++++ b/os-posix.c
+@@ -32,7 +32,7 @@
+ #include "qemu-common.h"
+ /* Needed early for CONFIG_BSD etc. */
+ #include "net/slirp.h"
+-#include "qemu-options.h"
++#include "qemu/qemu-options.h"
+ #include "qemu/error-report.h"
+ #include "qemu/log.h"
+ #include "sysemu/runstate.h"
+diff --git a/os-win32.c b/os-win32.c
+index fd1137bab1..e31c921983 100644
+--- a/os-win32.c
++++ b/os-win32.c
+@@ -27,7 +27,6 @@
+ #include <windows.h>
+ #include <mmsystem.h>
+ #include "qemu-common.h"
+-#include "qemu-options.h"
+ #include "sysemu/runstate.h"
+ 
+ static BOOL WINAPI qemu_ctrl_handler(DWORD type)
+diff --git a/plugins/plugin.h b/plugins/plugin.h
+index 55017e3581..1aa29dcadd 100644
+--- a/plugins/plugin.h
++++ b/plugins/plugin.h
+@@ -13,7 +13,6 @@
+ #define _PLUGIN_INTERNAL_H_
+ 
+ #include <gmodule.h>
+-#include "qemu/qht.h"
+ 
+ #define QEMU_PLUGIN_MIN_VERSION 0
+ 
+diff --git a/qapi/qom.json b/qapi/qom.json
+index 40d70c434a..f7ef30f940 100644
+--- a/qapi/qom.json
++++ b/qapi/qom.json
+@@ -644,6 +644,21 @@
+ { 'struct': 'PrManagerHelperProperties',
+   'data': { 'path': 'str' } }
+ 
++##
++# @QtestProperties:
++#
++# Properties for qtest objects.
++#
++# @chardev: the chardev to be used to receive qtest commands on.
++#
++# @log: the path to a log file
++#
++# Since: 6.0
++##
++{ 'struct': 'QtestProperties',
++        'data': { 'chardev': 'str',
++                  '*log': 'str' } }
++
+ ##
+ # @RemoteObjectProperties:
+ #
+@@ -769,6 +784,7 @@
+     'memory-backend-ram',
+     'pef-guest',
+     'pr-manager-helper',
++    'qtest',
+     'rng-builtin',
+     'rng-egd',
+     'rng-random',
+@@ -825,6 +841,7 @@
+                                       'if': 'defined(CONFIG_LINUX)' },
+       'memory-backend-ram':         'MemoryBackendProperties',
+       'pr-manager-helper':          'PrManagerHelperProperties',
++      'qtest':                      'QtestProperties',
+       'rng-builtin':                'RngProperties',
+       'rng-egd':                    'RngEgdProperties',
+       'rng-random':                 'RngRandomProperties',
+@@ -857,7 +874,8 @@
+ # <- { "return": {} }
+ #
+ ##
+-{ 'command': 'object-add', 'data': 'ObjectOptions', 'boxed': true }
++{ 'command': 'object-add', 'data': 'ObjectOptions', 'boxed': true,
++  'allow-preconfig': true }
+ 
+ ##
+ # @object-del:
+@@ -877,4 +895,5 @@
+ # <- { "return": {} }
+ #
+ ##
+-{ 'command': 'object-del', 'data': {'id': 'str'} }
++{ 'command': 'object-del', 'data': {'id': 'str'},
++  'allow-preconfig': true }
+diff --git a/qemu-options-wrapper.h b/qemu-options-wrapper.h
+deleted file mode 100644
+index 6f548e3922..0000000000
+--- a/qemu-options-wrapper.h
++++ /dev/null
+@@ -1,40 +0,0 @@
+-
+-#if defined(QEMU_OPTIONS_GENERATE_ENUM)
+-
+-#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)     \
+-    opt_enum,
+-#define DEFHEADING(text)
+-#define ARCHHEADING(text, arch_mask)
+-
+-#elif defined(QEMU_OPTIONS_GENERATE_HELP)
+-
+-#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)    \
+-    if ((arch_mask) & arch_type)                               \
+-        fputs(opt_help, stdout);
+-
+-#define ARCHHEADING(text, arch_mask) \
+-    if ((arch_mask) & arch_type)    \
+-        puts(stringify(text));
+-
+-#define DEFHEADING(text) ARCHHEADING(text, QEMU_ARCH_ALL)
+-
+-#elif defined(QEMU_OPTIONS_GENERATE_OPTIONS)
+-
+-#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)     \
+-    { option, opt_arg, opt_enum, arch_mask },
+-#define DEFHEADING(text)
+-#define ARCHHEADING(text, arch_mask)
+-
+-#else
+-#error "qemu-options-wrapper.h included with no option defined"
+-#endif
+-
+-#include "qemu-options.def"
+-
+-#undef DEF
+-#undef DEFHEADING
+-#undef ARCHHEADING
+-
+-#undef QEMU_OPTIONS_GENERATE_ENUM
+-#undef QEMU_OPTIONS_GENERATE_HELP
+-#undef QEMU_OPTIONS_GENERATE_OPTIONS
+diff --git a/qemu-options.hx b/qemu-options.hx
+index e22fb94d99..14258784b3 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -141,6 +141,7 @@ DEF("accel", HAS_ARG, QEMU_OPTION_accel,
+     "                kvm-shadow-mem=size of KVM shadow MMU in bytes\n"
+     "                split-wx=on|off (enable TCG split w^x mapping)\n"
+     "                tb-size=n (TCG translation block cache size)\n"
++    "                dirty-ring-size=n (KVM dirty ring GFN count, default 0)\n"
+     "                thread=single|multi (enable multi-threaded TCG)\n", QEMU_ARCH_ALL)
+ SRST
+ ``-accel name[,prop=value[,...]]``
+@@ -181,6 +182,17 @@ SRST
+         where both the back-end and front-ends support it and no
+         incompatible TCG features have been enabled (e.g.
+         icount/replay).
++
++    ``dirty-ring-size=n``
++        When the KVM accelerator is used, it controls the size of the per-vCPU
++        dirty page ring buffer (number of entries for each vCPU). It should
++        be a value that is power of two, and it should be 1024 or bigger (but
++        still less than the maximum value that the kernel supports).  4096
++        could be a good initial value if you have no idea which is the best.
++        Set this value to 0 to disable the feature.  By default, this feature
++        is disabled (dirty-ring-size=0).  When enabled, KVM will instead
++        record dirty pages in a bitmap.
++
+ ERST
+ 
+ DEF("smp", HAS_ARG, QEMU_OPTION_smp,
+@@ -3787,8 +3799,11 @@ DEF("mon", HAS_ARG, QEMU_OPTION_mon, \
+     "-mon [chardev=]name[,mode=readline|control][,pretty[=on|off]]\n", QEMU_ARCH_ALL)
+ SRST
+ ``-mon [chardev=]name[,mode=readline|control][,pretty[=on|off]]``
+-    Setup monitor on chardev name. ``pretty`` is only valid when
+-    ``mode=control``, turning on JSON pretty printing to ease
++    Setup monitor on chardev name. ``mode=control`` configures 
++    a QMP monitor (a JSON RPC-style protocol) and it is not the
++    same as HMP, the human monitor that has a "(qemu)" prompt.
++    ``pretty`` is only valid when ``mode=control``, 
++    turning on JSON pretty printing to ease
+     human reading and debugging.
+ ERST
+ 
+@@ -5264,3 +5279,7 @@ ERST
+ 
+ 
+ HXCOMM This is the last statement. Insert new options before this line!
++
++#undef DEF
++#undef DEFHEADING
++#undef ARCHHEADING
+diff --git a/replication.c b/replication.c
+index be3a42f9c9..4acd3f8004 100644
+--- a/replication.c
++++ b/replication.c
+@@ -14,7 +14,7 @@
+ 
+ #include "qemu/osdep.h"
+ #include "qapi/error.h"
+-#include "replication.h"
++#include "block/replication.h"
+ 
+ static QLIST_HEAD(, ReplicationState) replication_states;
+ 
+diff --git a/softmmu/memory.c b/softmmu/memory.c
+index 3bb533c0bc..c19b0be6b1 100644
+--- a/softmmu/memory.c
++++ b/softmmu/memory.c
+@@ -2055,6 +2055,10 @@ void memory_region_set_dirty(MemoryRegion *mr, hwaddr addr,
+                                         memory_region_get_dirty_log_mask(mr));
+ }
+ 
++/*
++ * If memory region `mr' is NULL, do global sync.  Otherwise, sync
++ * dirty bitmap for the specified memory region.
++ */
+ static void memory_region_sync_dirty_bitmap(MemoryRegion *mr)
+ {
+     MemoryListener *listener;
+@@ -2068,18 +2072,24 @@ static void memory_region_sync_dirty_bitmap(MemoryRegion *mr)
+      * address space once.
+      */
+     QTAILQ_FOREACH(listener, &memory_listeners, link) {
+-        if (!listener->log_sync) {
+-            continue;
+-        }
+-        as = listener->address_space;
+-        view = address_space_get_flatview(as);
+-        FOR_EACH_FLAT_RANGE(fr, view) {
+-            if (fr->dirty_log_mask && (!mr || fr->mr == mr)) {
+-                MemoryRegionSection mrs = section_from_flat_range(fr, view);
+-                listener->log_sync(listener, &mrs);
++        if (listener->log_sync) {
++            as = listener->address_space;
++            view = address_space_get_flatview(as);
++            FOR_EACH_FLAT_RANGE(fr, view) {
++                if (fr->dirty_log_mask && (!mr || fr->mr == mr)) {
++                    MemoryRegionSection mrs = section_from_flat_range(fr, view);
++                    listener->log_sync(listener, &mrs);
++                }
+             }
++            flatview_unref(view);
++        } else if (listener->log_sync_global) {
++            /*
++             * No matter whether MR is specified, what we can do here
++             * is to do a global sync, because we are not capable to
++             * sync in a finer granularity.
++             */
++            listener->log_sync_global(listener);
+         }
+-        flatview_unref(view);
+     }
+ }
+ 
+@@ -2767,6 +2777,9 @@ void memory_listener_register(MemoryListener *listener, AddressSpace *as)
+ {
+     MemoryListener *other = NULL;
+ 
++    /* Only one of them can be defined for a listener */
++    assert(!(listener->log_sync && listener->log_sync_global));
++
+     listener->address_space = as;
+     if (QTAILQ_EMPTY(&memory_listeners)
+         || listener->priority >= QTAILQ_LAST(&memory_listeners)->priority) {
+diff --git a/softmmu/qtest.c b/softmmu/qtest.c
+index 130c366615..72751e1fd8 100644
+--- a/softmmu/qtest.c
++++ b/softmmu/qtest.c
+@@ -27,6 +27,8 @@
+ #include "qemu/error-report.h"
+ #include "qemu/module.h"
+ #include "qemu/cutils.h"
++#include "qapi/qmp/qerror.h"
++#include "qom/object_interfaces.h"
+ #include CONFIG_DEVICES
+ #ifdef CONFIG_PSERIES
+ #include "hw/ppc/spapr_rtas.h"
+@@ -34,11 +36,25 @@
+ 
+ #define MAX_IRQ 256
+ 
++#define TYPE_QTEST "qtest"
++
++OBJECT_DECLARE_SIMPLE_TYPE(QTest, QTEST)
++
++struct QTest {
++    Object parent;
++
++    bool has_machine_link;
++    char *chr_name;
++    Chardev *chr;
++    CharBackend qtest_chr;
++    char *log;
++};
++
+ bool qtest_allowed;
+ 
+ static DeviceState *irq_intercept_dev;
+ static FILE *qtest_log_fp;
+-static CharBackend qtest_chr;
++static QTest *qtest;
+ static GString *inbuf;
+ static int irq_levels[MAX_IRQ];
+ static qemu_timeval start_time;
+@@ -320,7 +336,7 @@ static void qtest_irq_handler(void *opaque, int n, int level)
+     qemu_set_irq(old_irq, level);
+ 
+     if (irq_levels[n] != level) {
+-        CharBackend *chr = &qtest_chr;
++        CharBackend *chr = &qtest->qtest_chr;
+         irq_levels[n] = level;
+         qtest_send_prefix(chr);
+         qtest_sendf(chr, "IRQ %s %d\n",
+@@ -849,18 +865,39 @@ static void qtest_event(void *opaque, QEMUChrEvent event)
+         break;
+     }
+ }
++
+ void qtest_server_init(const char *qtest_chrdev, const char *qtest_log, Error **errp)
+ {
++    ERRP_GUARD();
+     Chardev *chr;
++    Object *qtest;
+ 
+     chr = qemu_chr_new("qtest", qtest_chrdev, NULL);
+-
+     if (chr == NULL) {
+         error_setg(errp, "Failed to initialize device for qtest: \"%s\"",
+                    qtest_chrdev);
+         return;
+     }
+ 
++    qtest = object_new(TYPE_QTEST);
++    object_property_set_str(qtest, "chardev", "qtest", &error_abort);
++    if (qtest_log) {
++        object_property_set_str(qtest, "log", qtest_log, &error_abort);
++    }
++    object_property_add_child(qdev_get_machine(), "qtest", qtest);
++    user_creatable_complete(USER_CREATABLE(qtest), errp);
++    if (*errp) {
++        object_unparent(qtest);
++    }
++    object_unref(OBJECT(chr));
++    object_unref(qtest);
++}
++
++static bool qtest_server_start(QTest *q, Error **errp)
++{
++    Chardev *chr = q->chr;
++    const char *qtest_log = q->log;
++
+     if (qtest_log) {
+         if (strcmp(qtest_log, "none") != 0) {
+             qtest_log_fp = fopen(qtest_log, "w+");
+@@ -869,16 +906,20 @@ void qtest_server_init(const char *qtest_chrdev, const char *qtest_log, Error **
+         qtest_log_fp = stderr;
+     }
+ 
+-    qemu_chr_fe_init(&qtest_chr, chr, errp);
+-    qemu_chr_fe_set_handlers(&qtest_chr, qtest_can_read, qtest_read,
+-                             qtest_event, NULL, &qtest_chr, NULL, true);
+-    qemu_chr_fe_set_echo(&qtest_chr, true);
++    if (!qemu_chr_fe_init(&q->qtest_chr, chr, errp)) {
++        return false;
++    }
++    qemu_chr_fe_set_handlers(&q->qtest_chr, qtest_can_read, qtest_read,
++                             qtest_event, NULL, &q->qtest_chr, NULL, true);
++    qemu_chr_fe_set_echo(&q->qtest_chr, true);
+ 
+     inbuf = g_string_new("");
+ 
+     if (!qtest_server_send) {
+-        qtest_server_set_send_handler(qtest_server_char_be_send, &qtest_chr);
++        qtest_server_set_send_handler(qtest_server_char_be_send, &q->qtest_chr);
+     }
++    qtest = q;
++    return true;
+ }
+ 
+ void qtest_server_set_send_handler(void (*send)(void*, const char*),
+@@ -890,7 +931,7 @@ void qtest_server_set_send_handler(void (*send)(void*, const char*),
+ 
+ bool qtest_driver(void)
+ {
+-    return qtest_chr.chr != NULL;
++    return qtest && qtest->qtest_chr.chr != NULL;
+ }
+ 
+ void qtest_server_inproc_recv(void *dummy, const char *buf)
+@@ -905,3 +946,129 @@ void qtest_server_inproc_recv(void *dummy, const char *buf)
+         g_string_truncate(gstr, 0);
+     }
+ }
++
++static void qtest_complete(UserCreatable *uc, Error **errp)
++{
++    QTest *q = QTEST(uc);
++    if (qtest) {
++        error_setg(errp, "Only one instance of qtest can be created");
++        return;
++    }
++    if (!q->chr_name) {
++        error_setg(errp, "No backend specified");
++        return;
++    }
++
++    if (OBJECT(uc)->parent != qdev_get_machine()) {
++        q->has_machine_link = true;
++        object_property_add_const_link(qdev_get_machine(), "qtest", OBJECT(uc));
++    } else {
++        /* -qtest was used.  */
++    }
++
++    qtest_server_start(q, errp);
++}
++
++static void qtest_unparent(Object *obj)
++{
++    QTest *q = QTEST(obj);
++
++    if (qtest == q) {
++        qemu_chr_fe_disconnect(&q->qtest_chr);
++        assert(!qtest_opened);
++        qemu_chr_fe_deinit(&q->qtest_chr, false);
++        if (qtest_log_fp) {
++            fclose(qtest_log_fp);
++            qtest_log_fp = NULL;
++        }
++        qtest = NULL;
++    }
++
++    if (q->has_machine_link) {
++        object_property_del(qdev_get_machine(), "qtest");
++        q->has_machine_link = false;
++    }
++}
++
++static void qtest_set_log(Object *obj, const char *value, Error **errp)
++{
++    QTest *q = QTEST(obj);
++
++    if (qtest == q) {
++        error_setg(errp, QERR_PERMISSION_DENIED);
++    } else {
++        g_free(q->log);
++        q->log = g_strdup(value);
++    }
++}
++
++static char *qtest_get_log(Object *obj, Error **errp)
++{
++    QTest *q = QTEST(obj);
++
++    return g_strdup(q->log);
++}
++
++static void qtest_set_chardev(Object *obj, const char *value, Error **errp)
++{
++    QTest *q = QTEST(obj);
++    Chardev *chr;
++
++    if (qtest == q) {
++        error_setg(errp, QERR_PERMISSION_DENIED);
++        return;
++    }
++
++    chr = qemu_chr_find(value);
++    if (!chr) {
++        error_setg(errp, "Cannot find character device '%s'", value);
++        return;
++    }
++
++    g_free(q->chr_name);
++    q->chr_name = g_strdup(value);
++
++    if (q->chr) {
++        object_unref(q->chr);
++    }
++    q->chr = chr;
++    object_ref(chr);
++}
++
++static char *qtest_get_chardev(Object *obj, Error **errp)
++{
++    QTest *q = QTEST(obj);
++
++    return g_strdup(q->chr_name);
++}
++
++static void qtest_class_init(ObjectClass *oc, void *data)
++{
++    UserCreatableClass *ucc = USER_CREATABLE_CLASS(oc);
++
++    oc->unparent = qtest_unparent;
++    ucc->complete = qtest_complete;
++
++    object_class_property_add_str(oc, "chardev",
++                                  qtest_get_chardev, qtest_set_chardev);
++    object_class_property_add_str(oc, "log",
++                                  qtest_get_log, qtest_set_log);
++}
++
++static const TypeInfo qtest_info = {
++    .name = TYPE_QTEST,
++    .parent = TYPE_OBJECT,
++    .class_init = qtest_class_init,
++    .instance_size = sizeof(QTest),
++    .interfaces = (InterfaceInfo[]) {
++        { TYPE_USER_CREATABLE },
++        { }
++    }
++};
++
++static void register_types(void)
++{
++    type_register_static(&qtest_info);
++}
++
++type_init(register_types);
+diff --git a/softmmu/vl.c b/softmmu/vl.c
+index 93e78469bc..6054f6f0b9 100644
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
+@@ -88,7 +88,7 @@
+ #include "qapi/qobject-input-visitor.h"
+ #include "qemu/option.h"
+ #include "qemu/config-file.h"
+-#include "qemu-options.h"
++#include "qemu/qemu-options.h"
+ #include "qemu/main-loop.h"
+ #ifdef CONFIG_VIRTFS
+ #include "fsdev/qemu-fsdev.h"
+@@ -854,8 +854,17 @@ static void help(int exitcode)
+            "'disk_image' is a raw hard disk image for IDE hard disk 0\n\n",
+             error_get_progname());
+ 
+-#define QEMU_OPTIONS_GENERATE_HELP
+-#include "qemu-options-wrapper.h"
++#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)    \
++    if ((arch_mask) & arch_type)                               \
++        fputs(opt_help, stdout);
++
++#define ARCHHEADING(text, arch_mask) \
++    if ((arch_mask) & arch_type)    \
++        puts(stringify(text));
++
++#define DEFHEADING(text) ARCHHEADING(text, QEMU_ARCH_ALL)
++
++#include "qemu-options.def"
+ 
+     printf("\nDuring emulation, the following keys are useful:\n"
+            "ctrl-alt-f      toggle full screen\n"
+@@ -880,8 +889,13 @@ typedef struct QEMUOption {
+ 
+ static const QEMUOption qemu_options[] = {
+     { "h", 0, QEMU_OPTION_h, QEMU_ARCH_ALL },
+-#define QEMU_OPTIONS_GENERATE_OPTIONS
+-#include "qemu-options-wrapper.h"
++
++#define DEF(option, opt_arg, opt_enum, opt_help, arch_mask)     \
++    { option, opt_arg, opt_enum, arch_mask },
++#define DEFHEADING(text)
++#define ARCHHEADING(text, arch_mask)
++
++#include "qemu-options.def"
+     { NULL },
+ };
+ 
+@@ -1758,8 +1772,9 @@ static bool object_create_early(const char *type)
+      * add one, state the reason in a comment!
+      */
+ 
+-    /* Reason: rng-egd property "chardev" */
+-    if (g_str_equal(type, "rng-egd")) {
++    /* Reason: property "chardev" */
++    if (g_str_equal(type, "rng-egd") ||
++        g_str_equal(type, "qtest")) {
+         return false;
+     }
+ 
+@@ -2024,8 +2039,6 @@ static void set_memory_options(MachineClass *mc)
+         exit(EXIT_FAILURE);
+     }
+ 
+-    /* store value for the future use */
+-    qemu_opt_set_number(opts, "size", ram_size, &error_abort);
+     maxram_size = ram_size;
+ 
+     if (qemu_opt_get(opts, "maxmem")) {
+@@ -2614,6 +2627,23 @@ void qmp_x_exit_preconfig(Error **errp)
+     }
+ }
+ 
++#ifdef CONFIG_MODULES
++void qemu_load_module_for_opts(const char *group)
++{
++    static bool spice_tried;
++    if (g_str_equal(group, "spice") && !spice_tried) {
++        ui_module_load_one("spice-core");
++        spice_tried = true;
++    }
++
++    static bool iscsi_tried;
++    if (g_str_equal(group, "iscsi") && !iscsi_tried) {
++        block_module_load_one("iscsi");
++        iscsi_tried = true;
++    }
++}
++#endif
++
+ void qemu_init(int argc, char **argv, char **envp)
+ {
+     QemuOpts *opts;
+@@ -3373,10 +3403,6 @@ void qemu_init(int argc, char **argv, char **envp)
+                 break;
+             case QEMU_OPTION_spice:
+                 olist = qemu_find_opts_err("spice", NULL);
+-                if (!olist) {
+-                    ui_module_load_one("spice-core");
+-                    olist = qemu_find_opts("spice");
+-                }
+                 if (!olist) {
+                     error_report("spice support is disabled");
+                     exit(1);
+diff --git a/stubs/meson.build b/stubs/meson.build
+index 3faef16892..f3f979c3fe 100644
+--- a/stubs/meson.build
++++ b/stubs/meson.build
+@@ -22,6 +22,7 @@ stub_ss.add(files('isa-bus.c'))
+ stub_ss.add(files('is-daemonized.c'))
+ stub_ss.add(when: 'CONFIG_LINUX_AIO', if_true: files('linux-aio.c'))
+ stub_ss.add(files('migr-blocker.c'))
++stub_ss.add(files('module-opts.c'))
+ stub_ss.add(files('monitor.c'))
+ stub_ss.add(files('monitor-core.c'))
+ stub_ss.add(files('pci-bus.c'))
+diff --git a/stubs/module-opts.c b/stubs/module-opts.c
+new file mode 100644
+index 0000000000..a7d0e4ad6e
+--- /dev/null
++++ b/stubs/module-opts.c
+@@ -0,0 +1,6 @@
++#include "qemu/osdep.h"
++#include "qemu/config-file.h"
++
++void qemu_load_module_for_opts(const char *group)
++{
++}
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index c496bfa1c2..9e211ac2ce 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -940,7 +940,7 @@ FeatureWordInfo feature_word_info[FEATURE_WORDS] = {
+         .type = CPUID_FEATURE_WORD,
+         .feat_names = {
+             NULL, NULL, NULL, NULL,
+-            NULL, "avx512-bf16", NULL, NULL,
++            "avx-vnni", "avx512-bf16", NULL, NULL,
+             NULL, NULL, NULL, NULL,
+             NULL, NULL, NULL, NULL,
+             NULL, NULL, NULL, NULL,
+@@ -3194,7 +3194,7 @@ static X86CPUDefinition builtin_x86_defs[] = {
+             MSR_ARCH_CAP_SKIP_L1DFL_VMENTRY | MSR_ARCH_CAP_MDS_NO |
+             MSR_ARCH_CAP_PSCHANGE_MC_NO | MSR_ARCH_CAP_TAA_NO,
+         .features[FEAT_7_1_EAX] =
+-            CPUID_7_1_EAX_AVX512_BF16,
++            CPUID_7_1_EAX_AVX_VNNI | CPUID_7_1_EAX_AVX512_BF16,
+         /*
+          * Missing: XSAVES (not supported by some Linux versions,
+          * including v4.1 to v4.12).
+diff --git a/target/i386/cpu.h b/target/i386/cpu.h
+index e6836393f7..da72aa5228 100644
+--- a/target/i386/cpu.h
++++ b/target/i386/cpu.h
+@@ -817,6 +817,8 @@ typedef uint64_t FeatureWordArray[FEATURE_WORDS];
+ /* Speculative Store Bypass Disable */
+ #define CPUID_7_0_EDX_SPEC_CTRL_SSBD    (1U << 31)
+ 
++/* AVX VNNI Instruction */
++#define CPUID_7_1_EAX_AVX_VNNI          (1U << 4)
+ /* AVX512 BFloat16 Instruction */
+ #define CPUID_7_1_EAX_AVX512_BF16       (1U << 5)
+ 
+diff --git a/tests/qtest/fuzz/fuzz.c b/tests/qtest/fuzz/fuzz.c
+index 04b70e114b..5f77c84983 100644
+--- a/tests/qtest/fuzz/fuzz.c
++++ b/tests/qtest/fuzz/fuzz.c
+@@ -16,6 +16,7 @@
+ #include <wordexp.h>
+ 
+ #include "qemu/datadir.h"
++#include "sysemu/sysemu.h"
+ #include "sysemu/qtest.h"
+ #include "sysemu/runstate.h"
+ #include "qemu/main-loop.h"
+diff --git a/tests/unit/test-replication.c b/tests/unit/test-replication.c
+index b067240add..afff908d77 100644
+--- a/tests/unit/test-replication.c
++++ b/tests/unit/test-replication.c
+@@ -14,7 +14,7 @@
+ #include "qapi/qmp/qdict.h"
+ #include "qemu/option.h"
+ #include "qemu/main-loop.h"
+-#include "replication.h"
++#include "block/replication.h"
+ #include "block/block_int.h"
+ #include "block/qdict.h"
+ #include "sysemu/block-backend.h"
+diff --git a/util/qemu-config.c b/util/qemu-config.c
+index 670bd6ebca..34974c4b47 100644
+--- a/util/qemu-config.c
++++ b/util/qemu-config.c
+@@ -16,6 +16,7 @@ static QemuOptsList *find_list(QemuOptsList **lists, const char *group,
+ {
+     int i;
+ 
++    qemu_load_module_for_opts(group);
+     for (i = 0; lists[i] != NULL; i++) {
+         if (strcmp(lists[i]->name, group) == 0)
+             break;

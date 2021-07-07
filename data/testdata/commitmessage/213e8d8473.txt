@@ -1,0 +1,11 @@
+commit 213e8d84735f56e16d4485509ef48ccb6488d4a9
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Sep 5 00:03:27 2020 -0700
+
+    tcg/arm: Implement tcg_out_dup*_vec
+    
+    Most of dupi is copied from tcg/aarch64, which has the same
+    encoding for AdvSimdExpandImm.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

@@ -1,0 +1,21 @@
+commit b8e8a3d116d2ba0f80ff47290604ece8c6ed09ca
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:41 2021 +0300
+
+    block/nbd: drop thr->state
+    
+    We don't need all these states. The code refactored to use two boolean
+    variables looks simpler.
+    
+    While moving the comment in nbd_co_establish_connection() rework it to
+    give better information. Also, we are going to move the connection code
+    to separate file and mentioning drained section would be confusing.
+    
+    Improve also the comment in NBDConnectThread, while dropping removed
+    state names from it.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210610100802.5888-12-vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    [eblake: comment tweak]
+    Signed-off-by: Eric Blake <eblake@redhat.com>

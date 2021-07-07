@@ -1,0 +1,14 @@
+commit 0c321f14b0ef94309b5e94855a8a9bc27ecc3911
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:13 2021 +0200
+
+    i386: invert hyperv_spinlock_attempts setting logic with hv_passthrough
+    
+    There is no need to have this special case: like all other Hyper-V
+    enlightenments we can just use kernel's supplied value in hv_passthrough
+    mode.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-3-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

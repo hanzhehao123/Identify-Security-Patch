@@ -1,0 +1,20 @@
+commit 90ddc64fb2b9b1d698efc6d76026e76d5fe224ce
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:44 2021 +0300
+
+    block/nbd: rename NBDConnectThread to NBDClientConnection
+    
+    We are going to move the connection code to its own file, and want
+    clear names and APIs first.
+    
+    The structure is shared between user and (possibly) several runs of
+    connect-thread. So it's wrong to call it "thread". Let's rename to
+    something more generic.
+    
+    Appropriately rename connect_thread and thr variables to conn.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Roman Kagan <rvkagan@yandex-team.ru>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Message-Id: <20210610100802.5888-15-vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

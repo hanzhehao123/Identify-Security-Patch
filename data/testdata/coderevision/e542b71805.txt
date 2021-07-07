@@ -1,0 +1,69 @@
+diff --git a/include/sysemu/tpm.h b/include/sysemu/tpm.h
+index 68b2206463..1a85564e47 100644
+--- a/include/sysemu/tpm.h
++++ b/include/sysemu/tpm.h
+@@ -15,8 +15,6 @@
+ #include "qapi/qapi-types-tpm.h"
+ #include "qom/object.h"
+ 
+-#ifdef CONFIG_TPM
+-
+ int tpm_config_parse(QemuOptsList *opts_list, const char *optarg);
+ int tpm_init(void);
+ void tpm_cleanup(void);
+@@ -75,11 +73,4 @@ static inline TPMVersion tpm_get_version(TPMIf *ti)
+     return TPM_IF_GET_CLASS(ti)->get_version(ti);
+ }
+ 
+-#else /* CONFIG_TPM */
+-
+-#define tpm_init()  (0)
+-#define tpm_cleanup()
+-
+-#endif /* CONFIG_TPM */
+-
+ #endif /* QEMU_TPM_H */
+diff --git a/include/sysemu/tpm_backend.h b/include/sysemu/tpm_backend.h
+index 8fd3269c11..6f078f5f48 100644
+--- a/include/sysemu/tpm_backend.h
++++ b/include/sysemu/tpm_backend.h
+@@ -18,8 +18,6 @@
+ #include "sysemu/tpm.h"
+ #include "qapi/error.h"
+ 
+-#ifdef CONFIG_TPM
+-
+ #define TYPE_TPM_BACKEND "tpm-backend"
+ OBJECT_DECLARE_TYPE(TPMBackend, TPMBackendClass,
+                     TPM_BACKEND)
+@@ -211,6 +209,4 @@ TPMInfo *tpm_backend_query_tpm(TPMBackend *s);
+ 
+ TPMBackend *qemu_find_tpm_be(const char *id);
+ 
+-#endif /* CONFIG_TPM */
+-
+-#endif /* TPM_BACKEND_H */
++#endif
+diff --git a/stubs/tpm.c b/stubs/tpm.c
+index e79bd2a6c2..22014595a0 100644
+--- a/stubs/tpm.c
++++ b/stubs/tpm.c
+@@ -7,8 +7,18 @@
+ 
+ #include "qemu/osdep.h"
+ #include "qapi/qapi-commands-tpm.h"
++#include "sysemu/tpm.h"
+ #include "hw/acpi/tpm.h"
+ 
++int tpm_init(void)
++{
++    return 0;
++}
++
++void tpm_cleanup(void)
++{
++}
++
+ TPMInfoList *qmp_query_tpm(Error **errp)
+ {
+     return NULL;

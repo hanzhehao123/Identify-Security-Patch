@@ -1,0 +1,12 @@
+commit f6db0d8dc63e0ae3668646653ffa1c5be16fbe5e
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Feb 2 17:21:27 2021 -0800
+
+    tcg/tci: Implement mulu2, muls2
+    
+    We already had mulu2_i32 for a 32-bit host; expand this to 64-bit
+    hosts as well.  The muls2_i32 and the 64-bit opcodes are new.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

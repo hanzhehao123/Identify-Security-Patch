@@ -1,0 +1,32 @@
+commit 6e0c60a2be30c333b06d3558a62b0f177199cbfb
+Author: Jamie Iles <jamie@nuviainc.com>
+Date:   Wed May 26 13:18:44 2021 +0100
+
+    target/arm: fix missing exception class
+    
+    The DAIF and PAC checks used raise_exception_ra to raise an exception
+    and unwind CPU state but raise_exception_ra is currently designed for
+    handling data aborts as the syndrome is partially precomputed and
+    encoded in the TB and then merged in merge_syn_data_abort when handling
+    the data abort.  Using raise_exception_ra for DAIF and PAC checks
+    results in an empty syndrome being retrieved from data[2] in
+    restore_state_to_opc and setting ESR to 0.  This manifested as:
+    
+      kvm [571]: Unknown exception class: esr: 0x000000 –
+      Unknown/Uncategorized
+    
+    when launching a KVM guest when the host qemu used a CPU supporting
+    EL2+pointer authentication and enabling pointer authentication in the
+    guest.
+    
+    Rework raise_exception_ra such that the state is restored before raising
+    the exception so that the exception is not clobbered by
+    restore_state_to_opc.
+    
+    Fixes: 0d43e1a2d29a ("target/arm: Add PAuth helpers")
+    Cc: Richard Henderson <richard.henderson@linaro.org>
+    Cc: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Jamie Iles <jamie@nuviainc.com>
+    [PMM: added comment]
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

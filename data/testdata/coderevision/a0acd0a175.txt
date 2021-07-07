@@ -1,0 +1,74 @@
+diff --git a/hw/riscv/sifive_u.c b/hw/riscv/sifive_u.c
+index 273c86418c..a32a95d58f 100644
+--- a/hw/riscv/sifive_u.c
++++ b/hw/riscv/sifive_u.c
+@@ -560,10 +560,12 @@ static void sifive_u_machine_init(MachineState *machine)
+ 
+     if (riscv_is_32bit(&s->soc.u_cpus)) {
+         firmware_end_addr = riscv_find_and_load_firmware(machine,
+-                                    RISCV32_BIOS_BIN, start_addr, NULL);
++                                    "opensbi-riscv32-generic-fw_dynamic.bin",
++                                    start_addr, NULL);
+     } else {
+         firmware_end_addr = riscv_find_and_load_firmware(machine,
+-                                    RISCV64_BIOS_BIN, start_addr, NULL);
++                                    "opensbi-riscv64-generic-fw_dynamic.bin",
++                                    start_addr, NULL);
+     }
+ 
+     if (machine->kernel_filename) {
+diff --git a/hw/riscv/spike.c b/hw/riscv/spike.c
+index fead77f0c4..4b08816dfa 100644
+--- a/hw/riscv/spike.c
++++ b/hw/riscv/spike.c
+@@ -258,11 +258,13 @@ static void spike_board_init(MachineState *machine)
+      */
+     if (riscv_is_32bit(&s->soc[0])) {
+         firmware_end_addr = riscv_find_and_load_firmware(machine,
+-                                    RISCV32_BIOS_ELF, memmap[SPIKE_DRAM].base,
++                                    "opensbi-riscv32-generic-fw_dynamic.elf",
++                                    memmap[SPIKE_DRAM].base,
+                                     htif_symbol_callback);
+     } else {
+         firmware_end_addr = riscv_find_and_load_firmware(machine,
+-                                    RISCV64_BIOS_ELF, memmap[SPIKE_DRAM].base,
++                                    "opensbi-riscv64-generic-fw_dynamic.elf",
++                                    memmap[SPIKE_DRAM].base,
+                                     htif_symbol_callback);
+     }
+ 
+diff --git a/hw/riscv/virt.c b/hw/riscv/virt.c
+index 4a3cd2599a..560216d217 100644
+--- a/hw/riscv/virt.c
++++ b/hw/riscv/virt.c
+@@ -681,10 +681,12 @@ static void virt_machine_init(MachineState *machine)
+ 
+     if (riscv_is_32bit(&s->soc[0])) {
+         firmware_end_addr = riscv_find_and_load_firmware(machine,
+-                                    RISCV32_BIOS_BIN, start_addr, NULL);
++                                    "opensbi-riscv32-generic-fw_dynamic.bin",
++                                    start_addr, NULL);
+     } else {
+         firmware_end_addr = riscv_find_and_load_firmware(machine,
+-                                    RISCV64_BIOS_BIN, start_addr, NULL);
++                                    "opensbi-riscv64-generic-fw_dynamic.bin",
++                                    start_addr, NULL);
+     }
+ 
+     if (machine->kernel_filename) {
+diff --git a/include/hw/riscv/boot.h b/include/hw/riscv/boot.h
+index 0e89400b09..11a21dd584 100644
+--- a/include/hw/riscv/boot.h
++++ b/include/hw/riscv/boot.h
+@@ -24,11 +24,6 @@
+ #include "hw/loader.h"
+ #include "hw/riscv/riscv_hart.h"
+ 
+-#define RISCV32_BIOS_BIN    "opensbi-riscv32-generic-fw_dynamic.bin"
+-#define RISCV32_BIOS_ELF    "opensbi-riscv32-generic-fw_dynamic.elf"
+-#define RISCV64_BIOS_BIN    "opensbi-riscv64-generic-fw_dynamic.bin"
+-#define RISCV64_BIOS_ELF    "opensbi-riscv64-generic-fw_dynamic.elf"
+-
+ bool riscv_is_32bit(RISCVHartArrayState *harts);
+ 
+ target_ulong riscv_calc_kernel_start_addr(RISCVHartArrayState *harts,

@@ -1,0 +1,24 @@
+commit ac559ecbea2649819e7b3fdd09f4e0243e0128db
+Author: Nicholas Piggin <npiggin@gmail.com>
+Date:   Wed May 26 19:16:25 2021 +1000
+
+    spapr: Set LPCR to current AIL mode when starting a new CPU
+    
+    TCG does not keep track of AIL mode in a central place, it's based on
+    the current LPCR[AIL] bits. Synchronize the new CPU's LPCR to the
+    current LPCR in rtas_start_cpu(), similarly to the way the ILE bit is
+    synchronized.
+    
+    Open-code the ILE setting as well now that the caller's LPCR is
+    available directly, there is no need for the indirection.
+    
+    Without this, under both TCG and KVM, adding a POWER8/9/10 class CPU
+    with a new core ID after a modern Linux has booted results in the new
+    CPU's LPCR missing the LPCR[AIL]=0b11 setting that the other CPUs have.
+    This can cause crashes and unexpected behaviour.
+    
+    Signed-off-by: Nicholas Piggin <npiggin@gmail.com>
+    Message-Id: <20210526091626.3388262-3-npiggin@gmail.com>
+    Reviewed-by: Cédric Le Goater <clg@kaod.org>
+    Reviewed-by: Greg Kurz <groug@kaod.org>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

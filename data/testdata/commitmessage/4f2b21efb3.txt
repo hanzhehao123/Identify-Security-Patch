@@ -1,0 +1,15 @@
+commit 4f2b21efb398e93293e0fcd97b203563ff53e228
+Author: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+Date:   Wed May 19 15:29:15 2021 +0100
+
+    target/m68k: call gen_raise_exception() directly if single-stepping in gen_jmp_tb()
+    
+    In order to consolidate the single-step exception handling into a single
+    helper, change gen_jmp_tb() so that it calls gen_raise_exception() directly
+    instead of gen_exception(). This ensures that all single-step exceptions are
+    now handled directly by gen_raise_exception().
+    
+    Signed-off-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210519142917.16693-3-mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

@@ -1,0 +1,12 @@
+diff --git a/tests/qtest/fuzz/fuzz.c b/tests/qtest/fuzz/fuzz.c
+index 5f77c84983..04b70e114b 100644
+--- a/tests/qtest/fuzz/fuzz.c
++++ b/tests/qtest/fuzz/fuzz.c
+@@ -16,7 +16,6 @@
+ #include <wordexp.h>
+ 
+ #include "qemu/datadir.h"
+-#include "sysemu/sysemu.h"
+ #include "sysemu/qtest.h"
+ #include "sysemu/runstate.h"
+ #include "qemu/main-loop.h"

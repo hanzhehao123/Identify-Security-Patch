@@ -1,0 +1,20 @@
+commit 614dd4f3ba2a025eae5235c3466ef6da191879f6
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:15:53 2021 +0100
+
+    tcg: Make gen_dup_i32/i64() public as tcg_gen_dup_i32/i64
+    
+    The Arm MVE VDUP implementation would like to be able to emit code to
+    duplicate a byte or halfword value into an i32.  We have code to do
+    this already in tcg-op-gvec.c, so all we need to do is make the
+    functions global.
+    
+    For consistency with other functions made available to the frontends:
+     * we rename to tcg_gen_dup_*
+     * we expose both the _i32 and _i64 forms
+     * we provide the #define for a _tl form
+    
+    Suggested-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Message-id: 20210617121628.20116-10-peter.maydell@linaro.org

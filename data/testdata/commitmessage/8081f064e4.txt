@@ -1,0 +1,16 @@
+commit 8081f064e404dd524b3c43248b2084dee9d32d7c
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Tue Jun 1 10:52:16 2021 +0300
+
+    block/vvfat: inherit child_vvfat_qcow from child_of_bds
+    
+    Recently we've fixed a crash by adding .get_parent_aio_context handler
+    to child_vvfat_qcow. Now we want it to support .get_parent_desc as
+    well. child_vvfat_qcow wants to implement own .inherit_options, it's
+    not bad. But omitting all other handlers is a bad idea. Let's inherit
+    the class from child_of_bds instead, similar to chain_child_class and
+    detach_by_driver_cb_class in test-bdrv-drain.c.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210601075218.79249-5-vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

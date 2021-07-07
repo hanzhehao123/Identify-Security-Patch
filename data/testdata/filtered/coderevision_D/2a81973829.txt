@@ -1,0 +1,37 @@
+diff --git a/target/riscv/insn32.decode b/target/riscv/insn32.decode
+index 9361984634..81dfdfbafd 100644
+--- a/target/riscv/insn32.decode
++++ b/target/riscv/insn32.decode
+@@ -663,9 +663,6 @@ vamomaxud_v     11100 . . ..... ..... 111 ..... 0101111 @r_wdvm
+ clz        011000 000000 ..... 001 ..... 0010011 @r2
+ ctz        011000 000001 ..... 001 ..... 0010011 @r2
+ cpop       011000 000010 ..... 001 ..... 0010011 @r2
+-sext_b     011000 000100 ..... 001 ..... 0010011 @r2
+-sext_h     011000 000101 ..... 001 ..... 0010011 @r2
+-
+ andn       0100000 .......... 111 ..... 0110011 @r
+ orn        0100000 .......... 110 ..... 0110011 @r
+ xnor       0100000 .......... 100 ..... 0110011 @r
+diff --git a/target/riscv/insn_trans/trans_rvb.c.inc b/target/riscv/insn_trans/trans_rvb.c.inc
+index 3d594e8cb4..5a4fc02f70 100644
+--- a/target/riscv/insn_trans/trans_rvb.c.inc
++++ b/target/riscv/insn_trans/trans_rvb.c.inc
+@@ -95,18 +95,6 @@ static bool trans_maxu(DisasContext *ctx, arg_maxu *a)
+     return gen_arith(ctx, a, tcg_gen_umax_tl);
+ }
+ 
+-static bool trans_sext_b(DisasContext *ctx, arg_sext_b *a)
+-{
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_unary(ctx, a, tcg_gen_ext8s_tl);
+-}
+-
+-static bool trans_sext_h(DisasContext *ctx, arg_sext_h *a)
+-{
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_unary(ctx, a, tcg_gen_ext16s_tl);
+-}
+-
+ static bool trans_clzw(DisasContext *ctx, arg_clzw *a)
+ {
+     REQUIRE_64BIT(ctx);

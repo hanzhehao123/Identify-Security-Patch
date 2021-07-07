@@ -1,0 +1,13 @@
+commit 7be9ebcf924c04b22f4c4cf990f51da4259b07c3
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Wed Mar 10 13:59:37 2021 -0600
+
+    tcg: Return the map protection from alloc_code_gen_buffer
+    
+    Change the interface from a boolean error indication to a
+    negative error vs a non-negative protection.  For the moment
+    this is only interface change, not making use of the new data.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

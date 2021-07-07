@@ -1,0 +1,4757 @@
+diff --git a/.gitlab-ci.d/buildtest.yml b/.gitlab-ci.d/buildtest.yml
+index b72c57e4df..807040c1c7 100644
+--- a/.gitlab-ci.d/buildtest.yml
++++ b/.gitlab-ci.d/buildtest.yml
+@@ -626,6 +626,41 @@ build-coroutine-sigaltstack:
+                     --enable-trace-backends=ftrace
+     MAKE_CHECK_ARGS: check-unit
+ 
++# Most jobs test latest gcrypt or nettle builds
++#
++# These jobs test old gcrypt and nettle from RHEL7
++# which had some API differences.
++crypto-old-nettle:
++  extends: .native_build_job_template
++  needs:
++    job: amd64-centos7-container
++  variables:
++    IMAGE: centos7
++    TARGETS: x86_64-softmmu x86_64-linux-user
++    CONFIGURE_ARGS: --disable-gcrypt --enable-nettle
++    MAKE_CHECK_ARGS: check
++
++crypto-old-gcrypt:
++  extends: .native_build_job_template
++  needs:
++    job: amd64-centos7-container
++  variables:
++    IMAGE: centos7
++    TARGETS: x86_64-softmmu x86_64-linux-user
++    CONFIGURE_ARGS: --disable-nettle --enable-gcrypt
++    MAKE_CHECK_ARGS: check
++
++crypto-only-gnutls:
++  extends: .native_build_job_template
++  needs:
++    job: amd64-centos7-container
++  variables:
++    IMAGE: centos7
++    TARGETS: x86_64-softmmu x86_64-linux-user
++    CONFIGURE_ARGS: --disable-nettle --disable-gcrypt --enable-gnutls
++    MAKE_CHECK_ARGS: check
++
++
+ # Check our reduced build configurations
+ build-without-default-devices:
+   extends: .native_build_job_template
+diff --git a/.gitlab-ci.d/containers.yml b/.gitlab-ci.d/containers.yml
+index cd06d3f5f4..bd01ae8f80 100644
+--- a/.gitlab-ci.d/containers.yml
++++ b/.gitlab-ci.d/containers.yml
+@@ -7,6 +7,11 @@ amd64-alpine-container:
+   variables:
+     NAME: alpine
+ 
++amd64-centos7-container:
++  extends: .container_job_template
++  variables:
++    NAME: centos7
++
+ amd64-debian11-container:
+   extends: .container_job_template
+   variables:
+@@ -38,8 +43,3 @@ amd64-opensuse-leap-container:
+   extends: .container_job_template
+   variables:
+     NAME: opensuse-leap
+-
+-python-container:
+-  extends: .container_job_template
+-  variables:
+-    NAME: python
+diff --git a/.gitlab-ci.d/static_checks.yml b/.gitlab-ci.d/static_checks.yml
+index 8e30872164..91247a6f67 100644
+--- a/.gitlab-ci.d/static_checks.yml
++++ b/.gitlab-ci.d/static_checks.yml
+@@ -24,24 +24,3 @@ check-dco:
+     - if: '$CI_PROJECT_NAMESPACE == "qemu-project" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+       when: never
+     - when: on_success
+-
+-check-python-pipenv:
+-  stage: test
+-  image: $CI_REGISTRY_IMAGE/qemu/python:latest
+-  script:
+-    - make -C python venv-check
+-  variables:
+-    GIT_DEPTH: 1
+-  needs:
+-    job: python-container
+-
+-check-python-tox:
+-  stage: test
+-  image: $CI_REGISTRY_IMAGE/qemu/python:latest
+-  script:
+-    - make -C python check-tox
+-  variables:
+-    GIT_DEPTH: 1
+-  needs:
+-    job: python-container
+-  allow_failure: true
+diff --git a/.patchew.yml b/.patchew.yml
+index 2638b7f564..988c29261f 100644
+--- a/.patchew.yml
++++ b/.patchew.yml
+@@ -88,7 +88,7 @@ email:
+         more information:
+ 
+         {{ logtext }}
+-        {% elif test == "docker-mingw@fedora" or test == "docker-quick@centos8" or test == "asan" %}
++        {% elif test == "docker-mingw@fedora" or test == "docker-quick@centos7" or test == "asan" %}
+         Hi,
+ 
+         This series failed the {{ test }} build test. Please find the testing commands and
+@@ -124,13 +124,13 @@ testing:
+       script: |
+         #!/bin/bash
+         time make docker-test-debug@fedora TARGET_LIST=x86_64-softmmu J=14 NETWORK=1
+-    docker-quick@centos8:
++    docker-quick@centos7:
+       enabled: false
+       requirements: docker,x86_64
+       timeout: 3600
+       script: |
+         #!/bin/bash
+-        time make docker-test-quick@centos8 SHOW_ENV=1 J=14 NETWORK=1
++        time make docker-test-quick@centos7 SHOW_ENV=1 J=14 NETWORK=1
+     checkpatch:
+       enabled: true
+       requirements: ''
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 96a4eeb5a5..5f55404f2f 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -2692,7 +2692,7 @@ F: scripts/tracetool.py
+ F: scripts/tracetool/
+ F: scripts/qemu-trace-stap*
+ F: docs/tools/qemu-trace-stap.rst
+-F: docs/devel/tracing.rst
++F: docs/devel/tracing.txt
+ T: git https://github.com/stefanha/qemu.git tracing
+ 
+ TPM
+@@ -3361,7 +3361,7 @@ Documentation
+ Build system architecture
+ M: Daniel P. Berrange <berrange@redhat.com>
+ S: Odd Fixes
+-F: docs/devel/build-system.rst
++F: docs/devel/build-system.txt
+ 
+ GIT Data Mining Config
+ M: Alex Bennée <alex.bennee@linaro.org>
+diff --git a/accel/kvm/trace-events b/accel/kvm/trace-events
+index 399aaeb0ec..72a01320a1 100644
+--- a/accel/kvm/trace-events
++++ b/accel/kvm/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # kvm-all.c
+ kvm_ioctl(int type, void *arg) "type 0x%x, arg %p"
+diff --git a/accel/tcg/trace-events b/accel/tcg/trace-events
+index 59eab96f26..6eefb37f5d 100644
+--- a/accel/tcg/trace-events
++++ b/accel/tcg/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # TCG related tracing
+ # cpu-exec.c
+diff --git a/audio/trace-events b/audio/trace-events
+index 957c92337b..6aec535763 100644
+--- a/audio/trace-events
++++ b/audio/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # alsaaudio.c
+ alsa_revents(int revents) "revents = %d"
+diff --git a/authz/trace-events b/authz/trace-events
+index 9c255dafb6..e62ebb36b7 100644
+--- a/authz/trace-events
++++ b/authz/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # base.c
+ qauthz_is_allowed(void *authz, const char *identity, bool allowed) "AuthZ %p check identity=%s allowed=%d"
+diff --git a/backends/tpm/trace-events b/backends/tpm/trace-events
+index 3298766dd7..0a2591fb2d 100644
+--- a/backends/tpm/trace-events
++++ b/backends/tpm/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # tpm_passthrough.c
+ tpm_passthrough_handle_request(void *cmd) "processing command %p"
+diff --git a/backends/trace-events b/backends/trace-events
+index 652eb76a57..59058f7630 100644
+--- a/backends/trace-events
++++ b/backends/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # dbus-vmstate.c
+ dbus_vmstate_pre_save(void)
+diff --git a/block.c b/block.c
+index 0dc97281dc..3f456892d0 100644
+--- a/block.c
++++ b/block.c
+@@ -84,14 +84,6 @@ static BlockDriverState *bdrv_open_inherit(const char *filename,
+ 
+ static void bdrv_replace_child_noperm(BdrvChild *child,
+                                       BlockDriverState *new_bs);
+-static int bdrv_attach_child_noperm(BlockDriverState *parent_bs,
+-                                    BlockDriverState *child_bs,
+-                                    const char *child_name,
+-                                    const BdrvChildClass *child_class,
+-                                    BdrvChildRole child_role,
+-                                    BdrvChild **child,
+-                                    Transaction *tran,
+-                                    Error **errp);
+ static void bdrv_remove_filter_or_cow_child(BlockDriverState *bs,
+                                             Transaction *tran);
+ 
+@@ -265,7 +257,7 @@ void bdrv_parse_filename_strip_prefix(const char *filename, const char *prefix,
+  * image is inactivated. */
+ bool bdrv_is_read_only(BlockDriverState *bs)
+ {
+-    return bs->read_only;
++    return !(bs->open_flags & BDRV_O_RDWR);
+ }
+ 
+ int bdrv_can_set_read_only(BlockDriverState *bs, bool read_only,
+@@ -317,7 +309,6 @@ int bdrv_apply_auto_read_only(BlockDriverState *bs, const char *errmsg,
+         goto fail;
+     }
+ 
+-    bs->read_only = true;
+     bs->open_flags &= ~BDRV_O_RDWR;
+ 
+     return 0;
+@@ -1158,7 +1149,7 @@ int bdrv_parse_cache_mode(const char *mode, int *flags, bool *writethrough)
+ static char *bdrv_child_get_parent_desc(BdrvChild *c)
+ {
+     BlockDriverState *parent = c->opaque;
+-    return g_strdup(bdrv_get_device_or_node_name(parent));
++    return g_strdup_printf("node '%s'", bdrv_get_node_name(parent));
+ }
+ 
+ static void bdrv_child_cb_drained_begin(BdrvChild *child)
+@@ -1412,7 +1403,7 @@ static int bdrv_child_cb_update_filename(BdrvChild *c, BlockDriverState *base,
+     return 0;
+ }
+ 
+-static AioContext *bdrv_child_cb_get_parent_aio_context(BdrvChild *c)
++AioContext *child_of_bds_get_parent_aio_context(BdrvChild *c)
+ {
+     BlockDriverState *bs = c->opaque;
+ 
+@@ -1432,7 +1423,7 @@ const BdrvChildClass child_of_bds = {
+     .can_set_aio_ctx = bdrv_child_cb_can_set_aio_ctx,
+     .set_aio_ctx     = bdrv_child_cb_set_aio_ctx,
+     .update_filename = bdrv_child_cb_update_filename,
+-    .get_parent_aio_context = bdrv_child_cb_get_parent_aio_context,
++    .get_parent_aio_context = child_of_bds_get_parent_aio_context,
+ };
+ 
+ AioContext *bdrv_child_get_parent_aio_context(BdrvChild *c)
+@@ -1549,7 +1540,6 @@ static int bdrv_open_driver(BlockDriverState *bs, BlockDriver *drv,
+     }
+ 
+     bs->drv = drv;
+-    bs->read_only = !(bs->open_flags & BDRV_O_RDWR);
+     bs->opaque = g_malloc0(drv->instance_size);
+ 
+     if (drv->bdrv_file_open) {
+@@ -1720,6 +1710,7 @@ static int bdrv_open_common(BlockDriverState *bs, BlockBackend *file,
+     QemuOpts *opts;
+     BlockDriver *drv;
+     Error *local_err = NULL;
++    bool ro;
+ 
+     assert(bs->file == NULL);
+     assert(options != NULL && bs->options != options);
+@@ -1770,17 +1761,17 @@ static int bdrv_open_common(BlockDriverState *bs, BlockBackend *file,
+     trace_bdrv_open_common(bs, filename ?: "", bs->open_flags,
+                            drv->format_name);
+ 
+-    bs->read_only = !(bs->open_flags & BDRV_O_RDWR);
++    ro = bdrv_is_read_only(bs);
+ 
+-    if (use_bdrv_whitelist && !bdrv_is_whitelisted(drv, bs->read_only)) {
+-        if (!bs->read_only && bdrv_is_whitelisted(drv, true)) {
++    if (use_bdrv_whitelist && !bdrv_is_whitelisted(drv, ro)) {
++        if (!ro && bdrv_is_whitelisted(drv, true)) {
+             ret = bdrv_apply_auto_read_only(bs, NULL, NULL);
+         } else {
+             ret = -ENOTSUP;
+         }
+         if (ret < 0) {
+             error_setg(errp,
+-                       !bs->read_only && bdrv_is_whitelisted(drv, true)
++                       !ro && bdrv_is_whitelisted(drv, true)
+                        ? "Driver '%s' can only be used for read-only devices"
+                        : "Driver '%s' is not whitelisted",
+                        drv->format_name);
+@@ -1792,7 +1783,7 @@ static int bdrv_open_common(BlockDriverState *bs, BlockBackend *file,
+     assert(qatomic_read(&bs->copy_on_read) == 0);
+ 
+     if (bs->open_flags & BDRV_O_COPY_ON_READ) {
+-        if (!bs->read_only) {
++        if (!ro) {
+             bdrv_enable_copy_on_read(bs);
+         } else {
+             error_setg(errp, "Can't use copy-on-read on read-only device");
+@@ -2035,27 +2026,38 @@ bool bdrv_is_writable(BlockDriverState *bs)
+ 
+ static char *bdrv_child_user_desc(BdrvChild *c)
+ {
+-    if (c->klass->get_parent_desc) {
+-        return c->klass->get_parent_desc(c);
+-    }
+-
+-    return g_strdup("another user");
++    return c->klass->get_parent_desc(c);
+ }
+ 
++/*
++ * Check that @a allows everything that @b needs. @a and @b must reference same
++ * child node.
++ */
+ static bool bdrv_a_allow_b(BdrvChild *a, BdrvChild *b, Error **errp)
+ {
+-    g_autofree char *user = NULL;
+-    g_autofree char *perm_names = NULL;
++    const char *child_bs_name;
++    g_autofree char *a_user = NULL;
++    g_autofree char *b_user = NULL;
++    g_autofree char *perms = NULL;
++
++    assert(a->bs);
++    assert(a->bs == b->bs);
+ 
+     if ((b->perm & a->shared_perm) == b->perm) {
+         return true;
+     }
+ 
+-    perm_names = bdrv_perm_names(b->perm & ~a->shared_perm);
+-    user = bdrv_child_user_desc(a);
+-    error_setg(errp, "Conflicts with use by %s as '%s', which does not "
+-               "allow '%s' on %s",
+-               user, a->name, perm_names, bdrv_get_node_name(b->bs));
++    child_bs_name = bdrv_get_node_name(b->bs);
++    a_user = bdrv_child_user_desc(a);
++    b_user = bdrv_child_user_desc(b);
++    perms = bdrv_perm_names(b->perm & ~a->shared_perm);
++
++    error_setg(errp, "Permission conflict on node '%s': permissions '%s' are "
++               "both required by %s (uses node '%s' as '%s' child) and "
++               "unshared by %s (uses node '%s' as '%s' child).",
++               child_bs_name, perms,
++               b_user, child_bs_name, b->name,
++               a_user, child_bs_name, a->name);
+ 
+     return false;
+ }
+@@ -2760,6 +2762,12 @@ static TransactionActionDrv bdrv_attach_child_common_drv = {
+ 
+ /*
+  * Common part of attaching bdrv child to bs or to blk or to job
++ *
++ * Resulting new child is returned through @child.
++ * At start *@child must be NULL.
++ * @child is saved to a new entry of @tran, so that *@child could be reverted to
++ * NULL on abort(). So referenced variable must live at least until transaction
++ * end.
+  */
+ static int bdrv_attach_child_common(BlockDriverState *child_bs,
+                                     const char *child_name,
+@@ -2775,6 +2783,7 @@ static int bdrv_attach_child_common(BlockDriverState *child_bs,
+ 
+     assert(child);
+     assert(*child == NULL);
++    assert(child_class->get_parent_desc);
+ 
+     new_child = g_new(BdrvChild, 1);
+     *new_child = (BdrvChild) {
+@@ -2834,6 +2843,10 @@ static int bdrv_attach_child_common(BlockDriverState *child_bs,
+     return 0;
+ }
+ 
++/*
++ * Variable referenced by @child must live at least until transaction end.
++ * (see bdrv_attach_child_common() doc for details)
++ */
+ static int bdrv_attach_child_noperm(BlockDriverState *parent_bs,
+                                     BlockDriverState *child_bs,
+                                     const char *child_name,
+@@ -2916,7 +2929,6 @@ BdrvChild *bdrv_root_attach_child(BlockDriverState *child_bs,
+                                    child_role, perm, shared_perm, opaque,
+                                    &child, tran, errp);
+     if (ret < 0) {
+-        assert(child == NULL);
+         goto out;
+     }
+ 
+@@ -2924,6 +2936,9 @@ BdrvChild *bdrv_root_attach_child(BlockDriverState *child_bs,
+ 
+ out:
+     tran_finalize(tran, ret);
++    /* child is unset on failure by bdrv_attach_child_common_abort() */
++    assert((ret < 0) == !child);
++
+     bdrv_unref(child_bs);
+     return child;
+ }
+@@ -2963,6 +2978,8 @@ BdrvChild *bdrv_attach_child(BlockDriverState *parent_bs,
+ 
+ out:
+     tran_finalize(tran, ret);
++    /* child is unset on failure by bdrv_attach_child_common_abort() */
++    assert((ret < 0) == !child);
+ 
+     bdrv_unref(child_bs);
+ 
+@@ -4545,7 +4562,6 @@ static void bdrv_reopen_commit(BDRVReopenState *reopen_state)
+     bs->explicit_options   = reopen_state->explicit_options;
+     bs->options            = reopen_state->options;
+     bs->open_flags         = reopen_state->flags;
+-    bs->read_only = !(reopen_state->flags & BDRV_O_RDWR);
+     bs->detect_zeroes      = reopen_state->detect_zeroes;
+ 
+     if (reopen_state->replace_backing_bs) {
+diff --git a/block/block-backend.c b/block/block-backend.c
+index de5496af66..15f1ea4288 100644
+--- a/block/block-backend.c
++++ b/block/block-backend.c
+@@ -141,19 +141,18 @@ static void blk_root_set_aio_ctx(BdrvChild *child, AioContext *ctx,
+ static char *blk_root_get_parent_desc(BdrvChild *child)
+ {
+     BlockBackend *blk = child->opaque;
+-    char *dev_id;
++    g_autofree char *dev_id = NULL;
+ 
+     if (blk->name) {
+-        return g_strdup(blk->name);
++        return g_strdup_printf("block device '%s'", blk->name);
+     }
+ 
+     dev_id = blk_get_attached_dev_id(blk);
+     if (*dev_id) {
+-        return dev_id;
++        return g_strdup_printf("block device '%s'", dev_id);
+     } else {
+         /* TODO Callback into the BB owner for something more detailed */
+-        g_free(dev_id);
+-        return g_strdup("a block device");
++        return g_strdup("an unnamed block device");
+     }
+ }
+ 
+@@ -1852,7 +1851,7 @@ bool blk_supports_write_perm(BlockBackend *blk)
+     if (bs) {
+         return !bdrv_is_read_only(bs);
+     } else {
+-        return !blk->root_state.read_only;
++        return blk->root_state.open_flags & BDRV_O_RDWR;
+     }
+ }
+ 
+@@ -2269,7 +2268,6 @@ void blk_update_root_state(BlockBackend *blk)
+     assert(blk->root);
+ 
+     blk->root_state.open_flags    = blk->root->bs->open_flags;
+-    blk->root_state.read_only     = blk->root->bs->read_only;
+     blk->root_state.detect_zeroes = blk->root->bs->detect_zeroes;
+ }
+ 
+@@ -2288,12 +2286,7 @@ bool blk_get_detect_zeroes_from_root_state(BlockBackend *blk)
+  */
+ int blk_get_open_flags_from_root_state(BlockBackend *blk)
+ {
+-    int bs_flags;
+-
+-    bs_flags = blk->root_state.read_only ? 0 : BDRV_O_RDWR;
+-    bs_flags |= blk->root_state.open_flags & ~BDRV_O_RDWR;
+-
+-    return bs_flags;
++    return blk->root_state.open_flags;
+ }
+ 
+ BlockBackendRootState *blk_get_root_state(BlockBackend *blk)
+@@ -2393,8 +2386,13 @@ static void blk_root_drained_begin(BdrvChild *child)
+ static bool blk_root_drained_poll(BdrvChild *child)
+ {
+     BlockBackend *blk = child->opaque;
++    bool busy = false;
+     assert(blk->quiesce_counter);
+-    return !!blk->in_flight;
++
++    if (blk->dev_ops && blk->dev_ops->drained_poll) {
++        busy = blk->dev_ops->drained_poll(blk->dev_opaque);
++    }
++    return busy || !!blk->in_flight;
+ }
+ 
+ static void blk_root_drained_end(BdrvChild *child, int *drained_end_counter)
+diff --git a/block/block-copy.c b/block/block-copy.c
+index c2e5090412..5808cfe657 100644
+--- a/block/block-copy.c
++++ b/block/block-copy.c
+@@ -65,6 +65,7 @@ typedef struct BlockCopyTask {
+     int64_t offset;
+     int64_t bytes;
+     bool zeroes;
++    bool copy_range;
+     QLIST_ENTRY(BlockCopyTask) list;
+     CoQueue wait_queue; /* coroutines blocked on this task */
+ } BlockCopyTask;
+@@ -183,6 +184,7 @@ static BlockCopyTask *block_copy_task_create(BlockCopyState *s,
+         .call_state = call_state,
+         .offset = offset,
+         .bytes = bytes,
++        .copy_range = s->use_copy_range,
+     };
+     qemu_co_queue_init(&task->wait_queue);
+     QLIST_INSERT_HEAD(&s->tasks, task, list);
+@@ -342,11 +344,18 @@ static coroutine_fn int block_copy_task_run(AioTaskPool *pool,
+  *
+  * No sync here: nor bitmap neighter intersecting requests handling, only copy.
+  *
++ * @copy_range is an in-out argument: if *copy_range is false, copy_range is not
++ * done. If *copy_range is true, copy_range is attempted. If the copy_range
++ * attempt fails, the function falls back to the usual read+write and
++ * *copy_range is set to false. *copy_range and zeroes must not be true
++ * simultaneously.
++ *
+  * Returns 0 on success.
+  */
+ static int coroutine_fn block_copy_do_copy(BlockCopyState *s,
+                                            int64_t offset, int64_t bytes,
+-                                           bool zeroes, bool *error_is_read)
++                                           bool zeroes, bool *copy_range,
++                                           bool *error_is_read)
+ {
+     int ret;
+     int64_t nbytes = MIN(offset + bytes, s->len) - offset;
+@@ -359,6 +368,7 @@ static int coroutine_fn block_copy_do_copy(BlockCopyState *s,
+     assert(offset + bytes <= s->len ||
+            offset + bytes == QEMU_ALIGN_UP(s->len, s->cluster_size));
+     assert(nbytes < INT_MAX);
++    assert(!(*copy_range && zeroes));
+ 
+     if (zeroes) {
+         ret = bdrv_co_pwrite_zeroes(s->target, offset, nbytes, s->write_flags &
+@@ -370,32 +380,15 @@ static int coroutine_fn block_copy_do_copy(BlockCopyState *s,
+         return ret;
+     }
+ 
+-    if (s->use_copy_range) {
++    if (*copy_range) {
+         ret = bdrv_co_copy_range(s->source, offset, s->target, offset, nbytes,
+                                  0, s->write_flags);
+         if (ret < 0) {
+             trace_block_copy_copy_range_fail(s, offset, ret);
+-            s->use_copy_range = false;
+-            s->copy_size = MAX(s->cluster_size, BLOCK_COPY_MAX_BUFFER);
++            *copy_range = false;
+             /* Fallback to read+write with allocated buffer */
+         } else {
+-            if (s->use_copy_range) {
+-                /*
+-                 * Successful copy-range. Now increase copy_size.  copy_range
+-                 * does not respect max_transfer (it's a TODO), so we factor
+-                 * that in here.
+-                 *
+-                 * Note: we double-check s->use_copy_range for the case when
+-                 * parallel block-copy request unsets it during previous
+-                 * bdrv_co_copy_range call.
+-                 */
+-                s->copy_size =
+-                        MIN(MAX(s->cluster_size, BLOCK_COPY_MAX_COPY_RANGE),
+-                            QEMU_ALIGN_DOWN(block_copy_max_transfer(s->source,
+-                                                                    s->target),
+-                                            s->cluster_size));
+-            }
+-            goto out;
++            return 0;
+         }
+     }
+ 
+@@ -431,17 +424,49 @@ out:
+     return ret;
+ }
+ 
++static void block_copy_handle_copy_range_result(BlockCopyState *s,
++                                                bool is_success)
++{
++    if (!s->use_copy_range) {
++        /* already disabled */
++        return;
++    }
++
++    if (is_success) {
++        /*
++         * Successful copy-range. Now increase copy_size.  copy_range
++         * does not respect max_transfer (it's a TODO), so we factor
++         * that in here.
++         */
++        s->copy_size =
++                MIN(MAX(s->cluster_size, BLOCK_COPY_MAX_COPY_RANGE),
++                    QEMU_ALIGN_DOWN(block_copy_max_transfer(s->source,
++                                                            s->target),
++                                    s->cluster_size));
++    } else {
++        /* Copy-range failed, disable it. */
++        s->use_copy_range = false;
++        s->copy_size = MAX(s->cluster_size, BLOCK_COPY_MAX_BUFFER);
++    }
++}
++
+ static coroutine_fn int block_copy_task_entry(AioTask *task)
+ {
+     BlockCopyTask *t = container_of(task, BlockCopyTask, task);
+     bool error_is_read = false;
++    bool copy_range = t->copy_range;
+     int ret;
+ 
+     ret = block_copy_do_copy(t->s, t->offset, t->bytes, t->zeroes,
+-                             &error_is_read);
+-    if (ret < 0 && !t->call_state->ret) {
+-        t->call_state->ret = ret;
+-        t->call_state->error_is_read = error_is_read;
++                             &copy_range, &error_is_read);
++    if (t->copy_range) {
++        block_copy_handle_copy_range_result(t->s, copy_range);
++    }
++    if (ret < 0) {
++        if (!t->call_state->ret) {
++            t->call_state->ret = ret;
++            t->call_state->error_is_read = error_is_read;
++        }
+     } else {
+         progress_work_done(t->s->progress, t->bytes);
+     }
+@@ -617,7 +642,10 @@ block_copy_dirty_clusters(BlockCopyCallState *call_state)
+             g_free(task);
+             continue;
+         }
+-        task->zeroes = ret & BDRV_BLOCK_ZERO;
++        if (ret & BDRV_BLOCK_ZERO) {
++            task->zeroes = true;
++            task->copy_range = false;
++        }
+ 
+         if (s->speed) {
+             if (!call_state->ignore_ratelimit) {
+diff --git a/block/commit.c b/block/commit.c
+index b89bb20b75..b7f0c7c061 100644
+--- a/block/commit.c
++++ b/block/commit.c
+@@ -453,7 +453,7 @@ int bdrv_commit(BlockDriverState *bs)
+         return -EBUSY;
+     }
+ 
+-    ro = backing_file_bs->read_only;
++    ro = bdrv_is_read_only(backing_file_bs);
+ 
+     if (ro) {
+         if (bdrv_reopen_set_read_only(backing_file_bs, false, NULL)) {
+diff --git a/block/file-posix.c b/block/file-posix.c
+index 10b71d9a13..f37dfc10b3 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -1625,17 +1625,17 @@ static int handle_aiocb_write_zeroes(void *opaque)
+     if (s->has_write_zeroes) {
+         int ret = do_fallocate(s->fd, FALLOC_FL_ZERO_RANGE,
+                                aiocb->aio_offset, aiocb->aio_nbytes);
+-        if (ret == -EINVAL) {
+-            /*
+-             * Allow falling back to pwrite for file systems that
+-             * do not support fallocate() for an unaligned byte range.
+-             */
+-            return -ENOTSUP;
+-        }
+-        if (ret == 0 || ret != -ENOTSUP) {
++        if (ret == -ENOTSUP) {
++            s->has_write_zeroes = false;
++        } else if (ret == 0 || ret != -EINVAL) {
+             return ret;
+         }
+-        s->has_write_zeroes = false;
++        /*
++         * Note: Some file systems do not like unaligned byte ranges, and
++         * return EINVAL in such a case, though they should not do it according
++         * to the man-page of fallocate(). Thus we simply ignore this return
++         * value and try the other fallbacks instead.
++         */
+     }
+ #endif
+ 
+@@ -1650,6 +1650,17 @@ static int handle_aiocb_write_zeroes(void *opaque)
+                 return ret;
+             }
+             s->has_fallocate = false;
++        } else if (ret == -EINVAL) {
++            /*
++             * Some file systems like older versions of GPFS do not like un-
++             * aligned byte ranges, and return EINVAL in such a case, though
++             * they should not do it according to the man-page of fallocate().
++             * Warn about the bad filesystem and try the final fallback instead.
++             */
++            warn_report_once("Your file system is misbehaving: "
++                             "fallocate(FALLOC_FL_PUNCH_HOLE) returned EINVAL. "
++                             "Please report this bug to your file sytem "
++                             "vendor.");
+         } else if (ret != -ENOTSUP) {
+             return ret;
+         } else {
+diff --git a/block/io.c b/block/io.c
+index 1e826ba9e8..323854d063 100644
+--- a/block/io.c
++++ b/block/io.c
+@@ -1973,7 +1973,7 @@ bdrv_co_write_req_prepare(BdrvChild *child, int64_t offset, int64_t bytes,
+ 
+     bdrv_check_request(offset, bytes, &error_abort);
+ 
+-    if (bs->read_only) {
++    if (bdrv_is_read_only(bs)) {
+         return -EPERM;
+     }
+ 
+@@ -3406,7 +3406,7 @@ int coroutine_fn bdrv_co_truncate(BdrvChild *child, int64_t offset, bool exact,
+     if (new_bytes) {
+         bdrv_make_request_serialising(&req, 1);
+     }
+-    if (bs->read_only) {
++    if (bdrv_is_read_only(bs)) {
+         error_setg(errp, "Image is read-only");
+         ret = -EACCES;
+         goto out;
+diff --git a/block/qapi.c b/block/qapi.c
+index 943e7b15ad..dc69341bfe 100644
+--- a/block/qapi.c
++++ b/block/qapi.c
+@@ -59,7 +59,7 @@ BlockDeviceInfo *bdrv_block_device_info(BlockBackend *blk,
+ 
+     info = g_malloc0(sizeof(*info));
+     info->file                   = g_strdup(bs->filename);
+-    info->ro                     = bs->read_only;
++    info->ro                     = bdrv_is_read_only(bs);
+     info->drv                    = g_strdup(bs->drv->format_name);
+     info->encrypted              = bs->encrypted;
+ 
+diff --git a/block/qcow2-snapshot.c b/block/qcow2-snapshot.c
+index 2e98c7f4b6..71ddb08c21 100644
+--- a/block/qcow2-snapshot.c
++++ b/block/qcow2-snapshot.c
+@@ -1026,7 +1026,7 @@ int qcow2_snapshot_load_tmp(BlockDriverState *bs,
+     int new_l1_bytes;
+     int ret;
+ 
+-    assert(bs->read_only);
++    assert(bdrv_is_read_only(bs));
+ 
+     /* Search the snapshot */
+     snapshot_index = find_snapshot_by_id_and_name(bs, snapshot_id, name);
+diff --git a/block/qcow2.c b/block/qcow2.c
+index 39b91ef940..ee4530cdbd 100644
+--- a/block/qcow2.c
++++ b/block/qcow2.c
+@@ -1723,8 +1723,7 @@ static int coroutine_fn qcow2_do_open(BlockDriverState *bs, QDict *options,
+ 
+     /* Clear unknown autoclear feature bits */
+     update_header |= s->autoclear_features & ~QCOW2_AUTOCLEAR_MASK;
+-    update_header =
+-        update_header && !bs->read_only && !(flags & BDRV_O_INACTIVE);
++    update_header = update_header && bdrv_is_writable(bs);
+     if (update_header) {
+         s->autoclear_features &= QCOW2_AUTOCLEAR_MASK;
+     }
+@@ -1811,7 +1810,7 @@ static int coroutine_fn qcow2_do_open(BlockDriverState *bs, QDict *options,
+     bs->supported_truncate_flags = BDRV_REQ_ZERO_WRITE;
+ 
+     /* Repair image if dirty */
+-    if (!(flags & (BDRV_O_CHECK | BDRV_O_INACTIVE)) && !bs->read_only &&
++    if (!(flags & BDRV_O_CHECK) && bdrv_is_writable(bs) &&
+         (s->incompatible_features & QCOW2_INCOMPAT_DIRTY)) {
+         BdrvCheckResult result = {0};
+ 
+diff --git a/block/quorum.c b/block/quorum.c
+index cfc1436abb..f2c0805000 100644
+--- a/block/quorum.c
++++ b/block/quorum.c
+@@ -1279,7 +1279,7 @@ static BlockDriver bdrv_quorum = {
+     .bdrv_dirname                       = quorum_dirname,
+     .bdrv_co_block_status               = quorum_co_block_status,
+ 
+-    .bdrv_co_flush_to_disk              = quorum_co_flush,
++    .bdrv_co_flush                      = quorum_co_flush,
+ 
+     .bdrv_getlength                     = quorum_getlength,
+ 
+diff --git a/block/snapshot.c b/block/snapshot.c
+index e8ae9a28c1..6702c75e42 100644
+--- a/block/snapshot.c
++++ b/block/snapshot.c
+@@ -415,7 +415,7 @@ int bdrv_snapshot_load_tmp(BlockDriverState *bs,
+         error_setg(errp, "snapshot_id and name are both NULL");
+         return -EINVAL;
+     }
+-    if (!bs->read_only) {
++    if (!bdrv_is_read_only(bs)) {
+         error_setg(errp, "Device is not readonly");
+         return -EINVAL;
+     }
+diff --git a/block/ssh.c b/block/ssh.c
+index b51a031620..ebe3d8b631 100644
+--- a/block/ssh.c
++++ b/block/ssh.c
+@@ -277,6 +277,7 @@ static void ssh_parse_filename(const char *filename, QDict *options,
+ static int check_host_key_knownhosts(BDRVSSHState *s, Error **errp)
+ {
+     int ret;
++#ifdef HAVE_LIBSSH_0_8
+     enum ssh_known_hosts_e state;
+     int r;
+     ssh_key pubkey;
+@@ -342,6 +343,46 @@ static int check_host_key_knownhosts(BDRVSSHState *s, Error **errp)
+         error_setg(errp, "error while checking for known server (%d)", state);
+         goto out;
+     }
++#else /* !HAVE_LIBSSH_0_8 */
++    int state;
++
++    state = ssh_is_server_known(s->session);
++    trace_ssh_server_status(state);
++
++    switch (state) {
++    case SSH_SERVER_KNOWN_OK:
++        /* OK */
++        trace_ssh_check_host_key_knownhosts();
++        break;
++    case SSH_SERVER_KNOWN_CHANGED:
++        ret = -EINVAL;
++        error_setg(errp,
++                   "host key does not match the one in known_hosts; this "
++                   "may be a possible attack");
++        goto out;
++    case SSH_SERVER_FOUND_OTHER:
++        ret = -EINVAL;
++        error_setg(errp,
++                   "host key for this server not found, another type exists");
++        goto out;
++    case SSH_SERVER_FILE_NOT_FOUND:
++        ret = -ENOENT;
++        error_setg(errp, "known_hosts file not found");
++        goto out;
++    case SSH_SERVER_NOT_KNOWN:
++        ret = -EINVAL;
++        error_setg(errp, "no host key was found in known_hosts");
++        goto out;
++    case SSH_SERVER_ERROR:
++        ret = -EINVAL;
++        error_setg(errp, "server error");
++        goto out;
++    default:
++        ret = -EINVAL;
++        error_setg(errp, "error while checking for known server (%d)", state);
++        goto out;
++    }
++#endif /* !HAVE_LIBSSH_0_8 */
+ 
+     /* known_hosts checking successful. */
+     ret = 0;
+@@ -397,7 +438,11 @@ check_host_key_hash(BDRVSSHState *s, const char *hash,
+     unsigned char *server_hash;
+     size_t server_hash_len;
+ 
++#ifdef HAVE_LIBSSH_0_8
+     r = ssh_get_server_publickey(s->session, &pubkey);
++#else
++    r = ssh_get_publickey(s->session, &pubkey);
++#endif
+     if (r != SSH_OK) {
+         session_error_setg(errp, s, "failed to read remote host key");
+         return -EINVAL;
+@@ -1188,6 +1233,8 @@ static void unsafe_flush_warning(BDRVSSHState *s, const char *what)
+     }
+ }
+ 
++#ifdef HAVE_LIBSSH_0_8
++
+ static coroutine_fn int ssh_flush(BDRVSSHState *s, BlockDriverState *bs)
+ {
+     int r;
+@@ -1224,6 +1271,18 @@ static coroutine_fn int ssh_co_flush(BlockDriverState *bs)
+     return ret;
+ }
+ 
++#else /* !HAVE_LIBSSH_0_8 */
++
++static coroutine_fn int ssh_co_flush(BlockDriverState *bs)
++{
++    BDRVSSHState *s = bs->opaque;
++
++    unsafe_flush_warning(s, "libssh >= 0.8.0");
++    return 0;
++}
++
++#endif /* !HAVE_LIBSSH_0_8 */
++
+ static int64_t ssh_getlength(BlockDriverState *bs)
+ {
+     BDRVSSHState *s = bs->opaque;
+diff --git a/block/trace-events b/block/trace-events
+index 574760ba9a..31062ed437 100644
+--- a/block/trace-events
++++ b/block/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # ../block.c
+ bdrv_open_common(void *bs, const char *filename, int flags, const char *format_name) "bs %p filename \"%s\" flags 0x%x format_name \"%s\""
+diff --git a/block/vhdx-log.c b/block/vhdx-log.c
+index 404fb5f3cb..7672161d95 100644
+--- a/block/vhdx-log.c
++++ b/block/vhdx-log.c
+@@ -801,7 +801,7 @@ int vhdx_parse_log(BlockDriverState *bs, BDRVVHDXState *s, bool *flushed,
+     }
+ 
+     if (logs.valid) {
+-        if (bs->read_only) {
++        if (bdrv_is_read_only(bs)) {
+             bdrv_refresh_filename(bs);
+             ret = -EPERM;
+             error_setg(errp,
+diff --git a/block/vvfat.c b/block/vvfat.c
+index 54807f82ca..ae9d387da7 100644
+--- a/block/vvfat.c
++++ b/block/vvfat.c
+@@ -3127,10 +3127,7 @@ static void vvfat_qcow_options(BdrvChildRole role, bool parent_is_format,
+     qdict_set_default_str(child_options, BDRV_OPT_CACHE_NO_FLUSH, "on");
+ }
+ 
+-static const BdrvChildClass child_vvfat_qcow = {
+-    .parent_is_bds      = true,
+-    .inherit_options    = vvfat_qcow_options,
+-};
++static BdrvChildClass child_vvfat_qcow;
+ 
+ static int enable_write_target(BlockDriverState *bs, Error **errp)
+ {
+@@ -3208,15 +3205,12 @@ static void vvfat_child_perm(BlockDriverState *bs, BdrvChild *c,
+                              uint64_t perm, uint64_t shared,
+                              uint64_t *nperm, uint64_t *nshared)
+ {
+-    BDRVVVFATState *s = bs->opaque;
+-
+-    assert(c == s->qcow || (role & BDRV_CHILD_COW));
+-
+-    if (c == s->qcow) {
++    if (role & BDRV_CHILD_DATA) {
+         /* This is a private node, nobody should try to attach to it */
+         *nperm = BLK_PERM_CONSISTENT_READ | BLK_PERM_WRITE;
+         *nshared = BLK_PERM_WRITE_UNCHANGED;
+     } else {
++        assert(role & BDRV_CHILD_COW);
+         /* The backing file is there so 'commit' can use it. vvfat doesn't
+          * access it in any way. */
+         *nperm = 0;
+@@ -3270,6 +3264,8 @@ static BlockDriver bdrv_vvfat = {
+ 
+ static void bdrv_vvfat_init(void)
+ {
++    child_vvfat_qcow = child_of_bds;
++    child_vvfat_qcow.inherit_options = vvfat_qcow_options;
+     bdrv_register(&bdrv_vvfat);
+ }
+ 
+diff --git a/blockdev.c b/blockdev.c
+index 834c2304a1..f08192deda 100644
+--- a/blockdev.c
++++ b/blockdev.c
+@@ -583,8 +583,7 @@ static BlockBackend *blockdev_init(const char *file, QDict *bs_opts,
+ 
+         blk = blk_new(qemu_get_aio_context(), 0, BLK_PERM_ALL);
+         blk_rs = blk_get_root_state(blk);
+-        blk_rs->open_flags    = bdrv_flags;
+-        blk_rs->read_only     = read_only;
++        blk_rs->open_flags    = bdrv_flags | (read_only ? 0 : BDRV_O_RDWR);
+         blk_rs->detect_zeroes = detect_zeroes;
+ 
+         qobject_unref(bs_opts);
+diff --git a/chardev/trace-events b/chardev/trace-events
+index 027107b0c1..5ea4408207 100644
+--- a/chardev/trace-events
++++ b/chardev/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # wctablet.c
+ wct_init(void) ""
+diff --git a/configure b/configure
+index f0c8629dc6..90c0807347 100755
+--- a/configure
++++ b/configure
+@@ -407,6 +407,7 @@ gnutls="$default_feature"
+ nettle="$default_feature"
+ nettle_xts="no"
+ gcrypt="$default_feature"
++gcrypt_hmac="no"
+ gcrypt_xts="no"
+ qemu_private_xts="yes"
+ auth_pam="$default_feature"
+@@ -2056,17 +2057,17 @@ fi
+ cat > $TMPC << EOF
+ #if defined(__clang_major__) && defined(__clang_minor__)
+ # ifdef __apple_build_version__
+-#  if __clang_major__ < 10 || (__clang_major__ == 10 && __clang_minor__ < 0)
+-#   error You need at least XCode Clang v10.0 to compile QEMU
++#  if __clang_major__ < 5 || (__clang_major__ == 5 && __clang_minor__ < 1)
++#   error You need at least XCode Clang v5.1 to compile QEMU
+ #  endif
+ # else
+-#  if __clang_major__ < 6 || (__clang_major__ == 6 && __clang_minor__ < 0)
+-#   error You need at least Clang v6.0 to compile QEMU
++#  if __clang_major__ < 3 || (__clang_major__ == 3 && __clang_minor__ < 4)
++#   error You need at least Clang v3.4 to compile QEMU
+ #  endif
+ # endif
+ #elif defined(__GNUC__) && defined(__GNUC_MINOR__)
+-# if __GNUC__ < 7 || (__GNUC__ == 7 && __GNUC_MINOR__ < 5)
+-#  error You need at least GCC v7.5.0 to compile QEMU
++# if __GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 8)
++#  error You need at least GCC v4.8 to compile QEMU
+ # endif
+ #else
+ # error You either need GCC or Clang to compiler QEMU
+@@ -2074,7 +2075,7 @@ cat > $TMPC << EOF
+ int main (void) { return 0; }
+ EOF
+ if ! compile_prog "" "" ; then
+-    error_exit "You need at least GCC v7.5 or Clang v6.0 (or XCode Clang v10.0)"
++    error_exit "You need at least GCC v4.8 or Clang v3.4 (or XCode Clang v5.1)"
+ fi
+ 
+ # Accumulate -Wfoo and -Wno-bar separately.
+@@ -2801,7 +2802,7 @@ fi
+ 
+ if test "$gnutls" != "no"; then
+     pass="no"
+-    if $pkg_config --exists "gnutls >= 3.5.18"; then
++    if $pkg_config --exists "gnutls >= 3.1.18"; then
+         gnutls_cflags=$($pkg_config --cflags gnutls)
+         gnutls_libs=$($pkg_config --libs gnutls)
+         # Packaging for the static libraries is not always correct.
+@@ -2859,7 +2860,7 @@ has_libgcrypt() {
+     maj=`libgcrypt-config --version | awk -F . '{print $1}'`
+     min=`libgcrypt-config --version | awk -F . '{print $2}'`
+ 
+-    if test $maj != 1 || test $min -lt 8
++    if test $maj != 1 || test $min -lt 5
+     then
+        return 1
+     fi
+@@ -2870,9 +2871,10 @@ has_libgcrypt() {
+ 
+ if test "$nettle" != "no"; then
+     pass="no"
+-    if $pkg_config --exists "nettle >= 3.4"; then
++    if $pkg_config --exists "nettle >= 2.7.1"; then
+         nettle_cflags=$($pkg_config --cflags nettle)
+         nettle_libs=$($pkg_config --libs nettle)
++        nettle_version=$($pkg_config --modversion nettle)
+         # Link test to make sure the given libraries work (e.g for static).
+         write_c_skeleton
+         if compile_prog "" "$nettle_libs" ; then
+@@ -2925,6 +2927,18 @@ if test "$gcrypt" != "no"; then
+         gcrypt="yes"
+         cat > $TMPC << EOF
+ #include <gcrypt.h>
++int main(void) {
++  gcry_mac_hd_t handle;
++  gcry_mac_open(&handle, GCRY_MAC_HMAC_MD5,
++                GCRY_MAC_FLAG_SECURE, NULL);
++  return 0;
++}
++EOF
++        if compile_prog "$gcrypt_cflags" "$gcrypt_libs" ; then
++            gcrypt_hmac=yes
++        fi
++        cat > $TMPC << EOF
++#include <gcrypt.h>
+ int main(void) {
+   gcry_cipher_hd_t handle;
+   gcry_cipher_open(&handle, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_XTS, 0);
+@@ -3307,7 +3321,7 @@ done
+ ##########################################
+ # glib support probe
+ 
+-glib_req_ver=2.56
++glib_req_ver=2.48
+ glib_modules=gthread-2.0
+ if test "$modules" = yes; then
+     glib_modules="$glib_modules gmodule-export-2.0"
+@@ -3515,7 +3529,7 @@ fi
+ ##########################################
+ # libssh probe
+ if test "$libssh" != "no" ; then
+-  if $pkg_config --exists "libssh >= 0.8.7"; then
++  if $pkg_config --exists libssh; then
+     libssh_cflags=$($pkg_config libssh --cflags)
+     libssh_libs=$($pkg_config libssh --libs)
+     libssh=yes
+@@ -3527,6 +3541,23 @@ if test "$libssh" != "no" ; then
+   fi
+ fi
+ 
++##########################################
++# Check for libssh 0.8
++# This is done like this instead of using the LIBSSH_VERSION_* and
++# SSH_VERSION_* macros because some distributions in the past shipped
++# snapshots of the future 0.8 from Git, and those snapshots did not
++# have updated version numbers (still referring to 0.7.0).
++
++if test "$libssh" = "yes"; then
++  cat > $TMPC <<EOF
++#include <libssh/libssh.h>
++int main(void) { return ssh_get_server_publickey(NULL, NULL); }
++EOF
++  if compile_prog "$libssh_cflags" "$libssh_libs"; then
++    libssh_cflags="-DHAVE_LIBSSH_0_8 $libssh_cflags"
++  fi
++fi
++
+ ##########################################
+ # linux-aio probe
+ 
+@@ -5708,11 +5739,15 @@ if test "$gnutls" = "yes" ; then
+ fi
+ if test "$gcrypt" = "yes" ; then
+   echo "CONFIG_GCRYPT=y" >> $config_host_mak
++  if test "$gcrypt_hmac" = "yes" ; then
++    echo "CONFIG_GCRYPT_HMAC=y" >> $config_host_mak
++  fi
+   echo "GCRYPT_CFLAGS=$gcrypt_cflags" >> $config_host_mak
+   echo "GCRYPT_LIBS=$gcrypt_libs" >> $config_host_mak
+ fi
+ if test "$nettle" = "yes" ; then
+   echo "CONFIG_NETTLE=y" >> $config_host_mak
++  echo "CONFIG_NETTLE_VERSION_MAJOR=${nettle_version%%.*}" >> $config_host_mak
+   echo "NETTLE_CFLAGS=$nettle_cflags" >> $config_host_mak
+   echo "NETTLE_LIBS=$nettle_libs" >> $config_host_mak
+ fi
+diff --git a/crypto/cipher-nettle.c.inc b/crypto/cipher-nettle.c.inc
+index fc6f40c026..cac771e4ff 100644
+--- a/crypto/cipher-nettle.c.inc
++++ b/crypto/cipher-nettle.c.inc
+@@ -34,6 +34,47 @@
+ #include <nettle/xts.h>
+ #endif
+ 
++typedef void (*QCryptoCipherNettleFuncWrapper)(const void *ctx,
++                                               size_t length,
++                                               uint8_t *dst,
++                                               const uint8_t *src);
++
++#if CONFIG_NETTLE_VERSION_MAJOR < 3
++typedef nettle_crypt_func * QCryptoCipherNettleFuncNative;
++typedef void *       cipher_ctx_t;
++typedef unsigned     cipher_length_t;
++#define CONST_CTX
++
++#define cast5_set_key cast128_set_key
++
++#define aes128_ctx aes_ctx
++#define aes192_ctx aes_ctx
++#define aes256_ctx aes_ctx
++#define aes128_set_encrypt_key(c, k) \
++    aes_set_encrypt_key(c, 16, k)
++#define aes192_set_encrypt_key(c, k) \
++    aes_set_encrypt_key(c, 24, k)
++#define aes256_set_encrypt_key(c, k) \
++    aes_set_encrypt_key(c, 32, k)
++#define aes128_set_decrypt_key(c, k) \
++    aes_set_decrypt_key(c, 16, k)
++#define aes192_set_decrypt_key(c, k) \
++    aes_set_decrypt_key(c, 24, k)
++#define aes256_set_decrypt_key(c, k) \
++    aes_set_decrypt_key(c, 32, k)
++#define aes128_encrypt aes_encrypt
++#define aes192_encrypt aes_encrypt
++#define aes256_encrypt aes_encrypt
++#define aes128_decrypt aes_decrypt
++#define aes192_decrypt aes_decrypt
++#define aes256_decrypt aes_decrypt
++#else
++typedef nettle_cipher_func * QCryptoCipherNettleFuncNative;
++typedef const void * cipher_ctx_t;
++typedef size_t       cipher_length_t;
++#define CONST_CTX    const
++#endif
++
+ static inline bool qcrypto_length_check(size_t len, size_t blocksize,
+                                         Error **errp)
+ {
+@@ -156,12 +197,12 @@ static const struct QCryptoCipherDriver NAME##_driver_ctr = {           \
+ static void NAME##_xts_wrape(const void *ctx, size_t length,            \
+                              uint8_t *dst, const uint8_t *src)          \
+ {                                                                       \
+-    ENCRYPT((const void *)ctx, length, dst, src);                       \
++    ENCRYPT((cipher_ctx_t)ctx, length, dst, src);                       \
+ }                                                                       \
+ static void NAME##_xts_wrapd(const void *ctx, size_t length,            \
+                              uint8_t *dst, const uint8_t *src)          \
+ {                                                                       \
+-    DECRYPT((const void *)ctx, length, dst, src);                       \
++    DECRYPT((cipher_ctx_t)ctx, length, dst, src);                       \
+ }                                                                       \
+ static int NAME##_encrypt_xts(QCryptoCipher *cipher, const void *in,    \
+                               void *out, size_t len, Error **errp)      \
+@@ -241,13 +282,13 @@ typedef struct QCryptoNettleDESRFB {
+     uint8_t iv[DES_BLOCK_SIZE];
+ } QCryptoNettleDESRFB;
+ 
+-static void des_encrypt_native(const void *ctx, size_t length,
++static void des_encrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                uint8_t *dst, const uint8_t *src)
+ {
+     des_encrypt(ctx, length, dst, src);
+ }
+ 
+-static void des_decrypt_native(const void *ctx, size_t length,
++static void des_decrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                uint8_t *dst, const uint8_t *src)
+ {
+     des_decrypt(ctx, length, dst, src);
+@@ -263,13 +304,13 @@ typedef struct QCryptoNettleDES3 {
+     uint8_t iv[DES3_BLOCK_SIZE];
+ } QCryptoNettleDES3;
+ 
+-static void des3_encrypt_native(const void *ctx, size_t length,
++static void des3_encrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                 uint8_t *dst, const uint8_t *src)
+ {
+     des3_encrypt(ctx, length, dst, src);
+ }
+ 
+-static void des3_decrypt_native(const void *ctx, size_t length,
++static void des3_decrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                 uint8_t *dst, const uint8_t *src)
+ {
+     des3_decrypt(ctx, length, dst, src);
+@@ -286,17 +327,17 @@ typedef struct QCryptoNettleAES128 {
+     struct aes128_ctx key[2], key_xts[2];
+ } QCryptoNettleAES128;
+ 
+-static void aes128_encrypt_native(const void *ctx, size_t length,
++static void aes128_encrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                   uint8_t *dst, const uint8_t *src)
+ {
+-    const struct aes128_ctx *keys = ctx;
++    CONST_CTX struct aes128_ctx *keys = ctx;
+     aes128_encrypt(&keys[0], length, dst, src);
+ }
+ 
+-static void aes128_decrypt_native(const void *ctx, size_t length,
++static void aes128_decrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                   uint8_t *dst, const uint8_t *src)
+ {
+-    const struct aes128_ctx *keys = ctx;
++    CONST_CTX struct aes128_ctx *keys = ctx;
+     aes128_decrypt(&keys[1], length, dst, src);
+ }
+ 
+@@ -312,17 +353,17 @@ typedef struct QCryptoNettleAES192 {
+     struct aes192_ctx key[2], key_xts[2];
+ } QCryptoNettleAES192;
+ 
+-static void aes192_encrypt_native(const void *ctx, size_t length,
++static void aes192_encrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                   uint8_t *dst, const uint8_t *src)
+ {
+-    const struct aes192_ctx *keys = ctx;
++    CONST_CTX struct aes192_ctx *keys = ctx;
+     aes192_encrypt(&keys[0], length, dst, src);
+ }
+ 
+-static void aes192_decrypt_native(const void *ctx, size_t length,
++static void aes192_decrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                   uint8_t *dst, const uint8_t *src)
+ {
+-    const struct aes192_ctx *keys = ctx;
++    CONST_CTX struct aes192_ctx *keys = ctx;
+     aes192_decrypt(&keys[1], length, dst, src);
+ }
+ 
+@@ -338,17 +379,17 @@ typedef struct QCryptoNettleAES256 {
+     struct aes256_ctx key[2], key_xts[2];
+ } QCryptoNettleAES256;
+ 
+-static void aes256_encrypt_native(const void *ctx, size_t length,
++static void aes256_encrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                   uint8_t *dst, const uint8_t *src)
+ {
+-    const struct aes256_ctx *keys = ctx;
++    CONST_CTX struct aes256_ctx *keys = ctx;
+     aes256_encrypt(&keys[0], length, dst, src);
+ }
+ 
+-static void aes256_decrypt_native(const void *ctx, size_t length,
+-                                  uint8_t *dst, const uint8_t *src)
++static void aes256_decrypt_native(cipher_ctx_t ctx, cipher_length_t length,
++                               uint8_t *dst, const uint8_t *src)
+ {
+-    const struct aes256_ctx *keys = ctx;
++    CONST_CTX struct aes256_ctx *keys = ctx;
+     aes256_decrypt(&keys[1], length, dst, src);
+ }
+ 
+@@ -363,13 +404,13 @@ typedef struct QCryptoNettleCAST128 {
+     struct cast128_ctx key, key_xts;
+ } QCryptoNettleCAST128;
+ 
+-static void cast128_encrypt_native(const void *ctx, size_t length,
++static void cast128_encrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                    uint8_t *dst, const uint8_t *src)
+ {
+     cast128_encrypt(ctx, length, dst, src);
+ }
+ 
+-static void cast128_decrypt_native(const void *ctx, size_t length,
++static void cast128_decrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                    uint8_t *dst, const uint8_t *src)
+ {
+     cast128_decrypt(ctx, length, dst, src);
+@@ -387,13 +428,13 @@ typedef struct QCryptoNettleSerpent {
+ } QCryptoNettleSerpent;
+ 
+ 
+-static void serpent_encrypt_native(const void *ctx, size_t length,
++static void serpent_encrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                    uint8_t *dst, const uint8_t *src)
+ {
+     serpent_encrypt(ctx, length, dst, src);
+ }
+ 
+-static void serpent_decrypt_native(const void *ctx, size_t length,
++static void serpent_decrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                    uint8_t *dst, const uint8_t *src)
+ {
+     serpent_decrypt(ctx, length, dst, src);
+@@ -410,13 +451,13 @@ typedef struct QCryptoNettleTwofish {
+     struct twofish_ctx key, key_xts;
+ } QCryptoNettleTwofish;
+ 
+-static void twofish_encrypt_native(const void *ctx, size_t length,
++static void twofish_encrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                    uint8_t *dst, const uint8_t *src)
+ {
+     twofish_encrypt(ctx, length, dst, src);
+ }
+ 
+-static void twofish_decrypt_native(const void *ctx, size_t length,
++static void twofish_decrypt_native(cipher_ctx_t ctx, cipher_length_t length,
+                                    uint8_t *dst, const uint8_t *src)
+ {
+     twofish_decrypt(ctx, length, dst, src);
+diff --git a/crypto/hash-nettle.c b/crypto/hash-nettle.c
+index 1ca1a41062..2a6ee7c7d5 100644
+--- a/crypto/hash-nettle.c
++++ b/crypto/hash-nettle.c
+@@ -26,12 +26,18 @@
+ #include <nettle/sha.h>
+ #include <nettle/ripemd160.h>
+ 
++#if CONFIG_NETTLE_VERSION_MAJOR < 3
++typedef unsigned int     hash_length_t;
++#else
++typedef size_t       hash_length_t;
++#endif
++
+ typedef void (*qcrypto_nettle_init)(void *ctx);
+ typedef void (*qcrypto_nettle_write)(void *ctx,
+-                                     size_t len,
++                                     hash_length_t len,
+                                      const uint8_t *buf);
+ typedef void (*qcrypto_nettle_result)(void *ctx,
+-                                      size_t len,
++                                      hash_length_t len,
+                                       uint8_t *buf);
+ 
+ union qcrypto_hash_ctx {
+diff --git a/crypto/hmac-nettle.c b/crypto/hmac-nettle.c
+index 1ad6c4f253..1152b741fd 100644
+--- a/crypto/hmac-nettle.c
++++ b/crypto/hmac-nettle.c
+@@ -18,16 +18,22 @@
+ #include "hmacpriv.h"
+ #include <nettle/hmac.h>
+ 
++#if CONFIG_NETTLE_VERSION_MAJOR < 3
++typedef unsigned int hmac_length_t;
++#else
++typedef size_t hmac_length_t;
++#endif
++
+ typedef void (*qcrypto_nettle_hmac_setkey)(void *ctx,
+-                                           size_t key_length,
++                                           hmac_length_t key_length,
+                                            const uint8_t *key);
+ 
+ typedef void (*qcrypto_nettle_hmac_update)(void *ctx,
+-                                           size_t length,
++                                           hmac_length_t length,
+                                            const uint8_t *data);
+ 
+ typedef void (*qcrypto_nettle_hmac_digest)(void *ctx,
+-                                           size_t length,
++                                           hmac_length_t length,
+                                            uint8_t *digest);
+ 
+ typedef struct QCryptoHmacNettle QCryptoHmacNettle;
+diff --git a/crypto/meson.build b/crypto/meson.build
+index af7e80c6f6..7f37b5d335 100644
+--- a/crypto/meson.build
++++ b/crypto/meson.build
+@@ -26,7 +26,11 @@ if 'CONFIG_NETTLE' in config_host
+   crypto_ss.add(files('hash-nettle.c', 'hmac-nettle.c', 'pbkdf-nettle.c'))
+ elif 'CONFIG_GCRYPT' in config_host
+   crypto_ss.add(files('hash-gcrypt.c', 'pbkdf-gcrypt.c'))
+-  crypto_ss.add(files('hmac-gcrypt.c'))
++  if 'CONFIG_GCRYPT_HMAC' in config_host
++    crypto_ss.add(files('hmac-gcrypt.c'))
++  else
++    crypto_ss.add(files('hmac-glib.c'))
++  endif
+ else
+   crypto_ss.add(files('hash-glib.c', 'hmac-glib.c', 'pbkdf-stub.c'))
+ endif
+diff --git a/crypto/tlscredsx509.c b/crypto/tlscredsx509.c
+index d9d6f4421e..bc503bab55 100644
+--- a/crypto/tlscredsx509.c
++++ b/crypto/tlscredsx509.c
+@@ -354,9 +354,11 @@ qcrypto_tls_creds_check_cert_pair(gnutls_x509_crt_t cert,
+             reason = "The certificate has been revoked";
+         }
+ 
++#ifndef GNUTLS_1_0_COMPAT
+         if (status & GNUTLS_CERT_INSECURE_ALGORITHM) {
+             reason = "The certificate uses an insecure algorithm";
+         }
++#endif
+ 
+         error_setg(errp,
+                    "Our own certificate %s failed validation against %s: %s",
+diff --git a/crypto/trace-events b/crypto/trace-events
+index bccd0bbf29..798b6067ab 100644
+--- a/crypto/trace-events
++++ b/crypto/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # tlscreds.c
+ qcrypto_tls_creds_load_dh(void *creds, const char *filename) "TLS creds load DH creds=%p filename=%s"
+diff --git a/docs/devel/lockcnt.txt b/docs/devel/lockcnt.txt
+index a3fb3bc5d8..2d85462fe3 100644
+--- a/docs/devel/lockcnt.txt
++++ b/docs/devel/lockcnt.txt
+@@ -145,7 +145,7 @@ can also be more efficient in two ways:
+ - on some platforms, one can implement QemuLockCnt to hold the lock
+   and the mutex in a single word, making the fast path no more expensive
+   than simply managing a counter using atomic operations (see
+-  docs/devel/atomics.rst).  This can be very helpful if concurrent access to
++  docs/devel/atomics.txt).  This can be very helpful if concurrent access to
+   the data structure is expected to be rare.
+ 
+ 
+diff --git a/docs/devel/secure-coding-practices.rst b/docs/devel/secure-coding-practices.rst
+index cbfc8af67e..0454cc527e 100644
+--- a/docs/devel/secure-coding-practices.rst
++++ b/docs/devel/secure-coding-practices.rst
+@@ -104,3 +104,12 @@ structures and only process the local copy.  This prevents
+ time-of-check-to-time-of-use (TOCTOU) race conditions that could cause QEMU to
+ crash when a vCPU thread modifies guest RAM while device emulation is
+ processing it.
++
++Use of null-co block drivers
++----------------------------
++
++The ``null-co`` block driver is designed for performance: its read accesses are
++not initialized by default. In case this driver has to be used for security
++research, it must be used with the ``read-zeroes=on`` option which fills read
++buffers with zeroes. Security issues reported with the default
++(``read-zeroes=off``) will be discarded.
+diff --git a/docs/devel/testing.rst b/docs/devel/testing.rst
+index 4e42392810..1da4c4e4c4 100644
+--- a/docs/devel/testing.rst
++++ b/docs/devel/testing.rst
+@@ -810,32 +810,6 @@ and hypothetical example follows:
+ At test "tear down", ``avocado_qemu.Test`` handles all the QEMUMachines
+ shutdown.
+ 
+-The ``avocado_qemu.LinuxTest`` base test class
+-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-
+-The ``avocado_qemu.LinuxTest`` is further specialization of the
+-``avocado_qemu.Test`` class, so it contains all the characteristics of
+-the later plus some extra features.
+-
+-First of all, this base class is intended for tests that need to
+-interact with a fully booted and operational Linux guest.  At this
+-time, it uses a Fedora 31 guest image.  The most basic example looks
+-like this:
+-
+-.. code::
+-
+-  from avocado_qemu import LinuxTest
+-
+-
+-  class SomeTest(LinuxTest):
+-
+-      def test(self):
+-          self.launch_and_wait()
+-          self.ssh_command('some_command_to_be_run_in_the_guest')
+-
+-Please refer to tests that use ``avocado_qemu.LinuxTest`` under
+-``tests/acceptance`` for more examples.
+-
+ QEMUMachine
+ ~~~~~~~~~~~
+ 
+diff --git a/hw/9pfs/trace-events b/hw/9pfs/trace-events
+index 6c77966c0b..10188daf7f 100644
+--- a/hw/9pfs/trace-events
++++ b/hw/9pfs/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # 9p.c
+ v9fs_rcancel(uint16_t tag, uint8_t id) "tag %d id %d"
+diff --git a/hw/acpi/tpm.c b/hw/acpi/tpm.c
+index cdc0227536..b96459e45b 100644
+--- a/hw/acpi/tpm.c
++++ b/hw/acpi/tpm.c
+@@ -57,7 +57,7 @@ void tpm_build_ppi_acpi(TPMIf *tpm, Aml *dev)
+                aml_operation_region(
+                    "TPP3", AML_SYSTEM_MEMORY,
+                    aml_int(TPM_PPI_ADDR_BASE +
+-                           0x15a /* movv, docs/specs/tpm.rst */),
++                           0x15a /* movv, docs/specs/tpm.txt */),
+                            0x1));
+     field = aml_field("TPP3", AML_BYTE_ACC, AML_NOLOCK, AML_PRESERVE);
+     aml_append(field, aml_named_field("MOVV", 8));
+diff --git a/hw/acpi/trace-events b/hw/acpi/trace-events
+index 974d770e8b..dcc1438f3a 100644
+--- a/hw/acpi/trace-events
++++ b/hw/acpi/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # memory_hotplug.c
+ mhp_acpi_invalid_slot_selected(uint32_t slot) "0x%"PRIx32
+diff --git a/hw/adc/trace-events b/hw/adc/trace-events
+index 456f21c8f4..4c3279ece2 100644
+--- a/hw/adc/trace-events
++++ b/hw/adc/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # npcm7xx_adc.c
+ npcm7xx_adc_read(const char *id, uint64_t offset, uint32_t value) " %s offset: 0x%04" PRIx64 " value 0x%04" PRIx32
+diff --git a/hw/alpha/trace-events b/hw/alpha/trace-events
+index 952a816407..5b8315f27f 100644
+--- a/hw/alpha/trace-events
++++ b/hw/alpha/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # pci.c
+ alpha_pci_iack_write(void) ""
+diff --git a/hw/arm/trace-events b/hw/arm/trace-events
+index 2dee296c8f..b79a91af5f 100644
+--- a/hw/arm/trace-events
++++ b/hw/arm/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # virt-acpi-build.c
+ virt_acpi_setup(void) "No fw cfg or ACPI disabled. Bailing out."
+diff --git a/hw/audio/trace-events b/hw/audio/trace-events
+index e0e71cd9b1..432e10712f 100644
+--- a/hw/audio/trace-events
++++ b/hw/audio/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # cs4231.c
+ cs4231_mem_readl_dreg(uint32_t reg, uint32_t ret) "read dreg %d: 0x%02x"
+diff --git a/hw/block/dataplane/trace-events b/hw/block/dataplane/trace-events
+index 38fc3e7507..843cc4e7b1 100644
+--- a/hw/block/dataplane/trace-events
++++ b/hw/block/dataplane/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # virtio-blk.c
+ virtio_blk_data_plane_start(void *s) "dataplane %p"
+diff --git a/hw/block/trace-events b/hw/block/trace-events
+index 70bed9ddb7..646917d045 100644
+--- a/hw/block/trace-events
++++ b/hw/block/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # fdc.c
+ fdc_ioport_read(uint8_t reg, uint8_t value) "read reg 0x%02x val 0x%02x"
+diff --git a/hw/char/trace-events b/hw/char/trace-events
+index 1436fb462d..2e6e6b119a 100644
+--- a/hw/char/trace-events
++++ b/hw/char/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # parallel.c
+ parallel_ioport_read(const char *desc, uint16_t addr, uint8_t value) "read [%s] addr 0x%02x val 0x%02x"
+diff --git a/hw/display/trace-events b/hw/display/trace-events
+index f03f6655bc..e47264af5d 100644
+--- a/hw/display/trace-events
++++ b/hw/display/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # jazz_led.c
+ jazz_led_read(uint64_t addr, uint8_t val) "read addr=0x%"PRIx64": 0x%x"
+diff --git a/hw/dma/trace-events b/hw/dma/trace-events
+index 3c47df54e4..44893995f6 100644
+--- a/hw/dma/trace-events
++++ b/hw/dma/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # rc4030.c
+ jazzio_read(uint64_t addr, uint32_t ret) "read reg[0x%"PRIx64"] = 0x%x"
+diff --git a/hw/gpio/trace-events b/hw/gpio/trace-events
+index f0b664158e..46ab9323bd 100644
+--- a/hw/gpio/trace-events
++++ b/hw/gpio/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # npcm7xx_gpio.c
+ npcm7xx_gpio_read(const char *id, uint64_t offset, uint64_t value) " %s offset: 0x%04" PRIx64 " value 0x%08" PRIx64
+diff --git a/hw/hppa/trace-events b/hw/hppa/trace-events
+index 3f42be9056..3ff620319a 100644
+--- a/hw/hppa/trace-events
++++ b/hw/hppa/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # pci.c
+ hppa_pci_iack_write(void) ""
+diff --git a/hw/i2c/trace-events b/hw/i2c/trace-events
+index 7d8907c1ee..82f19e6a2d 100644
+--- a/hw/i2c/trace-events
++++ b/hw/i2c/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # core.c
+ 
+diff --git a/hw/i386/trace-events b/hw/i386/trace-events
+index 5bf7e52bf5..e48bef2b0d 100644
+--- a/hw/i386/trace-events
++++ b/hw/i386/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # x86-iommu.c
+ x86_iommu_iec_notify(bool global, uint32_t index, uint32_t mask) "Notify IEC invalidation: global=%d index=%" PRIu32 " mask=%" PRIu32
+diff --git a/hw/i386/xen/trace-events b/hw/i386/xen/trace-events
+index 5d6be61090..ca3a4948ba 100644
+--- a/hw/i386/xen/trace-events
++++ b/hw/i386/xen/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # xen_platform.c
+ xen_platform_log(char *s) "xen platform: %s"
+diff --git a/hw/ide/trace-events b/hw/ide/trace-events
+index 15d7921f15..6e357685f9 100644
+--- a/hw/ide/trace-events
++++ b/hw/ide/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # core.c
+ # portio
+diff --git a/hw/input/trace-events b/hw/input/trace-events
+index e0bfe7f3ee..109bdf7a18 100644
+--- a/hw/input/trace-events
++++ b/hw/input/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # adb-kbd.c
+ adb_device_kbd_no_key(void) "Ignoring NO_KEY"
+diff --git a/hw/intc/trace-events b/hw/intc/trace-events
+index e56e7dd3b6..626bb554b2 100644
+--- a/hw/intc/trace-events
++++ b/hw/intc/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # i8259.c
+ pic_update_irq(bool master, uint8_t imr, uint8_t irr, uint8_t padd) "master %d imr %"PRIu8" irr %"PRIu8" padd %"PRIu8
+diff --git a/hw/isa/trace-events b/hw/isa/trace-events
+index b8f877e1ed..641d69eedf 100644
+--- a/hw/isa/trace-events
++++ b/hw/isa/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # isa-superio.c
+ superio_create_parallel(int id, uint16_t base, unsigned int irq) "id=%d, base 0x%03x, irq %u"
+diff --git a/hw/mem/trace-events b/hw/mem/trace-events
+index 8b6b02b5bf..9f6b52acd7 100644
+--- a/hw/mem/trace-events
++++ b/hw/mem/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # pc-dimm.c
+ mhp_pc_dimm_assigned_slot(int slot) "%d"
+diff --git a/hw/misc/macio/trace-events b/hw/misc/macio/trace-events
+index ad4b9d1c08..e4a1cc0d24 100644
+--- a/hw/misc/macio/trace-events
++++ b/hw/misc/macio/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # cuda.c
+ cuda_delay_set_sr_int(void) ""
+diff --git a/hw/misc/trace-events b/hw/misc/trace-events
+index ede413965b..0752217636 100644
+--- a/hw/misc/trace-events
++++ b/hw/misc/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # allwinner-cpucfg.c
+ allwinner_cpucfg_cpu_reset(uint8_t cpu_id, uint32_t reset_addr) "id %u, reset_addr 0x%" PRIu32
+diff --git a/hw/net/trace-events b/hw/net/trace-events
+index c28b91ee1a..1704bb0664 100644
+--- a/hw/net/trace-events
++++ b/hw/net/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # allwinner-sun8i-emac.c
+ allwinner_sun8i_emac_mii_write_reg(uint32_t reg, uint32_t value) "MII write: reg=0x%" PRIx32 " value=0x%" PRIx32
+diff --git a/hw/nvram/trace-events b/hw/nvram/trace-events
+index 5e33b24d47..e023193295 100644
+--- a/hw/nvram/trace-events
++++ b/hw/nvram/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # ds1225y.c
+ nvram_read(uint32_t addr, uint32_t ret) "read addr %d: 0x%02x"
+diff --git a/hw/pci-host/trace-events b/hw/pci-host/trace-events
+index f4b3a50cb0..dac86ad3f0 100644
+--- a/hw/pci-host/trace-events
++++ b/hw/pci-host/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # grackle.c
+ grackle_set_irq(int irq_num, int level) "set_irq num %d level %d"
+diff --git a/hw/pci/trace-events b/hw/pci/trace-events
+index fc777d0b5e..def4b3926d 100644
+--- a/hw/pci/trace-events
++++ b/hw/pci/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # pci.c
+ pci_update_mappings_del(void *d, uint32_t bus, uint32_t slot, uint32_t func, int bar, uint64_t addr, uint64_t size) "d=%p %02x:%02x.%x %d,0x%"PRIx64"+0x%"PRIx64
+diff --git a/hw/ppc/trace-events b/hw/ppc/trace-events
+index 0ba3e40353..b4bbfbb013 100644
+--- a/hw/ppc/trace-events
++++ b/hw/ppc/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # spapr_pci.c
+ spapr_pci_msi(const char *msg, uint32_t ca) "%s (cfg=0x%x)"
+diff --git a/hw/rdma/trace-events b/hw/rdma/trace-events
+index 9accb14973..2022a820cb 100644
+--- a/hw/rdma/trace-events
++++ b/hw/rdma/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # rdma_backend.c
+ rdma_check_dev_attr(const char *name, int max_bk, int max_fe) "%s: be=%d, fe=%d"
+diff --git a/hw/rdma/vmw/trace-events b/hw/rdma/vmw/trace-events
+index a6c77e1e10..323fca8456 100644
+--- a/hw/rdma/vmw/trace-events
++++ b/hw/rdma/vmw/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # pvrdma_main.c
+ pvrdma_regs_read(uint64_t addr, uint64_t val) "pvrdma.regs[0x%"PRIx64"]=0x%"PRIx64
+diff --git a/hw/rtc/trace-events b/hw/rtc/trace-events
+index ebb311a5b0..8bdcf74264 100644
+--- a/hw/rtc/trace-events
++++ b/hw/rtc/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # allwinner-rtc.c
+ allwinner_rtc_read(uint64_t addr, uint64_t value) "addr 0x%" PRIx64 " value 0x%" PRIx64
+diff --git a/hw/s390x/trace-events b/hw/s390x/trace-events
+index 8b9213eab9..8156693749 100644
+--- a/hw/s390x/trace-events
++++ b/hw/s390x/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # css.c
+ css_enable_facility(const char *facility) "CSS: enable %s"
+diff --git a/hw/scsi/trace-events b/hw/scsi/trace-events
+index 1a27e141ae..1c331fb189 100644
+--- a/hw/scsi/trace-events
++++ b/hw/scsi/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # scsi-bus.c
+ scsi_req_alloc(int target, int lun, int tag) "target %d lun %d tag %d"
+diff --git a/hw/sd/trace-events b/hw/sd/trace-events
+index 3cc2ef89ba..e185d07a1d 100644
+--- a/hw/sd/trace-events
++++ b/hw/sd/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # allwinner-sdhost.c
+ allwinner_sdhost_set_inserted(bool inserted) "inserted %u"
+diff --git a/hw/sparc/trace-events b/hw/sparc/trace-events
+index 00b0212c3b..d3a30a816a 100644
+--- a/hw/sparc/trace-events
++++ b/hw/sparc/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # sun4m.c
+ sun4m_cpu_set_irq_raise(int level) "Raise CPU IRQ %d"
+diff --git a/hw/sparc64/trace-events b/hw/sparc64/trace-events
+index 3eb4bacf79..b85d14c30c 100644
+--- a/hw/sparc64/trace-events
++++ b/hw/sparc64/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # sun4u.c
+ ebus_isa_irq_handler(int n, int level) "Set ISA IRQ %d level %d"
+diff --git a/hw/timer/trace-events b/hw/timer/trace-events
+index 5234c0ea9e..029fb56280 100644
+--- a/hw/timer/trace-events
++++ b/hw/timer/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # slavio_timer.c
+ slavio_timer_get_out(uint64_t limit, uint32_t counthigh, uint32_t count) "limit 0x%"PRIx64" count 0x%x0x%08x"
+diff --git a/hw/tpm/tpm_ppi.c b/hw/tpm/tpm_ppi.c
+index 362edcc5c9..72d7a3d926 100644
+--- a/hw/tpm/tpm_ppi.c
++++ b/hw/tpm/tpm_ppi.c
+@@ -23,7 +23,7 @@
+ 
+ void tpm_ppi_reset(TPMPPI *tpmppi)
+ {
+-    if (tpmppi->buf[0x15a /* movv, docs/specs/tpm.rst */] & 0x1) {
++    if (tpmppi->buf[0x15a /* movv, docs/specs/tpm.txt */] & 0x1) {
+         GuestPhysBlockList guest_phys_blocks;
+         GuestPhysBlock *block;
+ 
+diff --git a/hw/tpm/trace-events b/hw/tpm/trace-events
+index f17110458e..6005ecb5da 100644
+--- a/hw/tpm/trace-events
++++ b/hw/tpm/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # tpm_crb.c
+ tpm_crb_mmio_read(uint64_t addr, unsigned size, uint32_t val) "CRB read 0x%016" PRIx64 " len:%u val: 0x%" PRIx32
+diff --git a/hw/usb/trace-events b/hw/usb/trace-events
+index b8287b63f1..38e05fc7f4 100644
+--- a/hw/usb/trace-events
++++ b/hw/usb/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # core.c
+ usb_packet_state_change(int bus, const char *port, int ep, void *p, const char *o, const char *n) "bus %d, port %s, ep %d, packet %p, state %s -> %s"
+diff --git a/hw/vfio/trace-events b/hw/vfio/trace-events
+index 0ef1b5f4a6..079f53acf2 100644
+--- a/hw/vfio/trace-events
++++ b/hw/vfio/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # pci.c
+ vfio_intx_interrupt(const char *name, char line) " (%s) Pin %c"
+diff --git a/hw/virtio/trace-events b/hw/virtio/trace-events
+index 8ed19e9d0c..c62727f879 100644
+--- a/hw/virtio/trace-events
++++ b/hw/virtio/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # vhost.c
+ vhost_commit(bool started, bool changed) "Started: %d Changed: %d"
+diff --git a/hw/watchdog/trace-events b/hw/watchdog/trace-events
+index c3bafbffa9..3124ca1f1b 100644
+--- a/hw/watchdog/trace-events
++++ b/hw/watchdog/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # cmsdk-apb-watchdog.c
+ cmsdk_apb_watchdog_read(uint64_t offset, uint64_t data, unsigned size) "CMSDK APB watchdog read: offset 0x%" PRIx64 " data 0x%" PRIx64 " size %u"
+diff --git a/hw/xen/trace-events b/hw/xen/trace-events
+index 3da3fd8348..e6885bc751 100644
+--- a/hw/xen/trace-events
++++ b/hw/xen/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # ../../include/hw/xen/xen_common.h
+ xen_default_ioreq_server(void) ""
+diff --git a/include/block/block.h b/include/block/block.h
+index 82185965ff..8e707a83b7 100644
+--- a/include/block/block.h
++++ b/include/block/block.h
+@@ -701,6 +701,7 @@ bool bdrv_child_can_set_aio_context(BdrvChild *c, AioContext *ctx,
+ bool bdrv_can_set_aio_context(BlockDriverState *bs, AioContext *ctx,
+                               GSList **ignore, Error **errp);
+ AioContext *bdrv_child_get_parent_aio_context(BdrvChild *c);
++AioContext *child_of_bds_get_parent_aio_context(BdrvChild *c);
+ 
+ int bdrv_probe_blocksizes(BlockDriverState *bs, BlockSizes *bsz);
+ int bdrv_probe_geometry(BlockDriverState *bs, HDGeometry *geo);
+diff --git a/include/block/block_int.h b/include/block/block_int.h
+index b2c8b09d0f..057d88b1fc 100644
+--- a/include/block/block_int.h
++++ b/include/block/block_int.h
+@@ -843,7 +843,6 @@ struct BlockDriverState {
+      * locking needed during I/O...
+      */
+     int open_flags; /* flags used to open the file, re-used for re-open */
+-    bool read_only; /* if true, the media is read only */
+     bool encrypted; /* if true, the media is encrypted */
+     bool sg;        /* if true, the device is a /dev/sg* */
+     bool probed;    /* if true, format was probed rather than specified */
+@@ -1008,7 +1007,6 @@ struct BlockDriverState {
+ 
+ struct BlockBackendRootState {
+     int open_flags;
+-    bool read_only;
+     BlockdevDetectZeroesOptions detect_zeroes;
+ };
+ 
+diff --git a/include/glib-compat.h b/include/glib-compat.h
+index 9e95c888f5..4542e920d5 100644
+--- a/include/glib-compat.h
++++ b/include/glib-compat.h
+@@ -19,12 +19,12 @@
+ /* Ask for warnings for anything that was marked deprecated in
+  * the defined version, or before. It is a candidate for rewrite.
+  */
+-#define GLIB_VERSION_MIN_REQUIRED GLIB_VERSION_2_56
++#define GLIB_VERSION_MIN_REQUIRED GLIB_VERSION_2_48
+ 
+ /* Ask for warnings if code tries to use function that did not
+  * exist in the defined version. These risk breaking builds
+  */
+-#define GLIB_VERSION_MAX_ALLOWED GLIB_VERSION_2_56
++#define GLIB_VERSION_MAX_ALLOWED GLIB_VERSION_2_48
+ 
+ #pragma GCC diagnostic push
+ #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+@@ -68,6 +68,15 @@
+  * without generating warnings.
+  */
+ 
++#if defined(_WIN32) && !GLIB_CHECK_VERSION(2, 50, 0)
++/*
++ * g_poll has a problem on Windows when using
++ * timeouts < 10ms, so use wrapper.
++ */
++#define g_poll(fds, nfds, timeout) g_poll_fixed(fds, nfds, timeout)
++gint g_poll_fixed(GPollFD *fds, guint nfds, gint timeout);
++#endif
++
+ #if defined(G_OS_UNIX)
+ /*
+  * Note: The fallback implementation is not MT-safe, and it returns a copy of
+diff --git a/include/qemu/atomic.h b/include/qemu/atomic.h
+index 3ccf84fd46..8f4b3a80fb 100644
+--- a/include/qemu/atomic.h
++++ b/include/qemu/atomic.h
+@@ -8,7 +8,7 @@
+  * This work is licensed under the terms of the GNU GPL, version 2 or later.
+  * See the COPYING file in the top-level directory.
+  *
+- * See docs/devel/atomics.rst for discussion about the guarantees each
++ * See docs/devel/atomics.txt for discussion about the guarantees each
+  * atomic primitive is meant to provide.
+  */
+ 
+@@ -432,7 +432,7 @@
+  * sequentially consistent operations.
+  *
+  * As long as they are used as paired operations they are safe to
+- * use. See docs/devel/atomics.rst for more discussion.
++ * use. See docs/devel/atomics.txt for more discussion.
+  */
+ 
+ #ifndef qatomic_mb_read
+diff --git a/include/qemu/atomic128.h b/include/qemu/atomic128.h
+index adb9a1a260..ad2bcf45b4 100644
+--- a/include/qemu/atomic128.h
++++ b/include/qemu/atomic128.h
+@@ -6,7 +6,7 @@
+  * This work is licensed under the terms of the GNU GPL, version 2 or later.
+  * See the COPYING file in the top-level directory.
+  *
+- * See docs/devel/atomics.rst for discussion about the guarantees each
++ * See docs/devel/atomics.txt for discussion about the guarantees each
+  * atomic primitive is meant to provide.
+  */
+ 
+diff --git a/include/sysemu/block-backend.h b/include/sysemu/block-backend.h
+index 880e903293..5423e3d9c6 100644
+--- a/include/sysemu/block-backend.h
++++ b/include/sysemu/block-backend.h
+@@ -66,6 +66,10 @@ typedef struct BlockDevOps {
+      * Runs when the backend's last drain request ends.
+      */
+     void (*drained_end)(void *opaque);
++    /*
++     * Is the device still busy?
++     */
++    bool (*drained_poll)(void *opaque);
+ } BlockDevOps;
+ 
+ /* This struct is embedded in (the private) BlockBackend struct and contains
+diff --git a/io/trace-events b/io/trace-events
+index c5e814eb44..d7bc70b966 100644
+--- a/io/trace-events
++++ b/io/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # task.c
+ qio_task_new(void *task, void *source, void *func, void *opaque) "Task new task=%p source=%p func=%p opaque=%p"
+diff --git a/linux-user/trace-events b/linux-user/trace-events
+index 1ec0d11ee3..0296133dae 100644
+--- a/linux-user/trace-events
++++ b/linux-user/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # signal.c
+ signal_table_init(int i) "number of unavailable signals: %d"
+diff --git a/migration/trace-events b/migration/trace-events
+index 860c4f4025..668c562fed 100644
+--- a/migration/trace-events
++++ b/migration/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # savevm.c
+ qemu_loadvm_state_section(unsigned int section_type) "%d"
+diff --git a/monitor/trace-events b/monitor/trace-events
+index 032d1220e1..348dcfca9b 100644
+--- a/monitor/trace-events
++++ b/monitor/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # hmp.c
+ handle_hmp_command(void *mon, const char *cmdline) "mon %p cmdline: %s"
+diff --git a/nbd/server.c b/nbd/server.c
+index 86a44a9b41..b60ebc3ab6 100644
+--- a/nbd/server.c
++++ b/nbd/server.c
+@@ -1513,6 +1513,11 @@ static void nbd_request_put(NBDRequestData *req)
+     g_free(req);
+ 
+     client->nb_requests--;
++
++    if (client->quiescing && client->nb_requests == 0) {
++        aio_wait_kick();
++    }
++
+     nbd_client_receive_next_request(client);
+ 
+     nbd_client_put(client);
+@@ -1530,49 +1535,68 @@ static void blk_aio_attached(AioContext *ctx, void *opaque)
+     QTAILQ_FOREACH(client, &exp->clients, next) {
+         qio_channel_attach_aio_context(client->ioc, ctx);
+ 
++        assert(client->nb_requests == 0);
+         assert(client->recv_coroutine == NULL);
+         assert(client->send_coroutine == NULL);
+-
+-        if (client->quiescing) {
+-            client->quiescing = false;
+-            nbd_client_receive_next_request(client);
+-        }
+     }
+ }
+ 
+-static void nbd_aio_detach_bh(void *opaque)
++static void blk_aio_detach(void *opaque)
+ {
+     NBDExport *exp = opaque;
+     NBDClient *client;
+ 
++    trace_nbd_blk_aio_detach(exp->name, exp->common.ctx);
++
+     QTAILQ_FOREACH(client, &exp->clients, next) {
+         qio_channel_detach_aio_context(client->ioc);
++    }
++
++    exp->common.ctx = NULL;
++}
++
++static void nbd_drained_begin(void *opaque)
++{
++    NBDExport *exp = opaque;
++    NBDClient *client;
++
++    QTAILQ_FOREACH(client, &exp->clients, next) {
+         client->quiescing = true;
++    }
++}
+ 
+-        if (client->recv_coroutine) {
+-            if (client->read_yielding) {
+-                qemu_aio_coroutine_enter(exp->common.ctx,
+-                                         client->recv_coroutine);
+-            } else {
+-                AIO_WAIT_WHILE(exp->common.ctx, client->recv_coroutine != NULL);
+-            }
+-        }
++static void nbd_drained_end(void *opaque)
++{
++    NBDExport *exp = opaque;
++    NBDClient *client;
+ 
+-        if (client->send_coroutine) {
+-            AIO_WAIT_WHILE(exp->common.ctx, client->send_coroutine != NULL);
+-        }
++    QTAILQ_FOREACH(client, &exp->clients, next) {
++        client->quiescing = false;
++        nbd_client_receive_next_request(client);
+     }
+ }
+ 
+-static void blk_aio_detach(void *opaque)
++static bool nbd_drained_poll(void *opaque)
+ {
+     NBDExport *exp = opaque;
++    NBDClient *client;
+ 
+-    trace_nbd_blk_aio_detach(exp->name, exp->common.ctx);
++    QTAILQ_FOREACH(client, &exp->clients, next) {
++        if (client->nb_requests != 0) {
++            /*
++             * If there's a coroutine waiting for a request on nbd_read_eof()
++             * enter it here so we don't depend on the client to wake it up.
++             */
++            if (client->recv_coroutine != NULL && client->read_yielding) {
++                qemu_aio_coroutine_enter(exp->common.ctx,
++                                         client->recv_coroutine);
++            }
+ 
+-    aio_wait_bh_oneshot(exp->common.ctx, nbd_aio_detach_bh, exp);
++            return true;
++        }
++    }
+ 
+-    exp->common.ctx = NULL;
++    return false;
+ }
+ 
+ static void nbd_eject_notifier(Notifier *n, void *data)
+@@ -1594,6 +1618,12 @@ void nbd_export_set_on_eject_blk(BlockExport *exp, BlockBackend *blk)
+     blk_add_remove_bs_notifier(blk, &nbd_exp->eject_notifier);
+ }
+ 
++static const BlockDevOps nbd_block_ops = {
++    .drained_begin = nbd_drained_begin,
++    .drained_end = nbd_drained_end,
++    .drained_poll = nbd_drained_poll,
++};
++
+ static int nbd_export_create(BlockExport *blk_exp, BlockExportOptions *exp_args,
+                              Error **errp)
+ {
+@@ -1715,8 +1745,17 @@ static int nbd_export_create(BlockExport *blk_exp, BlockExportOptions *exp_args,
+ 
+     exp->allocation_depth = arg->allocation_depth;
+ 
++    /*
++     * We need to inhibit request queuing in the block layer to ensure we can
++     * be properly quiesced when entering a drained section, as our coroutines
++     * servicing pending requests might enter blk_pread().
++     */
++    blk_set_disable_request_queuing(blk, true);
++
+     blk_add_aio_context_notifier(blk, blk_aio_attached, blk_aio_detach, exp);
+ 
++    blk_set_dev_ops(blk, &nbd_block_ops, exp);
++
+     QTAILQ_INSERT_TAIL(&exports, exp, next);
+ 
+     return 0;
+@@ -1788,6 +1827,7 @@ static void nbd_export_delete(BlockExport *blk_exp)
+         }
+         blk_remove_aio_context_notifier(exp->common.blk, blk_aio_attached,
+                                         blk_aio_detach, exp);
++        blk_set_disable_request_queuing(exp->common.blk, false);
+     }
+ 
+     for (i = 0; i < exp->nr_export_bitmaps; i++) {
+diff --git a/nbd/trace-events b/nbd/trace-events
+index c4919a2dd5..a955918e97 100644
+--- a/nbd/trace-events
++++ b/nbd/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # client.c
+ nbd_send_option_request(uint32_t opt, const char *name, uint32_t len) "Sending option request %" PRIu32" (%s), len %" PRIu32
+diff --git a/net/trace-events b/net/trace-events
+index d7a17256cc..bfaff7891d 100644
+--- a/net/trace-events
++++ b/net/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # announce.c
+ qemu_announce_self_iter(const char *id, const char *name, const char *mac, int skip) "%s:%s:%s skip: %d"
+diff --git a/pc-bios/s390-ccw/dasd-ipl.c b/pc-bios/s390-ccw/dasd-ipl.c
+index 254bb1a15e..71cbae2f16 100644
+--- a/pc-bios/s390-ccw/dasd-ipl.c
++++ b/pc-bios/s390-ccw/dasd-ipl.c
+@@ -205,7 +205,7 @@ static void run_ipl2(SubChannelId schid, uint16_t cutype, uint32_t addr)
+ 
+ /*
+  * Limitations in vfio-ccw support complicate the IPL process. Details can
+- * be found in docs/devel/s390-dasd-ipl.rst
++ * be found in docs/devel/s390-dasd-ipl.txt
+  */
+ void dasd_ipl(SubChannelId schid, uint16_t cutype)
+ {
+diff --git a/python/.gitignore b/python/.gitignore
+deleted file mode 100644
+index 272ed223a8..0000000000
+--- a/python/.gitignore
++++ /dev/null
+@@ -1,16 +0,0 @@
+-# linter/tooling cache
+-.mypy_cache/
+-.cache/
+-
+-# python packaging
+-build/
+-dist/
+-qemu.egg-info/
+-
+-# editor config
+-.idea/
+-.vscode/
+-
+-# virtual environments (pipenv et al)
+-.venv/
+-.tox/
+diff --git a/python/MANIFEST.in b/python/MANIFEST.in
+deleted file mode 100644
+index 7059ad2822..0000000000
+--- a/python/MANIFEST.in
++++ /dev/null
+@@ -1,3 +0,0 @@
+-include VERSION
+-include PACKAGE.rst
+-exclude README.rst
+diff --git a/python/Makefile b/python/Makefile
+deleted file mode 100644
+index b5621b0d54..0000000000
+--- a/python/Makefile
++++ /dev/null
+@@ -1,48 +0,0 @@
+-.PHONY: help venv venv-check check clean distclean develop
+-
+-help:
+-	@echo "python packaging help:"
+-	@echo ""
+-	@echo "make venv:       Create pipenv's virtual environment."
+-	@echo "    NOTE: Requires Python 3.6 and pipenv."
+-	@echo "          Will download packages from PyPI."
+-	@echo "    Hint: (On Fedora): 'sudo dnf install python36 pipenv'"
+-	@echo ""
+-	@echo "make venv-check: run linters using pipenv's virtual environment."
+-	@echo "    Hint: If you don't know which test to run, run this one!"
+-	@echo ""
+-	@echo "make develop:    Install deps for 'make check', and"
+-	@echo "                 the qemu libs in editable/development mode."
+-	@echo ""
+-	@echo "make check:      run linters using the current environment."
+-	@echo ""
+-	@echo "make check-tox:  run linters using multiple python versions."
+-	@echo ""
+-	@echo "make clean:      remove package build output."
+-	@echo ""
+-	@echo "make distclean:  remove venv files, qemu package forwarder,"
+-	@echo "                 built distribution files, and everything"
+-	@echo "                 from 'make clean'."
+-
+-venv: .venv
+-.venv: Pipfile.lock
+-	@PIPENV_VENV_IN_PROJECT=1 pipenv sync --dev --keep-outdated
+-	@touch .venv
+-
+-venv-check: venv
+-	@pipenv run make check
+-
+-develop:
+-	pip3 install -e .[devel]
+-
+-check:
+-	@avocado --config avocado.cfg run tests/
+-
+-check-tox:
+-	@tox
+-
+-clean:
+-	python3 setup.py clean --all
+-
+-distclean: clean
+-	rm -rf qemu.egg-info/ .venv/ .tox/ dist/
+diff --git a/python/PACKAGE.rst b/python/PACKAGE.rst
+deleted file mode 100644
+index b0b86cc4c3..0000000000
+--- a/python/PACKAGE.rst
++++ /dev/null
+@@ -1,43 +0,0 @@
+-QEMU Python Tooling
+-===================
+-
+-This package provides QEMU tooling used by the QEMU project to build,
+-configure, and test QEMU. It is not a fully-fledged SDK and it is subject
+-to change at any time.
+-
+-Usage
+------
+-
+-The ``qemu.qmp`` subpackage provides a library for communicating with
+-QMP servers. The ``qemu.machine`` subpackage offers rudimentary
+-facilities for launching and managing QEMU processes. Refer to each
+-package's documentation
+-(``>>> help(qemu.qmp)``, ``>>> help(qemu.machine)``)
+-for more information.
+-
+-Contributing
+-------------
+-
+-This package is maintained by John Snow <jsnow@redhat.com> as part of
+-the QEMU source tree. Contributions are welcome and follow the `QEMU
+-patch submission process
+-<https://wiki.qemu.org/Contribute/SubmitAPatch>`_, which involves
+-sending patches to the QEMU development mailing list.
+-
+-John maintains a `GitLab staging branch
+-<https://gitlab.com/jsnow/qemu/-/tree/python>`_, and there is an
+-official `GitLab mirror <https://gitlab.com/qemu-project/qemu>`_.
+-
+-Please report bugs on the `QEMU issue tracker
+-<https://gitlab.com/qemu-project/qemu/-/issues>`_ and tag ``@jsnow`` in
+-the report.
+-
+-Optional packages necessary for running code quality analysis for this
+-package can be installed with the optional dependency group "devel":
+-``pip install qemu[devel]``.
+-
+-``make develop`` can be used to install this package in editable mode
+-(to the current environment) *and* bring in testing dependencies in one
+-command.
+-
+-``make check`` can be used to run the available tests.
+diff --git a/python/Pipfile b/python/Pipfile
+deleted file mode 100644
+index e7acb8cefa..0000000000
+--- a/python/Pipfile
++++ /dev/null
+@@ -1,13 +0,0 @@
+-[[source]]
+-name = "pypi"
+-url = "https://pypi.org/simple"
+-verify_ssl = true
+-
+-[dev-packages]
+-qemu = {editable = true, extras = ["devel"], path = "."}
+-
+-[packages]
+-qemu = {editable = true,path = "."}
+-
+-[requires]
+-python_version = "3.6"
+diff --git a/python/Pipfile.lock b/python/Pipfile.lock
+deleted file mode 100644
+index 6e344f5fad..0000000000
+--- a/python/Pipfile.lock
++++ /dev/null
+@@ -1,231 +0,0 @@
+-{
+-    "_meta": {
+-        "hash": {
+-            "sha256": "eff562a688ebc6f3ffe67494dbb804b883e2159ad81c4d55d96da9f7aec13e91"
+-        },
+-        "pipfile-spec": 6,
+-        "requires": {
+-            "python_version": "3.6"
+-        },
+-        "sources": [
+-            {
+-                "name": "pypi",
+-                "url": "https://pypi.org/simple",
+-                "verify_ssl": true
+-            }
+-        ]
+-    },
+-    "default": {
+-        "qemu": {
+-            "editable": true,
+-            "path": "."
+-        }
+-    },
+-    "develop": {
+-        "astroid": {
+-            "hashes": [
+-                "sha256:4db03ab5fc3340cf619dbc25e42c2cc3755154ce6009469766d7143d1fc2ee4e",
+-                "sha256:8a398dfce302c13f14bab13e2b14fe385d32b73f4e4853b9bdfb64598baa1975"
+-            ],
+-            "markers": "python_version ~= '3.6'",
+-            "version": "==2.5.6"
+-        },
+-        "avocado-framework": {
+-            "hashes": [
+-                "sha256:42aa7962df98d6b78d4efd9afa2177226dc630f3d83a2a7d5baf7a0a7da7fa1b",
+-                "sha256:d96ae343abf890e1ef3b3a6af5ce49e35f6bded0715770c4acb325bca555c515"
+-            ],
+-            "markers": "python_version >= '3.6'",
+-            "version": "==88.1"
+-        },
+-        "flake8": {
+-            "hashes": [
+-                "sha256:07528381786f2a6237b061f6e96610a4167b226cb926e2aa2b6b1d78057c576b",
+-                "sha256:bf8fd333346d844f616e8d47905ef3a3384edae6b4e9beb0c5101e25e3110907"
+-            ],
+-            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'",
+-            "version": "==3.9.2"
+-        },
+-        "importlib-metadata": {
+-            "hashes": [
+-                "sha256:8c501196e49fb9df5df43833bdb1e4328f64847763ec8a50703148b73784d581",
+-                "sha256:d7eb1dea6d6a6086f8be21784cc9e3bcfa55872b52309bc5fad53a8ea444465d"
+-            ],
+-            "markers": "python_version < '3.8'",
+-            "version": "==4.0.1"
+-        },
+-        "isort": {
+-            "hashes": [
+-                "sha256:0a943902919f65c5684ac4e0154b1ad4fac6dcaa5d9f3426b732f1c8b5419be6",
+-                "sha256:2bb1680aad211e3c9944dbce1d4ba09a989f04e238296c87fe2139faa26d655d"
+-            ],
+-            "markers": "python_version >= '3.6' and python_version < '4.0'",
+-            "version": "==5.8.0"
+-        },
+-        "lazy-object-proxy": {
+-            "hashes": [
+-                "sha256:17e0967ba374fc24141738c69736da90e94419338fd4c7c7bef01ee26b339653",
+-                "sha256:1fee665d2638491f4d6e55bd483e15ef21f6c8c2095f235fef72601021e64f61",
+-                "sha256:22ddd618cefe54305df49e4c069fa65715be4ad0e78e8d252a33debf00f6ede2",
+-                "sha256:24a5045889cc2729033b3e604d496c2b6f588c754f7a62027ad4437a7ecc4837",
+-                "sha256:410283732af311b51b837894fa2f24f2c0039aa7f220135192b38fcc42bd43d3",
+-                "sha256:4732c765372bd78a2d6b2150a6e99d00a78ec963375f236979c0626b97ed8e43",
+-                "sha256:489000d368377571c6f982fba6497f2aa13c6d1facc40660963da62f5c379726",
+-                "sha256:4f60460e9f1eb632584c9685bccea152f4ac2130e299784dbaf9fae9f49891b3",
+-                "sha256:5743a5ab42ae40caa8421b320ebf3a998f89c85cdc8376d6b2e00bd12bd1b587",
+-                "sha256:85fb7608121fd5621cc4377a8961d0b32ccf84a7285b4f1d21988b2eae2868e8",
+-                "sha256:9698110e36e2df951c7c36b6729e96429c9c32b3331989ef19976592c5f3c77a",
+-                "sha256:9d397bf41caad3f489e10774667310d73cb9c4258e9aed94b9ec734b34b495fd",
+-                "sha256:b579f8acbf2bdd9ea200b1d5dea36abd93cabf56cf626ab9c744a432e15c815f",
+-                "sha256:b865b01a2e7f96db0c5d12cfea590f98d8c5ba64ad222300d93ce6ff9138bcad",
+-                "sha256:bf34e368e8dd976423396555078def5cfc3039ebc6fc06d1ae2c5a65eebbcde4",
+-                "sha256:c6938967f8528b3668622a9ed3b31d145fab161a32f5891ea7b84f6b790be05b",
+-                "sha256:d1c2676e3d840852a2de7c7d5d76407c772927addff8d742b9808fe0afccebdf",
+-                "sha256:d7124f52f3bd259f510651450e18e0fd081ed82f3c08541dffc7b94b883aa981",
+-                "sha256:d900d949b707778696fdf01036f58c9876a0d8bfe116e8d220cfd4b15f14e741",
+-                "sha256:ebfd274dcd5133e0afae738e6d9da4323c3eb021b3e13052d8cbd0e457b1256e",
+-                "sha256:ed361bb83436f117f9917d282a456f9e5009ea12fd6de8742d1a4752c3017e93",
+-                "sha256:f5144c75445ae3ca2057faac03fda5a902eff196702b0a24daf1d6ce0650514b"
+-            ],
+-            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4, 3.5'",
+-            "version": "==1.6.0"
+-        },
+-        "mccabe": {
+-            "hashes": [
+-                "sha256:ab8a6258860da4b6677da4bd2fe5dc2c659cff31b3ee4f7f5d64e79735b80d42",
+-                "sha256:dd8d182285a0fe56bace7f45b5e7d1a6ebcbf524e8f3bd87eb0f125271b8831f"
+-            ],
+-            "version": "==0.6.1"
+-        },
+-        "mypy": {
+-            "hashes": [
+-                "sha256:0d0a87c0e7e3a9becdfbe936c981d32e5ee0ccda3e0f07e1ef2c3d1a817cf73e",
+-                "sha256:25adde9b862f8f9aac9d2d11971f226bd4c8fbaa89fb76bdadb267ef22d10064",
+-                "sha256:28fb5479c494b1bab244620685e2eb3c3f988d71fd5d64cc753195e8ed53df7c",
+-                "sha256:2f9b3407c58347a452fc0736861593e105139b905cca7d097e413453a1d650b4",
+-                "sha256:33f159443db0829d16f0a8d83d94df3109bb6dd801975fe86bacb9bf71628e97",
+-                "sha256:3f2aca7f68580dc2508289c729bd49ee929a436208d2b2b6aab15745a70a57df",
+-                "sha256:499c798053cdebcaa916eef8cd733e5584b5909f789de856b482cd7d069bdad8",
+-                "sha256:4eec37370483331d13514c3f55f446fc5248d6373e7029a29ecb7b7494851e7a",
+-                "sha256:552a815579aa1e995f39fd05dde6cd378e191b063f031f2acfe73ce9fb7f9e56",
+-                "sha256:5873888fff1c7cf5b71efbe80e0e73153fe9212fafdf8e44adfe4c20ec9f82d7",
+-                "sha256:61a3d5b97955422964be6b3baf05ff2ce7f26f52c85dd88db11d5e03e146a3a6",
+-                "sha256:674e822aa665b9fd75130c6c5f5ed9564a38c6cea6a6432ce47eafb68ee578c5",
+-                "sha256:7ce3175801d0ae5fdfa79b4f0cfed08807af4d075b402b7e294e6aa72af9aa2a",
+-                "sha256:9743c91088d396c1a5a3c9978354b61b0382b4e3c440ce83cf77994a43e8c521",
+-                "sha256:9f94aac67a2045ec719ffe6111df543bac7874cee01f41928f6969756e030564",
+-                "sha256:a26f8ec704e5a7423c8824d425086705e381b4f1dfdef6e3a1edab7ba174ec49",
+-                "sha256:abf7e0c3cf117c44d9285cc6128856106183938c68fd4944763003decdcfeb66",
+-                "sha256:b09669bcda124e83708f34a94606e01b614fa71931d356c1f1a5297ba11f110a",
+-                "sha256:cd07039aa5df222037005b08fbbfd69b3ab0b0bd7a07d7906de75ae52c4e3119",
+-                "sha256:d23e0ea196702d918b60c8288561e722bf437d82cb7ef2edcd98cfa38905d506",
+-                "sha256:d65cc1df038ef55a99e617431f0553cd77763869eebdf9042403e16089fe746c",
+-                "sha256:d7da2e1d5f558c37d6e8c1246f1aec1e7349e4913d8fb3cb289a35de573fe2eb"
+-            ],
+-            "markers": "python_version >= '3.5'",
+-            "version": "==0.812"
+-        },
+-        "mypy-extensions": {
+-            "hashes": [
+-                "sha256:090fedd75945a69ae91ce1303b5824f428daf5a028d2f6ab8a299250a846f15d",
+-                "sha256:2d82818f5bb3e369420cb3c4060a7970edba416647068eb4c5343488a6c604a8"
+-            ],
+-            "version": "==0.4.3"
+-        },
+-        "pycodestyle": {
+-            "hashes": [
+-                "sha256:514f76d918fcc0b55c6680472f0a37970994e07bbb80725808c17089be302068",
+-                "sha256:c389c1d06bf7904078ca03399a4816f974a1d590090fecea0c63ec26ebaf1cef"
+-            ],
+-            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
+-            "version": "==2.7.0"
+-        },
+-        "pyflakes": {
+-            "hashes": [
+-                "sha256:7893783d01b8a89811dd72d7dfd4d84ff098e5eed95cfa8905b22bbffe52efc3",
+-                "sha256:f5bc8ecabc05bb9d291eb5203d6810b49040f6ff446a756326104746cc00c1db"
+-            ],
+-            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
+-            "version": "==2.3.1"
+-        },
+-        "pylint": {
+-            "hashes": [
+-                "sha256:586d8fa9b1891f4b725f587ef267abe2a1bad89d6b184520c7f07a253dd6e217",
+-                "sha256:f7e2072654a6b6afdf5e2fb38147d3e2d2d43c89f648637baab63e026481279b"
+-            ],
+-            "markers": "python_version ~= '3.6'",
+-            "version": "==2.8.2"
+-        },
+-        "qemu": {
+-            "editable": true,
+-            "path": "."
+-        },
+-        "toml": {
+-            "hashes": [
+-                "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b",
+-                "sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f"
+-            ],
+-            "markers": "python_version >= '2.6' and python_version not in '3.0, 3.1, 3.2'",
+-            "version": "==0.10.2"
+-        },
+-        "typed-ast": {
+-            "hashes": [
+-                "sha256:01ae5f73431d21eead5015997ab41afa53aa1fbe252f9da060be5dad2c730ace",
+-                "sha256:067a74454df670dcaa4e59349a2e5c81e567d8d65458d480a5b3dfecec08c5ff",
+-                "sha256:0fb71b8c643187d7492c1f8352f2c15b4c4af3f6338f21681d3681b3dc31a266",
+-                "sha256:1b3ead4a96c9101bef08f9f7d1217c096f31667617b58de957f690c92378b528",
+-                "sha256:2068531575a125b87a41802130fa7e29f26c09a2833fea68d9a40cf33902eba6",
+-                "sha256:209596a4ec71d990d71d5e0d312ac935d86930e6eecff6ccc7007fe54d703808",
+-                "sha256:2c726c276d09fc5c414693a2de063f521052d9ea7c240ce553316f70656c84d4",
+-                "sha256:398e44cd480f4d2b7ee8d98385ca104e35c81525dd98c519acff1b79bdaac363",
+-                "sha256:52b1eb8c83f178ab787f3a4283f68258525f8d70f778a2f6dd54d3b5e5fb4341",
+-                "sha256:5feca99c17af94057417d744607b82dd0a664fd5e4ca98061480fd8b14b18d04",
+-                "sha256:7538e495704e2ccda9b234b82423a4038f324f3a10c43bc088a1636180f11a41",
+-                "sha256:760ad187b1041a154f0e4d0f6aae3e40fdb51d6de16e5c99aedadd9246450e9e",
+-                "sha256:777a26c84bea6cd934422ac2e3b78863a37017618b6e5c08f92ef69853e765d3",
+-                "sha256:95431a26309a21874005845c21118c83991c63ea800dd44843e42a916aec5899",
+-                "sha256:9ad2c92ec681e02baf81fdfa056fe0d818645efa9af1f1cd5fd6f1bd2bdfd805",
+-                "sha256:9c6d1a54552b5330bc657b7ef0eae25d00ba7ffe85d9ea8ae6540d2197a3788c",
+-                "sha256:aee0c1256be6c07bd3e1263ff920c325b59849dc95392a05f258bb9b259cf39c",
+-                "sha256:af3d4a73793725138d6b334d9d247ce7e5f084d96284ed23f22ee626a7b88e39",
+-                "sha256:b36b4f3920103a25e1d5d024d155c504080959582b928e91cb608a65c3a49e1a",
+-                "sha256:b9574c6f03f685070d859e75c7f9eeca02d6933273b5e69572e5ff9d5e3931c3",
+-                "sha256:bff6ad71c81b3bba8fa35f0f1921fb24ff4476235a6e94a26ada2e54370e6da7",
+-                "sha256:c190f0899e9f9f8b6b7863debfb739abcb21a5c054f911ca3596d12b8a4c4c7f",
+-                "sha256:c907f561b1e83e93fad565bac5ba9c22d96a54e7ea0267c708bffe863cbe4075",
+-                "sha256:cae53c389825d3b46fb37538441f75d6aecc4174f615d048321b716df2757fb0",
+-                "sha256:dd4a21253f42b8d2b48410cb31fe501d32f8b9fbeb1f55063ad102fe9c425e40",
+-                "sha256:dde816ca9dac1d9c01dd504ea5967821606f02e510438120091b84e852367428",
+-                "sha256:f2362f3cb0f3172c42938946dbc5b7843c2a28aec307c49100c8b38764eb6927",
+-                "sha256:f328adcfebed9f11301eaedfa48e15bdece9b519fb27e6a8c01aa52a17ec31b3",
+-                "sha256:f8afcf15cc511ada719a88e013cec87c11aff7b91f019295eb4530f96fe5ef2f",
+-                "sha256:fb1bbeac803adea29cedd70781399c99138358c26d05fcbd23c13016b7f5ec65"
+-            ],
+-            "markers": "implementation_name == 'cpython' and python_version < '3.8'",
+-            "version": "==1.4.3"
+-        },
+-        "typing-extensions": {
+-            "hashes": [
+-                "sha256:0ac0f89795dd19de6b97debb0c6af1c70987fd80a2d62d1958f7e56fcc31b497",
+-                "sha256:50b6f157849174217d0656f99dc82fe932884fb250826c18350e159ec6cdf342",
+-                "sha256:779383f6086d90c99ae41cf0ff39aac8a7937a9283ce0a414e5dd782f4c94a84"
+-            ],
+-            "markers": "python_version < '3.8'",
+-            "version": "==3.10.0.0"
+-        },
+-        "wrapt": {
+-            "hashes": [
+-                "sha256:b62ffa81fb85f4332a4f609cab4ac40709470da05643a082ec1eb88e6d9b97d7"
+-            ],
+-            "version": "==1.12.1"
+-        },
+-        "zipp": {
+-            "hashes": [
+-                "sha256:3607921face881ba3e026887d8150cca609d517579abe052ac81fc5aeffdbd76",
+-                "sha256:51cb66cc54621609dd593d1787f286ee42a5c0adbb4b29abea5a63edc3e03098"
+-            ],
+-            "markers": "python_version >= '3.6'",
+-            "version": "==3.4.1"
+-        }
+-    }
+-}
+diff --git a/python/README.rst b/python/README.rst
+deleted file mode 100644
+index dcf993819d..0000000000
+--- a/python/README.rst
++++ /dev/null
+@@ -1,58 +0,0 @@
+-QEMU Python Tooling
+-===================
+-
+-This directory houses Python tooling used by the QEMU project to build,
+-configure, and test QEMU. It is organized by namespace (``qemu``), and
+-then by package (e.g. ``qemu/machine``, ``qemu/qmp``, etc).
+-
+-``setup.py`` is used by ``pip`` to install this tooling to the current
+-environment. ``setup.cfg`` provides the packaging configuration used by
+-``setup.py`` in a setuptools specific format. You will generally invoke
+-it by doing one of the following:
+-
+-1. ``pip3 install .`` will install these packages to your current
+-   environment. If you are inside a virtual environment, they will
+-   install there. If you are not, it will attempt to install to the
+-   global environment, which is **not recommended**.
+-
+-2. ``pip3 install --user .`` will install these packages to your user's
+-   local python packages. If you are inside of a virtual environment,
+-   this will fail; you likely want the first invocation above.
+-
+-If you append the ``-e`` argument, pip will install in "editable" mode;
+-which installs a version of the package that installs a forwarder
+-pointing to these files, such that the package always reflects the
+-latest version in your git tree.
+-
+-Installing ".[devel]" instead of "." will additionally pull in required
+-packages for testing this package. They are not runtime requirements,
+-and are not needed to simply use these libraries.
+-
+-Running ``make develop`` will pull in all testing dependencies and
+-install QEMU in editable mode to the current environment.
+-
+-See `Installing packages using pip and virtual environments
+-<https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/>`_
+-for more information.
+-
+-
+-Files in this directory
+------------------------
+-
+-- ``qemu/`` Python package source directory.
+-- ``tests/`` Python package tests directory.
+-- ``avocado.cfg`` Configuration for the Avocado test-runner.
+-  Used by ``make check`` et al.
+-- ``Makefile`` provides some common testing/installation invocations.
+-  Try ``make help`` to see available targets.
+-- ``MANIFEST.in`` is read by python setuptools, it specifies additional files
+-  that should be included by a source distribution.
+-- ``PACKAGE.rst`` is used as the README file that is visible on PyPI.org.
+-- ``Pipfile`` is used by Pipenv to generate ``Pipfile.lock``.
+-- ``Pipfile.lock`` is a set of pinned package dependencies that this package
+-  is tested under in our CI suite. It is used by ``make venv-check``.
+-- ``README.rst`` you are here!
+-- ``VERSION`` contains the PEP-440 compliant version used to describe
+-  this package; it is referenced by ``setup.cfg``.
+-- ``setup.cfg`` houses setuptools package configuration.
+-- ``setup.py`` is the setuptools installer used by pip; See above.
+diff --git a/python/VERSION b/python/VERSION
+deleted file mode 100644
+index c19f3b832b..0000000000
+--- a/python/VERSION
++++ /dev/null
+@@ -1 +0,0 @@
+-0.6.1.0a1
+diff --git a/python/avocado.cfg b/python/avocado.cfg
+deleted file mode 100644
+index 10dc6fb605..0000000000
+--- a/python/avocado.cfg
++++ /dev/null
+@@ -1,10 +0,0 @@
+-[simpletests]
+-# Don't show stdout/stderr in the test *summary*
+-status.failure_fields = ['status']
+-
+-[job]
+-# Don't show the full debug.log output; only select stdout/stderr.
+-output.testlogs.logfiles = ['stdout', 'stderr']
+-
+-# Show full stdout/stderr only on tests that FAIL
+-output.testlogs.statuses = ['FAIL']
+diff --git a/python/mypy.ini b/python/mypy.ini
+new file mode 100644
+index 0000000000..1a581c5f1e
+--- /dev/null
++++ b/python/mypy.ini
+@@ -0,0 +1,4 @@
++[mypy]
++strict = True
++python_version = 3.6
++warn_unused_configs = True
+diff --git a/python/qemu/.flake8 b/python/qemu/.flake8
+new file mode 100644
+index 0000000000..45d8146f3f
+--- /dev/null
++++ b/python/qemu/.flake8
+@@ -0,0 +1,2 @@
++[flake8]
++extend-ignore = E722  # Pylint handles this, but smarter.
+\ No newline at end of file
+diff --git a/python/qemu/.isort.cfg b/python/qemu/.isort.cfg
+new file mode 100644
+index 0000000000..6d0fd6cc0d
+--- /dev/null
++++ b/python/qemu/.isort.cfg
+@@ -0,0 +1,7 @@
++[settings]
++force_grid_wrap=4
++force_sort_within_sections=True
++include_trailing_comma=True
++line_length=72
++lines_after_imports=2
++multi_line_output=3
+\ No newline at end of file
+diff --git a/python/qemu/README.rst b/python/qemu/README.rst
+deleted file mode 100644
+index d04943f526..0000000000
+--- a/python/qemu/README.rst
++++ /dev/null
+@@ -1,8 +0,0 @@
+-QEMU Python Namespace
+-=====================
+-
+-This directory serves as the root of a `Python PEP 420 implicit
+-namespace package <https://www.python.org/dev/peps/pep-0420/>`_.
+-
+-Each directory below is assumed to be an installable Python package that
+-is available under the ``qemu.<package>`` namespace.
+diff --git a/python/qemu/__init__.py b/python/qemu/__init__.py
+new file mode 100644
+index 0000000000..4ca06c34a4
+--- /dev/null
++++ b/python/qemu/__init__.py
+@@ -0,0 +1,11 @@
++# QEMU library
++#
++# Copyright (C) 2015-2016 Red Hat Inc.
++# Copyright (C) 2012 IBM Corp.
++#
++# Authors:
++#  Fam Zheng <famz@redhat.com>
++#
++# This work is licensed under the terms of the GNU GPL, version 2.  See
++# the COPYING file in the top-level directory.
++#
+diff --git a/python/qemu/utils/accel.py b/python/qemu/accel.py
+similarity index 100%
+rename from python/qemu/utils/accel.py
+rename to python/qemu/accel.py
+diff --git a/python/qemu/machine/console_socket.py b/python/qemu/console_socket.py
+similarity index 94%
+rename from python/qemu/machine/console_socket.py
+rename to python/qemu/console_socket.py
+index 8c4ff598ad..ac21130e44 100644
+--- a/python/qemu/machine/console_socket.py
++++ b/python/qemu/console_socket.py
+@@ -39,7 +39,6 @@ def __init__(self, address: str, file: Optional[str] = None,
+         self.connect(address)
+         self._logfile = None
+         if file:
+-            # pylint: disable=consider-using-with
+             self._logfile = open(file, "bw")
+         self._open = True
+         self._drain_thread = None
+@@ -47,11 +46,11 @@ def __init__(self, address: str, file: Optional[str] = None,
+             self._drain_thread = self._thread_start()
+ 
+     def __repr__(self) -> str:
+-        tmp = super().__repr__()
+-        tmp = tmp.rstrip(">")
+-        tmp = "%s,  logfile=%s, drain_thread=%s>" % (tmp, self._logfile,
+-                                                     self._drain_thread)
+-        return tmp
++        s = super().__repr__()
++        s = s.rstrip(">")
++        s = "%s,  logfile=%s, drain_thread=%s>" % (s, self._logfile,
++                                                   self._drain_thread)
++        return s
+ 
+     def _drain_fn(self) -> None:
+         """Drains the socket and runs while the socket is open."""
+diff --git a/python/qemu/machine/machine.py b/python/qemu/machine.py
+similarity index 93%
+rename from python/qemu/machine/machine.py
+rename to python/qemu/machine.py
+index b62435528e..6e44bda337 100644
+--- a/python/qemu/machine/machine.py
++++ b/python/qemu/machine.py
+@@ -38,14 +38,8 @@
+     Type,
+ )
+ 
+-from qemu.qmp import (  # pylint: disable=import-error
+-    QEMUMonitorProtocol,
+-    QMPMessage,
+-    QMPReturnValue,
+-    SocketAddrT,
+-)
+-
+-from . import console_socket
++from . import console_socket, qmp
++from .qmp import QMPMessage, QMPReturnValue, SocketAddrT
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -90,7 +84,7 @@ def __init__(self,
+                  args: Sequence[str] = (),
+                  wrapper: Sequence[str] = (),
+                  name: Optional[str] = None,
+-                 base_temp_dir: str = "/var/tmp",
++                 test_dir: str = "/var/tmp",
+                  monitor_address: Optional[SocketAddrT] = None,
+                  socket_scm_helper: Optional[str] = None,
+                  sock_dir: Optional[str] = None,
+@@ -103,10 +97,10 @@ def __init__(self,
+         @param args: list of extra arguments
+         @param wrapper: list of arguments used as prefix to qemu binary
+         @param name: prefix for socket and log file names (default: qemu-PID)
+-        @param base_temp_dir: default location where temp files are created
++        @param test_dir: where to create socket and log file
+         @param monitor_address: address for QMP monitor
+         @param socket_scm_helper: helper program, required for send_fd_scm()
+-        @param sock_dir: where to create socket (defaults to base_temp_dir)
++        @param sock_dir: where to create socket (overrides test_dir for sock)
+         @param drain_console: (optional) True to drain console socket to buffer
+         @param console_log: (optional) path to console log file
+         @note: Qemu process is not started until launch() is used.
+@@ -118,8 +112,8 @@ def __init__(self,
+         self._wrapper = wrapper
+ 
+         self._name = name or "qemu-%d" % os.getpid()
+-        self._base_temp_dir = base_temp_dir
+-        self._sock_dir = sock_dir or self._base_temp_dir
++        self._test_dir = test_dir
++        self._sock_dir = sock_dir or self._test_dir
+         self._socket_scm_helper = socket_scm_helper
+ 
+         if monitor_address is not None:
+@@ -145,7 +139,7 @@ def __init__(self,
+         self._events: List[QMPMessage] = []
+         self._iolog: Optional[str] = None
+         self._qmp_set = True   # Enable QMP monitor by default.
+-        self._qmp_connection: Optional[QEMUMonitorProtocol] = None
++        self._qmp_connection: Optional[qmp.QEMUMonitorProtocol] = None
+         self._qemu_full_args: Tuple[str, ...] = ()
+         self._temp_dir: Optional[str] = None
+         self._launched = False
+@@ -229,16 +223,14 @@ def send_fd_scm(self, fd: Optional[int] = None,
+             assert fd is not None
+             fd_param.append(str(fd))
+ 
+-        proc = subprocess.run(
+-            fd_param,
+-            stdin=subprocess.DEVNULL,
+-            stdout=subprocess.PIPE,
+-            stderr=subprocess.STDOUT,
+-            check=False,
+-            close_fds=False,
++        devnull = open(os.path.devnull, 'rb')
++        proc = subprocess.Popen(
++            fd_param, stdin=devnull, stdout=subprocess.PIPE,
++            stderr=subprocess.STDOUT, close_fds=False
+         )
+-        if proc.stdout:
+-            LOG.debug(proc.stdout)
++        output = proc.communicate()[0]
++        if output:
++            LOG.debug(output)
+ 
+         return proc.returncode
+ 
+@@ -311,7 +303,10 @@ def _base_args(self) -> List[str]:
+         return args
+ 
+     def _pre_launch(self) -> None:
+-        self._qemu_log_path = os.path.join(self.temp_dir, self._name + ".log")
++        self._temp_dir = tempfile.mkdtemp(prefix="qemu-machine-",
++                                          dir=self._test_dir)
++        self._qemu_log_path = os.path.join(self._temp_dir, self._name + ".log")
++        self._qemu_log_file = open(self._qemu_log_path, 'wb')
+ 
+         if self._console_set:
+             self._remove_files.append(self._console_address)
+@@ -320,17 +315,12 @@ def _pre_launch(self) -> None:
+             if self._remove_monitor_sockfile:
+                 assert isinstance(self._monitor_address, str)
+                 self._remove_files.append(self._monitor_address)
+-            self._qmp_connection = QEMUMonitorProtocol(
++            self._qmp_connection = qmp.QEMUMonitorProtocol(
+                 self._monitor_address,
+                 server=True,
+                 nickname=self._name
+             )
+ 
+-        # NOTE: Make sure any opened resources are *definitely* freed in
+-        # _post_shutdown()!
+-        # pylint: disable=consider-using-with
+-        self._qemu_log_file = open(self._qemu_log_path, 'wb')
+-
+     def _post_launch(self) -> None:
+         if self._qmp_connection:
+             self._qmp.accept()
+@@ -403,6 +393,7 @@ def _launch(self) -> None:
+         """
+         Launch the VM and establish a QMP connection
+         """
++        devnull = open(os.path.devnull, 'rb')
+         self._pre_launch()
+         self._qemu_full_args = tuple(
+             chain(self._wrapper,
+@@ -411,11 +402,8 @@ def _launch(self) -> None:
+                   self._args)
+         )
+         LOG.debug('VM launch command: %r', ' '.join(self._qemu_full_args))
+-
+-        # Cleaning up of this subprocess is guaranteed by _do_shutdown.
+-        # pylint: disable=consider-using-with
+         self._popen = subprocess.Popen(self._qemu_full_args,
+-                                       stdin=subprocess.DEVNULL,
++                                       stdin=devnull,
+                                        stdout=self._qemu_log_file,
+                                        stderr=subprocess.STDOUT,
+                                        shell=False,
+@@ -547,7 +535,7 @@ def set_qmp_monitor(self, enabled: bool = True) -> None:
+         self._qmp_set = enabled
+ 
+     @property
+-    def _qmp(self) -> QEMUMonitorProtocol:
++    def _qmp(self) -> qmp.QEMUMonitorProtocol:
+         if self._qmp_connection is None:
+             raise QEMUMachineError("Attempt to access QMP with no connection")
+         return self._qmp_connection
+@@ -756,13 +744,3 @@ def console_socket(self) -> socket.socket:
+                 file=self._console_log_path,
+                 drain=self._drain_console)
+         return self._console_socket
+-
+-    @property
+-    def temp_dir(self) -> str:
+-        """
+-        Returns a temporary directory to be used for this machine
+-        """
+-        if self._temp_dir is None:
+-            self._temp_dir = tempfile.mkdtemp(prefix="qemu-machine-",
+-                                              dir=self._base_temp_dir)
+-        return self._temp_dir
+diff --git a/python/qemu/machine/README.rst b/python/qemu/machine/README.rst
+deleted file mode 100644
+index ac2b4fffb4..0000000000
+--- a/python/qemu/machine/README.rst
++++ /dev/null
+@@ -1,9 +0,0 @@
+-qemu.machine package
+-====================
+-
+-This package provides core utilities used for testing and debugging
+-QEMU. It is used by the iotests, vm tests, acceptance tests, and several
+-other utilities in the ./scripts directory. It is not a fully-fledged
+-SDK and it is subject to change at any time.
+-
+-See the documentation in ``__init__.py`` for more information.
+diff --git a/python/qemu/machine/__init__.py b/python/qemu/machine/__init__.py
+deleted file mode 100644
+index 728f27adbe..0000000000
+--- a/python/qemu/machine/__init__.py
++++ /dev/null
+@@ -1,36 +0,0 @@
+-"""
+-QEMU development and testing library.
+-
+-This library provides a few high-level classes for driving QEMU from a
+-test suite, not intended for production use.
+-
+-- QEMUMachine: Configure and Boot a QEMU VM
+- - QEMUQtestMachine: VM class, with a qtest socket.
+-
+-- QEMUQtestProtocol: Connect to, send/receive qtest messages.
+-"""
+-
+-# Copyright (C) 2020-2021 John Snow for Red Hat Inc.
+-# Copyright (C) 2015-2016 Red Hat Inc.
+-# Copyright (C) 2012 IBM Corp.
+-#
+-# Authors:
+-#  John Snow <jsnow@redhat.com>
+-#  Fam Zheng <fam@euphon.net>
+-#
+-# This work is licensed under the terms of the GNU GPL, version 2.  See
+-# the COPYING file in the top-level directory.
+-#
+-
+-# pylint: disable=import-error
+-# see: https://github.com/PyCQA/pylint/issues/3624
+-# see: https://github.com/PyCQA/pylint/issues/3651
+-from .machine import QEMUMachine
+-from .qtest import QEMUQtestMachine, QEMUQtestProtocol
+-
+-
+-__all__ = (
+-    'QEMUMachine',
+-    'QEMUQtestProtocol',
+-    'QEMUQtestMachine',
+-)
+diff --git a/python/qemu/pylintrc b/python/qemu/pylintrc
+new file mode 100644
+index 0000000000..3f69205000
+--- /dev/null
++++ b/python/qemu/pylintrc
+@@ -0,0 +1,58 @@
++[MASTER]
++
++[MESSAGES CONTROL]
++
++# Disable the message, report, category or checker with the given id(s). You
++# can either give multiple identifiers separated by comma (,) or put this
++# option multiple times (only on the command line, not in the configuration
++# file where it should appear only once). You can also use "--disable=all" to
++# disable everything first and then reenable specific checks. For example, if
++# you want to run only the similarities checker, you can use "--disable=all
++# --enable=similarities". If you want to run only the classes checker, but have
++# no Warning level messages displayed, use "--disable=all --enable=classes
++# --disable=W".
++disable=too-many-arguments,
++        too-many-instance-attributes,
++        too-many-public-methods,
++
++[REPORTS]
++
++[REFACTORING]
++
++[MISCELLANEOUS]
++
++[LOGGING]
++
++[BASIC]
++
++# Good variable names which should always be accepted, separated by a comma.
++good-names=i,
++           j,
++           k,
++           ex,
++           Run,
++           _,
++           fd,
++           c,
++[VARIABLES]
++
++[STRING]
++
++[SPELLING]
++
++[FORMAT]
++
++[SIMILARITIES]
++
++# Ignore imports when computing similarities.
++ignore-imports=yes
++
++[TYPECHECK]
++
++[CLASSES]
++
++[IMPORTS]
++
++[DESIGN]
++
++[EXCEPTIONS]
+diff --git a/python/qemu/qmp/__init__.py b/python/qemu/qmp.py
+similarity index 96%
+rename from python/qemu/qmp/__init__.py
+rename to python/qemu/qmp.py
+index 9606248a3d..2cd4d43036 100644
+--- a/python/qemu/qmp/__init__.py
++++ b/python/qemu/qmp.py
+@@ -1,14 +1,4 @@
+-"""
+-QEMU Monitor Protocol (QMP) development library & tooling.
+-
+-This package provides a fairly low-level class for communicating to QMP
+-protocol servers, as implemented by QEMU, the QEMU Guest Agent, and the
+-QEMU Storage Daemon. This library is not intended for production use.
+-
+-`QEMUMonitorProtocol` is the primary class of interest, and all errors
+-raised derive from `QMPError`.
+-"""
+-
++""" QEMU Monitor Protocol Python class """
+ # Copyright (C) 2009, 2010 Red Hat Inc.
+ #
+ # Authors:
+diff --git a/python/qemu/qmp/README.rst b/python/qemu/qmp/README.rst
+deleted file mode 100644
+index c21951491c..0000000000
+--- a/python/qemu/qmp/README.rst
++++ /dev/null
+@@ -1,9 +0,0 @@
+-qemu.qmp package
+-================
+-
+-This package provides a library used for connecting to and communicating
+-with QMP servers. It is used extensively by iotests, vm tests,
+-acceptance tests, and other utilities in the ./scripts directory. It is
+-not a fully-fledged SDK and is subject to change at any time.
+-
+-See the documentation in ``__init__.py`` for more information.
+diff --git a/python/qemu/machine/qtest.py b/python/qemu/qtest.py
+similarity index 95%
+rename from python/qemu/machine/qtest.py
+rename to python/qemu/qtest.py
+index 93700684d1..39a0cf62fe 100644
+--- a/python/qemu/machine/qtest.py
++++ b/python/qemu/qtest.py
+@@ -26,9 +26,8 @@
+     TextIO,
+ )
+ 
+-from qemu.qmp import SocketAddrT  # pylint: disable=import-error
+-
+ from .machine import QEMUMachine
++from .qmp import SocketAddrT
+ 
+ 
+ class QEMUQtestProtocol:
+@@ -113,14 +112,14 @@ def __init__(self,
+                  binary: str,
+                  args: Sequence[str] = (),
+                  name: Optional[str] = None,
+-                 base_temp_dir: str = "/var/tmp",
++                 test_dir: str = "/var/tmp",
+                  socket_scm_helper: Optional[str] = None,
+                  sock_dir: Optional[str] = None):
+         if name is None:
+             name = "qemu-%d" % os.getpid()
+         if sock_dir is None:
+-            sock_dir = base_temp_dir
+-        super().__init__(binary, args, name=name, base_temp_dir=base_temp_dir,
++            sock_dir = test_dir
++        super().__init__(binary, args, name=name, test_dir=test_dir,
+                          socket_scm_helper=socket_scm_helper,
+                          sock_dir=sock_dir)
+         self._qtest: Optional[QEMUQtestProtocol] = None
+diff --git a/python/qemu/utils/README.rst b/python/qemu/utils/README.rst
+deleted file mode 100644
+index 975fbf4d7d..0000000000
+--- a/python/qemu/utils/README.rst
++++ /dev/null
+@@ -1,7 +0,0 @@
+-qemu.utils package
+-==================
+-
+-This package provides miscellaneous utilities used for testing and
+-debugging QEMU. It is used primarily by the vm and acceptance tests.
+-
+-See the documentation in ``__init__.py`` for more information.
+diff --git a/python/qemu/utils/__init__.py b/python/qemu/utils/__init__.py
+deleted file mode 100644
+index 7f1a5138c4..0000000000
+--- a/python/qemu/utils/__init__.py
++++ /dev/null
+@@ -1,45 +0,0 @@
+-"""
+-QEMU development and testing utilities
+-
+-This package provides a small handful of utilities for performing
+-various tasks not directly related to the launching of a VM.
+-"""
+-
+-# Copyright (C) 2021 Red Hat Inc.
+-#
+-# Authors:
+-#  John Snow <jsnow@redhat.com>
+-#  Cleber Rosa <crosa@redhat.com>
+-#
+-# This work is licensed under the terms of the GNU GPL, version 2.  See
+-# the COPYING file in the top-level directory.
+-#
+-
+-import re
+-from typing import Optional
+-
+-# pylint: disable=import-error
+-from .accel import kvm_available, list_accel, tcg_available
+-
+-
+-__all__ = (
+-    'get_info_usernet_hostfwd_port',
+-    'kvm_available',
+-    'list_accel',
+-    'tcg_available',
+-)
+-
+-
+-def get_info_usernet_hostfwd_port(info_usernet_output: str) -> Optional[int]:
+-    """
+-    Returns the port given to the hostfwd parameter via info usernet
+-
+-    :param info_usernet_output: output generated by hmp command "info usernet"
+-    :return: the port number allocated by the hostfwd option
+-    """
+-    for line in info_usernet_output.split('\r\n'):
+-        regex = r'TCP.HOST_FORWARD.*127\.0\.0\.1\s+(\d+)\s+10\.'
+-        match = re.search(regex, line)
+-        if match is not None:
+-            return int(match[1])
+-    return None
+diff --git a/python/setup.cfg b/python/setup.cfg
+deleted file mode 100644
+index 0fcdec6f32..0000000000
+--- a/python/setup.cfg
++++ /dev/null
+@@ -1,102 +0,0 @@
+-[metadata]
+-name = qemu
+-version = file:VERSION
+-maintainer = QEMU Developer Team
+-maintainer_email = qemu-devel@nongnu.org
+-url = https://www.qemu.org/
+-download_url = https://www.qemu.org/download/
+-description = QEMU Python Build, Debug and SDK tooling.
+-long_description = file:PACKAGE.rst
+-long_description_content_type = text/x-rst
+-classifiers =
+-    Development Status :: 3 - Alpha
+-    License :: OSI Approved :: GNU General Public License v2 (GPLv2)
+-    Natural Language :: English
+-    Operating System :: OS Independent
+-    Programming Language :: Python :: 3 :: Only
+-    Programming Language :: Python :: 3.6
+-    Programming Language :: Python :: 3.7
+-    Programming Language :: Python :: 3.8
+-    Programming Language :: Python :: 3.9
+-    Programming Language :: Python :: 3.10
+-
+-[options]
+-python_requires = >= 3.6
+-packages =
+-    qemu.qmp
+-    qemu.machine
+-    qemu.utils
+-
+-[options.extras_require]
+-# Run `pipenv lock --dev` when changing these requirements.
+-devel =
+-    avocado-framework >= 87.0
+-    flake8 >= 3.6.0
+-    isort >= 5.1.2
+-    mypy >= 0.770
+-    pylint >= 2.8.0
+-    tox >= 3.18.0
+-
+-[flake8]
+-extend-ignore = E722  # Prefer pylint's bare-except checks to flake8's
+-exclude = __pycache__,
+-          .venv,
+-          .tox,
+-
+-[mypy]
+-strict = True
+-python_version = 3.6
+-warn_unused_configs = True
+-namespace_packages = True
+-
+-[pylint.messages control]
+-# Disable the message, report, category or checker with the given id(s). You
+-# can either give multiple identifiers separated by comma (,) or put this
+-# option multiple times (only on the command line, not in the configuration
+-# file where it should appear only once). You can also use "--disable=all" to
+-# disable everything first and then reenable specific checks. For example, if
+-# you want to run only the similarities checker, you can use "--disable=all
+-# --enable=similarities". If you want to run only the classes checker, but have
+-# no Warning level messages displayed, use "--disable=all --enable=classes
+-# --disable=W".
+-disable=too-many-arguments,
+-        too-many-instance-attributes,
+-        too-many-public-methods,
+-
+-[pylint.basic]
+-# Good variable names which should always be accepted, separated by a comma.
+-good-names=i,
+-           j,
+-           k,
+-           ex,
+-           Run,
+-           _,
+-           fd,
+-           c,
+-
+-[pylint.similarities]
+-# Ignore imports when computing similarities.
+-ignore-imports=yes
+-
+-[isort]
+-force_grid_wrap=4
+-force_sort_within_sections=True
+-include_trailing_comma=True
+-line_length=72
+-lines_after_imports=2
+-multi_line_output=3
+-
+-# tox (https://tox.readthedocs.io/) is a tool for running tests in
+-# multiple virtualenvs. This configuration file will run the test suite
+-# on all supported python versions. To use it, "pip install tox" and
+-# then run "tox" from this directory. You will need all of these versions
+-# of python available on your system to run this test.
+-
+-[tox:tox]
+-envlist = py36, py37, py38, py39, py310
+-
+-[testenv]
+-allowlist_externals = make
+-deps = .[devel]
+-commands =
+-    make check
+diff --git a/python/setup.py b/python/setup.py
+deleted file mode 100755
+index 2014f81b75..0000000000
+--- a/python/setup.py
++++ /dev/null
+@@ -1,23 +0,0 @@
+-#!/usr/bin/env python3
+-"""
+-QEMU tooling installer script
+-Copyright (c) 2020-2021 John Snow for Red Hat, Inc.
+-"""
+-
+-import setuptools
+-import pkg_resources
+-
+-
+-def main():
+-    """
+-    QEMU tooling installer
+-    """
+-
+-    # https://medium.com/@daveshawley/safely-using-setup-cfg-for-metadata-1babbe54c108
+-    pkg_resources.require('setuptools>=39.2')
+-
+-    setuptools.setup()
+-
+-
+-if __name__ == '__main__':
+-    main()
+diff --git a/python/tests/flake8.sh b/python/tests/flake8.sh
+deleted file mode 100755
+index 51e0788462..0000000000
+--- a/python/tests/flake8.sh
++++ /dev/null
+@@ -1,2 +0,0 @@
+-#!/bin/sh -e
+-python3 -m flake8
+diff --git a/python/tests/isort.sh b/python/tests/isort.sh
+deleted file mode 100755
+index 4480405bfb..0000000000
+--- a/python/tests/isort.sh
++++ /dev/null
+@@ -1,2 +0,0 @@
+-#!/bin/sh -e
+-python3 -m isort -c qemu/
+diff --git a/python/tests/mypy.sh b/python/tests/mypy.sh
+deleted file mode 100755
+index 5f980f563b..0000000000
+--- a/python/tests/mypy.sh
++++ /dev/null
+@@ -1,2 +0,0 @@
+-#!/bin/sh -e
+-python3 -m mypy -p qemu
+diff --git a/python/tests/pylint.sh b/python/tests/pylint.sh
+deleted file mode 100755
+index 4b10b34db7..0000000000
+--- a/python/tests/pylint.sh
++++ /dev/null
+@@ -1,2 +0,0 @@
+-#!/bin/sh -e
+-python3 -m pylint qemu/
+diff --git a/qapi/trace-events b/qapi/trace-events
+index cccafc07e5..3cabe912ae 100644
+--- a/qapi/trace-events
++++ b/qapi/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # qapi-visit-core.c
+ visit_free(void *v) "v=%p"
+diff --git a/qemu-io-cmds.c b/qemu-io-cmds.c
+index 998b67186d..e8d862a426 100644
+--- a/qemu-io-cmds.c
++++ b/qemu-io-cmds.c
+@@ -92,9 +92,19 @@ static int command(BlockBackend *blk, const cmdinfo_t *ct, int argc,
+         return -EINVAL;
+     }
+ 
+-    /* Request additional permissions if necessary for this command. The caller
++    /*
++     * Request additional permissions if necessary for this command. The caller
+      * is responsible for restoring the original permissions afterwards if this
+-     * is what it wants. */
++     * is what it wants.
++     *
++     * Coverity thinks that blk may be NULL in the following if condition. It's
++     * not so: in init_check_command() we fail if blk is NULL for command with
++     * both CMD_FLAG_GLOBAL and CMD_NOFILE_OK flags unset. And in
++     * qemuio_add_command() we assert that command with non-zero .perm field
++     * doesn't set this flags. So, the following assertion is to silence
++     * Coverity:
++     */
++    assert(blk || !ct->perm);
+     if (ct->perm && blk_is_available(blk)) {
+         uint64_t orig_perm, orig_shared_perm;
+         blk_get_perm(blk, &orig_perm, &orig_shared_perm);
+diff --git a/qom/trace-events b/qom/trace-events
+index b2e9f4a712..945205bd10 100644
+--- a/qom/trace-events
++++ b/qom/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # object.c
+ object_dynamic_cast_assert(const char *type, const char *target, const char *file, int line, const char *func) "%s->%s (%s:%d:%s)"
+diff --git a/scripts/simpletrace.py b/scripts/simpletrace.py
+index 1f6d1ae1f3..d61fb0bd87 100755
+--- a/scripts/simpletrace.py
++++ b/scripts/simpletrace.py
+@@ -7,7 +7,7 @@
+ # This work is licensed under the terms of the GNU GPL, version 2.  See
+ # the COPYING file in the top-level directory.
+ #
+-# For help see docs/devel/tracing.rst
++# For help see docs/devel/tracing.txt
+ 
+ import struct
+ import inspect
+diff --git a/scsi/trace-events b/scsi/trace-events
+index baf924fa89..6dbfeae790 100644
+--- a/scsi/trace-events
++++ b/scsi/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # pr-manager.c
+ pr_manager_execute(int fd, int cmd, int sa) "fd=%d cmd=0x%02x service action=0x%02x"
+diff --git a/softmmu/trace-events b/softmmu/trace-events
+index 5262828b8d..b80ca042e1 100644
+--- a/softmmu/trace-events
++++ b/softmmu/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # balloon.c
+ # Since requests are raised via monitor, not many tracepoints are needed.
+diff --git a/target/arm/trace-events b/target/arm/trace-events
+index 2a0ba7bffc..41c63d7570 100644
+--- a/target/arm/trace-events
++++ b/target/arm/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # helper.c
+ arm_gt_recalc(int timer, int irqstate, uint64_t nexttick) "gt recalc: timer %d irqstate %d next tick 0x%" PRIx64
+diff --git a/target/hppa/trace-events b/target/hppa/trace-events
+index 8931517890..0731ce7ce1 100644
+--- a/target/hppa/trace-events
++++ b/target/hppa/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # mem_helper.c
+ disable hppa_tlb_flush_ent(void *env, void *ent, uint64_t va_b, uint64_t va_e, uint64_t pa) "env=%p ent=%p va_b=0x%lx va_e=0x%lx pa=0x%lx"
+diff --git a/target/i386/kvm/trace-events b/target/i386/kvm/trace-events
+index 7c369db1e1..b4e2d9e4ea 100644
+--- a/target/i386/kvm/trace-events
++++ b/target/i386/kvm/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # kvm.c
+ kvm_x86_fixup_msi_error(uint32_t gsi) "VT-d failed to remap interrupt for GSI %" PRIu32
+diff --git a/target/i386/trace-events b/target/i386/trace-events
+index 2cd8726eeb..8d6437404d 100644
+--- a/target/i386/trace-events
++++ b/target/i386/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # sev.c
+ kvm_sev_init(void) ""
+diff --git a/target/mips/trace-events b/target/mips/trace-events
+index 0c55e0bbad..ba87fe6062 100644
+--- a/target/mips/trace-events
++++ b/target/mips/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # translate.c
+ mips_translate_c0(const char *instr, const char *rn, int reg, int sel) "%s %s (reg %d sel %d)"
+diff --git a/target/ppc/trace-events b/target/ppc/trace-events
+index c88cfccf8d..bc0d4e6f8b 100644
+--- a/target/ppc/trace-events
++++ b/target/ppc/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # kvm.c
+ kvm_failed_spr_set(int spr, const char *msg) "Warning: Unable to set SPR %d to KVM: %s"
+diff --git a/target/s390x/trace-events b/target/s390x/trace-events
+index e661a81e3a..fda1ee8220 100644
+--- a/target/s390x/trace-events
++++ b/target/s390x/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # mmu_helper.c
+ get_skeys_nonzero(int rc) "SKEY: Call to get_skeys unexpectedly returned %d"
+diff --git a/target/sparc/trace-events b/target/sparc/trace-events
+index de9833283d..75e7093d5f 100644
+--- a/target/sparc/trace-events
++++ b/target/sparc/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # mmu_helper.c
+ mmu_helper_dfault(uint64_t address, uint64_t context, int mmu_idx, uint32_t tl) "DFAULT at 0x%"PRIx64" context 0x%"PRIx64" mmu_idx=%d tl=%d"
+diff --git a/tcg/README b/tcg/README
+index 8510d823e3..0cf9e2727c 100644
+--- a/tcg/README
++++ b/tcg/README
+@@ -461,7 +461,7 @@ when MTTCG is enabled.
+ The guest translators should generate this opcode for all guest instructions
+ which have ordering side effects.
+ 
+-Please see docs/devel/atomics.rst for more information on memory barriers.
++Please see docs/devel/atomics.txt for more information on memory barriers.
+ 
+ ********* 64-bit guest on 32-bit host support
+ 
+diff --git a/tests/acceptance/avocado_qemu/__init__.py b/tests/acceptance/avocado_qemu/__init__.py
+index 93c4b9851f..83b1741ec8 100644
+--- a/tests/acceptance/avocado_qemu/__init__.py
++++ b/tests/acceptance/avocado_qemu/__init__.py
+@@ -20,7 +20,6 @@
+ from avocado.utils import cloudinit
+ from avocado.utils import datadrainer
+ from avocado.utils import network
+-from avocado.utils import ssh
+ from avocado.utils import vmimage
+ from avocado.utils.path import find_command
+ 
+@@ -41,12 +40,9 @@
+ 
+ sys.path.append(os.path.join(SOURCE_DIR, 'python'))
+ 
++from qemu.accel import kvm_available
++from qemu.accel import tcg_available
+ from qemu.machine import QEMUMachine
+-from qemu.utils import (
+-    get_info_usernet_hostfwd_port,
+-    kvm_available,
+-    tcg_available,
+-)
+ 
+ def is_readable_executable_file(path):
+     return os.path.isfile(path) and os.access(path, os.R_OK | os.X_OK)
+@@ -257,50 +253,7 @@ def fetch_asset(self, name,
+                         cancel_on_missing=cancel_on_missing)
+ 
+ 
+-class LinuxSSHMixIn:
+-    """Contains utility methods for interacting with a guest via SSH."""
+-
+-    def ssh_connect(self, username, credential, credential_is_key=True):
+-        self.ssh_logger = logging.getLogger('ssh')
+-        res = self.vm.command('human-monitor-command',
+-                              command_line='info usernet')
+-        port = get_info_usernet_hostfwd_port(res)
+-        self.assertIsNotNone(port)
+-        self.assertGreater(port, 0)
+-        self.log.debug('sshd listening on port: %d', port)
+-        if credential_is_key:
+-            self.ssh_session = ssh.Session('127.0.0.1', port=port,
+-                                           user=username, key=credential)
+-        else:
+-            self.ssh_session = ssh.Session('127.0.0.1', port=port,
+-                                           user=username, password=credential)
+-        for i in range(10):
+-            try:
+-                self.ssh_session.connect()
+-                return
+-            except:
+-                time.sleep(4)
+-                pass
+-        self.fail('ssh connection timeout')
+-
+-    def ssh_command(self, command):
+-        self.ssh_logger.info(command)
+-        result = self.ssh_session.cmd(command)
+-        stdout_lines = [line.rstrip() for line
+-                        in result.stdout_text.splitlines()]
+-        for line in stdout_lines:
+-            self.ssh_logger.info(line)
+-        stderr_lines = [line.rstrip() for line
+-                        in result.stderr_text.splitlines()]
+-        for line in stderr_lines:
+-            self.ssh_logger.warning(line)
+-
+-        self.assertEqual(result.exit_status, 0,
+-                         f'Guest command failed: {command}')
+-        return stdout_lines, stderr_lines
+-
+-
+-class LinuxTest(Test, LinuxSSHMixIn):
++class LinuxTest(Test):
+     """Facilitates having a cloud-image Linux based available.
+ 
+     For tests that indend to interact with guests, this is a better choice
+@@ -309,16 +262,11 @@ class LinuxTest(Test, LinuxSSHMixIn):
+ 
+     timeout = 900
+     chksum = None
+-    username = 'root'
+-    password = 'password'
+ 
+-    def setUp(self, ssh_pubkey=None, network_device_type='virtio-net'):
++    def setUp(self, ssh_pubkey=None):
+         super(LinuxTest, self).setUp()
+         self.vm.add_args('-smp', '2')
+         self.vm.add_args('-m', '1024')
+-        # The following network device allows for SSH connections
+-        self.vm.add_args('-netdev', 'user,id=vnet,hostfwd=:127.0.0.1:0-:22',
+-                         '-device', '%s,netdev=vnet' % network_device_type)
+         self.set_up_boot()
+         if ssh_pubkey is None:
+             ssh_pubkey, self.ssh_key = self.set_up_existing_ssh_keys()
+@@ -374,8 +322,8 @@ def prepare_cloudinit(self, ssh_pubkey=None):
+                 with open(ssh_pubkey) as pubkey:
+                     pubkey_content = pubkey.read()
+             cloudinit.iso(cloudinit_iso, self.name,
+-                          username=self.username,
+-                          password=self.password,
++                          username='root',
++                          password='password',
+                           # QEMU's hard coded usermode router address
+                           phone_home_host='10.0.2.2',
+                           phone_home_port=self.phone_home_port,
+@@ -392,7 +340,7 @@ def set_up_cloudinit(self, ssh_pubkey=None):
+         cloudinit_iso = self.prepare_cloudinit(ssh_pubkey)
+         self.vm.add_args('-drive', 'file=%s,format=raw' % cloudinit_iso)
+ 
+-    def launch_and_wait(self, set_up_ssh_connection=True):
++    def launch_and_wait(self):
+         self.vm.set_console()
+         self.vm.launch()
+         console_drainer = datadrainer.LineLogger(self.vm.console_socket.fileno(),
+@@ -400,6 +348,3 @@ def launch_and_wait(self, set_up_ssh_connection=True):
+         console_drainer.start()
+         self.log.info('VM launched, waiting for boot confirmation from guest')
+         cloudinit.wait_for_phone_home(('0.0.0.0', self.phone_home_port), self.name)
+-        if set_up_ssh_connection:
+-            self.log.info('Setting up the SSH connection')
+-            self.ssh_connect(self.username, self.ssh_key)
+diff --git a/tests/acceptance/boot_linux.py b/tests/acceptance/boot_linux.py
+index 314370fd1f..0d178038a0 100644
+--- a/tests/acceptance/boot_linux.py
++++ b/tests/acceptance/boot_linux.py
+@@ -29,7 +29,7 @@ def test_pc_i440fx_tcg(self):
+         """
+         self.require_accelerator("tcg")
+         self.vm.add_args("-accel", "tcg")
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+     def test_pc_i440fx_kvm(self):
+         """
+@@ -38,7 +38,7 @@ def test_pc_i440fx_kvm(self):
+         """
+         self.require_accelerator("kvm")
+         self.vm.add_args("-accel", "kvm")
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+     def test_pc_q35_tcg(self):
+         """
+@@ -47,7 +47,7 @@ def test_pc_q35_tcg(self):
+         """
+         self.require_accelerator("tcg")
+         self.vm.add_args("-accel", "tcg")
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+     def test_pc_q35_kvm(self):
+         """
+@@ -56,7 +56,7 @@ def test_pc_q35_kvm(self):
+         """
+         self.require_accelerator("kvm")
+         self.vm.add_args("-accel", "kvm")
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+ 
+ class BootLinuxAarch64(LinuxTest):
+@@ -85,7 +85,7 @@ def test_virt_tcg(self):
+         self.vm.add_args("-cpu", "max")
+         self.vm.add_args("-machine", "virt,gic-version=2")
+         self.add_common_args()
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+     def test_virt_kvm_gicv2(self):
+         """
+@@ -98,7 +98,7 @@ def test_virt_kvm_gicv2(self):
+         self.vm.add_args("-cpu", "host")
+         self.vm.add_args("-machine", "virt,gic-version=2")
+         self.add_common_args()
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+     def test_virt_kvm_gicv3(self):
+         """
+@@ -111,7 +111,7 @@ def test_virt_kvm_gicv3(self):
+         self.vm.add_args("-cpu", "host")
+         self.vm.add_args("-machine", "virt,gic-version=3")
+         self.add_common_args()
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+ 
+ class BootLinuxPPC64(LinuxTest):
+@@ -128,7 +128,7 @@ def test_pseries_tcg(self):
+         """
+         self.require_accelerator("tcg")
+         self.vm.add_args("-accel", "tcg")
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+ 
+ class BootLinuxS390X(LinuxTest):
+@@ -146,4 +146,4 @@ def test_s390_ccw_virtio_tcg(self):
+         """
+         self.require_accelerator("tcg")
+         self.vm.add_args("-accel", "tcg")
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+diff --git a/tests/acceptance/hotplug_cpu.py b/tests/acceptance/hotplug_cpu.py
+deleted file mode 100644
+index 6374bf1b54..0000000000
+--- a/tests/acceptance/hotplug_cpu.py
++++ /dev/null
+@@ -1,37 +0,0 @@
+-# Functional test that hotplugs a CPU and checks it on a Linux guest
+-#
+-# Copyright (c) 2021 Red Hat, Inc.
+-#
+-# Author:
+-#  Cleber Rosa <crosa@redhat.com>
+-#
+-# This work is licensed under the terms of the GNU GPL, version 2 or
+-# later.  See the COPYING file in the top-level directory.
+-
+-from avocado_qemu import LinuxTest
+-
+-
+-class HotPlugCPU(LinuxTest):
+-
+-    def test(self):
+-        """
+-        :avocado: tags=arch:x86_64
+-        :avocado: tags=machine:q35
+-        :avocado: tags=accel:kvm
+-        """
+-        self.require_accelerator('kvm')
+-        self.vm.add_args('-accel', 'kvm')
+-        self.vm.add_args('-cpu', 'Haswell')
+-        self.vm.add_args('-smp', '1,sockets=1,cores=2,threads=1,maxcpus=2')
+-        self.launch_and_wait()
+-
+-        self.ssh_command('test -e /sys/devices/system/cpu/cpu0')
+-        with self.assertRaises(AssertionError):
+-            self.ssh_command('test -e /sys/devices/system/cpu/cpu1')
+-
+-        self.vm.command('device_add',
+-                        driver='Haswell-x86_64-cpu',
+-                        socket_id=0,
+-                        core_id=1,
+-                        thread_id=0)
+-        self.ssh_command('test -e /sys/devices/system/cpu/cpu1')
+diff --git a/tests/acceptance/info_usernet.py b/tests/acceptance/info_usernet.py
+deleted file mode 100644
+index 9c1fd903a0..0000000000
+--- a/tests/acceptance/info_usernet.py
++++ /dev/null
+@@ -1,29 +0,0 @@
+-# Test for the hmp command "info usernet"
+-#
+-# Copyright (c) 2021 Red Hat, Inc.
+-#
+-# Author:
+-#  Cleber Rosa <crosa@redhat.com>
+-#
+-# This work is licensed under the terms of the GNU GPL, version 2 or
+-# later.  See the COPYING file in the top-level directory.
+-
+-from avocado_qemu import Test
+-
+-from qemu.utils import get_info_usernet_hostfwd_port
+-
+-
+-class InfoUsernet(Test):
+-
+-    def test_hostfwd(self):
+-        self.vm.add_args('-netdev', 'user,id=vnet,hostfwd=:127.0.0.1:0-:22')
+-        self.vm.launch()
+-        res = self.vm.command('human-monitor-command',
+-                              command_line='info usernet')
+-        port = get_info_usernet_hostfwd_port(res)
+-        self.assertIsNotNone(port,
+-                             ('"info usernet" output content does not seem to '
+-                              'contain the redirected port'))
+-        self.assertGreater(port, 0,
+-                           ('Found a redirected port that is not greater than'
+-                            ' zero'))
+diff --git a/tests/acceptance/linux_ssh_mips_malta.py b/tests/acceptance/linux_ssh_mips_malta.py
+index 61c9079d04..6dbd02d49d 100644
+--- a/tests/acceptance/linux_ssh_mips_malta.py
++++ b/tests/acceptance/linux_ssh_mips_malta.py
+@@ -12,14 +12,14 @@
+ import time
+ 
+ from avocado import skipUnless
+-from avocado_qemu import Test, LinuxSSHMixIn
++from avocado_qemu import Test
+ from avocado_qemu import wait_for_console_pattern
+ from avocado.utils import process
+ from avocado.utils import archive
+ from avocado.utils import ssh
+ 
+ 
+-class LinuxSSH(Test, LinuxSSHMixIn):
++class LinuxSSH(Test):
+ 
+     timeout = 150 # Not for 'configure --enable-debug --enable-debug-tcg'
+ 
+@@ -70,9 +70,45 @@ def get_kernel_info(self, endianess, wordsize):
+     def setUp(self):
+         super(LinuxSSH, self).setUp()
+ 
++    def get_portfwd(self):
++        res = self.vm.command('human-monitor-command',
++                              command_line='info usernet')
++        line = res.split('\r\n')[2]
++        port = re.split(r'.*TCP.HOST_FORWARD.*127\.0\.0\.1 (\d+)\s+10\..*',
++                        line)[1]
++        self.log.debug("sshd listening on port:" + port)
++        return port
++
++    def ssh_connect(self, username, password):
++        self.ssh_logger = logging.getLogger('ssh')
++        port = self.get_portfwd()
++        self.ssh_session = ssh.Session(self.VM_IP, port=int(port),
++                                       user=username, password=password)
++        for i in range(10):
++            try:
++                self.ssh_session.connect()
++                return
++            except:
++                time.sleep(4)
++                pass
++        self.fail("ssh connection timeout")
++
+     def ssh_disconnect_vm(self):
+         self.ssh_session.quit()
+ 
++    def ssh_command(self, command, is_root=True):
++        self.ssh_logger.info(command)
++        result = self.ssh_session.cmd(command)
++        stdout_lines = [line.rstrip() for line
++                        in result.stdout_text.splitlines()]
++        for line in stdout_lines:
++            self.ssh_logger.info(line)
++        stderr_lines = [line.rstrip() for line
++                        in result.stderr_text.splitlines()]
++        for line in stderr_lines:
++            self.ssh_logger.warning(line)
++        return stdout_lines, stderr_lines
++
+     def boot_debian_wheezy_image_and_ssh_login(self, endianess, kernel_path):
+         image_url, image_hash = self.get_image_info(endianess)
+         image_path = self.fetch_asset(image_url, asset_hash=image_hash)
+@@ -93,7 +129,7 @@ def boot_debian_wheezy_image_and_ssh_login(self, endianess, kernel_path):
+         wait_for_console_pattern(self, console_pattern, 'Oops')
+         self.log.info('sshd ready')
+ 
+-        self.ssh_connect('root', 'root', False)
++        self.ssh_connect('root', 'root')
+ 
+     def shutdown_via_ssh(self):
+         self.ssh_command('poweroff')
+diff --git a/tests/acceptance/virtio-gpu.py b/tests/acceptance/virtio-gpu.py
+index e7979343e9..ab18cddbb7 100644
+--- a/tests/acceptance/virtio-gpu.py
++++ b/tests/acceptance/virtio-gpu.py
+@@ -10,7 +10,7 @@
+ from avocado_qemu import exec_command_and_wait_for_pattern
+ from avocado_qemu import is_readable_executable_file
+ 
+-from qemu.utils import kvm_available
++from qemu.accel import kvm_available
+ 
+ import os
+ import socket
+diff --git a/tests/acceptance/virtiofs_submounts.py b/tests/acceptance/virtiofs_submounts.py
+index 21ad7d792e..46fa65392a 100644
+--- a/tests/acceptance/virtiofs_submounts.py
++++ b/tests/acceptance/virtiofs_submounts.py
+@@ -70,9 +70,56 @@ def test_something_that_needs_cmd1_and_cmd2(self):
+ class VirtiofsSubmountsTest(LinuxTest):
+     """
+     :avocado: tags=arch:x86_64
+-    :avocado: tags=accel:kvm
+     """
+ 
++    def get_portfwd(self):
++        port = None
++
++        res = self.vm.command('human-monitor-command',
++                              command_line='info usernet')
++        for line in res.split('\r\n'):
++            match = \
++                re.search(r'TCP.HOST_FORWARD.*127\.0\.0\.1\s+(\d+)\s+10\.',
++                          line)
++            if match is not None:
++                port = int(match[1])
++                break
++
++        self.assertIsNotNone(port)
++        self.assertGreater(port, 0)
++        self.log.debug('sshd listening on port: %d', port)
++        return port
++
++    def ssh_connect(self, username, keyfile):
++        self.ssh_logger = logging.getLogger('ssh')
++        port = self.get_portfwd()
++        self.ssh_session = ssh.Session('127.0.0.1', port=port,
++                                       user=username, key=keyfile)
++        for i in range(10):
++            try:
++                self.ssh_session.connect()
++                return
++            except:
++                time.sleep(4)
++                pass
++        self.fail('ssh connection timeout')
++
++    def ssh_command(self, command):
++        self.ssh_logger.info(command)
++        result = self.ssh_session.cmd(command)
++        stdout_lines = [line.rstrip() for line
++                        in result.stdout_text.splitlines()]
++        for line in stdout_lines:
++            self.ssh_logger.info(line)
++        stderr_lines = [line.rstrip() for line
++                        in result.stderr_text.splitlines()]
++        for line in stderr_lines:
++            self.ssh_logger.warning(line)
++
++        self.assertEqual(result.exit_status, 0,
++                         f'Guest command failed: {command}')
++        return stdout_lines, stderr_lines
++
+     def run(self, args, ignore_error=False):
+         stdout, stderr, ret = run_cmd(args)
+ 
+@@ -134,6 +181,10 @@ def set_up_virtiofs(self):
+                          '-numa',
+                          'node,memdev=mem')
+ 
++    def launch_vm(self):
++        self.launch_and_wait()
++        self.ssh_connect('root', self.ssh_key)
++
+     def set_up_nested_mounts(self):
+         scratch_dir = os.path.join(self.shared_dir, 'scratch')
+         try:
+@@ -195,14 +246,18 @@ def setUp(self):
+ 
+         self.run(('ssh-keygen', '-N', '', '-t', 'ed25519', '-f', self.ssh_key))
+ 
+-        pubkey = self.ssh_key + '.pub'
++        pubkey = open(self.ssh_key + '.pub').read()
+ 
+         super(VirtiofsSubmountsTest, self).setUp(pubkey)
+ 
+-        if vmlinuz:
++        if len(vmlinuz) > 0:
+             self.vm.add_args('-kernel', vmlinuz,
+                              '-append', 'console=ttyS0 root=/dev/sda1')
+ 
++        # Allow us to connect to SSH
++        self.vm.add_args('-netdev', 'user,id=vnet,hostfwd=:127.0.0.1:0-:22',
++                         '-device', 'virtio-net,netdev=vnet')
++
+         self.require_accelerator("kvm")
+         self.vm.add_args('-accel', 'kvm')
+ 
+@@ -222,7 +277,7 @@ def test_pre_virtiofsd_set_up(self):
+         self.set_up_nested_mounts()
+ 
+         self.set_up_virtiofs()
+-        self.launch_and_wait()
++        self.launch_vm()
+         self.mount_in_guest()
+         self.check_in_guest()
+ 
+@@ -232,14 +287,14 @@ def test_pre_launch_set_up(self):
+ 
+         self.set_up_nested_mounts()
+ 
+-        self.launch_and_wait()
++        self.launch_vm()
+         self.mount_in_guest()
+         self.check_in_guest()
+ 
+     def test_post_launch_set_up(self):
+         self.set_up_shared_dir()
+         self.set_up_virtiofs()
+-        self.launch_and_wait()
++        self.launch_vm()
+ 
+         self.set_up_nested_mounts()
+ 
+@@ -249,7 +304,7 @@ def test_post_launch_set_up(self):
+     def test_post_mount_set_up(self):
+         self.set_up_shared_dir()
+         self.set_up_virtiofs()
+-        self.launch_and_wait()
++        self.launch_vm()
+         self.mount_in_guest()
+ 
+         self.set_up_nested_mounts()
+@@ -262,7 +317,7 @@ def test_two_runs(self):
+         self.set_up_nested_mounts()
+ 
+         self.set_up_virtiofs()
+-        self.launch_and_wait()
++        self.launch_vm()
+         self.mount_in_guest()
+         self.check_in_guest()
+ 
+diff --git a/tests/docker/dockerfiles/centos7.docker b/tests/docker/dockerfiles/centos7.docker
+new file mode 100644
+index 0000000000..75fdb53c7c
+--- /dev/null
++++ b/tests/docker/dockerfiles/centos7.docker
+@@ -0,0 +1,43 @@
++FROM centos:7
++RUN yum install -y epel-release centos-release-xen-48
++
++RUN yum -y update
++
++# Please keep this list sorted alphabetically
++ENV PACKAGES \
++    bzip2 \
++    bzip2-devel \
++    ccache \
++    csnappy-devel \
++    dbus-daemon \
++    gcc-c++ \
++    gcc \
++    gettext \
++    git \
++    glib2-devel \
++    glibc-static \
++    gnutls-devel \
++    libaio-devel \
++    libepoxy-devel \
++    libfdt-devel \
++    libgcrypt-devel \
++    librdmacm-devel \
++    libzstd-devel \
++    lzo-devel \
++    make \
++    mesa-libEGL-devel \
++    mesa-libgbm-devel \
++    nettle-devel \
++    ninja-build \
++    perl-Test-Harness \
++    pixman-devel \
++    python3 \
++    SDL2-devel \
++    spice-glib-devel \
++    spice-server-devel \
++    tar \
++    vte-devel \
++    xen-devel \
++    zlib-devel
++RUN yum install -y $PACKAGES
++RUN rpm -q $PACKAGES | sort > /packages.txt
+diff --git a/tests/docker/dockerfiles/python.docker b/tests/docker/dockerfiles/python.docker
+deleted file mode 100644
+index 56d88417df..0000000000
+--- a/tests/docker/dockerfiles/python.docker
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Python library testing environment
+-
+-FROM fedora:latest
+-MAINTAINER John Snow <jsnow@redhat.com>
+-
+-# Please keep this list sorted alphabetically
+-ENV PACKAGES \
+-    gcc \
+-    make \
+-    pipenv \
+-    python3 \
+-    python3-pip \
+-    python3-tox \
+-    python3-virtualenv \
+-    python3.10
+-
+-RUN dnf install -y $PACKAGES
+-RUN rpm -q $PACKAGES | sort > /packages.txt
+diff --git a/tests/qapi-schema/meson.build b/tests/qapi-schema/meson.build
+index b8de58116a..9e8f658ce3 100644
+--- a/tests/qapi-schema/meson.build
++++ b/tests/qapi-schema/meson.build
+@@ -208,7 +208,7 @@ schemas += [meson.current_source_dir() / 'missing-schema.json']
+ 
+ # Because people may want to use test-qapi.py from the command line, we
+ # are not using the "#! /usr/bin/env python3" trick here.  See
+-# docs/devel/build-system.rst
++# docs/devel/build-system.txt
+ test('QAPI schema regression tests', python,
+      args: files('test-qapi.py') + schemas,
+      env: test_env, suite: ['qapi-schema', 'qapi-frontend'])
+diff --git a/tests/qemu-iotests/283.out b/tests/qemu-iotests/283.out
+index 97e62a4c94..c6e12b15c5 100644
+--- a/tests/qemu-iotests/283.out
++++ b/tests/qemu-iotests/283.out
+@@ -5,7 +5,7 @@
+ {"execute": "blockdev-add", "arguments": {"driver": "blkdebug", "image": "base", "node-name": "other", "take-child-perms": ["write"]}}
+ {"return": {}}
+ {"execute": "blockdev-backup", "arguments": {"device": "source", "sync": "full", "target": "target"}}
+-{"error": {"class": "GenericError", "desc": "Cannot append backup-top filter: Conflicts with use by source as 'image', which does not allow 'write' on base"}}
++{"error": {"class": "GenericError", "desc": "Cannot append backup-top filter: Permission conflict on node 'base': permissions 'write' are both required by node 'other' (uses node 'base' as 'image' child) and unshared by node 'source' (uses node 'base' as 'image' child)."}}
+ 
+ === backup-top should be gone after job-finalize ===
+ 
+diff --git a/tests/qemu-iotests/297 b/tests/qemu-iotests/297
+index 433b732336..a37910b42d 100755
+--- a/tests/qemu-iotests/297
++++ b/tests/qemu-iotests/297
+@@ -95,7 +95,6 @@ def run_linters():
+                             '--warn-redundant-casts',
+                             '--warn-unused-ignores',
+                             '--no-implicit-reexport',
+-                            '--namespace-packages',
+                             filename),
+                            env=env,
+                            check=False,
+diff --git a/tests/qemu-iotests/300 b/tests/qemu-iotests/300
+index fe94de84ed..b475a92c47 100755
+--- a/tests/qemu-iotests/300
++++ b/tests/qemu-iotests/300
+@@ -28,7 +28,7 @@ import iotests
+ 
+ # Import qemu after iotests.py has amended sys.path
+ # pylint: disable=wrong-import-order
+-from qemu.machine import machine
++import qemu
+ 
+ BlockBitmapMapping = List[Dict[str, object]]
+ 
+@@ -466,7 +466,7 @@ class TestBlockBitmapMappingErrors(TestDirtyBitmapMigration):
+         # the failed migration
+         try:
+             self.vm_b.shutdown()
+-        except machine.AbnormalShutdown:
++        except qemu.machine.AbnormalShutdown:
+             pass
+ 
+     def test_aliased_bitmap_name_too_long(self) -> None:
+diff --git a/tests/qemu-iotests/307.out b/tests/qemu-iotests/307.out
+index daa8ad2da0..4b0c7e155a 100644
+--- a/tests/qemu-iotests/307.out
++++ b/tests/qemu-iotests/307.out
+@@ -53,7 +53,7 @@ exports available: 1
+ 
+ === Add a writable export ===
+ {"execute": "block-export-add", "arguments": {"description": "This is the writable second export", "id": "export1", "name": "export1", "node-name": "fmt", "type": "nbd", "writable": true, "writethrough": true}}
+-{"error": {"class": "GenericError", "desc": "Conflicts with use by sda as 'root', which does not allow 'write' on fmt"}}
++{"error": {"class": "GenericError", "desc": "Permission conflict on node 'fmt': permissions 'write' are both required by an unnamed block device (uses node 'fmt' as 'root' child) and unshared by block device 'sda' (uses node 'fmt' as 'root' child)."}}
+ {"execute": "device_del", "arguments": {"id": "sda"}}
+ {"return": {}}
+ {"data": {"device": "sda", "path": "/machine/peripheral/sda"}, "event": "DEVICE_DELETED", "timestamp": {"microseconds": "USECS", "seconds": "SECS"}}
+diff --git a/tests/qemu-iotests/iotests.py b/tests/qemu-iotests/iotests.py
+index 89663dac06..777fa2ec0e 100644
+--- a/tests/qemu-iotests/iotests.py
++++ b/tests/qemu-iotests/iotests.py
+@@ -38,7 +38,7 @@
+ 
+ # pylint: disable=import-error, wrong-import-position
+ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
+-from qemu.machine import qtest
++from qemu import qtest
+ from qemu.qmp import QMPMessage
+ 
+ # Use this logger for logging messages directly from the iotests module
+@@ -571,7 +571,7 @@ class VM(qtest.QEMUQtestMachine):
+     def __init__(self, path_suffix=''):
+         name = "qemu%s-%d" % (path_suffix, os.getpid())
+         super().__init__(qemu_prog, qemu_opts, name=name,
+-                         base_temp_dir=test_dir,
++                         test_dir=test_dir,
+                          socket_scm_helper=socket_scm_helper,
+                          sock_dir=sock_dir)
+         self._num_drives = 0
+diff --git a/tests/qemu-iotests/tests/qsd-jobs.out b/tests/qemu-iotests/tests/qsd-jobs.out
+index 9f52255da8..189423354b 100644
+--- a/tests/qemu-iotests/tests/qsd-jobs.out
++++ b/tests/qemu-iotests/tests/qsd-jobs.out
+@@ -16,7 +16,7 @@ QMP_VERSION
+ {"return": {}}
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "JOB_STATUS_CHANGE", "data": {"status": "created", "id": "job0"}}
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "JOB_STATUS_CHANGE", "data": {"status": "null", "id": "job0"}}
+-{"error": {"class": "GenericError", "desc": "Conflicts with use by stream job 'job0' as 'intermediate node', which does not allow 'write' on fmt_base"}}
++{"error": {"class": "GenericError", "desc": "Permission conflict on node 'fmt_base': permissions 'write' are both required by an unnamed block device (uses node 'fmt_base' as 'root' child) and unshared by stream job 'job0' (uses node 'fmt_base' as 'intermediate node' child)."}}
+ {"return": {}}
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "BLOCK_EXPORT_DELETED", "data": {"id": "export1"}}
+ *** done
+diff --git a/tests/requirements.txt b/tests/requirements.txt
+index a21b59b443..91f3a343b9 100644
+--- a/tests/requirements.txt
++++ b/tests/requirements.txt
+@@ -1,5 +1,5 @@
+ # Add Python module requirements, one per line, to be installed
+ # in the tests/venv Python virtual environment. For more info,
+ # refer to: https://pip.pypa.io/en/stable/user_guide/#id1
+-avocado-framework==88.1
++avocado-framework==85.0
+ pycdlib==1.11.0
+diff --git a/tests/unit/test-block-iothread.c b/tests/unit/test-block-iothread.c
+index 8cf172cb7a..c39e70b2f5 100644
+--- a/tests/unit/test-block-iothread.c
++++ b/tests/unit/test-block-iothread.c
+@@ -194,13 +194,11 @@ static void test_sync_op_truncate(BdrvChild *c)
+     g_assert_cmpint(ret, ==, -EINVAL);
+ 
+     /* Error: Read-only image */
+-    c->bs->read_only = true;
+     c->bs->open_flags &= ~BDRV_O_RDWR;
+ 
+     ret = bdrv_truncate(c, 65536, false, PREALLOC_MODE_OFF, 0, NULL);
+     g_assert_cmpint(ret, ==, -EACCES);
+ 
+-    c->bs->read_only = false;
+     c->bs->open_flags |= BDRV_O_RDWR;
+ }
+ 
+@@ -236,13 +234,11 @@ static void test_sync_op_flush(BdrvChild *c)
+     g_assert_cmpint(ret, ==, 0);
+ 
+     /* Early success: Read-only image */
+-    c->bs->read_only = true;
+     c->bs->open_flags &= ~BDRV_O_RDWR;
+ 
+     ret = bdrv_flush(c->bs);
+     g_assert_cmpint(ret, ==, 0);
+ 
+-    c->bs->read_only = false;
+     c->bs->open_flags |= BDRV_O_RDWR;
+ }
+ 
+@@ -256,13 +252,11 @@ static void test_sync_op_blk_flush(BlockBackend *blk)
+     g_assert_cmpint(ret, ==, 0);
+ 
+     /* Early success: Read-only image */
+-    bs->read_only = true;
+     bs->open_flags &= ~BDRV_O_RDWR;
+ 
+     ret = blk_flush(blk);
+     g_assert_cmpint(ret, ==, 0);
+ 
+-    bs->read_only = false;
+     bs->open_flags |= BDRV_O_RDWR;
+ }
+ 
+diff --git a/tests/vm/aarch64vm.py b/tests/vm/aarch64vm.py
+index b00cce07eb..d70ab843b6 100644
+--- a/tests/vm/aarch64vm.py
++++ b/tests/vm/aarch64vm.py
+@@ -14,7 +14,7 @@
+ import sys
+ import subprocess
+ import basevm
+-from qemu.utils import kvm_available
++from qemu.accel import kvm_available
+ 
+ # This is the config needed for current version of QEMU.
+ # This works for both kvm and tcg.
+diff --git a/tests/vm/basevm.py b/tests/vm/basevm.py
+index 0f2e436ed3..00f1d5ca8d 100644
+--- a/tests/vm/basevm.py
++++ b/tests/vm/basevm.py
+@@ -19,8 +19,8 @@
+ import time
+ import datetime
+ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
++from qemu.accel import kvm_available
+ from qemu.machine import QEMUMachine
+-from qemu.utils import get_info_usernet_hostfwd_port, kvm_available
+ import subprocess
+ import hashlib
+ import argparse
+@@ -227,7 +227,7 @@ def _ssh_do(self, user, cmd, check):
+                    "-o", "UserKnownHostsFile=" + os.devnull,
+                    "-o",
+                    "ConnectTimeout={}".format(self._config["ssh_timeout"]),
+-                   "-p", str(self.ssh_port), "-i", self._ssh_tmp_key_file]
++                   "-p", self.ssh_port, "-i", self._ssh_tmp_key_file]
+         # If not in debug mode, set ssh to quiet mode to
+         # avoid printing the results of commands.
+         if not self.debug:
+@@ -305,8 +305,12 @@ def boot(self, img, extra_args=[]):
+         # Init console so we can start consuming the chars.
+         self.console_init()
+         usernet_info = guest.qmp("human-monitor-command",
+-                                 command_line="info usernet").get("return")
+-        self.ssh_port = get_info_usernet_hostfwd_port(usernet_info)
++                                 command_line="info usernet")
++        self.ssh_port = None
++        for l in usernet_info["return"].splitlines():
++            fields = l.split()
++            if "TCP[HOST_FORWARD]" in fields and "22" in fields:
++                self.ssh_port = l.split()[3]
+         if not self.ssh_port:
+             raise Exception("Cannot find ssh port from 'info usernet':\n%s" % \
+                             usernet_info)
+diff --git a/tests/vm/centos b/tests/vm/centos
+index 5c7bc1c1a9..efe3dbbb36 100755
+--- a/tests/vm/centos
++++ b/tests/vm/centos
+@@ -26,23 +26,24 @@ class CentosVM(basevm.BaseVM):
+         export SRC_ARCHIVE=/dev/vdb;
+         sudo chmod a+r $SRC_ARCHIVE;
+         tar -xf $SRC_ARCHIVE;
+-        make docker-test-block@centos8 {verbose} J={jobs} NETWORK=1;
+-        make docker-test-quick@centos8 {verbose} J={jobs} NETWORK=1;
++        make docker-test-block@centos7 {verbose} J={jobs} NETWORK=1;
++        make docker-test-quick@centos7 {verbose} J={jobs} NETWORK=1;
+         make docker-test-mingw@fedora  {verbose} J={jobs} NETWORK=1;
+     """
+ 
+     def build_image(self, img):
+-        cimg = self._download_with_cache("https://cloud.centos.org/centos/8/x86_64/images/CentOS-8-GenericCloud-8.3.2011-20201204.2.x86_64.qcow2")
++        cimg = self._download_with_cache("https://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud-1802.qcow2.xz")
+         img_tmp = img + ".tmp"
+-        subprocess.check_call(["ln", "-f", cimg, img_tmp])
++        sys.stderr.write("Extracting the image...\n")
++        subprocess.check_call(["ln", "-f", cimg, img_tmp + ".xz"])
++        subprocess.check_call(["xz", "--keep", "-dvf", img_tmp + ".xz"])
+         self.exec_qemu_img("resize", img_tmp, "50G")
+         self.boot(img_tmp, extra_args = ["-cdrom", self.gen_cloud_init_iso()])
+         self.wait_ssh()
+         self.ssh_root_check("touch /etc/cloud/cloud-init.disabled")
+-        self.ssh_root_check("dnf update -y")
+-        self.ssh_root_check("dnf install -y dnf-plugins-core")
+-        self.ssh_root_check("dnf config-manager --set-enabled powertools")
+-        self.ssh_root_check("dnf install -y podman make ninja-build git python3")
++        self.ssh_root_check("yum update -y")
++        self.ssh_root_check("yum install -y docker make ninja-build git python3")
++        self.ssh_root_check("systemctl enable docker")
+         self.ssh_root("poweroff")
+         self.wait()
+         os.rename(img_tmp, img)
+diff --git a/trace-events b/trace-events
+index 765fe251e6..ac7cef9335 100644
+--- a/trace-events
++++ b/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ #
+ # This file is processed by the tracetool script during the build.
+ #
+diff --git a/ui/trace-events b/ui/trace-events
+index 1b5f87bc09..c86542e2b6 100644
+--- a/ui/trace-events
++++ b/ui/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # console.c
+ console_gfx_new(void) ""
+diff --git a/util/oslib-win32.c b/util/oslib-win32.c
+index ca99356fdf..05e4ee5033 100644
+--- a/util/oslib-win32.c
++++ b/util/oslib-win32.c
+@@ -347,6 +347,210 @@ const char *qemu_get_exec_dir(void)
+     return exec_dir;
+ }
+ 
++#if !GLIB_CHECK_VERSION(2, 50, 0)
++/*
++ * The original implementation of g_poll from glib has a problem on Windows
++ * when using timeouts < 10 ms.
++ *
++ * Whenever g_poll is called with timeout < 10 ms, it does a quick poll instead
++ * of wait. This causes significant performance degradation of QEMU.
++ *
++ * The following code is a copy of the original code from glib/gpoll.c
++ * (glib commit 20f4d1820b8d4d0fc4447188e33efffd6d4a88d8 from 2014-02-19).
++ * Some debug code was removed and the code was reformatted.
++ * All other code modifications are marked with 'QEMU'.
++ */
++
++/*
++ * gpoll.c: poll(2) abstraction
++ * Copyright 1998 Owen Taylor
++ * Copyright 2008 Red Hat, Inc.
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++
++static int poll_rest(gboolean poll_msgs, HANDLE *handles, gint nhandles,
++                     GPollFD *fds, guint nfds, gint timeout)
++{
++    DWORD ready;
++    GPollFD *f;
++    int recursed_result;
++
++    if (poll_msgs) {
++        /* Wait for either messages or handles
++         * -> Use MsgWaitForMultipleObjectsEx
++         */
++        ready = MsgWaitForMultipleObjectsEx(nhandles, handles, timeout,
++                                            QS_ALLINPUT, MWMO_ALERTABLE);
++
++        if (ready == WAIT_FAILED) {
++            gchar *emsg = g_win32_error_message(GetLastError());
++            g_warning("MsgWaitForMultipleObjectsEx failed: %s", emsg);
++            g_free(emsg);
++        }
++    } else if (nhandles == 0) {
++        /* No handles to wait for, just the timeout */
++        if (timeout == INFINITE) {
++            ready = WAIT_FAILED;
++        } else {
++            SleepEx(timeout, TRUE);
++            ready = WAIT_TIMEOUT;
++        }
++    } else {
++        /* Wait for just handles
++         * -> Use WaitForMultipleObjectsEx
++         */
++        ready =
++            WaitForMultipleObjectsEx(nhandles, handles, FALSE, timeout, TRUE);
++        if (ready == WAIT_FAILED) {
++            gchar *emsg = g_win32_error_message(GetLastError());
++            g_warning("WaitForMultipleObjectsEx failed: %s", emsg);
++            g_free(emsg);
++        }
++    }
++
++    if (ready == WAIT_FAILED) {
++        return -1;
++    } else if (ready == WAIT_TIMEOUT || ready == WAIT_IO_COMPLETION) {
++        return 0;
++    } else if (poll_msgs && ready == WAIT_OBJECT_0 + nhandles) {
++        for (f = fds; f < &fds[nfds]; ++f) {
++            if (f->fd == G_WIN32_MSG_HANDLE && f->events & G_IO_IN) {
++                f->revents |= G_IO_IN;
++            }
++        }
++
++        /* If we have a timeout, or no handles to poll, be satisfied
++         * with just noticing we have messages waiting.
++         */
++        if (timeout != 0 || nhandles == 0) {
++            return 1;
++        }
++
++        /* If no timeout and handles to poll, recurse to poll them,
++         * too.
++         */
++        recursed_result = poll_rest(FALSE, handles, nhandles, fds, nfds, 0);
++        return (recursed_result == -1) ? -1 : 1 + recursed_result;
++    } else if (/* QEMU: removed the following unneeded statement which causes
++                * a compiler warning: ready >= WAIT_OBJECT_0 && */
++               ready < WAIT_OBJECT_0 + nhandles) {
++        for (f = fds; f < &fds[nfds]; ++f) {
++            if ((HANDLE) f->fd == handles[ready - WAIT_OBJECT_0]) {
++                f->revents = f->events;
++            }
++        }
++
++        /* If no timeout and polling several handles, recurse to poll
++         * the rest of them.
++         */
++        if (timeout == 0 && nhandles > 1) {
++            /* Remove the handle that fired */
++            int i;
++            for (i = ready - WAIT_OBJECT_0 + 1; i < nhandles; i++) {
++                handles[i-1] = handles[i];
++            }
++            nhandles--;
++            recursed_result = poll_rest(FALSE, handles, nhandles, fds, nfds, 0);
++            return (recursed_result == -1) ? -1 : 1 + recursed_result;
++        }
++        return 1;
++    }
++
++    return 0;
++}
++
++gint g_poll_fixed(GPollFD *fds, guint nfds, gint timeout)
++{
++    HANDLE handles[MAXIMUM_WAIT_OBJECTS];
++    gboolean poll_msgs = FALSE;
++    GPollFD *f;
++    gint nhandles = 0;
++    int retval;
++
++    for (f = fds; f < &fds[nfds]; ++f) {
++        if (f->fd == G_WIN32_MSG_HANDLE && (f->events & G_IO_IN)) {
++            poll_msgs = TRUE;
++        } else if (f->fd > 0) {
++            /* Don't add the same handle several times into the array, as
++             * docs say that is not allowed, even if it actually does seem
++             * to work.
++             */
++            gint i;
++
++            for (i = 0; i < nhandles; i++) {
++                if (handles[i] == (HANDLE) f->fd) {
++                    break;
++                }
++            }
++
++            if (i == nhandles) {
++                if (nhandles == MAXIMUM_WAIT_OBJECTS) {
++                    g_warning("Too many handles to wait for!\n");
++                    break;
++                } else {
++                    handles[nhandles++] = (HANDLE) f->fd;
++                }
++            }
++        }
++    }
++
++    for (f = fds; f < &fds[nfds]; ++f) {
++        f->revents = 0;
++    }
++
++    if (timeout == -1) {
++        timeout = INFINITE;
++    }
++
++    /* Polling for several things? */
++    if (nhandles > 1 || (nhandles > 0 && poll_msgs)) {
++        /* First check if one or several of them are immediately
++         * available
++         */
++        retval = poll_rest(poll_msgs, handles, nhandles, fds, nfds, 0);
++
++        /* If not, and we have a significant timeout, poll again with
++         * timeout then. Note that this will return indication for only
++         * one event, or only for messages. We ignore timeouts less than
++         * ten milliseconds as they are mostly pointless on Windows, the
++         * MsgWaitForMultipleObjectsEx() call will timeout right away
++         * anyway.
++         *
++         * Modification for QEMU: replaced timeout >= 10 by timeout > 0.
++         */
++        if (retval == 0 && (timeout == INFINITE || timeout > 0)) {
++            retval = poll_rest(poll_msgs, handles, nhandles,
++                               fds, nfds, timeout);
++        }
++    } else {
++        /* Just polling for one thing, so no need to check first if
++         * available immediately
++         */
++        retval = poll_rest(poll_msgs, handles, nhandles, fds, nfds, timeout);
++    }
++
++    if (retval == -1) {
++        for (f = fds; f < &fds[nfds]; ++f) {
++            f->revents = 0;
++        }
++    }
++
++    return retval;
++}
++#endif
++
+ int getpagesize(void)
+ {
+     SYSTEM_INFO system_info;
+diff --git a/util/trace-events b/util/trace-events
+index 806cac14a7..bac0924899 100644
+--- a/util/trace-events
++++ b/util/trace-events
+@@ -1,4 +1,4 @@
+-# See docs/devel/tracing.rst for syntax documentation.
++# See docs/devel/tracing.txt for syntax documentation.
+ 
+ # aio-posix.c
+ run_poll_handlers_begin(void *ctx, int64_t max_ns, int64_t timeout) "ctx %p max_ns %"PRId64 " timeout %"PRId64

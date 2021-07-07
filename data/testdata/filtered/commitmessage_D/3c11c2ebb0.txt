@@ -1,0 +1,16 @@
+commit 3c11c2ebb062ffb5d7dcad44ab0fb60505ad5cac
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 20:07:41 2021 -0700
+
+    target/s390x: Do not modify cpu state in s390_cpu_get_psw_mask
+    
+    We want to use this function for debugging, and debug should
+    not modify cpu state (even non-architectural cpu state) lest
+    we introduce heisenbugs.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: David Hildenbrand <david@redhat.com>
+    Tested-by: jonathan.albrecht <jonathan.albrecht@linux.vnet.ibm.com>
+    Tested-by: <ruixin.bao@ibm.com>
+    Message-Id: <20210615030744.1252385-3-richard.henderson@linaro.org>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

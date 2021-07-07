@@ -1,0 +1,114 @@
+diff --git a/tests/acceptance/avocado_qemu/__init__.py b/tests/acceptance/avocado_qemu/__init__.py
+index 1062a851b9..25f871f5bc 100644
+--- a/tests/acceptance/avocado_qemu/__init__.py
++++ b/tests/acceptance/avocado_qemu/__init__.py
+@@ -391,7 +391,7 @@ def set_up_cloudinit(self, ssh_pubkey=None):
+         cloudinit_iso = self.prepare_cloudinit(ssh_pubkey)
+         self.vm.add_args('-drive', 'file=%s,format=raw' % cloudinit_iso)
+ 
+-    def launch_and_wait(self, set_up_ssh_connection=True):
++    def launch_and_wait(self):
+         self.vm.set_console()
+         self.vm.launch()
+         console_drainer = datadrainer.LineLogger(self.vm.console_socket.fileno(),
+@@ -399,6 +399,3 @@ def launch_and_wait(self, set_up_ssh_connection=True):
+         console_drainer.start()
+         self.log.info('VM launched, waiting for boot confirmation from guest')
+         cloudinit.wait_for_phone_home(('0.0.0.0', self.phone_home_port), self.name)
+-        if set_up_ssh_connection:
+-            self.log.info('Setting up the SSH connection')
+-            self.ssh_connect(self.username, self.ssh_key)
+diff --git a/tests/acceptance/boot_linux.py b/tests/acceptance/boot_linux.py
+index 314370fd1f..0d178038a0 100644
+--- a/tests/acceptance/boot_linux.py
++++ b/tests/acceptance/boot_linux.py
+@@ -29,7 +29,7 @@ def test_pc_i440fx_tcg(self):
+         """
+         self.require_accelerator("tcg")
+         self.vm.add_args("-accel", "tcg")
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+     def test_pc_i440fx_kvm(self):
+         """
+@@ -38,7 +38,7 @@ def test_pc_i440fx_kvm(self):
+         """
+         self.require_accelerator("kvm")
+         self.vm.add_args("-accel", "kvm")
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+     def test_pc_q35_tcg(self):
+         """
+@@ -47,7 +47,7 @@ def test_pc_q35_tcg(self):
+         """
+         self.require_accelerator("tcg")
+         self.vm.add_args("-accel", "tcg")
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+     def test_pc_q35_kvm(self):
+         """
+@@ -56,7 +56,7 @@ def test_pc_q35_kvm(self):
+         """
+         self.require_accelerator("kvm")
+         self.vm.add_args("-accel", "kvm")
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+ 
+ class BootLinuxAarch64(LinuxTest):
+@@ -85,7 +85,7 @@ def test_virt_tcg(self):
+         self.vm.add_args("-cpu", "max")
+         self.vm.add_args("-machine", "virt,gic-version=2")
+         self.add_common_args()
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+     def test_virt_kvm_gicv2(self):
+         """
+@@ -98,7 +98,7 @@ def test_virt_kvm_gicv2(self):
+         self.vm.add_args("-cpu", "host")
+         self.vm.add_args("-machine", "virt,gic-version=2")
+         self.add_common_args()
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+     def test_virt_kvm_gicv3(self):
+         """
+@@ -111,7 +111,7 @@ def test_virt_kvm_gicv3(self):
+         self.vm.add_args("-cpu", "host")
+         self.vm.add_args("-machine", "virt,gic-version=3")
+         self.add_common_args()
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+ 
+ class BootLinuxPPC64(LinuxTest):
+@@ -128,7 +128,7 @@ def test_pseries_tcg(self):
+         """
+         self.require_accelerator("tcg")
+         self.vm.add_args("-accel", "tcg")
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+ 
+ 
+ class BootLinuxS390X(LinuxTest):
+@@ -146,4 +146,4 @@ def test_s390_ccw_virtio_tcg(self):
+         """
+         self.require_accelerator("tcg")
+         self.vm.add_args("-accel", "tcg")
+-        self.launch_and_wait(set_up_ssh_connection=False)
++        self.launch_and_wait()
+diff --git a/tests/acceptance/virtiofs_submounts.py b/tests/acceptance/virtiofs_submounts.py
+index e019d3b896..e10a935ac4 100644
+--- a/tests/acceptance/virtiofs_submounts.py
++++ b/tests/acceptance/virtiofs_submounts.py
+@@ -136,6 +136,7 @@ def set_up_virtiofs(self):
+ 
+     def launch_vm(self):
+         self.launch_and_wait()
++        self.ssh_connect('root', self.ssh_key)
+ 
+     def set_up_nested_mounts(self):
+         scratch_dir = os.path.join(self.shared_dir, 'scratch')

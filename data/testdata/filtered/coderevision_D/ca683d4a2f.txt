@@ -1,0 +1,258 @@
+diff --git a/scripts/qmp/qemu-ga-client b/scripts/qmp/qemu-ga-client
+index a7d0ef8347..ece9f74fa8 100755
+--- a/scripts/qmp/qemu-ga-client
++++ b/scripts/qmp/qemu-ga-client
+@@ -44,18 +44,10 @@ import errno
+ import os
+ import random
+ import sys
+-from typing import (
+-    Any,
+-    Callable,
+-    Dict,
+-    Optional,
+-    Sequence,
+-)
+ 
+ 
+ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
+ from qemu import qmp
+-from qemu.qmp import SocketAddrT
+ 
+ 
+ # This script has not seen many patches or careful attention in quite
+@@ -66,18 +58,18 @@ from qemu.qmp import SocketAddrT
+ 
+ 
+ class QemuGuestAgent(qmp.QEMUMonitorProtocol):
+-    def __getattr__(self, name: str) -> Callable[..., Any]:
+-        def wrapper(**kwds: object) -> object:
++    def __getattr__(self, name):
++        def wrapper(**kwds):
+             return self.command('guest-' + name.replace('_', '-'), **kwds)
+         return wrapper
+ 
+ 
+ class QemuGuestAgentClient:
+-    def __init__(self, address: SocketAddrT):
++    def __init__(self, address):
+         self.qga = QemuGuestAgent(address)
+         self.qga.connect(negotiate=False)
+ 
+-    def sync(self, timeout: Optional[float] = 3) -> None:
++    def sync(self, timeout=3):
+         # Avoid being blocked forever
+         if not self.ping(timeout):
+             raise EnvironmentError('Agent seems not alive')
+@@ -87,9 +79,9 @@ class QemuGuestAgentClient:
+             if isinstance(ret, int) and int(ret) == uid:
+                 break
+ 
+-    def __file_read_all(self, handle: int) -> bytes:
++    def __file_read_all(self, handle):
+         eof = False
+-        data = b''
++        data = ''
+         while not eof:
+             ret = self.qga.file_read(handle=handle, count=1024)
+             _data = base64.b64decode(ret['buf-b64'])
+@@ -97,7 +89,7 @@ class QemuGuestAgentClient:
+             eof = ret['eof']
+         return data
+ 
+-    def read(self, path: str) -> bytes:
++    def read(self, path):
+         handle = self.qga.file_open(path=path)
+         try:
+             data = self.__file_read_all(handle)
+@@ -105,7 +97,7 @@ class QemuGuestAgentClient:
+             self.qga.file_close(handle=handle)
+         return data
+ 
+-    def info(self) -> str:
++    def info(self):
+         info = self.qga.info()
+ 
+         msgs = []
+@@ -121,14 +113,14 @@ class QemuGuestAgentClient:
+         return '\n'.join(msgs)
+ 
+     @classmethod
+-    def __gen_ipv4_netmask(cls, prefixlen: int) -> str:
++    def __gen_ipv4_netmask(cls, prefixlen):
+         mask = int('1' * prefixlen + '0' * (32 - prefixlen), 2)
+         return '.'.join([str(mask >> 24),
+                          str((mask >> 16) & 0xff),
+                          str((mask >> 8) & 0xff),
+                          str(mask & 0xff)])
+ 
+-    def ifconfig(self) -> str:
++    def ifconfig(self):
+         nifs = self.qga.network_get_interfaces()
+ 
+         msgs = []
+@@ -149,7 +141,7 @@ class QemuGuestAgentClient:
+ 
+         return '\n'.join(msgs)
+ 
+-    def ping(self, timeout: Optional[float]) -> bool:
++    def ping(self, timeout):
+         self.qga.settimeout(timeout)
+         try:
+             self.qga.ping()
+@@ -157,40 +149,37 @@ class QemuGuestAgentClient:
+             return False
+         return True
+ 
+-    def fsfreeze(self, cmd: str) -> object:
++    def fsfreeze(self, cmd):
+         if cmd not in ['status', 'freeze', 'thaw']:
+             raise Exception('Invalid command: ' + cmd)
+-        # Can be int (freeze, thaw) or GuestFsfreezeStatus (status)
++
+         return getattr(self.qga, 'fsfreeze' + '_' + cmd)()
+ 
+-    def fstrim(self, minimum: int) -> Dict[str, object]:
+-        # returns GuestFilesystemTrimResponse
+-        ret = getattr(self.qga, 'fstrim')(minimum=minimum)
+-        assert isinstance(ret, dict)
+-        return ret
++    def fstrim(self, minimum=0):
++        return getattr(self.qga, 'fstrim')(minimum=minimum)
+ 
+-    def suspend(self, mode: str) -> None:
++    def suspend(self, mode):
+         if mode not in ['disk', 'ram', 'hybrid']:
+             raise Exception('Invalid mode: ' + mode)
+ 
+         try:
+             getattr(self.qga, 'suspend' + '_' + mode)()
+             # On error exception will raise
+-        except TimeoutError:
++        except self.qga.timeout:
+             # On success command will timed out
+             return
+ 
+-    def shutdown(self, mode: str = 'powerdown') -> None:
++    def shutdown(self, mode='powerdown'):
+         if mode not in ['powerdown', 'halt', 'reboot']:
+             raise Exception('Invalid mode: ' + mode)
+ 
+         try:
+             self.qga.shutdown(mode=mode)
+-        except TimeoutError:
+-            pass
++        except self.qga.timeout:
++            return
+ 
+ 
+-def _cmd_cat(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
++def _cmd_cat(client, args):
+     if len(args) != 1:
+         print('Invalid argument')
+         print('Usage: cat <file>')
+@@ -198,7 +187,7 @@ def _cmd_cat(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
+     print(client.read(args[0]))
+ 
+ 
+-def _cmd_fsfreeze(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
++def _cmd_fsfreeze(client, args):
+     usage = 'Usage: fsfreeze status|freeze|thaw'
+     if len(args) != 1:
+         print('Invalid argument')
+@@ -212,14 +201,13 @@ def _cmd_fsfreeze(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
+     ret = client.fsfreeze(cmd)
+     if cmd == 'status':
+         print(ret)
+-        return
+-
+-    assert isinstance(ret, int)
+-    verb = 'frozen' if cmd == 'freeze' else 'thawed'
+-    print(f"{ret:d} filesystems {verb}")
++    elif cmd == 'freeze':
++        print("%d filesystems frozen" % ret)
++    else:
++        print("%d filesystems thawed" % ret)
+ 
+ 
+-def _cmd_fstrim(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
++def _cmd_fstrim(client, args):
+     if len(args) == 0:
+         minimum = 0
+     else:
+@@ -227,25 +215,28 @@ def _cmd_fstrim(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
+     print(client.fstrim(minimum))
+ 
+ 
+-def _cmd_ifconfig(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
++def _cmd_ifconfig(client, args):
+     assert not args
+     print(client.ifconfig())
+ 
+ 
+-def _cmd_info(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
++def _cmd_info(client, args):
+     assert not args
+     print(client.info())
+ 
+ 
+-def _cmd_ping(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
+-    timeout = 3.0 if len(args) == 0 else float(args[0])
++def _cmd_ping(client, args):
++    if len(args) == 0:
++        timeout = 3
++    else:
++        timeout = float(args[0])
+     alive = client.ping(timeout)
+     if not alive:
+         print("Not responded in %s sec" % args[0])
+         sys.exit(1)
+ 
+ 
+-def _cmd_suspend(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
++def _cmd_suspend(client, args):
+     usage = 'Usage: suspend disk|ram|hybrid'
+     if len(args) != 1:
+         print('Less argument')
+@@ -258,7 +249,7 @@ def _cmd_suspend(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
+     client.suspend(args[0])
+ 
+ 
+-def _cmd_shutdown(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
++def _cmd_shutdown(client, args):
+     assert not args
+     client.shutdown()
+ 
+@@ -266,12 +257,12 @@ def _cmd_shutdown(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
+ _cmd_powerdown = _cmd_shutdown
+ 
+ 
+-def _cmd_halt(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
++def _cmd_halt(client, args):
+     assert not args
+     client.shutdown('halt')
+ 
+ 
+-def _cmd_reboot(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
++def _cmd_reboot(client, args):
+     assert not args
+     client.shutdown('reboot')
+ 
+@@ -279,7 +270,7 @@ def _cmd_reboot(client: QemuGuestAgentClient, args: Sequence[str]) -> None:
+ commands = [m.replace('_cmd_', '') for m in dir() if '_cmd_' in m]
+ 
+ 
+-def send_command(address: str, cmd: str, args: Sequence[str]) -> None:
++def send_command(address, cmd, args):
+     if not os.path.exists(address):
+         print('%s not found' % address)
+         sys.exit(1)
+@@ -305,7 +296,7 @@ def send_command(address: str, cmd: str, args: Sequence[str]) -> None:
+     globals()['_cmd_' + cmd](client, args)
+ 
+ 
+-def main() -> None:
++def main():
+     address = os.environ.get('QGA_CLIENT_ADDRESS')
+ 
+     parser = argparse.ArgumentParser()

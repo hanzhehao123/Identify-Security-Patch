@@ -1,0 +1,19 @@
+commit b26b5629c0be4a9539833de4189184a224590d14
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu May 20 16:28:38 2021 +0100
+
+    target/arm: Make FPSCR.LTPSIZE writable for MVE
+    
+    The M-profile FPSCR has an LTPSIZE field, but if MVE is not
+    implemented it is read-only and always reads as 4; this is how QEMU
+    currently handles it.
+    
+    Make the field writable when MVE is implemented.
+    
+    We can safely add the field to the MVE migration struct because
+    currently no CPUs enable MVE and so the migration struct is never
+    used.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210520152840.24453-8-peter.maydell@linaro.org

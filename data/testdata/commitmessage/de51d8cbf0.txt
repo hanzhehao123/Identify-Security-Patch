@@ -1,0 +1,12 @@
+commit de51d8cbf0f9a9745ac02fb07e02063b7dfe35b9
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 14 16:31:42 2021 -0700
+
+    qemu/compiler: Remove QEMU_GENERIC
+    
+    All previous users now use C11 _Generic.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-Id: <20210614233143.1221879-8-richard.henderson@linaro.org>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

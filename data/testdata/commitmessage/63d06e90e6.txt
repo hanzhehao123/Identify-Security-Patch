@@ -1,0 +1,15 @@
+commit 63d06e90e65d5f119039044e986a81007954a466
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Fri May 21 17:17:53 2021 -0300
+
+    target/ppc: reduce usage of fpscr_set_rounding_mode
+    
+    It is preferable to store the current rounding mode and retore from that
+    than recalculating from fpscr, so we changed the behavior of do_fri and
+    VSX_ROUND to do it like that.
+    
+    Suggested-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210521201759.85475-4-bruno.larsen@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

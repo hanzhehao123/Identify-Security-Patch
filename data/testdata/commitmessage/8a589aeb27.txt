@@ -1,0 +1,20 @@
+commit 8a589aeb271bb470884f960e76cd6a7c89c022c9
+Author: Khem Raj <raj.khem@gmail.com>
+Date:   Mon Jun 14 12:17:29 2021 -0700
+
+    linux-user: Check for ieee128 fpbits in PPC64 HWCAP2 feature list
+    
+    glibc 2.34 is now checking for this in hwcaps at
+    runtime [1] and failing to run the binary if machine
+    does not support 128bit IEEE fp
+    
+    Fixes
+    Fatal glibc error: CPU lacks float128 support (POWER 9 or later required)
+    
+    [1] https://sourceware.org/git/?p=glibc.git;a=commitdiff;h=d337345ce145e23c5f3a956f349d924fdf54ce2d;hp=eb24865637a271ab7dad13190330105eab0d478d
+    
+    Signed-off-by: Khem Raj <raj.khem@gmail.com>
+    Cc: Florian Weimer <fweimer@redhat.com>
+    Reviewed-by: Laurent Vivier <laurent@vivier.eu>
+    Message-Id: <20210614191729.2981488-1-raj.khem@gmail.com>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

@@ -1,0 +1,34 @@
+diff --git a/target/riscv/cpu.c b/target/riscv/cpu.c
+index 5702c53c62..ee2523f66b 100644
+--- a/target/riscv/cpu.c
++++ b/target/riscv/cpu.c
+@@ -489,9 +489,6 @@ static void riscv_cpu_realize(DeviceState *dev, Error **errp)
+         if (cpu->cfg.ext_h) {
+             target_misa |= RVH;
+         }
+-        if (cpu->cfg.ext_b) {
+-            target_misa |= RVB;
+-        }
+         if (cpu->cfg.ext_v) {
+             target_misa |= RVV;
+             if (!is_power_of_2(cpu->cfg.vlen)) {
+@@ -562,7 +559,6 @@ static Property riscv_cpu_properties[] = {
+     DEFINE_PROP_BOOL("s", RISCVCPU, cfg.ext_s, true),
+     DEFINE_PROP_BOOL("u", RISCVCPU, cfg.ext_u, true),
+     /* This is experimental so mark with 'x-' */
+-    DEFINE_PROP_BOOL("x-b", RISCVCPU, cfg.ext_b, false),
+     DEFINE_PROP_BOOL("x-h", RISCVCPU, cfg.ext_h, false),
+     DEFINE_PROP_BOOL("x-v", RISCVCPU, cfg.ext_v, false),
+     DEFINE_PROP_BOOL("Counters", RISCVCPU, cfg.ext_counters, true),
+diff --git a/target/riscv/cpu.h b/target/riscv/cpu.h
+index de9262c930..c0c99c3d8d 100644
+--- a/target/riscv/cpu.h
++++ b/target/riscv/cpu.h
+@@ -286,7 +286,6 @@ struct RISCVCPU {
+         bool ext_f;
+         bool ext_d;
+         bool ext_c;
+-        bool ext_b;
+         bool ext_s;
+         bool ext_u;
+         bool ext_h;

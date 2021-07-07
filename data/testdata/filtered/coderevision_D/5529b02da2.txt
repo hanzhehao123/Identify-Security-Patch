@@ -1,0 +1,1915 @@
+diff --git a/.gitlab-ci.d/containers.yml b/.gitlab-ci.d/containers.yml
+index bd01ae8f80..1ca455f8e1 100644
+--- a/.gitlab-ci.d/containers.yml
++++ b/.gitlab-ci.d/containers.yml
+@@ -43,3 +43,8 @@ amd64-opensuse-leap-container:
+   extends: .container_job_template
+   variables:
+     NAME: opensuse-leap
++
++python-container:
++  extends: .container_job_template
++  variables:
++    NAME: python
+diff --git a/.gitlab-ci.d/static_checks.yml b/.gitlab-ci.d/static_checks.yml
+index 91247a6f67..8e30872164 100644
+--- a/.gitlab-ci.d/static_checks.yml
++++ b/.gitlab-ci.d/static_checks.yml
+@@ -24,3 +24,24 @@ check-dco:
+     - if: '$CI_PROJECT_NAMESPACE == "qemu-project" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+       when: never
+     - when: on_success
++
++check-python-pipenv:
++  stage: test
++  image: $CI_REGISTRY_IMAGE/qemu/python:latest
++  script:
++    - make -C python venv-check
++  variables:
++    GIT_DEPTH: 1
++  needs:
++    job: python-container
++
++check-python-tox:
++  stage: test
++  image: $CI_REGISTRY_IMAGE/qemu/python:latest
++  script:
++    - make -C python check-tox
++  variables:
++    GIT_DEPTH: 1
++  needs:
++    job: python-container
++  allow_failure: true
+diff --git a/block/quorum.c b/block/quorum.c
+index f2c0805000..cfc1436abb 100644
+--- a/block/quorum.c
++++ b/block/quorum.c
+@@ -1279,7 +1279,7 @@ static BlockDriver bdrv_quorum = {
+     .bdrv_dirname                       = quorum_dirname,
+     .bdrv_co_block_status               = quorum_co_block_status,
+ 
+-    .bdrv_co_flush                      = quorum_co_flush,
++    .bdrv_co_flush_to_disk              = quorum_co_flush,
+ 
+     .bdrv_getlength                     = quorum_getlength,
+ 
+diff --git a/docs/devel/testing.rst b/docs/devel/testing.rst
+index 1da4c4e4c4..4e42392810 100644
+--- a/docs/devel/testing.rst
++++ b/docs/devel/testing.rst
+@@ -810,6 +810,32 @@ and hypothetical example follows:
+ At test "tear down", ``avocado_qemu.Test`` handles all the QEMUMachines
+ shutdown.
+ 
++The ``avocado_qemu.LinuxTest`` base test class
++~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++
++The ``avocado_qemu.LinuxTest`` is further specialization of the
++``avocado_qemu.Test`` class, so it contains all the characteristics of
++the later plus some extra features.
++
++First of all, this base class is intended for tests that need to
++interact with a fully booted and operational Linux guest.  At this
++time, it uses a Fedora 31 guest image.  The most basic example looks
++like this:
++
++.. code::
++
++  from avocado_qemu import LinuxTest
++
++
++  class SomeTest(LinuxTest):
++
++      def test(self):
++          self.launch_and_wait()
++          self.ssh_command('some_command_to_be_run_in_the_guest')
++
++Please refer to tests that use ``avocado_qemu.LinuxTest`` under
++``tests/acceptance`` for more examples.
++
+ QEMUMachine
+ ~~~~~~~~~~~
+ 
+diff --git a/python/.gitignore b/python/.gitignore
+new file mode 100644
+index 0000000000..272ed223a8
+--- /dev/null
++++ b/python/.gitignore
+@@ -0,0 +1,16 @@
++# linter/tooling cache
++.mypy_cache/
++.cache/
++
++# python packaging
++build/
++dist/
++qemu.egg-info/
++
++# editor config
++.idea/
++.vscode/
++
++# virtual environments (pipenv et al)
++.venv/
++.tox/
+diff --git a/python/MANIFEST.in b/python/MANIFEST.in
+new file mode 100644
+index 0000000000..7059ad2822
+--- /dev/null
++++ b/python/MANIFEST.in
+@@ -0,0 +1,3 @@
++include VERSION
++include PACKAGE.rst
++exclude README.rst
+diff --git a/python/Makefile b/python/Makefile
+new file mode 100644
+index 0000000000..b5621b0d54
+--- /dev/null
++++ b/python/Makefile
+@@ -0,0 +1,48 @@
++.PHONY: help venv venv-check check clean distclean develop
++
++help:
++	@echo "python packaging help:"
++	@echo ""
++	@echo "make venv:       Create pipenv's virtual environment."
++	@echo "    NOTE: Requires Python 3.6 and pipenv."
++	@echo "          Will download packages from PyPI."
++	@echo "    Hint: (On Fedora): 'sudo dnf install python36 pipenv'"
++	@echo ""
++	@echo "make venv-check: run linters using pipenv's virtual environment."
++	@echo "    Hint: If you don't know which test to run, run this one!"
++	@echo ""
++	@echo "make develop:    Install deps for 'make check', and"
++	@echo "                 the qemu libs in editable/development mode."
++	@echo ""
++	@echo "make check:      run linters using the current environment."
++	@echo ""
++	@echo "make check-tox:  run linters using multiple python versions."
++	@echo ""
++	@echo "make clean:      remove package build output."
++	@echo ""
++	@echo "make distclean:  remove venv files, qemu package forwarder,"
++	@echo "                 built distribution files, and everything"
++	@echo "                 from 'make clean'."
++
++venv: .venv
++.venv: Pipfile.lock
++	@PIPENV_VENV_IN_PROJECT=1 pipenv sync --dev --keep-outdated
++	@touch .venv
++
++venv-check: venv
++	@pipenv run make check
++
++develop:
++	pip3 install -e .[devel]
++
++check:
++	@avocado --config avocado.cfg run tests/
++
++check-tox:
++	@tox
++
++clean:
++	python3 setup.py clean --all
++
++distclean: clean
++	rm -rf qemu.egg-info/ .venv/ .tox/ dist/
+diff --git a/python/PACKAGE.rst b/python/PACKAGE.rst
+new file mode 100644
+index 0000000000..b0b86cc4c3
+--- /dev/null
++++ b/python/PACKAGE.rst
+@@ -0,0 +1,43 @@
++QEMU Python Tooling
++===================
++
++This package provides QEMU tooling used by the QEMU project to build,
++configure, and test QEMU. It is not a fully-fledged SDK and it is subject
++to change at any time.
++
++Usage
++-----
++
++The ``qemu.qmp`` subpackage provides a library for communicating with
++QMP servers. The ``qemu.machine`` subpackage offers rudimentary
++facilities for launching and managing QEMU processes. Refer to each
++package's documentation
++(``>>> help(qemu.qmp)``, ``>>> help(qemu.machine)``)
++for more information.
++
++Contributing
++------------
++
++This package is maintained by John Snow <jsnow@redhat.com> as part of
++the QEMU source tree. Contributions are welcome and follow the `QEMU
++patch submission process
++<https://wiki.qemu.org/Contribute/SubmitAPatch>`_, which involves
++sending patches to the QEMU development mailing list.
++
++John maintains a `GitLab staging branch
++<https://gitlab.com/jsnow/qemu/-/tree/python>`_, and there is an
++official `GitLab mirror <https://gitlab.com/qemu-project/qemu>`_.
++
++Please report bugs on the `QEMU issue tracker
++<https://gitlab.com/qemu-project/qemu/-/issues>`_ and tag ``@jsnow`` in
++the report.
++
++Optional packages necessary for running code quality analysis for this
++package can be installed with the optional dependency group "devel":
++``pip install qemu[devel]``.
++
++``make develop`` can be used to install this package in editable mode
++(to the current environment) *and* bring in testing dependencies in one
++command.
++
++``make check`` can be used to run the available tests.
+diff --git a/python/Pipfile b/python/Pipfile
+new file mode 100644
+index 0000000000..e7acb8cefa
+--- /dev/null
++++ b/python/Pipfile
+@@ -0,0 +1,13 @@
++[[source]]
++name = "pypi"
++url = "https://pypi.org/simple"
++verify_ssl = true
++
++[dev-packages]
++qemu = {editable = true, extras = ["devel"], path = "."}
++
++[packages]
++qemu = {editable = true,path = "."}
++
++[requires]
++python_version = "3.6"
+diff --git a/python/Pipfile.lock b/python/Pipfile.lock
+new file mode 100644
+index 0000000000..6e344f5fad
+--- /dev/null
++++ b/python/Pipfile.lock
+@@ -0,0 +1,231 @@
++{
++    "_meta": {
++        "hash": {
++            "sha256": "eff562a688ebc6f3ffe67494dbb804b883e2159ad81c4d55d96da9f7aec13e91"
++        },
++        "pipfile-spec": 6,
++        "requires": {
++            "python_version": "3.6"
++        },
++        "sources": [
++            {
++                "name": "pypi",
++                "url": "https://pypi.org/simple",
++                "verify_ssl": true
++            }
++        ]
++    },
++    "default": {
++        "qemu": {
++            "editable": true,
++            "path": "."
++        }
++    },
++    "develop": {
++        "astroid": {
++            "hashes": [
++                "sha256:4db03ab5fc3340cf619dbc25e42c2cc3755154ce6009469766d7143d1fc2ee4e",
++                "sha256:8a398dfce302c13f14bab13e2b14fe385d32b73f4e4853b9bdfb64598baa1975"
++            ],
++            "markers": "python_version ~= '3.6'",
++            "version": "==2.5.6"
++        },
++        "avocado-framework": {
++            "hashes": [
++                "sha256:42aa7962df98d6b78d4efd9afa2177226dc630f3d83a2a7d5baf7a0a7da7fa1b",
++                "sha256:d96ae343abf890e1ef3b3a6af5ce49e35f6bded0715770c4acb325bca555c515"
++            ],
++            "markers": "python_version >= '3.6'",
++            "version": "==88.1"
++        },
++        "flake8": {
++            "hashes": [
++                "sha256:07528381786f2a6237b061f6e96610a4167b226cb926e2aa2b6b1d78057c576b",
++                "sha256:bf8fd333346d844f616e8d47905ef3a3384edae6b4e9beb0c5101e25e3110907"
++            ],
++            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'",
++            "version": "==3.9.2"
++        },
++        "importlib-metadata": {
++            "hashes": [
++                "sha256:8c501196e49fb9df5df43833bdb1e4328f64847763ec8a50703148b73784d581",
++                "sha256:d7eb1dea6d6a6086f8be21784cc9e3bcfa55872b52309bc5fad53a8ea444465d"
++            ],
++            "markers": "python_version < '3.8'",
++            "version": "==4.0.1"
++        },
++        "isort": {
++            "hashes": [
++                "sha256:0a943902919f65c5684ac4e0154b1ad4fac6dcaa5d9f3426b732f1c8b5419be6",
++                "sha256:2bb1680aad211e3c9944dbce1d4ba09a989f04e238296c87fe2139faa26d655d"
++            ],
++            "markers": "python_version >= '3.6' and python_version < '4.0'",
++            "version": "==5.8.0"
++        },
++        "lazy-object-proxy": {
++            "hashes": [
++                "sha256:17e0967ba374fc24141738c69736da90e94419338fd4c7c7bef01ee26b339653",
++                "sha256:1fee665d2638491f4d6e55bd483e15ef21f6c8c2095f235fef72601021e64f61",
++                "sha256:22ddd618cefe54305df49e4c069fa65715be4ad0e78e8d252a33debf00f6ede2",
++                "sha256:24a5045889cc2729033b3e604d496c2b6f588c754f7a62027ad4437a7ecc4837",
++                "sha256:410283732af311b51b837894fa2f24f2c0039aa7f220135192b38fcc42bd43d3",
++                "sha256:4732c765372bd78a2d6b2150a6e99d00a78ec963375f236979c0626b97ed8e43",
++                "sha256:489000d368377571c6f982fba6497f2aa13c6d1facc40660963da62f5c379726",
++                "sha256:4f60460e9f1eb632584c9685bccea152f4ac2130e299784dbaf9fae9f49891b3",
++                "sha256:5743a5ab42ae40caa8421b320ebf3a998f89c85cdc8376d6b2e00bd12bd1b587",
++                "sha256:85fb7608121fd5621cc4377a8961d0b32ccf84a7285b4f1d21988b2eae2868e8",
++                "sha256:9698110e36e2df951c7c36b6729e96429c9c32b3331989ef19976592c5f3c77a",
++                "sha256:9d397bf41caad3f489e10774667310d73cb9c4258e9aed94b9ec734b34b495fd",
++                "sha256:b579f8acbf2bdd9ea200b1d5dea36abd93cabf56cf626ab9c744a432e15c815f",
++                "sha256:b865b01a2e7f96db0c5d12cfea590f98d8c5ba64ad222300d93ce6ff9138bcad",
++                "sha256:bf34e368e8dd976423396555078def5cfc3039ebc6fc06d1ae2c5a65eebbcde4",
++                "sha256:c6938967f8528b3668622a9ed3b31d145fab161a32f5891ea7b84f6b790be05b",
++                "sha256:d1c2676e3d840852a2de7c7d5d76407c772927addff8d742b9808fe0afccebdf",
++                "sha256:d7124f52f3bd259f510651450e18e0fd081ed82f3c08541dffc7b94b883aa981",
++                "sha256:d900d949b707778696fdf01036f58c9876a0d8bfe116e8d220cfd4b15f14e741",
++                "sha256:ebfd274dcd5133e0afae738e6d9da4323c3eb021b3e13052d8cbd0e457b1256e",
++                "sha256:ed361bb83436f117f9917d282a456f9e5009ea12fd6de8742d1a4752c3017e93",
++                "sha256:f5144c75445ae3ca2057faac03fda5a902eff196702b0a24daf1d6ce0650514b"
++            ],
++            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4, 3.5'",
++            "version": "==1.6.0"
++        },
++        "mccabe": {
++            "hashes": [
++                "sha256:ab8a6258860da4b6677da4bd2fe5dc2c659cff31b3ee4f7f5d64e79735b80d42",
++                "sha256:dd8d182285a0fe56bace7f45b5e7d1a6ebcbf524e8f3bd87eb0f125271b8831f"
++            ],
++            "version": "==0.6.1"
++        },
++        "mypy": {
++            "hashes": [
++                "sha256:0d0a87c0e7e3a9becdfbe936c981d32e5ee0ccda3e0f07e1ef2c3d1a817cf73e",
++                "sha256:25adde9b862f8f9aac9d2d11971f226bd4c8fbaa89fb76bdadb267ef22d10064",
++                "sha256:28fb5479c494b1bab244620685e2eb3c3f988d71fd5d64cc753195e8ed53df7c",
++                "sha256:2f9b3407c58347a452fc0736861593e105139b905cca7d097e413453a1d650b4",
++                "sha256:33f159443db0829d16f0a8d83d94df3109bb6dd801975fe86bacb9bf71628e97",
++                "sha256:3f2aca7f68580dc2508289c729bd49ee929a436208d2b2b6aab15745a70a57df",
++                "sha256:499c798053cdebcaa916eef8cd733e5584b5909f789de856b482cd7d069bdad8",
++                "sha256:4eec37370483331d13514c3f55f446fc5248d6373e7029a29ecb7b7494851e7a",
++                "sha256:552a815579aa1e995f39fd05dde6cd378e191b063f031f2acfe73ce9fb7f9e56",
++                "sha256:5873888fff1c7cf5b71efbe80e0e73153fe9212fafdf8e44adfe4c20ec9f82d7",
++                "sha256:61a3d5b97955422964be6b3baf05ff2ce7f26f52c85dd88db11d5e03e146a3a6",
++                "sha256:674e822aa665b9fd75130c6c5f5ed9564a38c6cea6a6432ce47eafb68ee578c5",
++                "sha256:7ce3175801d0ae5fdfa79b4f0cfed08807af4d075b402b7e294e6aa72af9aa2a",
++                "sha256:9743c91088d396c1a5a3c9978354b61b0382b4e3c440ce83cf77994a43e8c521",
++                "sha256:9f94aac67a2045ec719ffe6111df543bac7874cee01f41928f6969756e030564",
++                "sha256:a26f8ec704e5a7423c8824d425086705e381b4f1dfdef6e3a1edab7ba174ec49",
++                "sha256:abf7e0c3cf117c44d9285cc6128856106183938c68fd4944763003decdcfeb66",
++                "sha256:b09669bcda124e83708f34a94606e01b614fa71931d356c1f1a5297ba11f110a",
++                "sha256:cd07039aa5df222037005b08fbbfd69b3ab0b0bd7a07d7906de75ae52c4e3119",
++                "sha256:d23e0ea196702d918b60c8288561e722bf437d82cb7ef2edcd98cfa38905d506",
++                "sha256:d65cc1df038ef55a99e617431f0553cd77763869eebdf9042403e16089fe746c",
++                "sha256:d7da2e1d5f558c37d6e8c1246f1aec1e7349e4913d8fb3cb289a35de573fe2eb"
++            ],
++            "markers": "python_version >= '3.5'",
++            "version": "==0.812"
++        },
++        "mypy-extensions": {
++            "hashes": [
++                "sha256:090fedd75945a69ae91ce1303b5824f428daf5a028d2f6ab8a299250a846f15d",
++                "sha256:2d82818f5bb3e369420cb3c4060a7970edba416647068eb4c5343488a6c604a8"
++            ],
++            "version": "==0.4.3"
++        },
++        "pycodestyle": {
++            "hashes": [
++                "sha256:514f76d918fcc0b55c6680472f0a37970994e07bbb80725808c17089be302068",
++                "sha256:c389c1d06bf7904078ca03399a4816f974a1d590090fecea0c63ec26ebaf1cef"
++            ],
++            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
++            "version": "==2.7.0"
++        },
++        "pyflakes": {
++            "hashes": [
++                "sha256:7893783d01b8a89811dd72d7dfd4d84ff098e5eed95cfa8905b22bbffe52efc3",
++                "sha256:f5bc8ecabc05bb9d291eb5203d6810b49040f6ff446a756326104746cc00c1db"
++            ],
++            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
++            "version": "==2.3.1"
++        },
++        "pylint": {
++            "hashes": [
++                "sha256:586d8fa9b1891f4b725f587ef267abe2a1bad89d6b184520c7f07a253dd6e217",
++                "sha256:f7e2072654a6b6afdf5e2fb38147d3e2d2d43c89f648637baab63e026481279b"
++            ],
++            "markers": "python_version ~= '3.6'",
++            "version": "==2.8.2"
++        },
++        "qemu": {
++            "editable": true,
++            "path": "."
++        },
++        "toml": {
++            "hashes": [
++                "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b",
++                "sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f"
++            ],
++            "markers": "python_version >= '2.6' and python_version not in '3.0, 3.1, 3.2'",
++            "version": "==0.10.2"
++        },
++        "typed-ast": {
++            "hashes": [
++                "sha256:01ae5f73431d21eead5015997ab41afa53aa1fbe252f9da060be5dad2c730ace",
++                "sha256:067a74454df670dcaa4e59349a2e5c81e567d8d65458d480a5b3dfecec08c5ff",
++                "sha256:0fb71b8c643187d7492c1f8352f2c15b4c4af3f6338f21681d3681b3dc31a266",
++                "sha256:1b3ead4a96c9101bef08f9f7d1217c096f31667617b58de957f690c92378b528",
++                "sha256:2068531575a125b87a41802130fa7e29f26c09a2833fea68d9a40cf33902eba6",
++                "sha256:209596a4ec71d990d71d5e0d312ac935d86930e6eecff6ccc7007fe54d703808",
++                "sha256:2c726c276d09fc5c414693a2de063f521052d9ea7c240ce553316f70656c84d4",
++                "sha256:398e44cd480f4d2b7ee8d98385ca104e35c81525dd98c519acff1b79bdaac363",
++                "sha256:52b1eb8c83f178ab787f3a4283f68258525f8d70f778a2f6dd54d3b5e5fb4341",
++                "sha256:5feca99c17af94057417d744607b82dd0a664fd5e4ca98061480fd8b14b18d04",
++                "sha256:7538e495704e2ccda9b234b82423a4038f324f3a10c43bc088a1636180f11a41",
++                "sha256:760ad187b1041a154f0e4d0f6aae3e40fdb51d6de16e5c99aedadd9246450e9e",
++                "sha256:777a26c84bea6cd934422ac2e3b78863a37017618b6e5c08f92ef69853e765d3",
++                "sha256:95431a26309a21874005845c21118c83991c63ea800dd44843e42a916aec5899",
++                "sha256:9ad2c92ec681e02baf81fdfa056fe0d818645efa9af1f1cd5fd6f1bd2bdfd805",
++                "sha256:9c6d1a54552b5330bc657b7ef0eae25d00ba7ffe85d9ea8ae6540d2197a3788c",
++                "sha256:aee0c1256be6c07bd3e1263ff920c325b59849dc95392a05f258bb9b259cf39c",
++                "sha256:af3d4a73793725138d6b334d9d247ce7e5f084d96284ed23f22ee626a7b88e39",
++                "sha256:b36b4f3920103a25e1d5d024d155c504080959582b928e91cb608a65c3a49e1a",
++                "sha256:b9574c6f03f685070d859e75c7f9eeca02d6933273b5e69572e5ff9d5e3931c3",
++                "sha256:bff6ad71c81b3bba8fa35f0f1921fb24ff4476235a6e94a26ada2e54370e6da7",
++                "sha256:c190f0899e9f9f8b6b7863debfb739abcb21a5c054f911ca3596d12b8a4c4c7f",
++                "sha256:c907f561b1e83e93fad565bac5ba9c22d96a54e7ea0267c708bffe863cbe4075",
++                "sha256:cae53c389825d3b46fb37538441f75d6aecc4174f615d048321b716df2757fb0",
++                "sha256:dd4a21253f42b8d2b48410cb31fe501d32f8b9fbeb1f55063ad102fe9c425e40",
++                "sha256:dde816ca9dac1d9c01dd504ea5967821606f02e510438120091b84e852367428",
++                "sha256:f2362f3cb0f3172c42938946dbc5b7843c2a28aec307c49100c8b38764eb6927",
++                "sha256:f328adcfebed9f11301eaedfa48e15bdece9b519fb27e6a8c01aa52a17ec31b3",
++                "sha256:f8afcf15cc511ada719a88e013cec87c11aff7b91f019295eb4530f96fe5ef2f",
++                "sha256:fb1bbeac803adea29cedd70781399c99138358c26d05fcbd23c13016b7f5ec65"
++            ],
++            "markers": "implementation_name == 'cpython' and python_version < '3.8'",
++            "version": "==1.4.3"
++        },
++        "typing-extensions": {
++            "hashes": [
++                "sha256:0ac0f89795dd19de6b97debb0c6af1c70987fd80a2d62d1958f7e56fcc31b497",
++                "sha256:50b6f157849174217d0656f99dc82fe932884fb250826c18350e159ec6cdf342",
++                "sha256:779383f6086d90c99ae41cf0ff39aac8a7937a9283ce0a414e5dd782f4c94a84"
++            ],
++            "markers": "python_version < '3.8'",
++            "version": "==3.10.0.0"
++        },
++        "wrapt": {
++            "hashes": [
++                "sha256:b62ffa81fb85f4332a4f609cab4ac40709470da05643a082ec1eb88e6d9b97d7"
++            ],
++            "version": "==1.12.1"
++        },
++        "zipp": {
++            "hashes": [
++                "sha256:3607921face881ba3e026887d8150cca609d517579abe052ac81fc5aeffdbd76",
++                "sha256:51cb66cc54621609dd593d1787f286ee42a5c0adbb4b29abea5a63edc3e03098"
++            ],
++            "markers": "python_version >= '3.6'",
++            "version": "==3.4.1"
++        }
++    }
++}
+diff --git a/python/README.rst b/python/README.rst
+new file mode 100644
+index 0000000000..dcf993819d
+--- /dev/null
++++ b/python/README.rst
+@@ -0,0 +1,58 @@
++QEMU Python Tooling
++===================
++
++This directory houses Python tooling used by the QEMU project to build,
++configure, and test QEMU. It is organized by namespace (``qemu``), and
++then by package (e.g. ``qemu/machine``, ``qemu/qmp``, etc).
++
++``setup.py`` is used by ``pip`` to install this tooling to the current
++environment. ``setup.cfg`` provides the packaging configuration used by
++``setup.py`` in a setuptools specific format. You will generally invoke
++it by doing one of the following:
++
++1. ``pip3 install .`` will install these packages to your current
++   environment. If you are inside a virtual environment, they will
++   install there. If you are not, it will attempt to install to the
++   global environment, which is **not recommended**.
++
++2. ``pip3 install --user .`` will install these packages to your user's
++   local python packages. If you are inside of a virtual environment,
++   this will fail; you likely want the first invocation above.
++
++If you append the ``-e`` argument, pip will install in "editable" mode;
++which installs a version of the package that installs a forwarder
++pointing to these files, such that the package always reflects the
++latest version in your git tree.
++
++Installing ".[devel]" instead of "." will additionally pull in required
++packages for testing this package. They are not runtime requirements,
++and are not needed to simply use these libraries.
++
++Running ``make develop`` will pull in all testing dependencies and
++install QEMU in editable mode to the current environment.
++
++See `Installing packages using pip and virtual environments
++<https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/>`_
++for more information.
++
++
++Files in this directory
++-----------------------
++
++- ``qemu/`` Python package source directory.
++- ``tests/`` Python package tests directory.
++- ``avocado.cfg`` Configuration for the Avocado test-runner.
++  Used by ``make check`` et al.
++- ``Makefile`` provides some common testing/installation invocations.
++  Try ``make help`` to see available targets.
++- ``MANIFEST.in`` is read by python setuptools, it specifies additional files
++  that should be included by a source distribution.
++- ``PACKAGE.rst`` is used as the README file that is visible on PyPI.org.
++- ``Pipfile`` is used by Pipenv to generate ``Pipfile.lock``.
++- ``Pipfile.lock`` is a set of pinned package dependencies that this package
++  is tested under in our CI suite. It is used by ``make venv-check``.
++- ``README.rst`` you are here!
++- ``VERSION`` contains the PEP-440 compliant version used to describe
++  this package; it is referenced by ``setup.cfg``.
++- ``setup.cfg`` houses setuptools package configuration.
++- ``setup.py`` is the setuptools installer used by pip; See above.
+diff --git a/python/VERSION b/python/VERSION
+new file mode 100644
+index 0000000000..c19f3b832b
+--- /dev/null
++++ b/python/VERSION
+@@ -0,0 +1 @@
++0.6.1.0a1
+diff --git a/python/avocado.cfg b/python/avocado.cfg
+new file mode 100644
+index 0000000000..10dc6fb605
+--- /dev/null
++++ b/python/avocado.cfg
+@@ -0,0 +1,10 @@
++[simpletests]
++# Don't show stdout/stderr in the test *summary*
++status.failure_fields = ['status']
++
++[job]
++# Don't show the full debug.log output; only select stdout/stderr.
++output.testlogs.logfiles = ['stdout', 'stderr']
++
++# Show full stdout/stderr only on tests that FAIL
++output.testlogs.statuses = ['FAIL']
+diff --git a/python/mypy.ini b/python/mypy.ini
+deleted file mode 100644
+index 1a581c5f1e..0000000000
+--- a/python/mypy.ini
++++ /dev/null
+@@ -1,4 +0,0 @@
+-[mypy]
+-strict = True
+-python_version = 3.6
+-warn_unused_configs = True
+diff --git a/python/qemu/.flake8 b/python/qemu/.flake8
+deleted file mode 100644
+index 45d8146f3f..0000000000
+--- a/python/qemu/.flake8
++++ /dev/null
+@@ -1,2 +0,0 @@
+-[flake8]
+-extend-ignore = E722  # Pylint handles this, but smarter.
+\ No newline at end of file
+diff --git a/python/qemu/.isort.cfg b/python/qemu/.isort.cfg
+deleted file mode 100644
+index 6d0fd6cc0d..0000000000
+--- a/python/qemu/.isort.cfg
++++ /dev/null
+@@ -1,7 +0,0 @@
+-[settings]
+-force_grid_wrap=4
+-force_sort_within_sections=True
+-include_trailing_comma=True
+-line_length=72
+-lines_after_imports=2
+-multi_line_output=3
+\ No newline at end of file
+diff --git a/python/qemu/README.rst b/python/qemu/README.rst
+new file mode 100644
+index 0000000000..d04943f526
+--- /dev/null
++++ b/python/qemu/README.rst
+@@ -0,0 +1,8 @@
++QEMU Python Namespace
++=====================
++
++This directory serves as the root of a `Python PEP 420 implicit
++namespace package <https://www.python.org/dev/peps/pep-0420/>`_.
++
++Each directory below is assumed to be an installable Python package that
++is available under the ``qemu.<package>`` namespace.
+diff --git a/python/qemu/__init__.py b/python/qemu/__init__.py
+deleted file mode 100644
+index 4ca06c34a4..0000000000
+--- a/python/qemu/__init__.py
++++ /dev/null
+@@ -1,11 +0,0 @@
+-# QEMU library
+-#
+-# Copyright (C) 2015-2016 Red Hat Inc.
+-# Copyright (C) 2012 IBM Corp.
+-#
+-# Authors:
+-#  Fam Zheng <famz@redhat.com>
+-#
+-# This work is licensed under the terms of the GNU GPL, version 2.  See
+-# the COPYING file in the top-level directory.
+-#
+diff --git a/python/qemu/machine/README.rst b/python/qemu/machine/README.rst
+new file mode 100644
+index 0000000000..ac2b4fffb4
+--- /dev/null
++++ b/python/qemu/machine/README.rst
+@@ -0,0 +1,9 @@
++qemu.machine package
++====================
++
++This package provides core utilities used for testing and debugging
++QEMU. It is used by the iotests, vm tests, acceptance tests, and several
++other utilities in the ./scripts directory. It is not a fully-fledged
++SDK and it is subject to change at any time.
++
++See the documentation in ``__init__.py`` for more information.
+diff --git a/python/qemu/machine/__init__.py b/python/qemu/machine/__init__.py
+new file mode 100644
+index 0000000000..728f27adbe
+--- /dev/null
++++ b/python/qemu/machine/__init__.py
+@@ -0,0 +1,36 @@
++"""
++QEMU development and testing library.
++
++This library provides a few high-level classes for driving QEMU from a
++test suite, not intended for production use.
++
++- QEMUMachine: Configure and Boot a QEMU VM
++ - QEMUQtestMachine: VM class, with a qtest socket.
++
++- QEMUQtestProtocol: Connect to, send/receive qtest messages.
++"""
++
++# Copyright (C) 2020-2021 John Snow for Red Hat Inc.
++# Copyright (C) 2015-2016 Red Hat Inc.
++# Copyright (C) 2012 IBM Corp.
++#
++# Authors:
++#  John Snow <jsnow@redhat.com>
++#  Fam Zheng <fam@euphon.net>
++#
++# This work is licensed under the terms of the GNU GPL, version 2.  See
++# the COPYING file in the top-level directory.
++#
++
++# pylint: disable=import-error
++# see: https://github.com/PyCQA/pylint/issues/3624
++# see: https://github.com/PyCQA/pylint/issues/3651
++from .machine import QEMUMachine
++from .qtest import QEMUQtestMachine, QEMUQtestProtocol
++
++
++__all__ = (
++    'QEMUMachine',
++    'QEMUQtestProtocol',
++    'QEMUQtestMachine',
++)
+diff --git a/python/qemu/console_socket.py b/python/qemu/machine/console_socket.py
+similarity index 94%
+rename from python/qemu/console_socket.py
+rename to python/qemu/machine/console_socket.py
+index ac21130e44..8c4ff598ad 100644
+--- a/python/qemu/console_socket.py
++++ b/python/qemu/machine/console_socket.py
+@@ -39,6 +39,7 @@ def __init__(self, address: str, file: Optional[str] = None,
+         self.connect(address)
+         self._logfile = None
+         if file:
++            # pylint: disable=consider-using-with
+             self._logfile = open(file, "bw")
+         self._open = True
+         self._drain_thread = None
+@@ -46,11 +47,11 @@ def __init__(self, address: str, file: Optional[str] = None,
+             self._drain_thread = self._thread_start()
+ 
+     def __repr__(self) -> str:
+-        s = super().__repr__()
+-        s = s.rstrip(">")
+-        s = "%s,  logfile=%s, drain_thread=%s>" % (s, self._logfile,
+-                                                   self._drain_thread)
+-        return s
++        tmp = super().__repr__()
++        tmp = tmp.rstrip(">")
++        tmp = "%s,  logfile=%s, drain_thread=%s>" % (tmp, self._logfile,
++                                                     self._drain_thread)
++        return tmp
+ 
+     def _drain_fn(self) -> None:
+         """Drains the socket and runs while the socket is open."""
+diff --git a/python/qemu/machine.py b/python/qemu/machine/machine.py
+similarity index 93%
+rename from python/qemu/machine.py
+rename to python/qemu/machine/machine.py
+index 6e44bda337..b62435528e 100644
+--- a/python/qemu/machine.py
++++ b/python/qemu/machine/machine.py
+@@ -38,8 +38,14 @@
+     Type,
+ )
+ 
+-from . import console_socket, qmp
+-from .qmp import QMPMessage, QMPReturnValue, SocketAddrT
++from qemu.qmp import (  # pylint: disable=import-error
++    QEMUMonitorProtocol,
++    QMPMessage,
++    QMPReturnValue,
++    SocketAddrT,
++)
++
++from . import console_socket
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -84,7 +90,7 @@ def __init__(self,
+                  args: Sequence[str] = (),
+                  wrapper: Sequence[str] = (),
+                  name: Optional[str] = None,
+-                 test_dir: str = "/var/tmp",
++                 base_temp_dir: str = "/var/tmp",
+                  monitor_address: Optional[SocketAddrT] = None,
+                  socket_scm_helper: Optional[str] = None,
+                  sock_dir: Optional[str] = None,
+@@ -97,10 +103,10 @@ def __init__(self,
+         @param args: list of extra arguments
+         @param wrapper: list of arguments used as prefix to qemu binary
+         @param name: prefix for socket and log file names (default: qemu-PID)
+-        @param test_dir: where to create socket and log file
++        @param base_temp_dir: default location where temp files are created
+         @param monitor_address: address for QMP monitor
+         @param socket_scm_helper: helper program, required for send_fd_scm()
+-        @param sock_dir: where to create socket (overrides test_dir for sock)
++        @param sock_dir: where to create socket (defaults to base_temp_dir)
+         @param drain_console: (optional) True to drain console socket to buffer
+         @param console_log: (optional) path to console log file
+         @note: Qemu process is not started until launch() is used.
+@@ -112,8 +118,8 @@ def __init__(self,
+         self._wrapper = wrapper
+ 
+         self._name = name or "qemu-%d" % os.getpid()
+-        self._test_dir = test_dir
+-        self._sock_dir = sock_dir or self._test_dir
++        self._base_temp_dir = base_temp_dir
++        self._sock_dir = sock_dir or self._base_temp_dir
+         self._socket_scm_helper = socket_scm_helper
+ 
+         if monitor_address is not None:
+@@ -139,7 +145,7 @@ def __init__(self,
+         self._events: List[QMPMessage] = []
+         self._iolog: Optional[str] = None
+         self._qmp_set = True   # Enable QMP monitor by default.
+-        self._qmp_connection: Optional[qmp.QEMUMonitorProtocol] = None
++        self._qmp_connection: Optional[QEMUMonitorProtocol] = None
+         self._qemu_full_args: Tuple[str, ...] = ()
+         self._temp_dir: Optional[str] = None
+         self._launched = False
+@@ -223,14 +229,16 @@ def send_fd_scm(self, fd: Optional[int] = None,
+             assert fd is not None
+             fd_param.append(str(fd))
+ 
+-        devnull = open(os.path.devnull, 'rb')
+-        proc = subprocess.Popen(
+-            fd_param, stdin=devnull, stdout=subprocess.PIPE,
+-            stderr=subprocess.STDOUT, close_fds=False
++        proc = subprocess.run(
++            fd_param,
++            stdin=subprocess.DEVNULL,
++            stdout=subprocess.PIPE,
++            stderr=subprocess.STDOUT,
++            check=False,
++            close_fds=False,
+         )
+-        output = proc.communicate()[0]
+-        if output:
+-            LOG.debug(output)
++        if proc.stdout:
++            LOG.debug(proc.stdout)
+ 
+         return proc.returncode
+ 
+@@ -303,10 +311,7 @@ def _base_args(self) -> List[str]:
+         return args
+ 
+     def _pre_launch(self) -> None:
+-        self._temp_dir = tempfile.mkdtemp(prefix="qemu-machine-",
+-                                          dir=self._test_dir)
+-        self._qemu_log_path = os.path.join(self._temp_dir, self._name + ".log")
+-        self._qemu_log_file = open(self._qemu_log_path, 'wb')
++        self._qemu_log_path = os.path.join(self.temp_dir, self._name + ".log")
+ 
+         if self._console_set:
+             self._remove_files.append(self._console_address)
+@@ -315,12 +320,17 @@ def _pre_launch(self) -> None:
+             if self._remove_monitor_sockfile:
+                 assert isinstance(self._monitor_address, str)
+                 self._remove_files.append(self._monitor_address)
+-            self._qmp_connection = qmp.QEMUMonitorProtocol(
++            self._qmp_connection = QEMUMonitorProtocol(
+                 self._monitor_address,
+                 server=True,
+                 nickname=self._name
+             )
+ 
++        # NOTE: Make sure any opened resources are *definitely* freed in
++        # _post_shutdown()!
++        # pylint: disable=consider-using-with
++        self._qemu_log_file = open(self._qemu_log_path, 'wb')
++
+     def _post_launch(self) -> None:
+         if self._qmp_connection:
+             self._qmp.accept()
+@@ -393,7 +403,6 @@ def _launch(self) -> None:
+         """
+         Launch the VM and establish a QMP connection
+         """
+-        devnull = open(os.path.devnull, 'rb')
+         self._pre_launch()
+         self._qemu_full_args = tuple(
+             chain(self._wrapper,
+@@ -402,8 +411,11 @@ def _launch(self) -> None:
+                   self._args)
+         )
+         LOG.debug('VM launch command: %r', ' '.join(self._qemu_full_args))
++
++        # Cleaning up of this subprocess is guaranteed by _do_shutdown.
++        # pylint: disable=consider-using-with
+         self._popen = subprocess.Popen(self._qemu_full_args,
+-                                       stdin=devnull,
++                                       stdin=subprocess.DEVNULL,
+                                        stdout=self._qemu_log_file,
+                                        stderr=subprocess.STDOUT,
+                                        shell=False,
+@@ -535,7 +547,7 @@ def set_qmp_monitor(self, enabled: bool = True) -> None:
+         self._qmp_set = enabled
+ 
+     @property
+-    def _qmp(self) -> qmp.QEMUMonitorProtocol:
++    def _qmp(self) -> QEMUMonitorProtocol:
+         if self._qmp_connection is None:
+             raise QEMUMachineError("Attempt to access QMP with no connection")
+         return self._qmp_connection
+@@ -744,3 +756,13 @@ def console_socket(self) -> socket.socket:
+                 file=self._console_log_path,
+                 drain=self._drain_console)
+         return self._console_socket
++
++    @property
++    def temp_dir(self) -> str:
++        """
++        Returns a temporary directory to be used for this machine
++        """
++        if self._temp_dir is None:
++            self._temp_dir = tempfile.mkdtemp(prefix="qemu-machine-",
++                                              dir=self._base_temp_dir)
++        return self._temp_dir
+diff --git a/python/qemu/qtest.py b/python/qemu/machine/qtest.py
+similarity index 95%
+rename from python/qemu/qtest.py
+rename to python/qemu/machine/qtest.py
+index 39a0cf62fe..93700684d1 100644
+--- a/python/qemu/qtest.py
++++ b/python/qemu/machine/qtest.py
+@@ -26,8 +26,9 @@
+     TextIO,
+ )
+ 
++from qemu.qmp import SocketAddrT  # pylint: disable=import-error
++
+ from .machine import QEMUMachine
+-from .qmp import SocketAddrT
+ 
+ 
+ class QEMUQtestProtocol:
+@@ -112,14 +113,14 @@ def __init__(self,
+                  binary: str,
+                  args: Sequence[str] = (),
+                  name: Optional[str] = None,
+-                 test_dir: str = "/var/tmp",
++                 base_temp_dir: str = "/var/tmp",
+                  socket_scm_helper: Optional[str] = None,
+                  sock_dir: Optional[str] = None):
+         if name is None:
+             name = "qemu-%d" % os.getpid()
+         if sock_dir is None:
+-            sock_dir = test_dir
+-        super().__init__(binary, args, name=name, test_dir=test_dir,
++            sock_dir = base_temp_dir
++        super().__init__(binary, args, name=name, base_temp_dir=base_temp_dir,
+                          socket_scm_helper=socket_scm_helper,
+                          sock_dir=sock_dir)
+         self._qtest: Optional[QEMUQtestProtocol] = None
+diff --git a/python/qemu/pylintrc b/python/qemu/pylintrc
+deleted file mode 100644
+index 3f69205000..0000000000
+--- a/python/qemu/pylintrc
++++ /dev/null
+@@ -1,58 +0,0 @@
+-[MASTER]
+-
+-[MESSAGES CONTROL]
+-
+-# Disable the message, report, category or checker with the given id(s). You
+-# can either give multiple identifiers separated by comma (,) or put this
+-# option multiple times (only on the command line, not in the configuration
+-# file where it should appear only once). You can also use "--disable=all" to
+-# disable everything first and then reenable specific checks. For example, if
+-# you want to run only the similarities checker, you can use "--disable=all
+-# --enable=similarities". If you want to run only the classes checker, but have
+-# no Warning level messages displayed, use "--disable=all --enable=classes
+-# --disable=W".
+-disable=too-many-arguments,
+-        too-many-instance-attributes,
+-        too-many-public-methods,
+-
+-[REPORTS]
+-
+-[REFACTORING]
+-
+-[MISCELLANEOUS]
+-
+-[LOGGING]
+-
+-[BASIC]
+-
+-# Good variable names which should always be accepted, separated by a comma.
+-good-names=i,
+-           j,
+-           k,
+-           ex,
+-           Run,
+-           _,
+-           fd,
+-           c,
+-[VARIABLES]
+-
+-[STRING]
+-
+-[SPELLING]
+-
+-[FORMAT]
+-
+-[SIMILARITIES]
+-
+-# Ignore imports when computing similarities.
+-ignore-imports=yes
+-
+-[TYPECHECK]
+-
+-[CLASSES]
+-
+-[IMPORTS]
+-
+-[DESIGN]
+-
+-[EXCEPTIONS]
+diff --git a/python/qemu/qmp/README.rst b/python/qemu/qmp/README.rst
+new file mode 100644
+index 0000000000..c21951491c
+--- /dev/null
++++ b/python/qemu/qmp/README.rst
+@@ -0,0 +1,9 @@
++qemu.qmp package
++================
++
++This package provides a library used for connecting to and communicating
++with QMP servers. It is used extensively by iotests, vm tests,
++acceptance tests, and other utilities in the ./scripts directory. It is
++not a fully-fledged SDK and is subject to change at any time.
++
++See the documentation in ``__init__.py`` for more information.
+diff --git a/python/qemu/qmp.py b/python/qemu/qmp/__init__.py
+similarity index 96%
+rename from python/qemu/qmp.py
+rename to python/qemu/qmp/__init__.py
+index 2cd4d43036..9606248a3d 100644
+--- a/python/qemu/qmp.py
++++ b/python/qemu/qmp/__init__.py
+@@ -1,4 +1,14 @@
+-""" QEMU Monitor Protocol Python class """
++"""
++QEMU Monitor Protocol (QMP) development library & tooling.
++
++This package provides a fairly low-level class for communicating to QMP
++protocol servers, as implemented by QEMU, the QEMU Guest Agent, and the
++QEMU Storage Daemon. This library is not intended for production use.
++
++`QEMUMonitorProtocol` is the primary class of interest, and all errors
++raised derive from `QMPError`.
++"""
++
+ # Copyright (C) 2009, 2010 Red Hat Inc.
+ #
+ # Authors:
+diff --git a/python/qemu/utils/README.rst b/python/qemu/utils/README.rst
+new file mode 100644
+index 0000000000..975fbf4d7d
+--- /dev/null
++++ b/python/qemu/utils/README.rst
+@@ -0,0 +1,7 @@
++qemu.utils package
++==================
++
++This package provides miscellaneous utilities used for testing and
++debugging QEMU. It is used primarily by the vm and acceptance tests.
++
++See the documentation in ``__init__.py`` for more information.
+diff --git a/python/qemu/utils/__init__.py b/python/qemu/utils/__init__.py
+new file mode 100644
+index 0000000000..7f1a5138c4
+--- /dev/null
++++ b/python/qemu/utils/__init__.py
+@@ -0,0 +1,45 @@
++"""
++QEMU development and testing utilities
++
++This package provides a small handful of utilities for performing
++various tasks not directly related to the launching of a VM.
++"""
++
++# Copyright (C) 2021 Red Hat Inc.
++#
++# Authors:
++#  John Snow <jsnow@redhat.com>
++#  Cleber Rosa <crosa@redhat.com>
++#
++# This work is licensed under the terms of the GNU GPL, version 2.  See
++# the COPYING file in the top-level directory.
++#
++
++import re
++from typing import Optional
++
++# pylint: disable=import-error
++from .accel import kvm_available, list_accel, tcg_available
++
++
++__all__ = (
++    'get_info_usernet_hostfwd_port',
++    'kvm_available',
++    'list_accel',
++    'tcg_available',
++)
++
++
++def get_info_usernet_hostfwd_port(info_usernet_output: str) -> Optional[int]:
++    """
++    Returns the port given to the hostfwd parameter via info usernet
++
++    :param info_usernet_output: output generated by hmp command "info usernet"
++    :return: the port number allocated by the hostfwd option
++    """
++    for line in info_usernet_output.split('\r\n'):
++        regex = r'TCP.HOST_FORWARD.*127\.0\.0\.1\s+(\d+)\s+10\.'
++        match = re.search(regex, line)
++        if match is not None:
++            return int(match[1])
++    return None
+diff --git a/python/qemu/accel.py b/python/qemu/utils/accel.py
+similarity index 100%
+rename from python/qemu/accel.py
+rename to python/qemu/utils/accel.py
+diff --git a/python/setup.cfg b/python/setup.cfg
+new file mode 100644
+index 0000000000..0fcdec6f32
+--- /dev/null
++++ b/python/setup.cfg
+@@ -0,0 +1,102 @@
++[metadata]
++name = qemu
++version = file:VERSION
++maintainer = QEMU Developer Team
++maintainer_email = qemu-devel@nongnu.org
++url = https://www.qemu.org/
++download_url = https://www.qemu.org/download/
++description = QEMU Python Build, Debug and SDK tooling.
++long_description = file:PACKAGE.rst
++long_description_content_type = text/x-rst
++classifiers =
++    Development Status :: 3 - Alpha
++    License :: OSI Approved :: GNU General Public License v2 (GPLv2)
++    Natural Language :: English
++    Operating System :: OS Independent
++    Programming Language :: Python :: 3 :: Only
++    Programming Language :: Python :: 3.6
++    Programming Language :: Python :: 3.7
++    Programming Language :: Python :: 3.8
++    Programming Language :: Python :: 3.9
++    Programming Language :: Python :: 3.10
++
++[options]
++python_requires = >= 3.6
++packages =
++    qemu.qmp
++    qemu.machine
++    qemu.utils
++
++[options.extras_require]
++# Run `pipenv lock --dev` when changing these requirements.
++devel =
++    avocado-framework >= 87.0
++    flake8 >= 3.6.0
++    isort >= 5.1.2
++    mypy >= 0.770
++    pylint >= 2.8.0
++    tox >= 3.18.0
++
++[flake8]
++extend-ignore = E722  # Prefer pylint's bare-except checks to flake8's
++exclude = __pycache__,
++          .venv,
++          .tox,
++
++[mypy]
++strict = True
++python_version = 3.6
++warn_unused_configs = True
++namespace_packages = True
++
++[pylint.messages control]
++# Disable the message, report, category or checker with the given id(s). You
++# can either give multiple identifiers separated by comma (,) or put this
++# option multiple times (only on the command line, not in the configuration
++# file where it should appear only once). You can also use "--disable=all" to
++# disable everything first and then reenable specific checks. For example, if
++# you want to run only the similarities checker, you can use "--disable=all
++# --enable=similarities". If you want to run only the classes checker, but have
++# no Warning level messages displayed, use "--disable=all --enable=classes
++# --disable=W".
++disable=too-many-arguments,
++        too-many-instance-attributes,
++        too-many-public-methods,
++
++[pylint.basic]
++# Good variable names which should always be accepted, separated by a comma.
++good-names=i,
++           j,
++           k,
++           ex,
++           Run,
++           _,
++           fd,
++           c,
++
++[pylint.similarities]
++# Ignore imports when computing similarities.
++ignore-imports=yes
++
++[isort]
++force_grid_wrap=4
++force_sort_within_sections=True
++include_trailing_comma=True
++line_length=72
++lines_after_imports=2
++multi_line_output=3
++
++# tox (https://tox.readthedocs.io/) is a tool for running tests in
++# multiple virtualenvs. This configuration file will run the test suite
++# on all supported python versions. To use it, "pip install tox" and
++# then run "tox" from this directory. You will need all of these versions
++# of python available on your system to run this test.
++
++[tox:tox]
++envlist = py36, py37, py38, py39, py310
++
++[testenv]
++allowlist_externals = make
++deps = .[devel]
++commands =
++    make check
+diff --git a/python/setup.py b/python/setup.py
+new file mode 100755
+index 0000000000..2014f81b75
+--- /dev/null
++++ b/python/setup.py
+@@ -0,0 +1,23 @@
++#!/usr/bin/env python3
++"""
++QEMU tooling installer script
++Copyright (c) 2020-2021 John Snow for Red Hat, Inc.
++"""
++
++import setuptools
++import pkg_resources
++
++
++def main():
++    """
++    QEMU tooling installer
++    """
++
++    # https://medium.com/@daveshawley/safely-using-setup-cfg-for-metadata-1babbe54c108
++    pkg_resources.require('setuptools>=39.2')
++
++    setuptools.setup()
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/python/tests/flake8.sh b/python/tests/flake8.sh
+new file mode 100755
+index 0000000000..51e0788462
+--- /dev/null
++++ b/python/tests/flake8.sh
+@@ -0,0 +1,2 @@
++#!/bin/sh -e
++python3 -m flake8
+diff --git a/python/tests/isort.sh b/python/tests/isort.sh
+new file mode 100755
+index 0000000000..4480405bfb
+--- /dev/null
++++ b/python/tests/isort.sh
+@@ -0,0 +1,2 @@
++#!/bin/sh -e
++python3 -m isort -c qemu/
+diff --git a/python/tests/mypy.sh b/python/tests/mypy.sh
+new file mode 100755
+index 0000000000..5f980f563b
+--- /dev/null
++++ b/python/tests/mypy.sh
+@@ -0,0 +1,2 @@
++#!/bin/sh -e
++python3 -m mypy -p qemu
+diff --git a/python/tests/pylint.sh b/python/tests/pylint.sh
+new file mode 100755
+index 0000000000..4b10b34db7
+--- /dev/null
++++ b/python/tests/pylint.sh
+@@ -0,0 +1,2 @@
++#!/bin/sh -e
++python3 -m pylint qemu/
+diff --git a/tests/acceptance/avocado_qemu/__init__.py b/tests/acceptance/avocado_qemu/__init__.py
+index 83b1741ec8..93c4b9851f 100644
+--- a/tests/acceptance/avocado_qemu/__init__.py
++++ b/tests/acceptance/avocado_qemu/__init__.py
+@@ -20,6 +20,7 @@
+ from avocado.utils import cloudinit
+ from avocado.utils import datadrainer
+ from avocado.utils import network
++from avocado.utils import ssh
+ from avocado.utils import vmimage
+ from avocado.utils.path import find_command
+ 
+@@ -40,9 +41,12 @@
+ 
+ sys.path.append(os.path.join(SOURCE_DIR, 'python'))
+ 
+-from qemu.accel import kvm_available
+-from qemu.accel import tcg_available
+ from qemu.machine import QEMUMachine
++from qemu.utils import (
++    get_info_usernet_hostfwd_port,
++    kvm_available,
++    tcg_available,
++)
+ 
+ def is_readable_executable_file(path):
+     return os.path.isfile(path) and os.access(path, os.R_OK | os.X_OK)
+@@ -253,7 +257,50 @@ def fetch_asset(self, name,
+                         cancel_on_missing=cancel_on_missing)
+ 
+ 
+-class LinuxTest(Test):
++class LinuxSSHMixIn:
++    """Contains utility methods for interacting with a guest via SSH."""
++
++    def ssh_connect(self, username, credential, credential_is_key=True):
++        self.ssh_logger = logging.getLogger('ssh')
++        res = self.vm.command('human-monitor-command',
++                              command_line='info usernet')
++        port = get_info_usernet_hostfwd_port(res)
++        self.assertIsNotNone(port)
++        self.assertGreater(port, 0)
++        self.log.debug('sshd listening on port: %d', port)
++        if credential_is_key:
++            self.ssh_session = ssh.Session('127.0.0.1', port=port,
++                                           user=username, key=credential)
++        else:
++            self.ssh_session = ssh.Session('127.0.0.1', port=port,
++                                           user=username, password=credential)
++        for i in range(10):
++            try:
++                self.ssh_session.connect()
++                return
++            except:
++                time.sleep(4)
++                pass
++        self.fail('ssh connection timeout')
++
++    def ssh_command(self, command):
++        self.ssh_logger.info(command)
++        result = self.ssh_session.cmd(command)
++        stdout_lines = [line.rstrip() for line
++                        in result.stdout_text.splitlines()]
++        for line in stdout_lines:
++            self.ssh_logger.info(line)
++        stderr_lines = [line.rstrip() for line
++                        in result.stderr_text.splitlines()]
++        for line in stderr_lines:
++            self.ssh_logger.warning(line)
++
++        self.assertEqual(result.exit_status, 0,
++                         f'Guest command failed: {command}')
++        return stdout_lines, stderr_lines
++
++
++class LinuxTest(Test, LinuxSSHMixIn):
+     """Facilitates having a cloud-image Linux based available.
+ 
+     For tests that indend to interact with guests, this is a better choice
+@@ -262,11 +309,16 @@ class LinuxTest(Test):
+ 
+     timeout = 900
+     chksum = None
++    username = 'root'
++    password = 'password'
+ 
+-    def setUp(self, ssh_pubkey=None):
++    def setUp(self, ssh_pubkey=None, network_device_type='virtio-net'):
+         super(LinuxTest, self).setUp()
+         self.vm.add_args('-smp', '2')
+         self.vm.add_args('-m', '1024')
++        # The following network device allows for SSH connections
++        self.vm.add_args('-netdev', 'user,id=vnet,hostfwd=:127.0.0.1:0-:22',
++                         '-device', '%s,netdev=vnet' % network_device_type)
+         self.set_up_boot()
+         if ssh_pubkey is None:
+             ssh_pubkey, self.ssh_key = self.set_up_existing_ssh_keys()
+@@ -322,8 +374,8 @@ def prepare_cloudinit(self, ssh_pubkey=None):
+                 with open(ssh_pubkey) as pubkey:
+                     pubkey_content = pubkey.read()
+             cloudinit.iso(cloudinit_iso, self.name,
+-                          username='root',
+-                          password='password',
++                          username=self.username,
++                          password=self.password,
+                           # QEMU's hard coded usermode router address
+                           phone_home_host='10.0.2.2',
+                           phone_home_port=self.phone_home_port,
+@@ -340,7 +392,7 @@ def set_up_cloudinit(self, ssh_pubkey=None):
+         cloudinit_iso = self.prepare_cloudinit(ssh_pubkey)
+         self.vm.add_args('-drive', 'file=%s,format=raw' % cloudinit_iso)
+ 
+-    def launch_and_wait(self):
++    def launch_and_wait(self, set_up_ssh_connection=True):
+         self.vm.set_console()
+         self.vm.launch()
+         console_drainer = datadrainer.LineLogger(self.vm.console_socket.fileno(),
+@@ -348,3 +400,6 @@ def launch_and_wait(self):
+         console_drainer.start()
+         self.log.info('VM launched, waiting for boot confirmation from guest')
+         cloudinit.wait_for_phone_home(('0.0.0.0', self.phone_home_port), self.name)
++        if set_up_ssh_connection:
++            self.log.info('Setting up the SSH connection')
++            self.ssh_connect(self.username, self.ssh_key)
+diff --git a/tests/acceptance/boot_linux.py b/tests/acceptance/boot_linux.py
+index 0d178038a0..314370fd1f 100644
+--- a/tests/acceptance/boot_linux.py
++++ b/tests/acceptance/boot_linux.py
+@@ -29,7 +29,7 @@ def test_pc_i440fx_tcg(self):
+         """
+         self.require_accelerator("tcg")
+         self.vm.add_args("-accel", "tcg")
+-        self.launch_and_wait()
++        self.launch_and_wait(set_up_ssh_connection=False)
+ 
+     def test_pc_i440fx_kvm(self):
+         """
+@@ -38,7 +38,7 @@ def test_pc_i440fx_kvm(self):
+         """
+         self.require_accelerator("kvm")
+         self.vm.add_args("-accel", "kvm")
+-        self.launch_and_wait()
++        self.launch_and_wait(set_up_ssh_connection=False)
+ 
+     def test_pc_q35_tcg(self):
+         """
+@@ -47,7 +47,7 @@ def test_pc_q35_tcg(self):
+         """
+         self.require_accelerator("tcg")
+         self.vm.add_args("-accel", "tcg")
+-        self.launch_and_wait()
++        self.launch_and_wait(set_up_ssh_connection=False)
+ 
+     def test_pc_q35_kvm(self):
+         """
+@@ -56,7 +56,7 @@ def test_pc_q35_kvm(self):
+         """
+         self.require_accelerator("kvm")
+         self.vm.add_args("-accel", "kvm")
+-        self.launch_and_wait()
++        self.launch_and_wait(set_up_ssh_connection=False)
+ 
+ 
+ class BootLinuxAarch64(LinuxTest):
+@@ -85,7 +85,7 @@ def test_virt_tcg(self):
+         self.vm.add_args("-cpu", "max")
+         self.vm.add_args("-machine", "virt,gic-version=2")
+         self.add_common_args()
+-        self.launch_and_wait()
++        self.launch_and_wait(set_up_ssh_connection=False)
+ 
+     def test_virt_kvm_gicv2(self):
+         """
+@@ -98,7 +98,7 @@ def test_virt_kvm_gicv2(self):
+         self.vm.add_args("-cpu", "host")
+         self.vm.add_args("-machine", "virt,gic-version=2")
+         self.add_common_args()
+-        self.launch_and_wait()
++        self.launch_and_wait(set_up_ssh_connection=False)
+ 
+     def test_virt_kvm_gicv3(self):
+         """
+@@ -111,7 +111,7 @@ def test_virt_kvm_gicv3(self):
+         self.vm.add_args("-cpu", "host")
+         self.vm.add_args("-machine", "virt,gic-version=3")
+         self.add_common_args()
+-        self.launch_and_wait()
++        self.launch_and_wait(set_up_ssh_connection=False)
+ 
+ 
+ class BootLinuxPPC64(LinuxTest):
+@@ -128,7 +128,7 @@ def test_pseries_tcg(self):
+         """
+         self.require_accelerator("tcg")
+         self.vm.add_args("-accel", "tcg")
+-        self.launch_and_wait()
++        self.launch_and_wait(set_up_ssh_connection=False)
+ 
+ 
+ class BootLinuxS390X(LinuxTest):
+@@ -146,4 +146,4 @@ def test_s390_ccw_virtio_tcg(self):
+         """
+         self.require_accelerator("tcg")
+         self.vm.add_args("-accel", "tcg")
+-        self.launch_and_wait()
++        self.launch_and_wait(set_up_ssh_connection=False)
+diff --git a/tests/acceptance/hotplug_cpu.py b/tests/acceptance/hotplug_cpu.py
+new file mode 100644
+index 0000000000..6374bf1b54
+--- /dev/null
++++ b/tests/acceptance/hotplug_cpu.py
+@@ -0,0 +1,37 @@
++# Functional test that hotplugs a CPU and checks it on a Linux guest
++#
++# Copyright (c) 2021 Red Hat, Inc.
++#
++# Author:
++#  Cleber Rosa <crosa@redhat.com>
++#
++# This work is licensed under the terms of the GNU GPL, version 2 or
++# later.  See the COPYING file in the top-level directory.
++
++from avocado_qemu import LinuxTest
++
++
++class HotPlugCPU(LinuxTest):
++
++    def test(self):
++        """
++        :avocado: tags=arch:x86_64
++        :avocado: tags=machine:q35
++        :avocado: tags=accel:kvm
++        """
++        self.require_accelerator('kvm')
++        self.vm.add_args('-accel', 'kvm')
++        self.vm.add_args('-cpu', 'Haswell')
++        self.vm.add_args('-smp', '1,sockets=1,cores=2,threads=1,maxcpus=2')
++        self.launch_and_wait()
++
++        self.ssh_command('test -e /sys/devices/system/cpu/cpu0')
++        with self.assertRaises(AssertionError):
++            self.ssh_command('test -e /sys/devices/system/cpu/cpu1')
++
++        self.vm.command('device_add',
++                        driver='Haswell-x86_64-cpu',
++                        socket_id=0,
++                        core_id=1,
++                        thread_id=0)
++        self.ssh_command('test -e /sys/devices/system/cpu/cpu1')
+diff --git a/tests/acceptance/info_usernet.py b/tests/acceptance/info_usernet.py
+new file mode 100644
+index 0000000000..9c1fd903a0
+--- /dev/null
++++ b/tests/acceptance/info_usernet.py
+@@ -0,0 +1,29 @@
++# Test for the hmp command "info usernet"
++#
++# Copyright (c) 2021 Red Hat, Inc.
++#
++# Author:
++#  Cleber Rosa <crosa@redhat.com>
++#
++# This work is licensed under the terms of the GNU GPL, version 2 or
++# later.  See the COPYING file in the top-level directory.
++
++from avocado_qemu import Test
++
++from qemu.utils import get_info_usernet_hostfwd_port
++
++
++class InfoUsernet(Test):
++
++    def test_hostfwd(self):
++        self.vm.add_args('-netdev', 'user,id=vnet,hostfwd=:127.0.0.1:0-:22')
++        self.vm.launch()
++        res = self.vm.command('human-monitor-command',
++                              command_line='info usernet')
++        port = get_info_usernet_hostfwd_port(res)
++        self.assertIsNotNone(port,
++                             ('"info usernet" output content does not seem to '
++                              'contain the redirected port'))
++        self.assertGreater(port, 0,
++                           ('Found a redirected port that is not greater than'
++                            ' zero'))
+diff --git a/tests/acceptance/linux_ssh_mips_malta.py b/tests/acceptance/linux_ssh_mips_malta.py
+index 6dbd02d49d..61c9079d04 100644
+--- a/tests/acceptance/linux_ssh_mips_malta.py
++++ b/tests/acceptance/linux_ssh_mips_malta.py
+@@ -12,14 +12,14 @@
+ import time
+ 
+ from avocado import skipUnless
+-from avocado_qemu import Test
++from avocado_qemu import Test, LinuxSSHMixIn
+ from avocado_qemu import wait_for_console_pattern
+ from avocado.utils import process
+ from avocado.utils import archive
+ from avocado.utils import ssh
+ 
+ 
+-class LinuxSSH(Test):
++class LinuxSSH(Test, LinuxSSHMixIn):
+ 
+     timeout = 150 # Not for 'configure --enable-debug --enable-debug-tcg'
+ 
+@@ -70,45 +70,9 @@ def get_kernel_info(self, endianess, wordsize):
+     def setUp(self):
+         super(LinuxSSH, self).setUp()
+ 
+-    def get_portfwd(self):
+-        res = self.vm.command('human-monitor-command',
+-                              command_line='info usernet')
+-        line = res.split('\r\n')[2]
+-        port = re.split(r'.*TCP.HOST_FORWARD.*127\.0\.0\.1 (\d+)\s+10\..*',
+-                        line)[1]
+-        self.log.debug("sshd listening on port:" + port)
+-        return port
+-
+-    def ssh_connect(self, username, password):
+-        self.ssh_logger = logging.getLogger('ssh')
+-        port = self.get_portfwd()
+-        self.ssh_session = ssh.Session(self.VM_IP, port=int(port),
+-                                       user=username, password=password)
+-        for i in range(10):
+-            try:
+-                self.ssh_session.connect()
+-                return
+-            except:
+-                time.sleep(4)
+-                pass
+-        self.fail("ssh connection timeout")
+-
+     def ssh_disconnect_vm(self):
+         self.ssh_session.quit()
+ 
+-    def ssh_command(self, command, is_root=True):
+-        self.ssh_logger.info(command)
+-        result = self.ssh_session.cmd(command)
+-        stdout_lines = [line.rstrip() for line
+-                        in result.stdout_text.splitlines()]
+-        for line in stdout_lines:
+-            self.ssh_logger.info(line)
+-        stderr_lines = [line.rstrip() for line
+-                        in result.stderr_text.splitlines()]
+-        for line in stderr_lines:
+-            self.ssh_logger.warning(line)
+-        return stdout_lines, stderr_lines
+-
+     def boot_debian_wheezy_image_and_ssh_login(self, endianess, kernel_path):
+         image_url, image_hash = self.get_image_info(endianess)
+         image_path = self.fetch_asset(image_url, asset_hash=image_hash)
+@@ -129,7 +93,7 @@ def boot_debian_wheezy_image_and_ssh_login(self, endianess, kernel_path):
+         wait_for_console_pattern(self, console_pattern, 'Oops')
+         self.log.info('sshd ready')
+ 
+-        self.ssh_connect('root', 'root')
++        self.ssh_connect('root', 'root', False)
+ 
+     def shutdown_via_ssh(self):
+         self.ssh_command('poweroff')
+diff --git a/tests/acceptance/virtio-gpu.py b/tests/acceptance/virtio-gpu.py
+index ab18cddbb7..e7979343e9 100644
+--- a/tests/acceptance/virtio-gpu.py
++++ b/tests/acceptance/virtio-gpu.py
+@@ -10,7 +10,7 @@
+ from avocado_qemu import exec_command_and_wait_for_pattern
+ from avocado_qemu import is_readable_executable_file
+ 
+-from qemu.accel import kvm_available
++from qemu.utils import kvm_available
+ 
+ import os
+ import socket
+diff --git a/tests/acceptance/virtiofs_submounts.py b/tests/acceptance/virtiofs_submounts.py
+index 46fa65392a..21ad7d792e 100644
+--- a/tests/acceptance/virtiofs_submounts.py
++++ b/tests/acceptance/virtiofs_submounts.py
+@@ -70,56 +70,9 @@ def test_something_that_needs_cmd1_and_cmd2(self):
+ class VirtiofsSubmountsTest(LinuxTest):
+     """
+     :avocado: tags=arch:x86_64
++    :avocado: tags=accel:kvm
+     """
+ 
+-    def get_portfwd(self):
+-        port = None
+-
+-        res = self.vm.command('human-monitor-command',
+-                              command_line='info usernet')
+-        for line in res.split('\r\n'):
+-            match = \
+-                re.search(r'TCP.HOST_FORWARD.*127\.0\.0\.1\s+(\d+)\s+10\.',
+-                          line)
+-            if match is not None:
+-                port = int(match[1])
+-                break
+-
+-        self.assertIsNotNone(port)
+-        self.assertGreater(port, 0)
+-        self.log.debug('sshd listening on port: %d', port)
+-        return port
+-
+-    def ssh_connect(self, username, keyfile):
+-        self.ssh_logger = logging.getLogger('ssh')
+-        port = self.get_portfwd()
+-        self.ssh_session = ssh.Session('127.0.0.1', port=port,
+-                                       user=username, key=keyfile)
+-        for i in range(10):
+-            try:
+-                self.ssh_session.connect()
+-                return
+-            except:
+-                time.sleep(4)
+-                pass
+-        self.fail('ssh connection timeout')
+-
+-    def ssh_command(self, command):
+-        self.ssh_logger.info(command)
+-        result = self.ssh_session.cmd(command)
+-        stdout_lines = [line.rstrip() for line
+-                        in result.stdout_text.splitlines()]
+-        for line in stdout_lines:
+-            self.ssh_logger.info(line)
+-        stderr_lines = [line.rstrip() for line
+-                        in result.stderr_text.splitlines()]
+-        for line in stderr_lines:
+-            self.ssh_logger.warning(line)
+-
+-        self.assertEqual(result.exit_status, 0,
+-                         f'Guest command failed: {command}')
+-        return stdout_lines, stderr_lines
+-
+     def run(self, args, ignore_error=False):
+         stdout, stderr, ret = run_cmd(args)
+ 
+@@ -181,10 +134,6 @@ def set_up_virtiofs(self):
+                          '-numa',
+                          'node,memdev=mem')
+ 
+-    def launch_vm(self):
+-        self.launch_and_wait()
+-        self.ssh_connect('root', self.ssh_key)
+-
+     def set_up_nested_mounts(self):
+         scratch_dir = os.path.join(self.shared_dir, 'scratch')
+         try:
+@@ -246,18 +195,14 @@ def setUp(self):
+ 
+         self.run(('ssh-keygen', '-N', '', '-t', 'ed25519', '-f', self.ssh_key))
+ 
+-        pubkey = open(self.ssh_key + '.pub').read()
++        pubkey = self.ssh_key + '.pub'
+ 
+         super(VirtiofsSubmountsTest, self).setUp(pubkey)
+ 
+-        if len(vmlinuz) > 0:
++        if vmlinuz:
+             self.vm.add_args('-kernel', vmlinuz,
+                              '-append', 'console=ttyS0 root=/dev/sda1')
+ 
+-        # Allow us to connect to SSH
+-        self.vm.add_args('-netdev', 'user,id=vnet,hostfwd=:127.0.0.1:0-:22',
+-                         '-device', 'virtio-net,netdev=vnet')
+-
+         self.require_accelerator("kvm")
+         self.vm.add_args('-accel', 'kvm')
+ 
+@@ -277,7 +222,7 @@ def test_pre_virtiofsd_set_up(self):
+         self.set_up_nested_mounts()
+ 
+         self.set_up_virtiofs()
+-        self.launch_vm()
++        self.launch_and_wait()
+         self.mount_in_guest()
+         self.check_in_guest()
+ 
+@@ -287,14 +232,14 @@ def test_pre_launch_set_up(self):
+ 
+         self.set_up_nested_mounts()
+ 
+-        self.launch_vm()
++        self.launch_and_wait()
+         self.mount_in_guest()
+         self.check_in_guest()
+ 
+     def test_post_launch_set_up(self):
+         self.set_up_shared_dir()
+         self.set_up_virtiofs()
+-        self.launch_vm()
++        self.launch_and_wait()
+ 
+         self.set_up_nested_mounts()
+ 
+@@ -304,7 +249,7 @@ def test_post_launch_set_up(self):
+     def test_post_mount_set_up(self):
+         self.set_up_shared_dir()
+         self.set_up_virtiofs()
+-        self.launch_vm()
++        self.launch_and_wait()
+         self.mount_in_guest()
+ 
+         self.set_up_nested_mounts()
+@@ -317,7 +262,7 @@ def test_two_runs(self):
+         self.set_up_nested_mounts()
+ 
+         self.set_up_virtiofs()
+-        self.launch_vm()
++        self.launch_and_wait()
+         self.mount_in_guest()
+         self.check_in_guest()
+ 
+diff --git a/tests/docker/dockerfiles/python.docker b/tests/docker/dockerfiles/python.docker
+new file mode 100644
+index 0000000000..56d88417df
+--- /dev/null
++++ b/tests/docker/dockerfiles/python.docker
+@@ -0,0 +1,18 @@
++# Python library testing environment
++
++FROM fedora:latest
++MAINTAINER John Snow <jsnow@redhat.com>
++
++# Please keep this list sorted alphabetically
++ENV PACKAGES \
++    gcc \
++    make \
++    pipenv \
++    python3 \
++    python3-pip \
++    python3-tox \
++    python3-virtualenv \
++    python3.10
++
++RUN dnf install -y $PACKAGES
++RUN rpm -q $PACKAGES | sort > /packages.txt
+diff --git a/tests/qemu-iotests/297 b/tests/qemu-iotests/297
+index a37910b42d..433b732336 100755
+--- a/tests/qemu-iotests/297
++++ b/tests/qemu-iotests/297
+@@ -95,6 +95,7 @@ def run_linters():
+                             '--warn-redundant-casts',
+                             '--warn-unused-ignores',
+                             '--no-implicit-reexport',
++                            '--namespace-packages',
+                             filename),
+                            env=env,
+                            check=False,
+diff --git a/tests/qemu-iotests/300 b/tests/qemu-iotests/300
+index b475a92c47..fe94de84ed 100755
+--- a/tests/qemu-iotests/300
++++ b/tests/qemu-iotests/300
+@@ -28,7 +28,7 @@ import iotests
+ 
+ # Import qemu after iotests.py has amended sys.path
+ # pylint: disable=wrong-import-order
+-import qemu
++from qemu.machine import machine
+ 
+ BlockBitmapMapping = List[Dict[str, object]]
+ 
+@@ -466,7 +466,7 @@ class TestBlockBitmapMappingErrors(TestDirtyBitmapMigration):
+         # the failed migration
+         try:
+             self.vm_b.shutdown()
+-        except qemu.machine.AbnormalShutdown:
++        except machine.AbnormalShutdown:
+             pass
+ 
+     def test_aliased_bitmap_name_too_long(self) -> None:
+diff --git a/tests/qemu-iotests/iotests.py b/tests/qemu-iotests/iotests.py
+index 777fa2ec0e..89663dac06 100644
+--- a/tests/qemu-iotests/iotests.py
++++ b/tests/qemu-iotests/iotests.py
+@@ -38,7 +38,7 @@
+ 
+ # pylint: disable=import-error, wrong-import-position
+ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
+-from qemu import qtest
++from qemu.machine import qtest
+ from qemu.qmp import QMPMessage
+ 
+ # Use this logger for logging messages directly from the iotests module
+@@ -571,7 +571,7 @@ class VM(qtest.QEMUQtestMachine):
+     def __init__(self, path_suffix=''):
+         name = "qemu%s-%d" % (path_suffix, os.getpid())
+         super().__init__(qemu_prog, qemu_opts, name=name,
+-                         test_dir=test_dir,
++                         base_temp_dir=test_dir,
+                          socket_scm_helper=socket_scm_helper,
+                          sock_dir=sock_dir)
+         self._num_drives = 0
+diff --git a/tests/requirements.txt b/tests/requirements.txt
+index 91f3a343b9..a21b59b443 100644
+--- a/tests/requirements.txt
++++ b/tests/requirements.txt
+@@ -1,5 +1,5 @@
+ # Add Python module requirements, one per line, to be installed
+ # in the tests/venv Python virtual environment. For more info,
+ # refer to: https://pip.pypa.io/en/stable/user_guide/#id1
+-avocado-framework==85.0
++avocado-framework==88.1
+ pycdlib==1.11.0
+diff --git a/tests/vm/aarch64vm.py b/tests/vm/aarch64vm.py
+index d70ab843b6..b00cce07eb 100644
+--- a/tests/vm/aarch64vm.py
++++ b/tests/vm/aarch64vm.py
+@@ -14,7 +14,7 @@
+ import sys
+ import subprocess
+ import basevm
+-from qemu.accel import kvm_available
++from qemu.utils import kvm_available
+ 
+ # This is the config needed for current version of QEMU.
+ # This works for both kvm and tcg.
+diff --git a/tests/vm/basevm.py b/tests/vm/basevm.py
+index 00f1d5ca8d..0f2e436ed3 100644
+--- a/tests/vm/basevm.py
++++ b/tests/vm/basevm.py
+@@ -19,8 +19,8 @@
+ import time
+ import datetime
+ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
+-from qemu.accel import kvm_available
+ from qemu.machine import QEMUMachine
++from qemu.utils import get_info_usernet_hostfwd_port, kvm_available
+ import subprocess
+ import hashlib
+ import argparse
+@@ -227,7 +227,7 @@ def _ssh_do(self, user, cmd, check):
+                    "-o", "UserKnownHostsFile=" + os.devnull,
+                    "-o",
+                    "ConnectTimeout={}".format(self._config["ssh_timeout"]),
+-                   "-p", self.ssh_port, "-i", self._ssh_tmp_key_file]
++                   "-p", str(self.ssh_port), "-i", self._ssh_tmp_key_file]
+         # If not in debug mode, set ssh to quiet mode to
+         # avoid printing the results of commands.
+         if not self.debug:
+@@ -305,12 +305,8 @@ def boot(self, img, extra_args=[]):
+         # Init console so we can start consuming the chars.
+         self.console_init()
+         usernet_info = guest.qmp("human-monitor-command",
+-                                 command_line="info usernet")
+-        self.ssh_port = None
+-        for l in usernet_info["return"].splitlines():
+-            fields = l.split()
+-            if "TCP[HOST_FORWARD]" in fields and "22" in fields:
+-                self.ssh_port = l.split()[3]
++                                 command_line="info usernet").get("return")
++        self.ssh_port = get_info_usernet_hostfwd_port(usernet_info)
+         if not self.ssh_port:
+             raise Exception("Cannot find ssh port from 'info usernet':\n%s" % \
+                             usernet_info)

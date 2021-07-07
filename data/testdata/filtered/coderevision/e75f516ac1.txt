@@ -1,0 +1,82 @@
+diff --git a/scripts/qmp/qemu-ga-client b/scripts/qmp/qemu-ga-client
+index 566bddc89d..97f4047a62 100755
+--- a/scripts/qmp/qemu-ga-client
++++ b/scripts/qmp/qemu-ga-client
+@@ -12,8 +12,7 @@
+ # Start QEMU with:
+ #
+ # # qemu [...] -chardev socket,path=/tmp/qga.sock,server=on,wait=off,id=qga0 \
+-#   -device virtio-serial \
+-#   -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0
++#   -device virtio-serial -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0
+ #
+ # Run the script:
+ #
+@@ -38,7 +37,6 @@
+ #
+ 
+ import base64
+-import optparse
+ import os
+ import random
+ import sys
+@@ -96,11 +94,9 @@ class QemuGuestAgentClient:
+         msgs = []
+         msgs.append('version: ' + info['version'])
+         msgs.append('supported_commands:')
+-        enabled = [c['name'] for c in info['supported_commands']
+-                   if c['enabled']]
++        enabled = [c['name'] for c in info['supported_commands'] if c['enabled']]
+         msgs.append('\tenabled: ' + ', '.join(enabled))
+-        disabled = [c['name'] for c in info['supported_commands']
+-                    if not c['enabled']]
++        disabled = [c['name'] for c in info['supported_commands'] if not c['enabled']]
+         msgs.append('\tdisabled: ' + ', '.join(disabled))
+ 
+         return '\n'.join(msgs)
+@@ -123,11 +119,11 @@ class QemuGuestAgentClient:
+                     if ipaddr['ip-address-type'] == 'ipv4':
+                         addr = ipaddr['ip-address']
+                         mask = self.__gen_ipv4_netmask(int(ipaddr['prefix']))
+-                        msgs.append(f"\tinet {addr}  netmask {mask}")
++                        msgs.append("\tinet %s  netmask %s" % (addr, mask))
+                     elif ipaddr['ip-address-type'] == 'ipv6':
+                         addr = ipaddr['ip-address']
+                         prefix = ipaddr['prefix']
+-                        msgs.append(f"\tinet6 {addr}  prefixlen {prefix}")
++                        msgs.append("\tinet6 %s  prefixlen %s" % (addr, prefix))
+             if nif['hardware-address'] != '00:00:00:00:00:00':
+                 msgs.append("\tether " + nif['hardware-address'])
+ 
+@@ -241,8 +237,6 @@ def _cmd_suspend(client, args):
+ 
+ def _cmd_shutdown(client, args):
+     client.shutdown()
+-
+-
+ _cmd_powerdown = _cmd_shutdown
+ 
+ 
+@@ -286,15 +280,17 @@ def main(address, cmd, args):
+ 
+ 
+ if __name__ == '__main__':
+-    address = os.environ.get('QGA_CLIENT_ADDRESS')
++    import optparse
++    import os
++    import sys
++
++    address = os.environ['QGA_CLIENT_ADDRESS'] if 'QGA_CLIENT_ADDRESS' in os.environ else None
+ 
+-    usage = ("%prog [--address=<unix_path>|<ipv4_address>]"
+-             " <command> [args...]\n")
++    usage = "%prog [--address=<unix_path>|<ipv4_address>] <command> [args...]\n"
+     usage += '<command>: ' + ', '.join(commands)
+     parser = optparse.OptionParser(usage=usage)
+     parser.add_option('--address', action='store', type='string',
+-                      default=address,
+-                      help='Specify a ip:port pair or a unix socket path')
++                      default=address, help='Specify a ip:port pair or a unix socket path')
+     options, args = parser.parse_args()
+ 
+     address = options.address

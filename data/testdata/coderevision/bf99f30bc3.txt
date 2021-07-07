@@ -1,0 +1,22 @@
+diff --git a/tools/virtiofsd/fuse_opt.c b/tools/virtiofsd/fuse_opt.c
+index 9d371448e9..f0ab8d22f4 100644
+--- a/tools/virtiofsd/fuse_opt.c
++++ b/tools/virtiofsd/fuse_opt.c
+@@ -272,7 +272,7 @@ static int process_opt_sep_arg(struct fuse_opt_context *ctx,
+     }
+ 
+     param = ctx->argv[ctx->argctr];
+-    newarg = g_try_malloc(sep + strlen(param) + 1);
++    newarg = malloc(sep + strlen(param) + 1);
+     if (!newarg) {
+         return alloc_failed();
+     }
+@@ -280,7 +280,7 @@ static int process_opt_sep_arg(struct fuse_opt_context *ctx,
+     memcpy(newarg, arg, sep);
+     strcpy(newarg + sep, param);
+     res = process_opt(ctx, opt, sep, newarg, iso);
+-    g_free(newarg);
++    free(newarg);
+ 
+     return res;
+ }

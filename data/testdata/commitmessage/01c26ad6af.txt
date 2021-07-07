@@ -1,0 +1,17 @@
+commit 01c26ad6affae8c00279f5cc8e1af4d6aac004ce
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 10 13:43:15 2021 +0200
+
+    util/mmap-alloc: Factor out reserving of a memory region to mmap_reserve()
+    
+    We want to reserve a memory region without actually populating memory.
+    Let's factor that out.
+    
+    Reviewed-by: Igor Kotrasinski <i.kotrasinsk@partner.samsung.com>
+    Acked-by: Murilo Opsfelder Araujo <muriloo@linux.ibm.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com> for memory backend and machine core
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210510114328.21835-3-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

@@ -1,0 +1,134 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 01b6123f25..64c3f9e049 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -63,9 +63,3 @@ DEF_HELPER_FLAGS_3(mve_vnegh, TCG_CALL_NO_WG, void, env, ptr, ptr)
+ DEF_HELPER_FLAGS_3(mve_vnegw, TCG_CALL_NO_WG, void, env, ptr, ptr)
+ DEF_HELPER_FLAGS_3(mve_vfnegh, TCG_CALL_NO_WG, void, env, ptr, ptr)
+ DEF_HELPER_FLAGS_3(mve_vfnegs, TCG_CALL_NO_WG, void, env, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vand, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vbic, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vorr, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vorn, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_veor, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index 332e0b8d1d..09849917f5 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -25,7 +25,6 @@
+ 
+ &vldr_vstr rn qd imm p a w size l u
+ &1op qd qm size
+-&2op qd qm qn size
+ 
+ @vldr_vstr ....... . . . . l:1 rn:4 ... ...... imm:7 &vldr_vstr qd=%qd u=0
+ # Note that both Rn and Qd are 3 bits only (no D bit)
+@@ -33,7 +32,6 @@
+ 
+ @1op .... .... .... size:2 .. .... .... .... .... &1op qd=%qd qm=%qm
+ @1op_nosz .... .... .... .... .... .... .... .... &1op qd=%qd qm=%qm size=0
+-@2op_nosz .... .... .... .... .... .... .... .... &2op qd=%qd qm=%qm qn=%qn size=0
+ 
+ # Vector loads and stores
+ 
+@@ -70,13 +68,6 @@ VLDR_VSTR        1110110 1 a:1 . w:1 . .... ... 111101 .......   @vldr_vstr \
+ VLDR_VSTR        1110110 1 a:1 . w:1 . .... ... 111110 .......   @vldr_vstr \
+                  size=2 p=1
+ 
+-# Vector 2-op
+-VAND             1110 1111 0 . 00 ... 0 ... 0 0001 . 1 . 1 ... 0 @2op_nosz
+-VBIC             1110 1111 0 . 01 ... 0 ... 0 0001 . 1 . 1 ... 0 @2op_nosz
+-VORR             1110 1111 0 . 10 ... 0 ... 0 0001 . 1 . 1 ... 0 @2op_nosz
+-VORN             1110 1111 0 . 11 ... 0 ... 0 0001 . 1 . 1 ... 0 @2op_nosz
+-VEOR             1111 1111 0 . 00 ... 0 ... 0 0001 . 1 . 1 ... 0 @2op_nosz
+-
+ # Vector miscellaneous
+ 
+ VCLS             1111 1111 1 . 11 .. 00 ... 0 0100 01 . 0 ... 0 @1op
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index da62b0e012..e17ffdccac 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -322,29 +322,3 @@ DO_1OP(vnegw, 4, int32_t, DO_NEG)
+ /* We can do these 64 bits at a time */
+ DO_1OP(vfnegh, 8, uint64_t, DO_FNEGH)
+ DO_1OP(vfnegs, 8, uint64_t, DO_FNEGS)
+-
+-#define DO_2OP(OP, ESIZE, TYPE, FN)                                     \
+-    void HELPER(glue(mve_, OP))(CPUARMState *env,                       \
+-                                void *vd, void *vn, void *vm)           \
+-    {                                                                   \
+-        TYPE *d = vd, *n = vn, *m = vm;                                 \
+-        uint16_t mask = mve_element_mask(env);                          \
+-        unsigned e;                                                     \
+-        for (e = 0; e < 16 / ESIZE; e++, mask >>= ESIZE) {              \
+-            mergemask(&d[H##ESIZE(e)],                                  \
+-                      FN(n[H##ESIZE(e)], m[H##ESIZE(e)]), mask);        \
+-        }                                                               \
+-        mve_advance_vpt(env);                                           \
+-    }
+-
+-#define DO_AND(N, M)  ((N) & (M))
+-#define DO_BIC(N, M)  ((N) & ~(M))
+-#define DO_ORR(N, M)  ((N) | (M))
+-#define DO_ORN(N, M)  ((N) | ~(M))
+-#define DO_EOR(N, M)  ((N) ^ (M))
+-
+-DO_2OP(vand, 8, uint64_t, DO_AND)
+-DO_2OP(vbic, 8, uint64_t, DO_BIC)
+-DO_2OP(vorr, 8, uint64_t, DO_ORR)
+-DO_2OP(vorn, 8, uint64_t, DO_ORN)
+-DO_2OP(veor, 8, uint64_t, DO_EOR)
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index 2546567774..3714be7f8d 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -30,7 +30,6 @@
+ 
+ typedef void MVEGenLdStFn(TCGv_ptr, TCGv_ptr, TCGv_i32);
+ typedef void MVEGenOneOpFn(TCGv_ptr, TCGv_ptr, TCGv_ptr);
+-typedef void MVEGenTwoOpFn(TCGv_ptr, TCGv_ptr, TCGv_ptr, TCGv_ptr);
+ 
+ /* Return the offset of a Qn register (same semantics as aa32_vfp_qreg()) */
+ static inline long mve_qreg_offset(unsigned reg)
+@@ -295,39 +294,3 @@ static bool trans_VNEG_fp(DisasContext *s, arg_1op *a)
+     }
+     return do_1op(s, a, fns[a->size]);
+ }
+-
+-static bool do_2op(DisasContext *s, arg_2op *a, MVEGenTwoOpFn fn)
+-{
+-    TCGv_ptr qd, qn, qm;
+-
+-    if (!dc_isar_feature(aa32_mve, s) ||
+-        !mve_check_qreg_bank(s, a->qd | a->qn | a->qm) ||
+-        !fn) {
+-        return false;
+-    }
+-    if (!mve_eci_check(s) || !vfp_access_check(s)) {
+-        return true;
+-    }
+-
+-    qd = mve_qreg_ptr(a->qd);
+-    qn = mve_qreg_ptr(a->qn);
+-    qm = mve_qreg_ptr(a->qm);
+-    fn(cpu_env, qd, qn, qm);
+-    tcg_temp_free_ptr(qd);
+-    tcg_temp_free_ptr(qn);
+-    tcg_temp_free_ptr(qm);
+-    mve_update_eci(s);
+-    return true;
+-}
+-
+-#define DO_LOGIC(INSN, HELPER)                                  \
+-    static bool trans_##INSN(DisasContext *s, arg_2op *a)       \
+-    {                                                           \
+-        return do_2op(s, a, HELPER);                            \
+-    }
+-
+-DO_LOGIC(VAND, gen_helper_mve_vand)
+-DO_LOGIC(VBIC, gen_helper_mve_vbic)
+-DO_LOGIC(VORR, gen_helper_mve_vorr)
+-DO_LOGIC(VORN, gen_helper_mve_vorn)
+-DO_LOGIC(VEOR, gen_helper_mve_veor)

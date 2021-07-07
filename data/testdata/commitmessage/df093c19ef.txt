@@ -1,0 +1,13 @@
+commit df093c19efe7a6a9b2ed43b0b6a7fa5d1e16cfcd
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Feb 2 16:15:45 2021 -0800
+
+    tcg/tci: Implement movcond
+    
+    When this opcode is not available in the backend, tcg middle-end
+    will expand this as a series of 5 opcodes.  So implementing this
+    saves bytecode space.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

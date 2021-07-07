@@ -1,0 +1,44 @@
+diff --git a/meson.build b/meson.build
+index a91b39465c..d8a92666fb 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1882,7 +1882,7 @@ if have_system or have_user
+     'target/hppa',
+     'target/i386',
+     'target/i386/kvm',
+-    'target/mips/tcg',
++    'target/mips',
+     'target/ppc',
+     'target/riscv',
+     'target/s390x',
+diff --git a/target/mips/tcg/trace.h b/target/mips/tcg/trace.h
+deleted file mode 100644
+index b8c6c4568e..0000000000
+--- a/target/mips/tcg/trace.h
++++ /dev/null
+@@ -1 +0,0 @@
+-#include "trace/trace-target_mips_tcg.h"
+diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
+index 0a4257db2a..4b7229a868 100644
+--- a/target/mips/tcg/translate.c
++++ b/target/mips/tcg/translate.c
+@@ -31,7 +31,7 @@
+ #include "exec/helper-gen.h"
+ #include "semihosting/semihost.h"
+ 
+-#include "trace.h"
++#include "target/mips/trace.h"
+ #include "trace-tcg.h"
+ #include "exec/translator.h"
+ #include "exec/log.h"
+diff --git a/target/mips/tcg/trace-events b/target/mips/trace-events
+similarity index 100%
+rename from target/mips/tcg/trace-events
+rename to target/mips/trace-events
+diff --git a/target/mips/trace.h b/target/mips/trace.h
+new file mode 100644
+index 0000000000..f25b88ca6f
+--- /dev/null
++++ b/target/mips/trace.h
+@@ -0,0 +1 @@
++#include "trace/trace-target_mips.h"

@@ -1,0 +1,19 @@
+commit 358e7505b2795d3df505661da7be9dc81eaa91d9
+Author: Alexander Graf <agraf@csgraf.de>
+Date:   Thu Jun 3 14:09:31 2021 +0100
+
+    hvf: Move cpu functions into common directory
+    
+    Until now, Hypervisor.framework has only been available on x86_64 systems.
+    With Apple Silicon shipping now, it extends its reach to aarch64. To
+    prepare for support for multiple architectures, let's start moving common
+    code out into its own accel directory.
+    
+    This patch moves CPU and memory operations over. While at it, make sure
+    the code is consumable on non-i386 systems.
+    
+    Signed-off-by: Alexander Graf <agraf@csgraf.de>
+    Reviewed-by: Sergio Lopez <slp@redhat.com>
+    Message-id: 20210519202253.76782-4-agraf@csgraf.de
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

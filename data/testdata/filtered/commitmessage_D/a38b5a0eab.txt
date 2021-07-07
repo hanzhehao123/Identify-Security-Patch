@@ -1,0 +1,10 @@
+commit a38b5a0eab9538543a241582d80cf0eb6ce97f1f
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:31 2021 +0200
+
+    s390x/tcg: Implement 32/128 bit for VECTOR FP TEST DATA CLASS IMMEDIATE
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-21-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

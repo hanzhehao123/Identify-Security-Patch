@@ -1,0 +1,23 @@
+diff --git a/python/qemu/qmp/__init__.py b/python/qemu/qmp/__init__.py
+index 376954cb6d..ba0d2281d6 100644
+--- a/python/qemu/qmp/__init__.py
++++ b/python/qemu/qmp/__init__.py
+@@ -30,7 +30,6 @@
+     TextIO,
+     Tuple,
+     Type,
+-    TypeVar,
+     Union,
+     cast,
+ )
+@@ -221,9 +220,7 @@ def __get_events(self, wait: Union[bool, float] = False) -> None:
+             if ret is None:
+                 raise QMPConnectError("Error while reading from socket")
+ 
+-    T = TypeVar('T')
+-
+-    def __enter__(self: T) -> T:
++    def __enter__(self) -> 'QEMUMonitorProtocol':
+         # Implement context manager enter function.
+         return self
+ 

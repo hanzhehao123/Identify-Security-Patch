@@ -1,0 +1,9 @@
+commit 1b031172119c8996af5fa84b6e10627ea4122d64
+Author: Jason Wang <jasowang@redhat.com>
+Date:   Wed Jun 2 11:31:27 2021 +0800
+
+    vhost-vdpa: remove the unused vhost_vdpa_get_acked_features()
+    
+    No user for this helper, let's remove it.
+    
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

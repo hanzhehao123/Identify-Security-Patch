@@ -1,0 +1,17 @@
+commit 300137965dbacec02eb2e26b3c6763b491d1f1b2
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu May 20 16:28:36 2021 +0100
+
+    target/arm: Fix return values in fp_sysreg_checks()
+    
+    The fp_sysreg_checks() function is supposed to be returning an
+    FPSysRegCheckResult, which is an enum with three possible values.
+    However, three places in the function "return false" (a hangover from
+    a previous iteration of the design where the function just returned a
+    bool).  Make these return FPSysRegCheckFailed instead (for no
+    functional change, since both false and FPSysRegCheckFailed are
+    zero).
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210520152840.24453-6-peter.maydell@linaro.org

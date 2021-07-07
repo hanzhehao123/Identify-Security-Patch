@@ -1,0 +1,14 @@
+commit 65d1a2bd3ec272bccdac29d4dc31c528a760cc3d
+Author: Alistair Francis <alistair.francis@wdc.com>
+Date:   Mon May 31 14:27:14 2021 +1000
+
+    target/riscv: Use target_ulong for the DisasContext misa
+    
+    The is_32bit() check in translate.c expects a 64-bit guest to have a
+    64-bit misa value otherwise the macro check won't work. This patches
+    fixes that and fixes a Coverity issue at the same time.
+    
+    Fixes: CID 1453107
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>
+    Reviewed-by: Bin Meng <bmeng.cn@gmail.com>
+    Message-id: c00176c7518c2a7b4de3eec320b6a683ab56f705.1622435221.git.alistair.francis@wdc.com

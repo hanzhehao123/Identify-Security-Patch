@@ -1,0 +1,16 @@
+commit 6a9c2e07ccc3074086fb14f238b2292a20050bce
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 23 11:27:46 2021 +0100
+
+    GitLab: Add "Feature Request" issue template.
+    
+    Based on Peter Krempa's libvirt template, feature.md.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    CC: Peter Krempa <pkrempa@redhat.com>
+    Message-Id: <20210607153155.1760158-3-jsnow@redhat.com>
+    Message-Id: <20210623102749.25686-6-alex.bennee@linaro.org>

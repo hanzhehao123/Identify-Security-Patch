@@ -1,0 +1,13 @@
+commit 295f7dcb609e02d8902180e48ffa590bea531d7e
+Author: Stefan Berger <stefanb@linux.vnet.ibm.com>
+Date:   Tue Jun 15 16:21:19 2021 +0200
+
+    acpi: Eliminate all TPM related code if CONFIG_TPM is not set
+    
+    Cc: M: Michael S. Tsirkin <mst@redhat.com>
+    Cc: Igor Mammedov <imammedo@redhat.com>
+    Signed-off-by: Stefan Berger <stefanb@linux.ibm.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Tested-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210614191335.1968807-4-stefanb@linux.ibm.com>
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>

@@ -1,0 +1,11 @@
+commit 59c917733809c6ac7d08a10ec3cf23ae50130248
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:15:51 2021 +0100
+
+    target/arm: Implement MVE VABS
+    
+    Implement the MVE VABS functions (both integer and floating point).
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-8-peter.maydell@linaro.org

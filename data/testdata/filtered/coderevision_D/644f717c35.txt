@@ -1,0 +1,77 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 52086d769f..912505d015 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -157,22 +157,6 @@ DEF_HELPER_FLAGS_4(mve_vmul_scalarb, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vmul_scalarh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vmul_scalarw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ 
+-DEF_HELPER_FLAGS_4(mve_vhadds_scalarb, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_4(mve_vhadds_scalarh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_4(mve_vhadds_scalarw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-
+-DEF_HELPER_FLAGS_4(mve_vhaddu_scalarb, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_4(mve_vhaddu_scalarh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_4(mve_vhaddu_scalarw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-
+-DEF_HELPER_FLAGS_4(mve_vhsubs_scalarb, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_4(mve_vhsubs_scalarh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_4(mve_vhsubs_scalarw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-
+-DEF_HELPER_FLAGS_4(mve_vhsubu_scalarb, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_4(mve_vhsubu_scalarh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_4(mve_vhsubu_scalarw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-
+ DEF_HELPER_FLAGS_4(mve_vmlaldavsh, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+ DEF_HELPER_FLAGS_4(mve_vmlaldavsw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+ DEF_HELPER_FLAGS_4(mve_vmlaldavxsh, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index 5c332b04a7..af5fba78ce 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -163,7 +163,3 @@ VRMLSLDAVH       1111 1110 1 ... ... 0 ... x:1 1110 . 0 a:1 0 ... 1 @vmlaldav_no
+ VADD_scalar      1110 1110 0 . .. ... 1 ... 0 1111 . 100 .... @2scalar
+ VSUB_scalar      1110 1110 0 . .. ... 1 ... 1 1111 . 100 .... @2scalar
+ VMUL_scalar      1110 1110 0 . .. ... 1 ... 1 1110 . 110 .... @2scalar
+-VHADD_S_scalar   1110 1110 0 . .. ... 0 ... 0 1111 . 100 .... @2scalar
+-VHADD_U_scalar   1111 1110 0 . .. ... 0 ... 0 1111 . 100 .... @2scalar
+-VHSUB_S_scalar   1110 1110 0 . .. ... 0 ... 1 1111 . 100 .... @2scalar
+-VHSUB_U_scalar   1111 1110 0 . .. ... 0 ... 1 1111 . 100 .... @2scalar
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index d76168a7a4..33755bc313 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -510,18 +510,10 @@ DO_2OP_U(vhsubu, do_vhsub_u)
+     DO_2OP_SCALAR(OP##b, 1, uint8_t, FN)        \
+     DO_2OP_SCALAR(OP##h, 2, uint16_t, FN)       \
+     DO_2OP_SCALAR(OP##w, 4, uint32_t, FN)
+-#define DO_2OP_SCALAR_S(OP, FN)                 \
+-    DO_2OP_SCALAR(OP##b, 1, int8_t, FN)         \
+-    DO_2OP_SCALAR(OP##h, 2, int16_t, FN)        \
+-    DO_2OP_SCALAR(OP##w, 4, int32_t, FN)
+ 
+ DO_2OP_SCALAR_U(vadd_scalar, DO_ADD)
+ DO_2OP_SCALAR_U(vsub_scalar, DO_SUB)
+ DO_2OP_SCALAR_U(vmul_scalar, DO_MUL)
+-DO_2OP_SCALAR_S(vhadds_scalar, do_vhadd_s)
+-DO_2OP_SCALAR_U(vhaddu_scalar, do_vhadd_u)
+-DO_2OP_SCALAR_S(vhsubs_scalar, do_vhsub_s)
+-DO_2OP_SCALAR_U(vhsubu_scalar, do_vhsub_u)
+ 
+ /*
+  * Multiply add long dual accumulate ops.
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index 4b379bfe6e..3c059ad91c 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -429,10 +429,6 @@ static bool do_2op_scalar(DisasContext *s, arg_2scalar *a,
+ DO_2OP_SCALAR(VADD_scalar, vadd_scalar)
+ DO_2OP_SCALAR(VSUB_scalar, vsub_scalar)
+ DO_2OP_SCALAR(VMUL_scalar, vmul_scalar)
+-DO_2OP_SCALAR(VHADD_S_scalar, vhadds_scalar)
+-DO_2OP_SCALAR(VHADD_U_scalar, vhaddu_scalar)
+-DO_2OP_SCALAR(VHSUB_S_scalar, vhsubs_scalar)
+-DO_2OP_SCALAR(VHSUB_U_scalar, vhsubu_scalar)
+ 
+ static bool do_long_dual_acc(DisasContext *s, arg_vmlaldav *a,
+                              MVEGenDualAccOpFn *fn)

@@ -1,0 +1,19 @@
+commit 65c57115dfeef8d344052a0e2b9d156b652be478
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:27 2021 +0200
+
+    cpu: Directly use get_memory_mapping() fallback handlers in place
+    
+    No code uses CPUClass::get_memory_mapping() outside of hw/core/cpu.c:
+    
+      $ git grep -F -- '->get_memory_mapping'
+      hw/core/cpu.c:87:    cc->get_memory_mapping(cpu, list, errp);
+      hw/core/cpu.c:439:    k->get_memory_mapping = cpu_common_get_memory_mapping;
+      target/i386/cpu.c:7422:    cc->get_memory_mapping = x86_cpu_get_memory_mapping;
+    
+    Check the handler presence in place and remove the common fallback code.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-11-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

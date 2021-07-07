@@ -1,0 +1,17 @@
+commit d1d14e59895b2ebd2953e9442225ffba56f80e9b
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:38 2021 -0400
+
+    scripts/qmp-shell: Use context manager instead of atexit
+    
+    We can invoke the shell history writing when we leave the QMPShell scope
+    instead of relying on atexit. Doing so may be preferable to avoid global
+    state being registered from within a class instead of from the
+    application logic directly.
+    
+    Use QMP's context manager to hook this history saving at close time,
+    which gets invoked when we leave the context block.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-32-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

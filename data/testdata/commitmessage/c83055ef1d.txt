@@ -1,0 +1,14 @@
+commit c83055ef1d47cd03667d7608f3f5ff232484146e
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:41 2021 -0400
+
+    scripts/qmp-shell: Fix empty-transaction invocation
+    
+    calling "transaction( )" is pointless, but valid. Rework the parser to
+    allow this kind of invocation. This helps clean up exception handling
+    later by removing accidental breakages of the parser that aren't
+    explicitly forbidden.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-35-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

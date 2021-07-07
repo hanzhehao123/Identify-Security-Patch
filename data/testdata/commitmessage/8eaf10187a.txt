@@ -1,0 +1,13 @@
+commit 8eaf10187a2fd25aa27cb81b602815b07f9a7f89
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Wed May 19 12:05:32 2021 +0300
+
+    qemu-io-cmds: assert that we don't have .perm requested in no-blk case
+    
+    Coverity thinks blk may be NULL. It's a false-positive, as described in
+    a new comment.
+    
+    Fixes: Coverity CID 1453194
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210519090532.3753-1-vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

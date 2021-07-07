@@ -1,0 +1,12 @@
+commit 2a81973829d0e77bbfdcf9ca217de8fde5cff88f
+Author: Kito Cheng <kito.cheng@sifive.com>
+Date:   Thu May 6 00:06:08 2021 +0800
+
+    target/riscv: rvb: sign-extend instructions
+    
+    Signed-off-by: Kito Cheng <kito.cheng@sifive.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Signed-off-by: Frank Chang <frank.chang@sifive.com>
+    Message-id: 20210505160620.15723-8-frank.chang@sifive.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

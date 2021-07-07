@@ -1,0 +1,10 @@
+commit 4fcd301707ccc656f27e3dc324cdbe20122a9740
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Sep 5 12:37:36 2020 -0700
+
+    tcg/arm: Implement TCG_TARGET_HAS_sat_vec
+    
+    This is saturating add and subtract, signed and unsigned.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

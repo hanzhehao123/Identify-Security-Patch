@@ -1,0 +1,56 @@
+diff --git a/target/ppc/insn64.decode b/target/ppc/insn64.decode
+index 72c5944a53..547bd1736f 100644
+--- a/target/ppc/insn64.decode
++++ b/target/ppc/insn64.decode
+@@ -39,18 +39,6 @@ PLWA            000001 00 0--.-- .................. \
+ PLD             000001 00 0--.-- .................. \
+                 111001 ..... ..... ................     @PLS_D
+ 
+-### Fixed-Point Store Instructions
+-
+-PSTW            000001 10 0--.-- .................. \
+-                100100 ..... ..... ................     @PLS_D
+-PSTB            000001 10 0--.-- .................. \
+-                100110 ..... ..... ................     @PLS_D
+-PSTH            000001 10 0--.-- .................. \
+-                101100 ..... ..... ................     @PLS_D
+-
+-PSTD            000001 00 0--.-- .................. \
+-                111101 ..... ..... ................     @PLS_D
+-
+ ### Fixed-Point Arithmetic Instructions
+ 
+ PADDI           000001 10 0--.-- ..................     \
+diff --git a/target/ppc/translate/fixedpoint-impl.c.inc b/target/ppc/translate/fixedpoint-impl.c.inc
+index 2d2d874146..adeee33289 100644
+--- a/target/ppc/translate/fixedpoint-impl.c.inc
++++ b/target/ppc/translate/fixedpoint-impl.c.inc
+@@ -142,28 +142,24 @@ TRANS(STB, do_ldst_D, false, true, MO_UB)
+ TRANS(STBX, do_ldst_X, false, true, MO_UB)
+ TRANS(STBU, do_ldst_D, true, true, MO_UB)
+ TRANS(STBUX, do_ldst_X, true, true, MO_UB)
+-TRANS(PSTB, do_ldst_PLS_D, false, true, MO_UB)
+ 
+ /* Store Halfword */
+ TRANS(STH, do_ldst_D, false, true, MO_UW)
+ TRANS(STHX, do_ldst_X, false, true, MO_UW)
+ TRANS(STHU, do_ldst_D, true, true, MO_UW)
+ TRANS(STHUX, do_ldst_X, true, true, MO_UW)
+-TRANS(PSTH, do_ldst_PLS_D, false, true, MO_UW)
+ 
+ /* Store Word */
+ TRANS(STW, do_ldst_D, false, true, MO_UL)
+ TRANS(STWX, do_ldst_X, false, true, MO_UL)
+ TRANS(STWU, do_ldst_D, true, true, MO_UL)
+ TRANS(STWUX, do_ldst_X, true, true, MO_UL)
+-TRANS(PSTW, do_ldst_PLS_D, false, true, MO_UL)
+ 
+ /* Store Doubleword */
+ TRANS64(STD, do_ldst_D, false, true, MO_Q)
+ TRANS64(STDX, do_ldst_X, false, true, MO_Q)
+ TRANS64(STDU, do_ldst_D, true, true, MO_Q)
+ TRANS64(STDUX, do_ldst_X, true, true, MO_Q)
+-TRANS64(PSTD, do_ldst_PLS_D, false, true, MO_Q)
+ 
+ /*
+  * Fixed-Point Arithmetic Instructions

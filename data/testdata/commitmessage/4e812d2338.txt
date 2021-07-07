@@ -1,0 +1,12 @@
+commit 4e812d2338acb354b969b59f792f413f567c0ace
+Author: Li Zhijian <lizhijian@cn.fujitsu.com>
+Date:   Thu May 20 16:11:45 2021 +0800
+
+    migration/rdma: cleanup rdma in rdma_start_incoming_migration error path
+    
+    the error path after calling qemu_rdma_dest_init() should do rdma cleanup
+    
+    Signed-off-by: Li Zhijian <lizhijian@cn.fujitsu.com>
+    Message-Id: <20210520081148.17001-1-lizhijian@cn.fujitsu.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

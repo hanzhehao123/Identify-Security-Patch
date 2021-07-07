@@ -1,0 +1,92 @@
+diff --git a/hw/core/cpu-sysemu.c b/hw/core/cpu-sysemu.c
+index ba53c2eaa8..d55ef8d23d 100644
+--- a/hw/core/cpu-sysemu.c
++++ b/hw/core/cpu-sysemu.c
+@@ -72,8 +72,8 @@ int cpu_asidx_from_attrs(CPUState *cpu, MemTxAttrs attrs)
+     CPUClass *cc = CPU_GET_CLASS(cpu);
+     int ret = 0;
+ 
+-    if (cc->sysemu_ops->asidx_from_attrs) {
+-        ret = cc->sysemu_ops->asidx_from_attrs(cpu, attrs);
++    if (cc->asidx_from_attrs) {
++        ret = cc->asidx_from_attrs(cpu, attrs);
+         assert(ret < cpu->num_ases && ret >= 0);
+     }
+     return ret;
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index af6246c905..15b16d3f6d 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -109,6 +109,8 @@ struct SysemuCPUOps;
+  *       associated memory transaction attributes to use for the access.
+  *       CPUs which use memory transaction attributes should implement this
+  *       instead of get_phys_page_debug.
++ * @asidx_from_attrs: Callback to return the CPU AddressSpace to use for
++ *       a memory access with the specified memory transaction attributes.
+  * @gdb_read_register: Callback for letting GDB read a register.
+  * @gdb_write_register: Callback for letting GDB write a register.
+  * @gdb_num_core_regs: Number of core registers accessible to GDB.
+@@ -150,6 +152,7 @@ struct CPUClass {
+     hwaddr (*get_phys_page_debug)(CPUState *cpu, vaddr addr);
+     hwaddr (*get_phys_page_attrs_debug)(CPUState *cpu, vaddr addr,
+                                         MemTxAttrs *attrs);
++    int (*asidx_from_attrs)(CPUState *cpu, MemTxAttrs attrs);
+     int (*gdb_read_register)(CPUState *cpu, GByteArray *buf, int reg);
+     int (*gdb_write_register)(CPUState *cpu, uint8_t *buf, int reg);
+ 
+diff --git a/include/hw/core/sysemu-cpu-ops.h b/include/hw/core/sysemu-cpu-ops.h
+index 8f8326e810..52ac0ae4e1 100644
+--- a/include/hw/core/sysemu-cpu-ops.h
++++ b/include/hw/core/sysemu-cpu-ops.h
+@@ -16,11 +16,6 @@
+  * struct SysemuCPUOps: System operations specific to a CPU class
+  */
+ typedef struct SysemuCPUOps {
+-    /**
+-     * @asidx_from_attrs: Callback to return the CPU AddressSpace to use for
+-     *       a memory access with the specified memory transaction attributes.
+-     */
+-    int (*asidx_from_attrs)(CPUState *cpu, MemTxAttrs attrs);
+     /**
+      * @get_crash_info: Callback for reporting guest crash information in
+      * GUEST_PANICKED events.
+diff --git a/target/arm/cpu.c b/target/arm/cpu.c
+index 85666b765f..18627cc3c6 100644
+--- a/target/arm/cpu.c
++++ b/target/arm/cpu.c
+@@ -1948,7 +1948,6 @@ static gchar *arm_gdb_arch_name(CPUState *cs)
+ #include "hw/core/sysemu-cpu-ops.h"
+ 
+ static const struct SysemuCPUOps arm_sysemu_ops = {
+-    .asidx_from_attrs = arm_asidx_from_attrs,
+     .write_elf32_note = arm_cpu_write_elf32_note,
+     .write_elf64_note = arm_cpu_write_elf64_note,
+     .virtio_is_big_endian = arm_cpu_virtio_is_big_endian,
+@@ -1994,6 +1993,7 @@ static void arm_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_write_register = arm_cpu_gdb_write_register;
+ #ifndef CONFIG_USER_ONLY
+     cc->get_phys_page_attrs_debug = arm_cpu_get_phys_page_attrs_debug;
++    cc->asidx_from_attrs = arm_asidx_from_attrs;
+     cc->sysemu_ops = &arm_sysemu_ops;
+ #endif
+     cc->gdb_num_core_regs = 26;
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index 45e7ded0ce..2ba82921d6 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -6718,7 +6718,6 @@ static Property x86_cpu_properties[] = {
+ #include "hw/core/sysemu-cpu-ops.h"
+ 
+ static const struct SysemuCPUOps i386_sysemu_ops = {
+-    .asidx_from_attrs = x86_asidx_from_attrs,
+     .get_crash_info = x86_cpu_get_crash_info,
+     .write_elf32_note = x86_cpu_write_elf32_note,
+     .write_elf64_note = x86_cpu_write_elf64_note,
+@@ -6755,6 +6754,7 @@ static void x86_cpu_common_class_init(ObjectClass *oc, void *data)
+     cc->get_paging_enabled = x86_cpu_get_paging_enabled;
+ 
+ #ifndef CONFIG_USER_ONLY
++    cc->asidx_from_attrs = x86_asidx_from_attrs;
+     cc->get_memory_mapping = x86_cpu_get_memory_mapping;
+     cc->get_phys_page_attrs_debug = x86_cpu_get_phys_page_attrs_debug;
+     cc->sysemu_ops = &i386_sysemu_ops;

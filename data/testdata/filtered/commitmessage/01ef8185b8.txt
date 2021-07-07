@@ -1,0 +1,17 @@
+commit 01ef8185b809af9d287e1a03a3f9d8ea8231118a
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed Apr 14 19:51:48 2021 +0200
+
+    scsi-generic: pass max_segments via max_iov field in BlockLimits
+    
+    I/O to a disk via read/write is not limited by the number of segments allowed
+    by the host adapter; the kernel can split requests if needed, and the limit
+    imposed by the host adapter can be very low (256k or so) to avoid that SG_IO
+    returns EINVAL if memory is heavily fragmented.
+    
+    Since this value is only interesting for SG_IO-based I/O, do not include
+    it in the max_transfer and only take it into account when patching the
+    block limits VPD page in the scsi-generic device.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Reviewed-by: Max Reitz <mreitz@redhat.com>

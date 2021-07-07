@@ -1,0 +1,9 @@
+commit fb858fb76b1b2dfdf64f82669df1270c0c19a033
+Author: Taylor Simpson <tsimpson@quicinc.com>
+Date:   Tue Jun 1 18:19:44 2021 -0500
+
+    Hexagon (target/hexagon) remove unused TCG variables
+    
+    Signed-off-by: Taylor Simpson <tsimpson@quicinc.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <1622589584-22571-5-git-send-email-tsimpson@quicinc.com>

@@ -1,0 +1,34 @@
+diff --git a/tests/acceptance/avocado_qemu/__init__.py b/tests/acceptance/avocado_qemu/__init__.py
+index 0856880000..67f75f66e5 100644
+--- a/tests/acceptance/avocado_qemu/__init__.py
++++ b/tests/acceptance/avocado_qemu/__init__.py
+@@ -309,13 +309,10 @@ class LinuxTest(Test, LinuxSSHMixIn):
+     timeout = 900
+     chksum = None
+ 
+-    def setUp(self, ssh_pubkey=None, network_device_type='virtio-net'):
++    def setUp(self, ssh_pubkey=None):
+         super(LinuxTest, self).setUp()
+         self.vm.add_args('-smp', '2')
+         self.vm.add_args('-m', '1024')
+-        # The following network device allows for SSH connections
+-        self.vm.add_args('-netdev', 'user,id=vnet,hostfwd=:127.0.0.1:0-:22',
+-                         '-device', '%s,netdev=vnet' % network_device_type)
+         self.set_up_boot()
+         if ssh_pubkey is None:
+             ssh_pubkey, self.ssh_key = self.set_up_existing_ssh_keys()
+diff --git a/tests/acceptance/virtiofs_submounts.py b/tests/acceptance/virtiofs_submounts.py
+index e10a935ac4..bed8ce44df 100644
+--- a/tests/acceptance/virtiofs_submounts.py
++++ b/tests/acceptance/virtiofs_submounts.py
+@@ -207,6 +207,10 @@ def setUp(self):
+             self.vm.add_args('-kernel', vmlinuz,
+                              '-append', 'console=ttyS0 root=/dev/sda1')
+ 
++        # Allow us to connect to SSH
++        self.vm.add_args('-netdev', 'user,id=vnet,hostfwd=:127.0.0.1:0-:22',
++                         '-device', 'virtio-net,netdev=vnet')
++
+         self.require_accelerator("kvm")
+         self.vm.add_args('-accel', 'kvm')
+ 

@@ -1,0 +1,13 @@
+commit 387a1dcb351be6a6ec4e27d36173df2de1017bcc
+Author: Jason Thorpe <thorpej@me.com>
+Date:   Sun Jun 13 14:15:49 2021 -0700
+
+    hw/alpha: Provide console information to the PALcode at start-up
+    
+    Redefine the a2 register passed by Qemu at start-up to also include
+    some configuration flags, in addition to the CPU count, and define
+    a flag to mirror the "-nographic" option.
+    
+    Signed-off-by: Jason Thorpe <thorpej@me.com>
+    Message-Id: <20210613211549.18094-5-thorpej@me.com>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

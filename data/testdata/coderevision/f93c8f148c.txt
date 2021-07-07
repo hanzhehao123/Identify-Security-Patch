@@ -1,0 +1,49 @@
+diff --git a/hw/ppc/spapr_nvdimm.c b/hw/ppc/spapr_nvdimm.c
+index 3f57a8b6fa..252204e25f 100644
+--- a/hw/ppc/spapr_nvdimm.c
++++ b/hw/ppc/spapr_nvdimm.c
+@@ -35,18 +35,6 @@
+ /* SCM device is unable to persist memory contents */
+ #define PAPR_PMEM_UNARMED PPC_BIT(0)
+ 
+-/*
+- * The nvdimm size should be aligned to SCM block size.
+- * The SCM block size should be aligned to SPAPR_MEMORY_BLOCK_SIZE
+- * in order to have SCM regions not to overlap with dimm memory regions.
+- * The SCM devices can have variable block sizes. For now, fixing the
+- * block size to the minimum value.
+- */
+-#define SPAPR_MINIMUM_SCM_BLOCK_SIZE SPAPR_MEMORY_BLOCK_SIZE
+-
+-/* Have an explicit check for alignment */
+-QEMU_BUILD_BUG_ON(SPAPR_MINIMUM_SCM_BLOCK_SIZE % SPAPR_MEMORY_BLOCK_SIZE);
+-
+ bool spapr_nvdimm_validate(HotplugHandler *hotplug_dev, NVDIMMDevice *nvdimm,
+                            uint64_t size, Error **errp)
+ {
+diff --git a/include/hw/ppc/spapr_nvdimm.h b/include/hw/ppc/spapr_nvdimm.h
+index 764f999f54..73be250e2a 100644
+--- a/include/hw/ppc/spapr_nvdimm.h
++++ b/include/hw/ppc/spapr_nvdimm.h
+@@ -11,9 +11,19 @@
+ #define HW_SPAPR_NVDIMM_H
+ 
+ #include "hw/mem/nvdimm.h"
++#include "hw/ppc/spapr.h"
+ 
+-typedef struct SpaprDrc SpaprDrc;
+-typedef struct SpaprMachineState SpaprMachineState;
++/*
++ * The nvdimm size should be aligned to SCM block size.
++ * The SCM block size should be aligned to SPAPR_MEMORY_BLOCK_SIZE
++ * inorder to have SCM regions not to overlap with dimm memory regions.
++ * The SCM devices can have variable block sizes. For now, fixing the
++ * block size to the minimum value.
++ */
++#define SPAPR_MINIMUM_SCM_BLOCK_SIZE SPAPR_MEMORY_BLOCK_SIZE
++
++/* Have an explicit check for alignment */
++QEMU_BUILD_BUG_ON(SPAPR_MINIMUM_SCM_BLOCK_SIZE % SPAPR_MEMORY_BLOCK_SIZE);
+ 
+ int spapr_pmem_dt_populate(SpaprDrc *drc, SpaprMachineState *spapr,
+                            void *fdt, int *fdt_start_offset, Error **errp);

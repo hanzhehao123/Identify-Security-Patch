@@ -1,0 +1,12 @@
+commit 6ef5843182382f6a84995590ad91047b0f2bc1fa
+Author: Kito Cheng <kito.cheng@sifive.com>
+Date:   Thu May 6 00:06:06 2021 +0800
+
+    target/riscv: rvb: pack two words into one register
+    
+    Signed-off-by: Kito Cheng <kito.cheng@sifive.com>
+    Signed-off-by: Frank Chang <frank.chang@sifive.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210505160620.15723-6-frank.chang@sifive.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

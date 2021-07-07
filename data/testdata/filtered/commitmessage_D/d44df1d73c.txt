@@ -1,0 +1,16 @@
+commit d44df1d73ce04d7f4b8f94cba5f715e2dadc998b
+Author: Tom Lendacky <thomas.lendacky@amd.com>
+Date:   Fri Apr 23 15:08:19 2021 -0500
+
+    docs/interop/firmware.json: Add SEV-ES support
+    
+    Create an enum definition, '@amd-sev-es', for SEV-ES and add documention
+    for the new enum. Add an example that shows some of the requirements for
+    SEV-ES, including not having SMM support and the requirement for an
+    X64-only build.
+    
+    Signed-off-by: Tom Lendacky <thomas.lendacky@amd.com>
+    Reviewed-by: Laszlo Ersek <lersek@redhat.com>
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Message-Id: <b941a7ee105dfeb67607cf2d24dafcb82658b212.1619208498.git.thomas.lendacky@amd.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

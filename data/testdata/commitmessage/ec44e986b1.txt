@@ -1,0 +1,11 @@
+commit ec44e986b1bd82525407157482b813cd91d181a0
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Jun 3 11:03:05 2021 +0200
+
+    meson: drop unused CONFIG_GCRYPT_HMAC
+    
+    CONFIG_GCRYPT_HMAC has been removed now that all supported distros have it.
+    
+    Reviewed-by: Richard Henderson <richard.henderson@liaro.org>
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

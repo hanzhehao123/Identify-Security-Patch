@@ -1,0 +1,12 @@
+commit d2c1a177b138be35cb96216baa870c3564b123e4
+Author: Frank Chang <frank.chang@sifive.com>
+Date:   Thu May 6 00:06:18 2021 +0800
+
+    target/riscv: rvb: add b-ext version cpu option
+    
+    Default b-ext version is v0.93.
+    
+    Signed-off-by: Frank Chang <frank.chang@sifive.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210505160620.15723-18-frank.chang@sifive.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

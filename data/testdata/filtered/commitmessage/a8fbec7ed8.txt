@@ -1,0 +1,16 @@
+commit a8fbec7ed80f4cc7ffec87144a03d990ff8002ff
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sat Jun 12 21:58:42 2021 +0200
+
+    fuzz: Display hexadecimal value with '0x' prefix
+    
+    Use memory_region_size() to get the MemoryRegion size,
+    and display it with the '0x' prefix.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alexander Bulekov <alxndr@bu.edu>
+    Reviewed-by: Laurent Vivier <laurent@vivier.eu>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Message-Id: <20210612195842.1595999-1-f4bug@amsat.org>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

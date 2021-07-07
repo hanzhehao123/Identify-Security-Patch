@@ -1,0 +1,16 @@
+commit c0d4aa82f895af67cbf7772324e05605e22b4162
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Mon May 24 06:57:51 2021 -0400
+
+    vl: plumb keyval-based options into -readconfig
+    
+    Let -readconfig support parsing command line options into QDict or
+    QemuOpts.  This will be used to add back support for objects in
+    -readconfig.
+    
+    Cc: Markus Armbruster <armbru@redhat.com>
+    Cc: qemu-stable@nongnu.org
+    Reviewed-by: Kevin Wolf <kwolf@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Message-Id: <20210524105752.3318299-3-pbonzini@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

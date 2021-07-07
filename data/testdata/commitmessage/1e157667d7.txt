@@ -1,0 +1,45 @@
+commit 1e157667d7657418b68fadb5cc016c6804e17501
+Author: Laurent Vivier <lvivier@redhat.com>
+Date:   Tue Apr 27 15:51:47 2021 +0200
+
+    virtio-net: failover: add missing remove_migration_state_change_notifier()
+    
+    In the failover case configuration, virtio_net_device_realize() uses an
+    add_migration_state_change_notifier() to add a state notifier, but this
+    notifier is not removed by the unrealize function when the virtio-net
+    card is unplugged.
+    
+    If the card is unplugged and a migration is started, the notifier is
+    called and as it is not valid anymore QEMU crashes.
+    
+    This patch fixes the problem by adding the
+    remove_migration_state_change_notifier() in virtio_net_device_unrealize().
+    
+    The problem can be reproduced with:
+    
+      $ qemu-system-x86_64 -enable-kvm -m 1g -M q35 \
+        -device pcie-root-port,slot=4,id=root1 \
+        -device pcie-root-port,slot=5,id=root2 \
+        -device virtio-net-pci,id=net1,mac=52:54:00:6f:55:cc,failover=on,bus=root1 \
+        -monitor stdio disk.qcow2
+      (qemu) device_del net1
+      (qemu) migrate "exec:gzip -c > STATEFILE.gz"
+    
+      Thread 1 "qemu-system-x86" received signal SIGSEGV, Segmentation fault.
+      0x0000000000000000 in ?? ()
+      (gdb) bt
+      #0  0x0000000000000000 in  ()
+      #1  0x0000555555d726d7 in notifier_list_notify (...)
+          at .../util/notify.c:39
+      #2  0x0000555555842c1a in migrate_fd_connect (...)
+          at .../migration/migration.c:3975
+      #3  0x0000555555950f7d in migration_channel_connect (...)
+          error@entry=0x0) at .../migration/channel.c:107
+      #4  0x0000555555910922 in exec_start_outgoing_migration (...)
+          at .../migration/exec.c:42
+    
+    Reported-by: Igor Mammedov <imammedo@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Michael S. Tsirkin <mst@redhat.com>
+    Signed-off-by: Laurent Vivier <lvivier@redhat.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

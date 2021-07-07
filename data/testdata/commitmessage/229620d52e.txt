@@ -1,0 +1,17 @@
+commit 229620d52e389bc7690f11e4f5fa9b249b5ca65d
+Author: Rao, Lei <lei.rao@intel.com>
+Date:   Tue Jun 8 16:23:26 2021 +0800
+
+    Fix the qemu crash when guest shutdown during checkpoint
+    
+    This patch fixes the following:
+        qemu-system-x86_64: invalid runstate transition: 'colo' ->'shutdown'
+        Aborted (core dumped)
+    
+    Signed-off-by: Lei Rao <lei.rao@intel.com>
+    Reviewed-by: Li Zhijian <lizhijian@fujitsu.com>
+    Reviewed-by: Zhang Chen <chen.zhang@intel.com>
+    Reviewed-by: Lukas Straub <lukasstraub2@web.de>
+    Tested-by: Lukas Straub <lukasstraub2@web.de>
+    Signed-off-by: Zhang Chen <chen.zhang@intel.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

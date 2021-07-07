@@ -1,0 +1,170 @@
+diff --git a/authz/meson.build b/authz/meson.build
+index 42a1ec0ff6..88fa7769cb 100644
+--- a/authz/meson.build
++++ b/authz/meson.build
+@@ -6,4 +6,4 @@ authz_ss.add(files(
+   'simple.c',
+ ))
+ 
+-authz_ss.add(when: pam, if_true: files('pamacct.c'))
++authz_ss.add(when: ['CONFIG_AUTH_PAM', pam], if_true: files('pamacct.c'))
+diff --git a/configure b/configure
+index 237e99c3d0..3d36eea55f 100755
+--- a/configure
++++ b/configure
+@@ -407,7 +407,7 @@ tls_priority="NORMAL"
+ gnutls="auto"
+ nettle="auto"
+ gcrypt="auto"
+-auth_pam="auto"
++auth_pam="$default_feature"
+ vte="$default_feature"
+ virglrenderer="$default_feature"
+ tpm="$default_feature"
+@@ -1383,9 +1383,9 @@ for opt do
+   ;;
+   --enable-gcrypt) gcrypt="enabled"
+   ;;
+-  --disable-auth-pam) auth_pam="disabled"
++  --disable-auth-pam) auth_pam="no"
+   ;;
+-  --enable-auth-pam) auth_pam="enabled"
++  --enable-auth-pam) auth_pam="yes"
+   ;;
+   --enable-rdma) rdma="yes"
+   ;;
+@@ -2799,6 +2799,33 @@ EOF
+   fi
+ fi
+ 
++##########################################
++# PAM probe
++
++if test "$auth_pam" != "no"; then
++    cat > $TMPC <<EOF
++#include <security/pam_appl.h>
++#include <stdio.h>
++int main(void) {
++   const char *service_name = "qemu";
++   const char *user = "frank";
++   const struct pam_conv pam_conv = { 0 };
++   pam_handle_t *pamh = NULL;
++   pam_start(service_name, user, &pam_conv, &pamh);
++   return 0;
++}
++EOF
++    if compile_prog "" "-lpam" ; then
++        auth_pam=yes
++    else
++        if test "$auth_pam" = "yes"; then
++            feature_not_found "PAM" "Install PAM development package"
++        else
++            auth_pam=no
++        fi
++    fi
++fi
++
+ ##########################################
+ # VTE probe
+ 
+@@ -5513,6 +5540,9 @@ if test "$gdbus_codegen" != "" ; then
+     echo "GDBUS_CODEGEN=$gdbus_codegen" >> $config_host_mak
+ fi
+ echo "CONFIG_TLS_PRIORITY=\"$tls_priority\"" >> $config_host_mak
++if test "$auth_pam" = "yes" ; then
++    echo "CONFIG_AUTH_PAM=y" >> $config_host_mak
++fi
+ if test "$have_broken_size_max" = "yes" ; then
+     echo "HAVE_BROKEN_SIZE_MAX=y" >> $config_host_mak
+ fi
+@@ -6221,7 +6251,7 @@ if test "$skip_meson" = no; then
+         -Dcurl=$curl -Dglusterfs=$glusterfs -Dbzip2=$bzip2 -Dlibiscsi=$libiscsi \
+         -Dlibnfs=$libnfs -Diconv=$iconv -Dcurses=$curses -Dlibudev=$libudev\
+         -Drbd=$rbd -Dlzo=$lzo -Dsnappy=$snappy -Dlzfse=$lzfse \
+-        -Dgnutls=$gnutls -Dnettle=$nettle -Dgcrypt=$gcrypt -Dauth_pam=$auth_pam \
++        -Dgnutls=$gnutls -Dnettle=$nettle -Dgcrypt=$gcrypt \
+         -Dzstd=$zstd -Dseccomp=$seccomp -Dvirtfs=$virtfs -Dcap_ng=$cap_ng \
+         -Dattr=$attr -Ddefault_devices=$default_devices \
+         -Ddocs=$docs -Dsphinx_build=$sphinx_build -Dinstall_blobs=$blobs \
+diff --git a/meson.build b/meson.build
+index d3025e05fc..d4ce2ca57b 100644
+--- a/meson.build
++++ b/meson.build
+@@ -325,6 +325,10 @@ if have_system or have_tools
+   pixman = dependency('pixman-1', required: have_system, version:'>=0.21.8',
+                       method: 'pkg-config', kwargs: static_kwargs)
+ endif
++pam = not_found
++if 'CONFIG_AUTH_PAM' in config_host
++  pam = cc.find_library('pam')
++endif
+ libaio = cc.find_library('aio', required: false)
+ zlib = dependency('zlib', required: true, kwargs: static_kwargs)
+ linux_io_uring = not_found
+@@ -903,31 +907,6 @@ if get_option('vnc').enabled()
+   endif
+ endif
+ 
+-pam = not_found
+-if not get_option('auth_pam').auto() or have_system
+-  pam = cc.find_library('pam', has_headers: ['security/pam_appl.h'],
+-                        required: get_option('auth_pam'),
+-                        kwargs: static_kwargs)
+-endif
+-if pam.found() and not cc.links('''
+-   #include <stddef.h>
+-   #include <security/pam_appl.h>
+-   int main(void) {
+-     const char *service_name = "qemu";
+-     const char *user = "frank";
+-     const struct pam_conv pam_conv = { 0 };
+-     pam_handle_t *pamh = NULL;
+-     pam_start(service_name, user, &pam_conv, &pamh);
+-     return 0;
+-   }''', dependencies: pam)
+-  pam = not_found
+-  if get_option('auth_pam').enabled()
+-    error('could not link libpam')
+-  else
+-    warning('could not link libpam, disabling')
+-  endif
+-endif
+-
+ snappy = not_found
+ if not get_option('snappy').auto() or have_system
+   snappy = cc.find_library('snappy', has_headers: ['snappy-c.h'],
+@@ -2750,7 +2729,7 @@ summary_info += {'VTE support':       config_host.has_key('CONFIG_VTE')}
+ # TODO: add back version
+ summary_info += {'slirp support':     slirp_opt == 'disabled' ? false : slirp_opt}
+ summary_info += {'libtasn1':          tasn1.found()}
+-summary_info += {'PAM':               pam.found()}
++summary_info += {'PAM':               config_host.has_key('CONFIG_AUTH_PAM')}
+ summary_info += {'iconv support':     iconv.found()}
+ summary_info += {'curses support':    curses.found()}
+ # TODO: add back version
+diff --git a/meson_options.txt b/meson_options.txt
+index ac6e90da07..343ffffb7c 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -52,8 +52,6 @@ option('multiprocess', type: 'feature', value: 'auto',
+ 
+ option('attr', type : 'feature', value : 'auto',
+        description: 'attr/xattr support')
+-option('auth_pam', type : 'feature', value : 'auto',
+-       description: 'PAM access control')
+ option('brlapi', type : 'feature', value : 'auto',
+        description: 'brlapi character device driver')
+ option('bzip2', type : 'feature', value : 'auto',
+diff --git a/tests/unit/meson.build b/tests/unit/meson.build
+index 3e0504dd21..4c1ebc06ac 100644
+--- a/tests/unit/meson.build
++++ b/tests/unit/meson.build
+@@ -94,7 +94,7 @@ if have_block
+       'test-io-channel-tls': ['io-channel-helpers.c', 'crypto-tls-x509-helpers.c', 'pkix_asn1_tab.c',
+                               tasn1, io, crypto, gnutls]}
+   endif
+-  if pam.found()
++  if 'CONFIG_AUTH_PAM' in config_host
+     tests += {'test-authz-pam': [authz]}
+   endif
+   if xts == 'private'

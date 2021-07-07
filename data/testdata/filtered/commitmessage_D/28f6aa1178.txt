@@ -1,0 +1,13 @@
+commit 28f6aa1178581c3647819e1abc4905899d97d3a2
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Tue Jun 1 15:31:38 2021 +0200
+
+    target/i386: tcg: fix segment register offsets for 16-bit TSS
+    
+    The TSS offsets in the manuals have only 2-byte slots for the
+    segment registers.  QEMU incorrectly uses 4-byte slots, so
+    that SS overlaps the LDT selector.
+    
+    Resolves: #382
+    Reported-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

@@ -1,0 +1,13 @@
+commit a64fe44d5abfd4aa933b17a8cf21d3c0b9df6143
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:44 2021 -0400
+
+    scripts/qmp-shell: remove double-underscores
+    
+    They're not needed; single underscore is enough to express intent that
+    these methods are "internal". double underscore is used as a weak name
+    mangling, but that isn't beneficial for us here.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-38-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

@@ -1,0 +1,93 @@
+diff --git a/target/ppc/cpu.h b/target/ppc/cpu.h
+index 27e4661dce..cab33a3680 100644
+--- a/target/ppc/cpu.h
++++ b/target/ppc/cpu.h
+@@ -1290,6 +1290,7 @@ bool ppc_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
+ 
+ #if !defined(CONFIG_USER_ONLY)
+ void ppc_store_sdr1(CPUPPCState *env, target_ulong value);
++void ppc_store_ptcr(CPUPPCState *env, target_ulong value);
+ #endif /* !defined(CONFIG_USER_ONLY) */
+ void ppc_store_msr(CPUPPCState *env, target_ulong value);
+ void ppc_store_lpcr(PowerPCCPU *cpu, target_ulong val);
+diff --git a/target/ppc/misc_helper.c b/target/ppc/misc_helper.c
+index c33f5f39b9..442b12652c 100644
+--- a/target/ppc/misc_helper.c
++++ b/target/ppc/misc_helper.c
+@@ -23,7 +23,6 @@
+ #include "exec/helper-proto.h"
+ #include "qemu/error-report.h"
+ #include "qemu/main-loop.h"
+-#include "mmu-book3s-v3.h"
+ 
+ #include "helper_regs.h"
+ 
+@@ -117,28 +116,7 @@ void helper_store_sdr1(CPUPPCState *env, target_ulong val)
+ void helper_store_ptcr(CPUPPCState *env, target_ulong val)
+ {
+     if (env->spr[SPR_PTCR] != val) {
+-        PowerPCCPU *cpu = env_archcpu(env);
+-        target_ulong ptcr_mask = PTCR_PATB | PTCR_PATS;
+-        target_ulong patbsize = val & PTCR_PATS;
+-
+-        qemu_log_mask(CPU_LOG_MMU, "%s: " TARGET_FMT_lx "\n", __func__, val);
+-
+-        assert(!cpu->vhyp);
+-        assert(env->mmu_model & POWERPC_MMU_3_00);
+-
+-        if (val & ~ptcr_mask) {
+-            error_report("Invalid bits 0x"TARGET_FMT_lx" set in PTCR",
+-                         val & ~ptcr_mask);
+-            val &= ptcr_mask;
+-        }
+-
+-        if (patbsize > 24) {
+-            error_report("Invalid Partition Table size 0x" TARGET_FMT_lx
+-                         " stored in PTCR", patbsize);
+-            return;
+-        }
+-
+-        env->spr[SPR_PTCR] = val;
++        ppc_store_ptcr(env, val);
+         tlb_flush(env_cpu(env));
+     }
+ }
+diff --git a/target/ppc/mmu_helper.c b/target/ppc/mmu_helper.c
+index 475d9f81b4..37986c59ba 100644
+--- a/target/ppc/mmu_helper.c
++++ b/target/ppc/mmu_helper.c
+@@ -2030,6 +2030,34 @@ void ppc_tlb_invalidate_one(CPUPPCState *env, target_ulong addr)
+ 
+ /*****************************************************************************/
+ /* Special registers manipulation */
++#if defined(TARGET_PPC64)
++void ppc_store_ptcr(CPUPPCState *env, target_ulong value)
++{
++    PowerPCCPU *cpu = env_archcpu(env);
++    target_ulong ptcr_mask = PTCR_PATB | PTCR_PATS;
++    target_ulong patbsize = value & PTCR_PATS;
++
++    qemu_log_mask(CPU_LOG_MMU, "%s: " TARGET_FMT_lx "\n", __func__, value);
++
++    assert(!cpu->vhyp);
++    assert(env->mmu_model & POWERPC_MMU_3_00);
++
++    if (value & ~ptcr_mask) {
++        error_report("Invalid bits 0x"TARGET_FMT_lx" set in PTCR",
++                     value & ~ptcr_mask);
++        value &= ptcr_mask;
++    }
++
++    if (patbsize > 24) {
++        error_report("Invalid Partition Table size 0x" TARGET_FMT_lx
++                     " stored in PTCR", patbsize);
++        return;
++    }
++
++    env->spr[SPR_PTCR] = value;
++}
++
++#endif /* defined(TARGET_PPC64) */
+ 
+ /* Segment registers load and store */
+ target_ulong helper_load_sr(CPUPPCState *env, target_ulong sr_num)

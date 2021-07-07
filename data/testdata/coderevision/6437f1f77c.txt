@@ -1,0 +1,52 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index bdd6675ea1..c5c1315b16 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -33,10 +33,6 @@ DEF_HELPER_FLAGS_3(mve_vstrb_h, TCG_CALL_NO_WG, void, env, ptr, i32)
+ DEF_HELPER_FLAGS_3(mve_vstrb_w, TCG_CALL_NO_WG, void, env, ptr, i32)
+ DEF_HELPER_FLAGS_3(mve_vstrh_w, TCG_CALL_NO_WG, void, env, ptr, i32)
+ 
+-DEF_HELPER_FLAGS_3(mve_vclsb, TCG_CALL_NO_WG, void, env, ptr, ptr)
+-DEF_HELPER_FLAGS_3(mve_vclsh, TCG_CALL_NO_WG, void, env, ptr, ptr)
+-DEF_HELPER_FLAGS_3(mve_vclsw, TCG_CALL_NO_WG, void, env, ptr, ptr)
+-
+ DEF_HELPER_FLAGS_3(mve_vclzb, TCG_CALL_NO_WG, void, env, ptr, ptr)
+ DEF_HELPER_FLAGS_3(mve_vclzh, TCG_CALL_NO_WG, void, env, ptr, ptr)
+ DEF_HELPER_FLAGS_3(mve_vclzw, TCG_CALL_NO_WG, void, env, ptr, ptr)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index adceef9159..24999bf703 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -68,5 +68,4 @@ VLDR_VSTR        1110110 1 a:1 . w:1 . .... ... 111110 .......   @vldr_vstr \
+ 
+ # Vector miscellaneous
+ 
+-VCLS             1111 1111 1 . 11 .. 00 ... 0 0100 01 . 0 ... 0 @1op
+ VCLZ             1111 1111 1 . 11 .. 00 ... 0 0100 11 . 0 ... 0 @1op
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index ba01ea3bcd..f2fae523e2 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -257,13 +257,6 @@ static void mergemask_sq(int64_t *d, int64_t r, uint16_t mask)
+         mve_advance_vpt(env);                                           \
+     }
+ 
+-#define DO_CLS_B(N)   (clrsb32(N) - 24)
+-#define DO_CLS_H(N)   (clrsb32(N) - 16)
+-
+-DO_1OP(vclsb, 1, int8_t, DO_CLS_B)
+-DO_1OP(vclsh, 2, int16_t, DO_CLS_H)
+-DO_1OP(vclsw, 4, int32_t, clrsb32)
+-
+ #define DO_CLZ_B(N)   (clz32(N) - 24)
+ #define DO_CLZ_H(N)   (clz32(N) - 16)
+ 
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index 4e5d032242..9eb6a68c97 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -198,4 +198,3 @@ static bool do_1op(DisasContext *s, arg_1op *a, MVEGenOneOpFn fn)
+     }
+ 
+ DO_1OP(VCLZ, vclz)
+-DO_1OP(VCLS, vcls)

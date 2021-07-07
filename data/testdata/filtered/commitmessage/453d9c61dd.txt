@@ -1,0 +1,49 @@
+commit 453d9c61dd5681159051c6e4d07e7b2633de2e70
+Merge: a97978bcc2 1c86188589
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 3 16:59:46 2021 +0100
+
+    Merge remote-tracking branch 'remotes/pmaydell/tags/pull-target-arm-20210603' into staging
+    
+    target-arm queue:
+     * Some not-yet-enabled preliminaries for M-profile MVE support
+     * Consistently use "Cortex-Axx", not "Cortex Axx" in docs, comments
+     * docs: Fix installation of man pages with Sphinx 4.x
+     * Mark LDS{MIN,MAX} as signed operations
+     * Fix missing syndrome value for DAIF and PAC check exceptions
+     * Implement BFloat16 extensions
+     * Refactoring of hvf accelerator code in preparation for aarch64 support
+     * Fix some coverity nits in test code
+    
+    # gpg: Signature made Thu 03 Jun 2021 16:58:02 BST
+    # gpg:                using RSA key E1A5C593CD419DE28E8315CF3C2525ED14360CDE
+    # gpg:                issuer "peter.maydell@linaro.org"
+    # gpg: Good signature from "Peter Maydell <peter.maydell@linaro.org>" [ultimate]
+    # gpg:                 aka "Peter Maydell <pmaydell@gmail.com>" [ultimate]
+    # gpg:                 aka "Peter Maydell <pmaydell@chiark.greenend.org.uk>" [ultimate]
+    # Primary key fingerprint: E1A5 C593 CD41 9DE2 8E83  15CF 3C25 25ED 1436 0CDE
+    
+    * remotes/pmaydell/tags/pull-target-arm-20210603: (45 commits)
+      tests/unit/test-vmstate: Assert that dup() and mkstemp() succeed
+      tests/qtest/tpm-tests: Remove unnecessary NULL checks
+      tests/qtest/pflash-cfi02-test: Avoid potential integer overflow
+      tests/qtest/hd-geo-test: Fix checks on mkstemp() return value
+      tests/qtest/e1000e-test: Check qemu_recv() succeeded
+      tests/qtest/bios-tables-test: Check for dup2() failure
+      hvf: Simplify post reset/init/loadvm hooks
+      hvf: Introduce hvf vcpu struct
+      hvf: Remove hvf-accel-ops.h
+      hvf: Make synchronize functions static
+      hvf: Use cpu_synchronize_state()
+      hvf: Split out common code on vcpu init and destroy
+      hvf: Remove use of hv_uvaddr_t and hv_gpaddr_t
+      hvf: Make hvf_set_phys_mem() static
+      hvf: Move hvf internal definitions into common header
+      hvf: Move cpu functions into common directory
+      hvf: Move vcpu thread functions into common directory
+      hvf: Move assert_hvf_ok() into common directory
+      target/arm: Enable BFloat16 extensions
+      linux-user/aarch64: Enable hwcap bits for bfloat16
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

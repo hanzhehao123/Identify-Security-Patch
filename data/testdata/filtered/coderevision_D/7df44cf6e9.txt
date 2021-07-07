@@ -1,0 +1,134 @@
+diff --git a/tcg/arm/tcg-target-con-set.h b/tcg/arm/tcg-target-con-set.h
+index cc006f99cd..f30b3900e0 100644
+--- a/tcg/arm/tcg-target-con-set.h
++++ b/tcg/arm/tcg-target-con-set.h
+@@ -20,7 +20,6 @@ C_O0_I4(s, s, s, s)
+ C_O1_I1(r, l)
+ C_O1_I1(r, r)
+ C_O1_I1(w, r)
+-C_O1_I1(w, w)
+ C_O1_I1(w, wr)
+ C_O1_I2(r, 0, rZ)
+ C_O1_I2(r, l, l)
+diff --git a/tcg/arm/tcg-target.c.inc b/tcg/arm/tcg-target.c.inc
+index 2286e0aa09..ab98fa1381 100644
+--- a/tcg/arm/tcg-target.c.inc
++++ b/tcg/arm/tcg-target.c.inc
+@@ -178,15 +178,11 @@ typedef enum {
+ 
+     INSN_VADD      = 0xf2000800,
+     INSN_VAND      = 0xf2000110,
+-    INSN_VBIC      = 0xf2100110,
+     INSN_VEOR      = 0xf3000110,
+-    INSN_VORN      = 0xf2300110,
+     INSN_VORR      = 0xf2200110,
+     INSN_VSUB      = 0xf3000800,
+ 
+-    INSN_VABS      = 0xf3b10300,
+     INSN_VMVN      = 0xf3b00580,
+-    INSN_VNEG      = 0xf3b10380,
+ 
+     INSN_VCEQ0     = 0xf3b10100,
+     INSN_VCGT0     = 0xf3b10000,
+@@ -2373,20 +2369,14 @@ static TCGConstraintSetIndex tcg_target_op_def(TCGOpcode op)
+         return C_O1_I1(w, r);
+     case INDEX_op_dup_vec:
+         return C_O1_I1(w, wr);
+-    case INDEX_op_abs_vec:
+-    case INDEX_op_neg_vec:
+-    case INDEX_op_not_vec:
+-        return C_O1_I1(w, w);
+     case INDEX_op_dup2_vec:
+     case INDEX_op_add_vec:
+     case INDEX_op_sub_vec:
+     case INDEX_op_xor_vec:
+         return C_O1_I2(w, w, w);
+     case INDEX_op_or_vec:
+-    case INDEX_op_andc_vec:
+         return C_O1_I2(w, w, wO);
+     case INDEX_op_and_vec:
+-    case INDEX_op_orc_vec:
+         return C_O1_I2(w, w, wV);
+     case INDEX_op_cmp_vec:
+         return C_O1_I2(w, w, wZ);
+@@ -2728,15 +2718,6 @@ static void tcg_out_vec_op(TCGContext *s, TCGOpcode opc,
+     case INDEX_op_dup2_vec:
+         tcg_out_dup2_vec(s, a0, a1, a2);
+         return;
+-    case INDEX_op_abs_vec:
+-        tcg_out_vreg2(s, INSN_VABS, q, vece, a0, a1);
+-        return;
+-    case INDEX_op_neg_vec:
+-        tcg_out_vreg2(s, INSN_VNEG, q, vece, a0, a1);
+-        return;
+-    case INDEX_op_not_vec:
+-        tcg_out_vreg2(s, INSN_VMVN, q, 0, a0, a1);
+-        return;
+     case INDEX_op_add_vec:
+         tcg_out_vreg3(s, INSN_VADD, q, vece, a0, a1, a2);
+         return;
+@@ -2747,13 +2728,6 @@ static void tcg_out_vec_op(TCGContext *s, TCGOpcode opc,
+         tcg_out_vreg3(s, INSN_VEOR, q, 0, a0, a1, a2);
+         return;
+ 
+-    case INDEX_op_andc_vec:
+-        if (!const_args[2]) {
+-            tcg_out_vreg3(s, INSN_VBIC, q, 0, a0, a1, a2);
+-            return;
+-        }
+-        a2 = ~a2;
+-        /* fall through */
+     case INDEX_op_and_vec:
+         if (const_args[2]) {
+             is_shimm1632(~a2, &cmode, &imm8);
+@@ -2767,13 +2741,6 @@ static void tcg_out_vec_op(TCGContext *s, TCGOpcode opc,
+         tcg_out_vreg3(s, INSN_VAND, q, 0, a0, a1, a2);
+         return;
+ 
+-    case INDEX_op_orc_vec:
+-        if (!const_args[2]) {
+-            tcg_out_vreg3(s, INSN_VORN, q, 0, a0, a1, a2);
+-            return;
+-        }
+-        a2 = ~a2;
+-        /* fall through */
+     case INDEX_op_or_vec:
+         if (const_args[2]) {
+             is_shimm1632(a2, &cmode, &imm8);
+@@ -2836,15 +2803,10 @@ int tcg_can_emit_vec_op(TCGOpcode opc, TCGType type, unsigned vece)
+     case INDEX_op_add_vec:
+     case INDEX_op_sub_vec:
+     case INDEX_op_and_vec:
+-    case INDEX_op_andc_vec:
+     case INDEX_op_or_vec:
+-    case INDEX_op_orc_vec:
+     case INDEX_op_xor_vec:
+-    case INDEX_op_not_vec:
+         return 1;
+-    case INDEX_op_abs_vec:
+     case INDEX_op_cmp_vec:
+-    case INDEX_op_neg_vec:
+         return vece < MO_64;
+     default:
+         return 0;
+diff --git a/tcg/arm/tcg-target.h b/tcg/arm/tcg-target.h
+index 6ac9fc6b9b..48993636ea 100644
+--- a/tcg/arm/tcg-target.h
++++ b/tcg/arm/tcg-target.h
+@@ -155,11 +155,11 @@ extern bool use_neon_instructions;
+ #define TCG_TARGET_HAS_v128             use_neon_instructions
+ #define TCG_TARGET_HAS_v256             0
+ 
+-#define TCG_TARGET_HAS_andc_vec         1
+-#define TCG_TARGET_HAS_orc_vec          1
+-#define TCG_TARGET_HAS_not_vec          1
+-#define TCG_TARGET_HAS_neg_vec          1
+-#define TCG_TARGET_HAS_abs_vec          1
++#define TCG_TARGET_HAS_andc_vec         0
++#define TCG_TARGET_HAS_orc_vec          0
++#define TCG_TARGET_HAS_not_vec          0
++#define TCG_TARGET_HAS_neg_vec          0
++#define TCG_TARGET_HAS_abs_vec          0
+ #define TCG_TARGET_HAS_roti_vec         0
+ #define TCG_TARGET_HAS_rots_vec         0
+ #define TCG_TARGET_HAS_rotv_vec         0

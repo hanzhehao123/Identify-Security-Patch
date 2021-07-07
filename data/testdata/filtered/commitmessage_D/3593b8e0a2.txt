@@ -1,0 +1,20 @@
+commit 3593b8e0a2146a885f93d71c754757bb2c03864e
+Merge: 050cee1231 32a9a245d7
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 25 15:29:07 2021 +0100
+
+    Merge remote-tracking branch 'remotes/maxreitz/tags/pull-block-2021-06-24' into staging
+    
+    Block patch:
+    - Fix Coverity complaint in block/snapshot.c
+    
+    # gpg: Signature made Thu 24 Jun 2021 12:42:28 BST
+    # gpg:                using RSA key 91BEB60A30DB3E8857D11829F407DB0061D5CF40
+    # gpg:                issuer "mreitz@redhat.com"
+    # gpg: Good signature from "Max Reitz <mreitz@redhat.com>" [full]
+    # Primary key fingerprint: 91BE B60A 30DB 3E88 57D1  1829 F407 DB00 61D5 CF40
+    
+    * remotes/maxreitz/tags/pull-block-2021-06-24:
+      block/snapshot: Clarify goto fallback behavior
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

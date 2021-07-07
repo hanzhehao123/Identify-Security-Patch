@@ -1,0 +1,28 @@
+commit 13d5f87cc3b94bfccc501142df4a7b12fee3a6e7
+Merge: 6512fa497c 9d14a04280
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Tue Jun 29 10:02:42 2021 +0100
+
+    Merge remote-tracking branch 'remotes/rth-gitlab/tags/pull-axp-20210628' into staging
+    
+    Fixes for NetBSD/alpha:
+      - Provide a proper PCI-ISA bridge
+      - Set PCI device IDs correctly
+      - Pass -nographic flag to PALcode
+      - Update PALcode to set up the Console Terminal Block
+      - Honor the Floating-point ENable bit during translate.
+    
+    # gpg: Signature made Mon 28 Jun 2021 15:34:08 BST
+    # gpg:                using RSA key 7A481E78868B4DB6A85A05C064DF38E8AF7E215F
+    # gpg:                issuer "richard.henderson@linaro.org"
+    # gpg: Good signature from "Richard Henderson <richard.henderson@linaro.org>" [full]
+    # Primary key fingerprint: 7A48 1E78 868B 4DB6 A85A  05C0 64DF 38E8 AF7E 215F
+    
+    * remotes/rth-gitlab/tags/pull-axp-20210628:
+      target/alpha: Honor the FEN bit
+      pc-bios: Update the palcode-clipper image
+      hw/alpha: Provide a PCI-ISA bridge device node
+      hw/alpha: Provide console information to the PALcode at start-up
+      hw/alpha: Set minimum PCI device ID to 1 to match Clipper IRQ mappings
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

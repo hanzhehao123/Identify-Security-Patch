@@ -1,0 +1,15 @@
+diff --git a/block/nbd.c b/block/nbd.c
+index 2abcedd464..3114716444 100644
+--- a/block/nbd.c
++++ b/block/nbd.c
+@@ -280,6 +280,10 @@ static void nbd_teardown_connection(BlockDriverState *bs)
+     if (s->ioc) {
+         /* finish any pending coroutines */
+         qio_channel_shutdown(s->ioc, QIO_CHANNEL_SHUTDOWN_BOTH, NULL);
++    } else if (s->sioc) {
++        /* abort negotiation */
++        qio_channel_shutdown(QIO_CHANNEL(s->sioc), QIO_CHANNEL_SHUTDOWN_BOTH,
++                             NULL);
+     }
+ 
+     s->state = NBD_CLIENT_QUIT;

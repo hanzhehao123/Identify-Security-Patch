@@ -1,0 +1,27 @@
+commit 9931d9d84bec87fae30b69590420d8ae459387a6
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 18 15:10:14 2021 +0100
+
+    target/arm: Handle FPU being disabled in FPCXT_NS accesses
+    
+    If the guest makes an FPCXT_NS access when the FPU is disabled,
+    one of two things happens:
+     * if there is no active FP context, then the insn behaves the
+       same way as if the FPU was enabled: writes ignored, reads
+       same value as FPDSCR_NS
+     * if there is an active FP context, then we take a NOCP
+       exception
+    
+    Add code to the sysreg read/write functions which emits
+    code to take the NOCP exception in the latter case.
+    
+    At the moment this will never be used, because the NOCP checks in
+    m-nocp.decode happen first, and so the trans functions are never
+    called when the FPU is disabled.  The code will be needed when we
+    move the sysreg access insns to before the NOCP patterns in the
+    following commit.
+    
+    Cc: qemu-stable@nongnu.org
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210618141019.10671-3-peter.maydell@linaro.org

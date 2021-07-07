@@ -1,0 +1,34 @@
+diff --git a/tools/virtiofsd/fuse_virtio.c b/tools/virtiofsd/fuse_virtio.c
+index 49c7dd788a..ed5146d7a6 100644
+--- a/tools/virtiofsd/fuse_virtio.c
++++ b/tools/virtiofsd/fuse_virtio.c
+@@ -392,11 +392,17 @@ int virtio_send_data_iov(struct fuse_session *se, struct fuse_chan *ch,
+     unsigned int in_sg_cpy_count = in_num;
+ 
+     /* skip over parts of in_sg that contained the header iov */
+-    iov_discard_front(&in_sg_ptr, &in_sg_cpy_count, iov_len);
++    size_t skip_size = iov_len;
+ 
+     do {
+-        fuse_log(FUSE_LOG_DEBUG, "%s: in_sg_cpy_count=%d len remaining=%zd\n",
+-                 __func__, in_sg_cpy_count, len);
++        if (skip_size != 0) {
++            iov_discard_front(&in_sg_ptr, &in_sg_cpy_count, skip_size);
++        }
++
++        fuse_log(FUSE_LOG_DEBUG,
++                 "%s: after skip skip_size=%zd in_sg_cpy_count=%d "
++                 "len remaining=%zd\n", __func__, skip_size, in_sg_cpy_count,
++                 len);
+ 
+         ret = preadv(buf->buf[0].fd, in_sg_ptr, in_sg_cpy_count,
+                      buf->buf[0].pos);
+@@ -415,7 +421,7 @@ int virtio_send_data_iov(struct fuse_session *se, struct fuse_chan *ch,
+         if (ret < len && ret) {
+             fuse_log(FUSE_LOG_DEBUG, "%s: ret < len\n", __func__);
+             /* Skip over this much next time around */
+-            iov_discard_front(&in_sg_ptr, &in_sg_cpy_count, ret);
++            skip_size = ret;
+             buf->buf[0].pos += ret;
+             len -= ret;
+ 

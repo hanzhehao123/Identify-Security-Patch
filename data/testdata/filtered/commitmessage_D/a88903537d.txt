@@ -1,0 +1,16 @@
+commit a88903537d73b1d9728e3d824920b4d0096f10bc
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:13 2021 +0100
+
+    target/arm: Implement MVE VQDMULL scalar
+    
+    Implement the MVE VQDMULL scalar insn. This multiplies the top or
+    bottom half of each element by the scalar, doubles and saturates
+    to a double-width result.
+    
+    Note that this encoding overlaps with VQADD and VQSUB; it uses
+    what in VQADD and VQSUB would be the 'size=0b11' encoding.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-30-peter.maydell@linaro.org

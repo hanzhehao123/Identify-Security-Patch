@@ -1,0 +1,11 @@
+commit 920a1f9955c528f2be3ff9c9e1cbf40ddad1b192
+Author: Kito Cheng <kito.cheng@sifive.com>
+Date:   Thu May 6 00:06:15 2021 +0800
+
+    target/riscv: rvb: address calculation
+    
+    Signed-off-by: Kito Cheng <kito.cheng@sifive.com>
+    Signed-off-by: Frank Chang <frank.chang@sifive.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210505160620.15723-15-frank.chang@sifive.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

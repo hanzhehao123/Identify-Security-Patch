@@ -1,0 +1,12 @@
+commit f4a62495be47b0211359f3609aeaf04a4fd44368
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:22 2021 +0200
+
+    i386: switch hyperv_expand_features() to using error_setg()
+    
+    Use standard error_setg() mechanism in hyperv_expand_features().
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-12-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

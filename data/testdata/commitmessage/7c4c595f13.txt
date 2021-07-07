@@ -1,0 +1,17 @@
+commit 7c4c595f13fa9bb19d8b6a1ed328aab5469c063a
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:05 2021 -0400
+
+    python/qmp: add qom script entry points
+    
+    Add the 'qom', 'qom-set', 'qom-get', 'qom-list', and 'qom-tree' scripts
+    to the qemu.qmp package. When you install this package, these scripts
+    will become available on your command line.
+    
+    (e.g. when inside of a venv, `cd python && pip install .` will add
+    'qom', 'qom-set', etc to your $PATH.)
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-id: 20210603003719.1321369-6-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

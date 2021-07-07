@@ -1,0 +1,19 @@
+commit c028691e65b9f45e7a8ff8ffbfb9a3818478b572
+Author: Cleber Rosa <crosa@redhat.com>
+Date:   Mon Apr 12 00:46:35 2021 -0400
+
+    tests/acceptance/virtiofs_submounts.py: evaluate string not length
+    
+    If the vmlinuz variable is set to anything that evaluates to True,
+    then the respective arguments should be set.  If the variable contains
+    an empty string, than it will evaluate to False, and the extra
+    arguments will not be set.
+    
+    This keeps the same logic, but improves readability a bit.
+    
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Reviewed-by: Beraldo Leal <bleal@redhat.com>
+    Reviewed-by: Eric Auger <eric.auger@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210412044644.55083-3-crosa@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>

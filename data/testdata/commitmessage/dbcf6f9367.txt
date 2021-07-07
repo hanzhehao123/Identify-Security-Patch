@@ -1,0 +1,22 @@
+commit dbcf6f9367a6a4af05b18cf0d7badf7677f403c4
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 16:09:26 2021 +0100
+
+    bitops.h: Provide hswap32(), hswap64(), wswap64() swapping operations
+    
+    Currently the ARM SVE helper code defines locally some utility
+    functions for swapping 16-bit halfwords within 32-bit or 64-bit
+    values and for swapping 32-bit words within 64-bit values,
+    parallel to the byte-swapping bswap16/32/64 functions.
+    
+    We want these also for the ARM MVE code, and they're potentially
+    generally useful for other targets, so move them to bitops.h.
+    (We don't put them in bswap.h with the bswap* functions because
+    they are implemented in terms of the rotate operations also
+    defined in bitops.h, and including bitops.h from bswap.h seems
+    better avoided.)
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Message-id: 20210614151007.4545-17-peter.maydell@linaro.org

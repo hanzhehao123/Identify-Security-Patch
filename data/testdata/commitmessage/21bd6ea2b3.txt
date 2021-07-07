@@ -1,0 +1,19 @@
+commit 21bd6ea2b3b0f8c55eb31199bbb3de0eb8827b8e
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:15 2021 +0200
+
+    s390x/tcg: Simplify vop64_2() handling
+    
+    Let's rework our macros and simplify. We still need helper functions in
+    most cases due to the different parameters types.
+    
+    Next, we'll only have 32/128bit variants for vfi and vfsq, so special
+    case the others.
+    
+    Note that for vfsq, the XxC and erm passed in the simd_data() will never be
+    set, resulting in the same behavior.
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-5-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

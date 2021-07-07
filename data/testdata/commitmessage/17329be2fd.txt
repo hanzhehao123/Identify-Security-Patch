@@ -1,0 +1,12 @@
+commit 17329be2fd1557c3e1e30ce3d0f714fc70c4e5be
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:24 2021 -0400
+
+    scripts/qmp-shell: use argparse
+    
+    Use argparse instead of an open-coded CLI parser, for consistency with
+    everything else.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-18-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

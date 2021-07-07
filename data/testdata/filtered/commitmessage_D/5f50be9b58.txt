@@ -1,0 +1,41 @@
+commit 5f50be9b5810293141bb53cfd0cb46e765367d56
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed Jun 9 14:22:34 2021 +0200
+
+    async: the main AioContext is only "current" if under the BQL
+    
+    If we want to wake up a coroutine from a worker thread, aio_co_wake()
+    currently does not work.  In that scenario, aio_co_wake() calls
+    aio_co_enter(), but there is no current AioContext and therefore
+    qemu_get_current_aio_context() returns the main thread.  aio_co_wake()
+    then attempts to call aio_context_acquire() instead of going through
+    aio_co_schedule().
+    
+    The default case of qemu_get_current_aio_context() was added to cover
+    synchronous I/O started from the vCPU thread, but the main and vCPU
+    threads are quite different.  The main thread is an I/O thread itself,
+    only running a more complicated event loop; the vCPU thread instead
+    is essentially a worker thread that occasionally calls
+    qemu_mutex_lock_iothread().  It is only in those critical sections
+    that it acts as if it were the home thread of the main AioContext.
+    
+    Therefore, this patch detaches qemu_get_current_aio_context() from
+    iothreads, which is a useless complication.  The AioContext pointer
+    is stored directly in the thread-local variable, including for the
+    main loop.  Worker threads (including vCPU threads) optionally behave
+    as temporary home threads if they have taken the big QEMU lock,
+    but if that is not the case they will always schedule coroutines
+    on remote threads via aio_co_schedule().
+    
+    With this change, the stub qemu_mutex_iothread_locked() must be changed
+    from true to false.  The previous value of true was needed because the
+    main thread did not have an AioContext in the thread-local variable,
+    but now it does have one.
+    
+    Reported-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Message-Id: <20210609122234.544153-1-pbonzini@redhat.com>
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Tested-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    [eblake: tweak commit message per Vladimir's review]
+    Signed-off-by: Eric Blake <eblake@redhat.com>

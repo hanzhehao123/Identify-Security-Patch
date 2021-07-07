@@ -1,0 +1,31 @@
+commit 3ea1a80243d5b5ba23d8c2b7d3a86034ea0ade22
+Author: Brijesh Singh <brijesh.singh@amd.com>
+Date:   Thu Apr 29 12:07:28 2021 -0500
+
+    target/i386/sev: add support to query the attestation report
+    
+    The SEV FW >= 0.23 added a new command that can be used to query the
+    attestation report containing the SHA-256 digest of the guest memory
+    and VMSA encrypted with the LAUNCH_UPDATE and sign it with the PEK.
+    
+    Note, we already have a command (LAUNCH_MEASURE) that can be used to
+    query the SHA-256 digest of the guest memory encrypted through the
+    LAUNCH_UPDATE. The main difference between previous and this command
+    is that the report is signed with the PEK and unlike the LAUNCH_MEASURE
+    command the ATTESATION_REPORT command can be called while the guest
+    is running.
+    
+    Add a QMP interface "query-sev-attestation-report" that can be used
+    to get the report encoded in base64.
+    
+    Cc: James Bottomley <jejb@linux.ibm.com>
+    Cc: Tom Lendacky <Thomas.Lendacky@amd.com>
+    Cc: Eric Blake <eblake@redhat.com>
+    Cc: Paolo Bonzini <pbonzini@redhat.com>
+    Cc: kvm@vger.kernel.org
+    Reviewed-by: James Bottomley <jejb@linux.ibm.com>
+    Tested-by: James Bottomley <jejb@linux.ibm.com>
+    Signed-off-by: Brijesh Singh <brijesh.singh@amd.com>
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Message-Id: <20210429170728.24322-1-brijesh.singh@amd.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

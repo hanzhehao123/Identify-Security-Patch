@@ -1,0 +1,14 @@
+commit 2cc04550ac222237b979b5a45679ff746fc99a46
+Author: Bin Meng <bin.meng@windriver.com>
+Date:   Fri Apr 30 15:12:56 2021 +0800
+
+    hw/riscv: virt: Switch to use qemu_fdt_setprop_string_array() helper
+    
+    Since commit 78da6a1bca22 ("device_tree: add qemu_fdt_setprop_string_array helper"),
+    we can use the new helper to set the compatible strings for the
+    SiFive test device node.
+    
+    Signed-off-by: Bin Meng <bin.meng@windriver.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210430071302.1489082-2-bmeng.cn@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

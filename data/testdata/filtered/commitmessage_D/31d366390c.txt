@@ -1,0 +1,13 @@
+commit 31d366390cc4316e55362d40cfc52542d6eea5ab
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Sep 5 13:13:10 2020 -0700
+
+    tcg/arm: Implement TCG_TARGET_HAS_shv_vec
+    
+    The three vector shift by vector operations are all implemented via
+    expansion.  Therefore do not actually set TCG_TARGET_HAS_shv_vec,
+    as none of shlv_vec, shrv_vec, sarv_vec may actually appear in the
+    instruction stream, and therefore also do not appear in tcg_target_op_def.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

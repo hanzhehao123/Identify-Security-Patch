@@ -1,0 +1,12 @@
+commit 3c93dfa42c394fdd55684f2fbf24cf2f39b97d47
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue May 25 15:58:17 2021 -0700
+
+    target/arm: Enable BFloat16 extensions
+    
+    Disable BF16 again for !have_neon and !have_vfp during realize.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210525225817.400336-13-richard.henderson@linaro.org
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

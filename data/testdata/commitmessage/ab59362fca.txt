@@ -1,0 +1,13 @@
+commit ab59362fca0c23fbd21daceb78d6b2966fbf9793
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:15:54 2021 +0100
+
+    target/arm: Implement MVE VDUP
+    
+    Implement the MVE VDUP insn, which duplicates a value from
+    a general-purpose register into every lane of a vector
+    register (subject to predication).
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-11-peter.maydell@linaro.org

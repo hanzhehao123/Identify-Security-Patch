@@ -1,0 +1,31 @@
+commit 1ea06abceec61b6f3ab33dadb0510b6e09fb61e2
+Merge: fbe7919ece 970bc16f60
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 15:59:13 2021 +0100
+
+    Merge remote-tracking branch 'remotes/berrange-gitlab/tags/misc-fixes-pull-request' into staging
+    
+    Merge misc patches
+    
+    # gpg: Signature made Mon 14 Jun 2021 15:14:48 BST
+    # gpg:                using RSA key DAF3A6FDB26B62912D0E8E3FBE86EBB415104FDF
+    # gpg: Good signature from "Daniel P. Berrange <dan@berrange.com>" [full]
+    # gpg:                 aka "Daniel P. Berrange <berrange@redhat.com>" [full]
+    # Primary key fingerprint: DAF3 A6FD B26B 6291 2D0E  8E3F BE86 EBB4 1510 4FDF
+    
+    * remotes/berrange-gitlab/tags/misc-fixes-pull-request:
+      usb/dev-mtp: use GDateTime for formatting timestamp for objects
+      block: use GDateTime for formatting timestamp when dumping snapshot info
+      migration: use GDateTime for formatting timestamp in snapshot names
+      block: remove duplicate trace.h include
+      block: add trace point when fdatasync fails
+      block: preserve errno from fdatasync failures
+      softmmu: add trace point when bdrv_flush_all fails
+      migration: add trace point when vm_stop_force_state fails
+      sasl: remove comment about obsolete kerberos versions
+      docs: recommend SCRAM-SHA-256 SASL mech instead of SHA-1 variant
+      docs: document usage of the authorization framework
+      docs: document how to pass secret data to QEMU
+      docs: add table of contents to QAPI references
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

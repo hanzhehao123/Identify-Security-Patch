@@ -1,0 +1,14 @@
+diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
+index c676ee8b38..6bcb74b1d8 100644
+--- a/target/i386/kvm/kvm.c
++++ b/target/i386/kvm/kvm.c
+@@ -716,7 +716,8 @@ unsigned long kvm_arch_vcpu_id(CPUState *cs)
+ 
+ static bool hyperv_enabled(X86CPU *cpu)
+ {
+-    return kvm_check_extension(kvm_state, KVM_CAP_HYPERV) > 0 &&
++    CPUState *cs = CPU(cpu);
++    return kvm_check_extension(cs->kvm_state, KVM_CAP_HYPERV) > 0 &&
+         ((cpu->hyperv_spinlock_attempts != HYPERV_SPINLOCK_NEVER_NOTIFY) ||
+          cpu->hyperv_features || cpu->hyperv_passthrough);
+ }

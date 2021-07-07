@@ -1,0 +1,10 @@
+commit 5e560864234e78461879c632c414e4fe97a9a506
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Jun 1 16:35:18 2021 -0300
+
+    target/ppc: Move ADDI, ADDIS to decodetree, implement PADDI
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Matheus Ferst <matheus.ferst@eldorado.org.br>
+    Message-Id: <20210601193528.2533031-5-matheus.ferst@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

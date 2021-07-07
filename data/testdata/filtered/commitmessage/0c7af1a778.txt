@@ -1,0 +1,38 @@
+commit 0c7af1a778d036402ec0829783afee1ce6ea942c
+Author: Rao, Lei <lei.rao@intel.com>
+Date:   Tue Jun 8 16:23:30 2021 +0800
+
+    Add the function of colo_compare_cleanup
+    
+    This patch fixes the following:
+        #0  __GI_raise (sig=sig@entry=6) at ../sysdeps/unix/sysv/linux/raise.c:50
+        #1  0x00007f6ae4559859 in __GI_abort () at abort.c:79
+        #2  0x0000559aaa386720 in error_exit (err=16, msg=0x559aaa5973d0 <__func__.16227> "qemu_mutex_destroy") at util/qemu-thread-posix.c:36
+        #3  0x0000559aaa3868c5 in qemu_mutex_destroy (mutex=0x559aabffe828) at util/qemu-thread-posix.c:69
+        #4  0x0000559aaa2f93a8 in char_finalize (obj=0x559aabffe800) at chardev/char.c:285
+        #5  0x0000559aaa23318a in object_deinit (obj=0x559aabffe800, type=0x559aabfd7d20) at qom/object.c:606
+        #6  0x0000559aaa2331b8 in object_deinit (obj=0x559aabffe800, type=0x559aabfd9060) at qom/object.c:610
+        #7  0x0000559aaa233200 in object_finalize (data=0x559aabffe800) at qom/object.c:620
+        #8  0x0000559aaa234202 in object_unref (obj=0x559aabffe800) at qom/object.c:1074
+        #9  0x0000559aaa2356b6 in object_finalize_child_property (obj=0x559aac0dac10, name=0x559aac778760 "compare0-0", opaque=0x559aabffe800) at qom/object.c:1584
+        #10 0x0000559aaa232f70 in object_property_del_all (obj=0x559aac0dac10) at qom/object.c:557
+        #11 0x0000559aaa2331ed in object_finalize (data=0x559aac0dac10) at qom/object.c:619
+        #12 0x0000559aaa234202 in object_unref (obj=0x559aac0dac10) at qom/object.c:1074
+        #13 0x0000559aaa2356b6 in object_finalize_child_property (obj=0x559aac0c75c0, name=0x559aac0dadc0 "chardevs", opaque=0x559aac0dac10) at qom/object.c:1584
+        #14 0x0000559aaa233071 in object_property_del_child (obj=0x559aac0c75c0, child=0x559aac0dac10, errp=0x0) at qom/object.c:580
+        #15 0x0000559aaa233155 in object_unparent (obj=0x559aac0dac10) at qom/object.c:599
+        #16 0x0000559aaa2fb721 in qemu_chr_cleanup () at chardev/char.c:1159
+        #17 0x0000559aa9f9b110 in main (argc=54, argv=0x7ffeb62fa998, envp=0x7ffeb62fab50) at vl.c:4539
+    
+    When chardev is cleaned up, chr_write_lock needs to be destroyed. But
+    the colo-compare module is not cleaned up normally before it when the
+    guest poweroff. It is holding chr_write_lock at this time. This will
+    cause qemu crash.So we add the function of colo_compare_cleanup() before
+    qemu_chr_cleanup() to fix the bug.
+    
+    Signed-off-by: Lei Rao <lei.rao@intel.com>
+    Reviewed-by: Zhang Chen <chen.zhang@intel.com>
+    Reviewed-by: Lukas Straub <lukasstraub2@web.de>
+    Tested-by: Lukas Straub <lukasstraub2@web.de>
+    Signed-off-by: Zhang Chen <chen.zhang@intel.com>
+    Signed-off-by: Jason Wang <jasowang@redhat.com>

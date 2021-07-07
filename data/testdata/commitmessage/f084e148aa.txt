@@ -1,0 +1,15 @@
+commit f084e148aa401f71c33da4268f73815e0dc2b262
+Author: Cleber Rosa <crosa@redhat.com>
+Date:   Mon Apr 12 00:46:34 2021 -0400
+
+    tests/acceptance/virtiofs_submounts.py: add missing accel tag
+    
+    The tag is useful to select tests that depend/use a particular
+    feature.
+    
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Reviewed-by: Wainer dos Santos Moschetta <wainersm@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Reviewed-by: Eric Auger <eric.auger@redhat.com>
+    Message-Id: <20210412044644.55083-2-crosa@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>

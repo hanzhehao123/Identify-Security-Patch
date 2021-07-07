@@ -1,0 +1,79 @@
+diff --git a/tcg/arm/tcg-target.c.inc b/tcg/arm/tcg-target.c.inc
+index 8193d768d6..f0cfed7700 100644
+--- a/tcg/arm/tcg-target.c.inc
++++ b/tcg/arm/tcg-target.c.inc
+@@ -188,10 +188,6 @@ typedef enum {
+     INSN_VQADD_U   = 0xf3000010,
+     INSN_VQSUB     = 0xf2000210,
+     INSN_VQSUB_U   = 0xf3000210,
+-    INSN_VMAX      = 0xf2000600,
+-    INSN_VMAX_U    = 0xf3000600,
+-    INSN_VMIN      = 0xf2000610,
+-    INSN_VMIN_U    = 0xf3000610,
+ 
+     INSN_VABS      = 0xf3b10300,
+     INSN_VMVN      = 0xf3b00580,
+@@ -2404,13 +2400,9 @@ static TCGConstraintSetIndex tcg_target_op_def(TCGOpcode op)
+     case INDEX_op_dup2_vec:
+     case INDEX_op_add_vec:
+     case INDEX_op_mul_vec:
+-    case INDEX_op_smax_vec:
+-    case INDEX_op_smin_vec:
+     case INDEX_op_ssadd_vec:
+     case INDEX_op_sssub_vec:
+     case INDEX_op_sub_vec:
+-    case INDEX_op_umax_vec:
+-    case INDEX_op_umin_vec:
+     case INDEX_op_usadd_vec:
+     case INDEX_op_ussub_vec:
+     case INDEX_op_xor_vec:
+@@ -2776,12 +2768,6 @@ static void tcg_out_vec_op(TCGContext *s, TCGOpcode opc,
+     case INDEX_op_mul_vec:
+         tcg_out_vreg3(s, INSN_VMUL, q, vece, a0, a1, a2);
+         return;
+-    case INDEX_op_smax_vec:
+-        tcg_out_vreg3(s, INSN_VMAX, q, vece, a0, a1, a2);
+-        return;
+-    case INDEX_op_smin_vec:
+-        tcg_out_vreg3(s, INSN_VMIN, q, vece, a0, a1, a2);
+-        return;
+     case INDEX_op_sub_vec:
+         tcg_out_vreg3(s, INSN_VSUB, q, vece, a0, a1, a2);
+         return;
+@@ -2791,12 +2777,6 @@ static void tcg_out_vec_op(TCGContext *s, TCGOpcode opc,
+     case INDEX_op_sssub_vec:
+         tcg_out_vreg3(s, INSN_VQSUB, q, vece, a0, a1, a2);
+         return;
+-    case INDEX_op_umax_vec:
+-        tcg_out_vreg3(s, INSN_VMAX_U, q, vece, a0, a1, a2);
+-        return;
+-    case INDEX_op_umin_vec:
+-        tcg_out_vreg3(s, INSN_VMIN_U, q, vece, a0, a1, a2);
+-        return;
+     case INDEX_op_usadd_vec:
+         tcg_out_vreg3(s, INSN_VQADD_U, q, vece, a0, a1, a2);
+         return;
+@@ -2922,10 +2902,6 @@ int tcg_can_emit_vec_op(TCGOpcode opc, TCGType type, unsigned vece)
+     case INDEX_op_cmp_vec:
+     case INDEX_op_mul_vec:
+     case INDEX_op_neg_vec:
+-    case INDEX_op_smax_vec:
+-    case INDEX_op_smin_vec:
+-    case INDEX_op_umax_vec:
+-    case INDEX_op_umin_vec:
+         return vece < MO_64;
+     default:
+         return 0;
+diff --git a/tcg/arm/tcg-target.h b/tcg/arm/tcg-target.h
+index 4815a34e75..71621f28e9 100644
+--- a/tcg/arm/tcg-target.h
++++ b/tcg/arm/tcg-target.h
+@@ -168,7 +168,7 @@ extern bool use_neon_instructions;
+ #define TCG_TARGET_HAS_shv_vec          0
+ #define TCG_TARGET_HAS_mul_vec          1
+ #define TCG_TARGET_HAS_sat_vec          1
+-#define TCG_TARGET_HAS_minmax_vec       1
++#define TCG_TARGET_HAS_minmax_vec       0
+ #define TCG_TARGET_HAS_bitsel_vec       0
+ #define TCG_TARGET_HAS_cmpsel_vec       0
+ 

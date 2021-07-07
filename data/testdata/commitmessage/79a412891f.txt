@@ -1,0 +1,18 @@
+commit 79a412891f0cb6bbffd8fd9e13608066234e56c1
+Author: Bin Meng <bin.meng@windriver.com>
+Date:   Tue Jun 15 16:51:33 2021 +0800
+
+    target/riscv: gdbstub: Fix dynamic CSR XML generation
+    
+    Since commit 605def6eeee5 ("target/riscv: Use the RISCVException enum for CSR operations")
+    the CSR predicate() function was changed to return RISCV_EXCP_NONE
+    instead of 0 for a valid CSR, but it forgot to update the dynamic
+    CSR XML generation codes in gdbstub.
+    
+    Fixes: 605def6eeee5 ("target/riscv: Use the RISCVException enum for CSR operations")
+    Reported-by: Xuzhou Cheng <xuzhou.cheng@windriver.com>
+    Signed-off-by: Bin Meng <bin.meng@windriver.com>
+    Tested-by: Xuzhou Cheng <xuzhou.cheng@windriver.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210615085133.389887-1-bmeng.cn@gmail.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

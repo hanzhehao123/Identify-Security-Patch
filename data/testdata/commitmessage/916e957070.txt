@@ -1,0 +1,16 @@
+commit 916e957070e1f4b697c905d0a35984e70f106ed6
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sat May 29 16:55:07 2021 +0200
+
+    target/mips: Remove microMIPS BPOSGE32 / BPOSGE64 unuseful cases
+    
+    These switch cases for the microMIPS BPOSGE32 / BPOSGE64 opcodes have
+    been added commit 3c824109da0 ("target-mips: microMIPS ASE support").
+    More than 11 years later it is safe to assume there won't be added
+    soon. The cases fall back to the default which generates a RESERVED
+    INSTRUCTION, so it is safe to remove them.
+    Functionally speaking, the patch is a no-op.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210617174323.2900831-8-f4bug@amsat.org>

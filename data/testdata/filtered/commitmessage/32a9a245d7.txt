@@ -1,0 +1,26 @@
+commit 32a9a245d719a883eef2cbf07d2cf89efa0206d0
+Author: Max Reitz <mreitz@redhat.com>
+Date:   Mon May 3 02:54:18 2021 -0700
+
+    block/snapshot: Clarify goto fallback behavior
+    
+    In the bdrv_snapshot_goto() fallback code, we work with a pointer to
+    either bs->file or bs->backing.  We detach that child, close the node
+    (with .bdrv_close()), apply the snapshot on the child node, and then
+    re-open the node (with .bdrv_open()).
+    
+    In order for .bdrv_open() to attach the same child node that we had
+    before, we pass "file={child-node}" or "backing={child-node}" to it.
+    Therefore, when .bdrv_open() has returned success, we can assume that
+    bs->file or bs->backing (respectively) points to our original child
+    again.  This is verified by an assertion.
+    
+    All of this is not immediately clear from a quick glance at the code,
+    so add a comment to the assertion what it is for, and why it is valid.
+    It certainly confused Coverity.
+    
+    Reported-by: Coverity (CID 1452774)
+    Signed-off-by: Max Reitz <mreitz@redhat.com>
+    Message-Id: <20210503095418.31521-1-mreitz@redhat.com>
+    [mreitz: s/close/detach/]
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>

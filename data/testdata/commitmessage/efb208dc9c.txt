@@ -1,0 +1,29 @@
+commit efb208dc9c3f1e881aecff21fb1c7a7b6b869480
+Author: Li Zhijian <lizhijian@cn.fujitsu.com>
+Date:   Wed May 19 14:47:40 2021 +0800
+
+    migration/rdma: Fix cm_event used before being initialized
+    
+    A segmentation fault was triggered when i try to abort a postcopy + rdma
+    migration.
+    
+    since rdma_ack_cm_event releases a uninitialized cm_event in these case.
+    
+    like below:
+    2496     ret = rdma_get_cm_event(rdma->channel, &cm_event);
+    2497     if (ret) {
+    2498         perror("rdma_get_cm_event after rdma_connect");
+    2499         ERROR(errp, "connecting to destination!");
+    2500         rdma_ack_cm_event(cm_event); <<<< cause segmentation fault
+    2501         goto err_rdma_source_connect;
+    2502     }
+    
+    Refer to the rdma_get_cm_event() code, cm_event will be
+    updated/changed only if rdma_get_cm_event() returns 0. So it's okey to
+    remove the ack in error patch.
+    
+    Signed-off-by: Li Zhijian <lizhijian@cn.fujitsu.com>
+    
+    Message-Id: <20210519064740.10828-1-lizhijian@cn.fujitsu.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

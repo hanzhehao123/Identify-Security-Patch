@@ -1,0 +1,44 @@
+commit fbe7919ecee8d525ccd107027d73d877cd4eccc4
+Merge: 894fc4fd67 a5a8b84772
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 10:25:37 2021 +0100
+
+    Merge remote-tracking branch 'remotes/rth-gitlab/tags/pull-tcg-20210613' into staging
+    
+    Clean up code_gen_buffer allocation.
+    Add tcg_remove_ops_after.
+    Fix tcg_constant_* documentation.
+    Improve TB chaining documentation.
+    Fix float32_exp2.
+    Fix arm tcg_out_op function signature.
+    
+    # gpg: Signature made Mon 14 Jun 2021 02:12:35 BST
+    # gpg:                using RSA key 7A481E78868B4DB6A85A05C064DF38E8AF7E215F
+    # gpg:                issuer "richard.henderson@linaro.org"
+    # gpg: Good signature from "Richard Henderson <richard.henderson@linaro.org>" [full]
+    # Primary key fingerprint: 7A48 1E78 868B 4DB6 A85A  05C0 64DF 38E8 AF7E 215F
+    
+    * remotes/rth-gitlab/tags/pull-tcg-20210613: (34 commits)
+      docs/devel: Explain in more detail the TB chaining mechanisms
+      softfloat: Fix tp init in float32_exp2
+      tcg/arm: Fix tcg_out_op function signature
+      tcg: Fix documentation for tcg_constant_* vs tcg_temp_free_*
+      tcg: Introduce tcg_remove_ops_after
+      tcg: Move tcg_init_ctx and tcg_ctx from accel/tcg/
+      tcg: When allocating for !splitwx, begin with PROT_NONE
+      tcg: Merge buffer protection and guard page protection
+      tcg: Round the tb_size default from qemu_get_host_physmem
+      util/osdep: Add qemu_mprotect_rw
+      tcg: Sink qemu_madvise call to common code
+      tcg: Return the map protection from alloc_code_gen_buffer
+      tcg: Allocate code_gen_buffer into struct tcg_region_state
+      tcg: Move in_code_gen_buffer and tests to region.c
+      tcg: Tidy split_cross_256mb
+      tcg: Tidy tcg_n_regions
+      tcg: Rename region.start to region.after_prologue
+      tcg: Replace region.end with region.total_size
+      tcg: Move MAX_CODE_GEN_BUFFER_SIZE to tcg-target.h
+      tcg: Introduce tcg_max_ctxs
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

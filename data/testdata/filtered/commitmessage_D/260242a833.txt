@@ -1,0 +1,12 @@
+commit 260242a833d0cdfba5d9988169f2dc89946809a2
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu May 27 18:40:56 2021 +0300
+
+    block: drop BlockBackendRootState::read_only
+    
+    Instead of keeping additional boolean field, let's store the
+    information in BDRV_O_RDWR bit of BlockBackendRootState::open_flags.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210527154056.70294-4-vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

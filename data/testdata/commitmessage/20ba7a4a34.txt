@@ -1,0 +1,32 @@
+commit 20ba7a4a34bc96fb53ce1fb837d280339c6f5671
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri May 14 13:04:06 2021 +0100
+
+    crypto: bump min nettle to 3.4, dropping RHEL-7 support
+    
+    It has been over two years since RHEL-8 was released, and thus per the
+    platform build policy, we no longer need to support RHEL-7 as a build
+    target. This lets us increment the minimum required nettle version and
+    drop a lot of backwards compatibility code for 2.x series of nettle.
+    
+    Per repology, current shipping versions are:
+    
+                 RHEL-8: 3.4.1
+          Debian Buster: 3.4.1
+     openSUSE Leap 15.2: 3.4.1
+       Ubuntu LTS 18.04: 3.4
+       Ubuntu LTS 20.04: 3.5.1
+                FreeBSD: 3.7.2
+              Fedora 33: 3.5.1
+              Fedora 34: 3.7.2
+                OpenBSD: 3.7.2
+         macOS HomeBrew: 3.7.2
+    
+    Ubuntu LTS 18.04 has the oldest version and so 3.4 is the new minimum.
+    
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+    Message-Id: <20210514120415.1368922-4-berrange@redhat.com>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    [thuth: rebased to use .gitlab-ci.d/buildtest.yml]
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

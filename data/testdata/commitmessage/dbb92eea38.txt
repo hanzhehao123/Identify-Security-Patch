@@ -1,0 +1,14 @@
+commit dbb92eea3857ffeb770d006ad0306e408d33dd62
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Apr 6 10:01:26 2021 +0200
+
+    softmmu/physmem: Fix qemu_ram_remap() to handle shared anonymous memory
+    
+    RAM_SHARED now also properly indicates shared anonymous memory. Let's check
+    that flag for anonymous memory as well, to restore the proper mapping.
+    
+    Fixes: 06329ccecfa0 ("mem: add share parameter to memory-backend-ram")
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210406080126.24010-4-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

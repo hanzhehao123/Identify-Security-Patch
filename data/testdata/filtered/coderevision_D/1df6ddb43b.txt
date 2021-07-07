@@ -1,0 +1,29 @@
+diff --git a/migration/migration.c b/migration/migration.c
+index 393299e150..1885860d7b 100644
+--- a/migration/migration.c
++++ b/migration/migration.c
+@@ -280,9 +280,6 @@ void migration_incoming_state_destroy(void)
+         g_array_free(mis->postcopy_remote_fds, TRUE);
+         mis->postcopy_remote_fds = NULL;
+     }
+-    if (mis->transport_cleanup) {
+-        mis->transport_cleanup(mis->transport_data);
+-    }
+ 
+     qemu_event_reset(&mis->main_thread_load_event);
+ 
+diff --git a/migration/migration.h b/migration/migration.h
+index 2ebb740dfa..b88bd8fe07 100644
+--- a/migration/migration.h
++++ b/migration/migration.h
+@@ -49,10 +49,6 @@ struct PostcopyBlocktimeContext;
+ struct MigrationIncomingState {
+     QEMUFile *from_src_file;
+ 
+-    /* A hook to allow cleanup at the end of incoming migration */
+-    void *transport_data;
+-    void (*transport_cleanup)(void *data);
+-
+     /*
+      * Free at the start of the main state load, set as the main thread finishes
+      * loading state.

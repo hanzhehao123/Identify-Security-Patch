@@ -1,0 +1,12 @@
+commit 09e20abddaf94ff27dcced1df81f69a713627a94
+Author: Joelle van Dyne <j@getutm.app>
+Date:   Mon Mar 15 11:03:40 2021 -0700
+
+    block: detect DKIOCGETBLOCKCOUNT/SIZE before use
+    
+    iOS hosts do not have these defined so we fallback to the
+    default behaviour.
+    
+    Co-authored-by: Warner Losh <imp@bsdimp.com>
+    Signed-off-by: Joelle van Dyne <j@getutm.app>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

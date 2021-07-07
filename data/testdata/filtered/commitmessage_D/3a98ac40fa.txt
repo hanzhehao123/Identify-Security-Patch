@@ -1,0 +1,12 @@
+commit 3a98ac40fa9fca85bb37f4281e872b7519e733c5
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue May 25 15:58:08 2021 -0700
+
+    target/arm: Implement scalar float32 to bfloat16 conversion
+    
+    This is the 64-bit BFCVT and the 32-bit VCVT{B,T}.BF16.F32.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210525225817.400336-4-richard.henderson@linaro.org
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

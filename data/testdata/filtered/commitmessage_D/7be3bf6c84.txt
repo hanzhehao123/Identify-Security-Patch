@@ -1,0 +1,15 @@
+commit 7be3bf6c8429969f97728bb712d9a99997835607
+Author: Nicholas Piggin <npiggin@gmail.com>
+Date:   Wed May 26 19:16:24 2021 +1000
+
+    spapr: Remove stale comment about power-saving LPCR bits
+    
+    Commit 47a9b551547 ("spapr: Clean up handling of LPCR power-saving exit
+    bits") moved this logic but did not remove the comment from the
+    previous location.
+    
+    Signed-off-by: Nicholas Piggin <npiggin@gmail.com>
+    Message-Id: <20210526091626.3388262-2-npiggin@gmail.com>
+    Reviewed-by: Cédric Le Goater <clg@kaod.org>
+    Reviewed-by: Greg Kurz <groug@kaod.org>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

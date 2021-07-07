@@ -1,0 +1,20 @@
+commit 2838b1d6356044eb240edd4e1b9b5ab5946c5b28
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Wed May 5 23:38:36 2021 +0200
+
+    target/mips: Fix potential integer overflow (CID 1452921)
+    
+    Use the BIT_ULL() macro to ensure we use 64-bit arithmetic.
+    This fixes the following Coverity issue (OVERFLOW_BEFORE_WIDEN):
+    
+      CID 1452921:  Integer handling issues:
+    
+        Potentially overflowing expression "1 << w" with type "int"
+        (32 bits, signed) is evaluated using 32-bit arithmetic, and
+        then used in a context that expects an expression of type
+        "uint64_t" (64 bits, unsigned).
+    
+    Fixes: 074cfcb4dae ("target/mips: Implement hardware page table walker")
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210505215119.1517465-1-f4bug@amsat.org>

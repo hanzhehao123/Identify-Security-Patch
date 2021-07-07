@@ -1,0 +1,124 @@
+diff --git a/target/riscv/insn32.decode b/target/riscv/insn32.decode
+index 9b2fd4b6fe..a4d95ea621 100644
+--- a/target/riscv/insn32.decode
++++ b/target/riscv/insn32.decode
+@@ -666,14 +666,8 @@ cpop       011000 000010 ..... 001 ..... 0010011 @r2
+ andn       0100000 .......... 111 ..... 0110011 @r
+ orn        0100000 .......... 110 ..... 0110011 @r
+ xnor       0100000 .......... 100 ..... 0110011 @r
+-pack       0000100 .......... 100 ..... 0110011 @r
+-packu      0100100 .......... 100 ..... 0110011 @r
+-packh      0000100 .......... 111 ..... 0110011 @r
+ 
+ # *** RV64B Standard Extension (in addition to RV32B) ***
+ clzw       0110000 00000 ..... 001 ..... 0011011 @r2
+ ctzw       0110000 00001 ..... 001 ..... 0011011 @r2
+ cpopw      0110000 00010 ..... 001 ..... 0011011 @r2
+-
+-packw      0000100 .......... 100 ..... 0111011 @r
+-packuw     0100100 .......... 100 ..... 0111011 @r
+diff --git a/target/riscv/insn_trans/trans_rvb.c.inc b/target/riscv/insn_trans/trans_rvb.c.inc
+index 770205f96f..b8676785c6 100644
+--- a/target/riscv/insn_trans/trans_rvb.c.inc
++++ b/target/riscv/insn_trans/trans_rvb.c.inc
+@@ -53,24 +53,6 @@ static bool trans_xnor(DisasContext *ctx, arg_xnor *a)
+     return gen_arith(ctx, a, tcg_gen_eqv_tl);
+ }
+ 
+-static bool trans_pack(DisasContext *ctx, arg_pack *a)
+-{
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_arith(ctx, a, gen_pack);
+-}
+-
+-static bool trans_packu(DisasContext *ctx, arg_packu *a)
+-{
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_arith(ctx, a, gen_packu);
+-}
+-
+-static bool trans_packh(DisasContext *ctx, arg_packh *a)
+-{
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_arith(ctx, a, gen_packh);
+-}
+-
+ static bool trans_clzw(DisasContext *ctx, arg_clzw *a)
+ {
+     REQUIRE_64BIT(ctx);
+@@ -91,17 +73,3 @@ static bool trans_cpopw(DisasContext *ctx, arg_cpopw *a)
+     REQUIRE_EXT(ctx, RVB);
+     return gen_unary(ctx, a, gen_cpopw);
+ }
+-
+-static bool trans_packw(DisasContext *ctx, arg_packw *a)
+-{
+-    REQUIRE_64BIT(ctx);
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_arith(ctx, a, gen_packw);
+-}
+-
+-static bool trans_packuw(DisasContext *ctx, arg_packuw *a)
+-{
+-    REQUIRE_64BIT(ctx);
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_arith(ctx, a, gen_packuw);
+-}
+diff --git a/target/riscv/translate.c b/target/riscv/translate.c
+index 5f1a3c694f..c1a30c2172 100644
+--- a/target/riscv/translate.c
++++ b/target/riscv/translate.c
+@@ -548,29 +548,6 @@ static bool gen_arith_div_uw(DisasContext *ctx, arg_r *a,
+     return true;
+ }
+ 
+-static void gen_pack(TCGv ret, TCGv arg1, TCGv arg2)
+-{
+-    tcg_gen_deposit_tl(ret, arg1, arg2,
+-                       TARGET_LONG_BITS / 2,
+-                       TARGET_LONG_BITS / 2);
+-}
+-
+-static void gen_packu(TCGv ret, TCGv arg1, TCGv arg2)
+-{
+-    TCGv t = tcg_temp_new();
+-    tcg_gen_shri_tl(t, arg1, TARGET_LONG_BITS / 2);
+-    tcg_gen_deposit_tl(ret, arg2, t, 0, TARGET_LONG_BITS / 2);
+-    tcg_temp_free(t);
+-}
+-
+-static void gen_packh(TCGv ret, TCGv arg1, TCGv arg2)
+-{
+-    TCGv t = tcg_temp_new();
+-    tcg_gen_ext8u_tl(t, arg2);
+-    tcg_gen_deposit_tl(ret, arg1, t, 8, TARGET_LONG_BITS - 8);
+-    tcg_temp_free(t);
+-}
+-
+ static void gen_ctzw(TCGv ret, TCGv arg1)
+ {
+     tcg_gen_ori_tl(ret, arg1, (target_ulong)MAKE_64BIT_MASK(32, 32));
+@@ -590,23 +567,6 @@ static void gen_cpopw(TCGv ret, TCGv arg1)
+     tcg_gen_ctpop_tl(ret, arg1);
+ }
+ 
+-static void gen_packw(TCGv ret, TCGv arg1, TCGv arg2)
+-{
+-    TCGv t = tcg_temp_new();
+-    tcg_gen_ext16s_tl(t, arg2);
+-    tcg_gen_deposit_tl(ret, arg1, t, 16, 48);
+-    tcg_temp_free(t);
+-}
+-
+-static void gen_packuw(TCGv ret, TCGv arg1, TCGv arg2)
+-{
+-    TCGv t = tcg_temp_new();
+-    tcg_gen_shri_tl(t, arg1, 16);
+-    tcg_gen_deposit_tl(ret, arg2, t, 0, 16);
+-    tcg_gen_ext32s_tl(ret, ret);
+-    tcg_temp_free(t);
+-}
+-
+ static bool gen_arith(DisasContext *ctx, arg_r *a,
+                       void(*func)(TCGv, TCGv, TCGv))
+ {

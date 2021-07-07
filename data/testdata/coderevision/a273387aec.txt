@@ -1,0 +1,58 @@
+diff --git a/tests/acceptance/virtiofs_submounts.py b/tests/acceptance/virtiofs_submounts.py
+index d77ee35674..e019d3b896 100644
+--- a/tests/acceptance/virtiofs_submounts.py
++++ b/tests/acceptance/virtiofs_submounts.py
+@@ -134,6 +134,9 @@ def set_up_virtiofs(self):
+                          '-numa',
+                          'node,memdev=mem')
+ 
++    def launch_vm(self):
++        self.launch_and_wait()
++
+     def set_up_nested_mounts(self):
+         scratch_dir = os.path.join(self.shared_dir, 'scratch')
+         try:
+@@ -222,7 +225,7 @@ def test_pre_virtiofsd_set_up(self):
+         self.set_up_nested_mounts()
+ 
+         self.set_up_virtiofs()
+-        self.launch_and_wait()
++        self.launch_vm()
+         self.mount_in_guest()
+         self.check_in_guest()
+ 
+@@ -232,14 +235,14 @@ def test_pre_launch_set_up(self):
+ 
+         self.set_up_nested_mounts()
+ 
+-        self.launch_and_wait()
++        self.launch_vm()
+         self.mount_in_guest()
+         self.check_in_guest()
+ 
+     def test_post_launch_set_up(self):
+         self.set_up_shared_dir()
+         self.set_up_virtiofs()
+-        self.launch_and_wait()
++        self.launch_vm()
+ 
+         self.set_up_nested_mounts()
+ 
+@@ -249,7 +252,7 @@ def test_post_launch_set_up(self):
+     def test_post_mount_set_up(self):
+         self.set_up_shared_dir()
+         self.set_up_virtiofs()
+-        self.launch_and_wait()
++        self.launch_vm()
+         self.mount_in_guest()
+ 
+         self.set_up_nested_mounts()
+@@ -262,7 +265,7 @@ def test_two_runs(self):
+         self.set_up_nested_mounts()
+ 
+         self.set_up_virtiofs()
+-        self.launch_and_wait()
++        self.launch_vm()
+         self.mount_in_guest()
+         self.check_in_guest()
+ 

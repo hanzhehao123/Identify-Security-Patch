@@ -1,0 +1,12 @@
+commit 74688377feb551101f8a3e3de483df56d30299e4
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:40 2021 -0400
+
+    scripts/qmp-shell: remove TODO
+    
+    We still want to revamp qmp-shell again, but there's much more to the
+    idea than the comment now intuits. Remove it.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-34-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

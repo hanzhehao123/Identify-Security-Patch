@@ -1,0 +1,15 @@
+commit 483da6613937ea34fbf4b970668021dd76e46636
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:16 2021 +0100
+
+    target/arm: Implement MVE VQSHL (vector)
+    
+    Implement the MVE VQSHL insn (encoding T4, which is the
+    vector-shift-by-vector version).
+    
+    The DO_SQSHL_OP and DO_UQSHL_OP macros here are derived from
+    the neon_helper.c code for qshl_u{8,16,32} and qshl_s{8,16,32}.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-33-peter.maydell@linaro.org

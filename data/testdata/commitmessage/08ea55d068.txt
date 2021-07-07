@@ -1,0 +1,48 @@
+commit 08ea55d0681333c8c6475a82b71f7bc946042986
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:40 2021 +0300
+
+    block/nbd: simplify waking of nbd_co_establish_connection()
+    
+    Instead of managing connect_bh, bh_ctx, and wait_connect fields, we
+    can use a single link to the waiting coroutine with proper mutex
+    protection.
+    
+    So new logic is:
+    
+    nbd_co_establish_connection() sets wait_co under the mutex, releases
+    the mutex, then yield()s.  Note that wait_co may be scheduled by the
+    thread immediately after unlocking the mutex.  Still, the main thread
+    (or iothread) will not reach the code for entering the coroutine until
+    the yield(), so we are safe.
+    
+    connect_thread_func() and nbd_co_establish_connection_cancel() do
+    the following to handle wait_co:
+    
+    Under the mutex, if thr->wait_co is not NULL, make it NULL and
+    schedule it. This way, we avoid scheduling the coroutine twice.
+    
+    Still scheduling is a bit different:
+    
+    In connect_thread_func() we can just call aio_co_wake under mutex,
+    after commit
+       [async: the main AioContext is only "current" if under the BQL]
+    we are sure that aio_co_wake() will not try to acquire the aio context
+    and do qemu_aio_coroutine_enter() but simply schedule the coroutine by
+    aio_co_schedule().
+    
+    nbd_co_establish_connection_cancel() will be called from non-coroutine
+    context in further patch and will be able to go through
+    qemu_aio_coroutine_enter() path of aio_co_wake(). So keep current
+    behavior of waking the coroutine after the critical section.
+    
+    Also, this commit reduces the dependence of
+    nbd_co_establish_connection() on the internals of bs (we now use a
+    generic pointer to the coroutine, instead of direct use of
+    s->connection_co).  This is a step towards splitting the connection
+    API out of nbd.c.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210610100802.5888-11-vsementsov@virtuozzo.com>
+    Reviewied-by: Eric Blake <eblake@redhat.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

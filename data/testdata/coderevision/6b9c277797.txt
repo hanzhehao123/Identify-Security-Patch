@@ -1,0 +1,66 @@
+diff --git a/.gitlab-ci.d/containers.yml b/.gitlab-ci.d/containers.yml
+index 1ca455f8e1..bd01ae8f80 100644
+--- a/.gitlab-ci.d/containers.yml
++++ b/.gitlab-ci.d/containers.yml
+@@ -43,8 +43,3 @@ amd64-opensuse-leap-container:
+   extends: .container_job_template
+   variables:
+     NAME: opensuse-leap
+-
+-python-container:
+-  extends: .container_job_template
+-  variables:
+-    NAME: python
+diff --git a/.gitlab-ci.d/static_checks.yml b/.gitlab-ci.d/static_checks.yml
+index 8e30872164..91247a6f67 100644
+--- a/.gitlab-ci.d/static_checks.yml
++++ b/.gitlab-ci.d/static_checks.yml
+@@ -24,24 +24,3 @@ check-dco:
+     - if: '$CI_PROJECT_NAMESPACE == "qemu-project" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+       when: never
+     - when: on_success
+-
+-check-python-pipenv:
+-  stage: test
+-  image: $CI_REGISTRY_IMAGE/qemu/python:latest
+-  script:
+-    - make -C python venv-check
+-  variables:
+-    GIT_DEPTH: 1
+-  needs:
+-    job: python-container
+-
+-check-python-tox:
+-  stage: test
+-  image: $CI_REGISTRY_IMAGE/qemu/python:latest
+-  script:
+-    - make -C python check-tox
+-  variables:
+-    GIT_DEPTH: 1
+-  needs:
+-    job: python-container
+-  allow_failure: true
+diff --git a/tests/docker/dockerfiles/python.docker b/tests/docker/dockerfiles/python.docker
+deleted file mode 100644
+index 56d88417df..0000000000
+--- a/tests/docker/dockerfiles/python.docker
++++ /dev/null
+@@ -1,18 +0,0 @@
+-# Python library testing environment
+-
+-FROM fedora:latest
+-MAINTAINER John Snow <jsnow@redhat.com>
+-
+-# Please keep this list sorted alphabetically
+-ENV PACKAGES \
+-    gcc \
+-    make \
+-    pipenv \
+-    python3 \
+-    python3-pip \
+-    python3-tox \
+-    python3-virtualenv \
+-    python3.10
+-
+-RUN dnf install -y $PACKAGES
+-RUN rpm -q $PACKAGES | sort > /packages.txt

@@ -1,0 +1,18 @@
+diff --git a/python/VERSION b/python/VERSION
+deleted file mode 100644
+index c19f3b832b..0000000000
+--- a/python/VERSION
++++ /dev/null
+@@ -1 +0,0 @@
+-0.6.1.0a1
+diff --git a/python/setup.cfg b/python/setup.cfg
+index b0010e0188..3fa92a2e73 100644
+--- a/python/setup.cfg
++++ b/python/setup.cfg
+@@ -1,6 +1,5 @@
+ [metadata]
+ name = qemu
+-version = file:VERSION
+ maintainer = QEMU Developer Team
+ maintainer_email = qemu-devel@nongnu.org
+ url = https://www.qemu.org/

@@ -1,0 +1,12 @@
+commit f2daa2d489d7b4f94288d6fafb8072fb1ea384a9
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:12 2021 -0400
+
+    scripts/qmp-shell: fix connect method signature
+    
+    It needs to match the parent's signature -- the negotiate parameter must
+    be optional.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-6-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

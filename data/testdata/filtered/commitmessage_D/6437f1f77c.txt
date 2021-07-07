@@ -1,0 +1,11 @@
+commit 6437f1f77c3bca329b6464e9357647f33d85e9ef
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:15:48 2021 +0100
+
+    target/arm: Implement MVE VCLS
+    
+    Implement the MVE VCLS insn.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-5-peter.maydell@linaro.org

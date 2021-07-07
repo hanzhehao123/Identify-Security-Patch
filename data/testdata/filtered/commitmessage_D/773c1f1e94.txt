@@ -1,0 +1,18 @@
+commit 773c1f1e9492a60c0ab98f451e9415e7ad4774fd
+Author: Stefano Garzarella <sgarzare@redhat.com>
+Date:   Mon May 17 17:17:01 2021 +0200
+
+    docs: fix references to docs/specs/tpm.rst
+    
+    Commit 6e8a3ff6ed ("docs/specs/tpm: reST-ify TPM documentation")
+    converted docs/specs/tpm.txt to docs/specs/tpm.rst.
+    
+    We still have several references to the old file, so let's fix them
+    with the following command:
+    
+      sed -i s/tpm.txt/tpm.rst/ $(git grep -l docs/specs/tpm.txt)
+    
+    Signed-off-by: Stefano Garzarella <sgarzare@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210517151702.109066-5-sgarzare@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

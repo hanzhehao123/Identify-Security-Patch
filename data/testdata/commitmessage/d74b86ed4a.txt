@@ -1,0 +1,11 @@
+commit d74b86ed4ad452eb5069ca0c168c731a5c429127
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Sep 5 15:54:33 2020 -0700
+
+    tcg/arm: Implement minimal vector operations
+    
+    Implementing dup2, add, sub, and, or, xor as the minimal set.
+    This allows us to actually enable neon in the header file.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

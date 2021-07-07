@@ -1,0 +1,3259 @@
+diff --git a/configure b/configure
+index cbe5893061..55b85e256d 100755
+--- a/configure
++++ b/configure
+@@ -5424,7 +5424,7 @@ if test "$cpu" = "s390x" ; then
+   write_c_skeleton
+   compile_prog "-march=z900" ""
+   has_z900=$?
+-  if [ $has_z900 = 0 ] || compile_object "-march=z10 -msoft-float -Werror"; then
++  if [ $has_z900 = 0 ] || compile_prog "-march=z10" ""; then
+     if [ $has_z900 != 0 ]; then
+       echo "WARNING: Your compiler does not support the z900!"
+       echo "         The s390-ccw bios will only work with guest CPUs >= z10."
+diff --git a/hw/s390x/3270-ccw.c b/hw/s390x/3270-ccw.c
+index 69e6783ade..13e93d8d8f 100644
+--- a/hw/s390x/3270-ccw.c
++++ b/hw/s390x/3270-ccw.c
+@@ -129,7 +129,6 @@ static void emulated_ccw_3270_realize(DeviceState *ds, Error **errp)
+                                 EMULATED_CCW_3270_CHPID_TYPE);
+     sch->do_subchannel_work = do_subchannel_work_virtual;
+     sch->ccw_cb = emulated_ccw_3270_cb;
+-    sch->irb_cb = build_irb_virtual;
+ 
+     ck->init(dev, &err);
+     if (err) {
+diff --git a/hw/s390x/css.c b/hw/s390x/css.c
+index 133ddea575..bed46f5ec3 100644
+--- a/hw/s390x/css.c
++++ b/hw/s390x/css.c
+@@ -1335,14 +1335,6 @@ static void copy_schib_to_guest(SCHIB *dest, const SCHIB *src)
+     }
+ }
+ 
+-void copy_esw_to_guest(ESW *dest, const ESW *src)
+-{
+-    dest->word0 = cpu_to_be32(src->word0);
+-    dest->erw = cpu_to_be32(src->erw);
+-    dest->word2 = cpu_to_be64(src->word2);
+-    dest->word4 = cpu_to_be32(src->word4);
+-}
+-
+ IOInstEnding css_do_stsch(SubchDev *sch, SCHIB *schib)
+ {
+     int ret;
+@@ -1612,8 +1604,9 @@ static void copy_irb_to_guest(IRB *dest, const IRB *src, const PMCW *pmcw,
+ 
+     copy_scsw_to_guest(&dest->scsw, &src->scsw);
+ 
+-    copy_esw_to_guest(&dest->esw, &src->esw);
+-
++    for (i = 0; i < ARRAY_SIZE(dest->esw); i++) {
++        dest->esw[i] = cpu_to_be32(src->esw[i]);
++    }
+     for (i = 0; i < ARRAY_SIZE(dest->ecw); i++) {
+         dest->ecw[i] = cpu_to_be32(src->ecw[i]);
+     }
+@@ -1639,55 +1632,6 @@ static void copy_irb_to_guest(IRB *dest, const IRB *src, const PMCW *pmcw,
+     *irb_len = sizeof(*dest);
+ }
+ 
+-static void build_irb_sense_data(SubchDev *sch, IRB *irb)
+-{
+-    int i;
+-
+-    /* Attention: sense_data is already BE! */
+-    memcpy(irb->ecw, sch->sense_data, sizeof(sch->sense_data));
+-    for (i = 0; i < ARRAY_SIZE(irb->ecw); i++) {
+-        irb->ecw[i] = be32_to_cpu(irb->ecw[i]);
+-    }
+-}
+-
+-void build_irb_passthrough(SubchDev *sch, IRB *irb)
+-{
+-    /* Copy ESW from hardware */
+-    irb->esw = sch->esw;
+-
+-    /*
+-     * If (irb->esw.erw & ESW_ERW_SENSE) is true, then the contents
+-     * of the ECW is sense data. If false, then it is model-dependent
+-     * information. Either way, copy it into the IRB for the guest to
+-     * read/decide what to do with.
+-     */
+-    build_irb_sense_data(sch, irb);
+-}
+-
+-void build_irb_virtual(SubchDev *sch, IRB *irb)
+-{
+-    SCHIB *schib = &sch->curr_status;
+-    uint16_t stctl = schib->scsw.ctrl & SCSW_CTRL_MASK_STCTL;
+-
+-    if (stctl & SCSW_STCTL_STATUS_PEND) {
+-        if (schib->scsw.cstat & (SCSW_CSTAT_DATA_CHECK |
+-                        SCSW_CSTAT_CHN_CTRL_CHK |
+-                        SCSW_CSTAT_INTF_CTRL_CHK)) {
+-            irb->scsw.flags |= SCSW_FLAGS_MASK_ESWF;
+-            irb->esw.word0 = 0x04804000;
+-        } else {
+-            irb->esw.word0 = 0x00800000;
+-        }
+-        /* If a unit check is pending, copy sense data. */
+-        if ((schib->scsw.dstat & SCSW_DSTAT_UNIT_CHECK) &&
+-            (schib->pmcw.chars & PMCW_CHARS_MASK_CSENSE)) {
+-            irb->scsw.flags |= SCSW_FLAGS_MASK_ESWF | SCSW_FLAGS_MASK_ECTL;
+-            build_irb_sense_data(sch, irb);
+-            irb->esw.erw = ESW_ERW_SENSE | (sizeof(sch->sense_data) << 8);
+-        }
+-    }
+-}
+-
+ int css_do_tsch_get_irb(SubchDev *sch, IRB *target_irb, int *irb_len)
+ {
+     SCHIB *schib = &sch->curr_status;
+@@ -1706,12 +1650,29 @@ int css_do_tsch_get_irb(SubchDev *sch, IRB *target_irb, int *irb_len)
+ 
+     /* Copy scsw from current status. */
+     irb.scsw = schib->scsw;
++    if (stctl & SCSW_STCTL_STATUS_PEND) {
++        if (schib->scsw.cstat & (SCSW_CSTAT_DATA_CHECK |
++                        SCSW_CSTAT_CHN_CTRL_CHK |
++                        SCSW_CSTAT_INTF_CTRL_CHK)) {
++            irb.scsw.flags |= SCSW_FLAGS_MASK_ESWF;
++            irb.esw[0] = 0x04804000;
++        } else {
++            irb.esw[0] = 0x00800000;
++        }
++        /* If a unit check is pending, copy sense data. */
++        if ((schib->scsw.dstat & SCSW_DSTAT_UNIT_CHECK) &&
++            (schib->pmcw.chars & PMCW_CHARS_MASK_CSENSE)) {
++            int i;
+ 
+-    /* Build other IRB data, if necessary */
+-    if (sch->irb_cb) {
+-        sch->irb_cb(sch, &irb);
++            irb.scsw.flags |= SCSW_FLAGS_MASK_ESWF | SCSW_FLAGS_MASK_ECTL;
++            /* Attention: sense_data is already BE! */
++            memcpy(irb.ecw, sch->sense_data, sizeof(sch->sense_data));
++            for (i = 0; i < ARRAY_SIZE(irb.ecw); i++) {
++                irb.ecw[i] = be32_to_cpu(irb.ecw[i]);
++            }
++            irb.esw[1] = 0x01000000 | (sizeof(sch->sense_data) << 8);
++        }
+     }
+-
+     /* Store the irb to the guest. */
+     p = schib->pmcw;
+     copy_irb_to_guest(target_irb, &irb, &p, irb_len);
+diff --git a/hw/s390x/s390-ccw.c b/hw/s390x/s390-ccw.c
+index 2fc8bb9c23..c227c77984 100644
+--- a/hw/s390x/s390-ccw.c
++++ b/hw/s390x/s390-ccw.c
+@@ -124,7 +124,6 @@ static void s390_ccw_realize(S390CCWDevice *cdev, char *sysfsdev, Error **errp)
+     }
+     sch->driver_data = cdev;
+     sch->do_subchannel_work = do_subchannel_work_passthrough;
+-    sch->irb_cb = build_irb_passthrough;
+ 
+     ccw_dev->sch = sch;
+     ret = css_sch_build_schib(sch, &cdev->hostid);
+diff --git a/hw/s390x/s390-virtio-ccw.c b/hw/s390x/s390-virtio-ccw.c
+index e4b18aef49..7af27ca305 100644
+--- a/hw/s390x/s390-virtio-ccw.c
++++ b/hw/s390x/s390-virtio-ccw.c
+@@ -802,10 +802,7 @@ DEFINE_CCW_MACHINE(6_1, "6.1", true);
+ 
+ static void ccw_machine_6_0_instance_options(MachineState *machine)
+ {
+-    static const S390FeatInit qemu_cpu_feat = { S390_FEAT_LIST_QEMU_V6_0 };
+-
+     ccw_machine_6_1_instance_options(machine);
+-    s390_set_qemu_cpu_model(0x2964, 13, 2, qemu_cpu_feat);
+ }
+ 
+ static void ccw_machine_6_0_class_options(MachineClass *mc)
+diff --git a/hw/s390x/virtio-ccw.c b/hw/s390x/virtio-ccw.c
+index d68888fccd..220b9efcf9 100644
+--- a/hw/s390x/virtio-ccw.c
++++ b/hw/s390x/virtio-ccw.c
+@@ -753,7 +753,6 @@ static void virtio_ccw_device_realize(VirtioCcwDevice *dev, Error **errp)
+     sch->id.reserved = 0xff;
+     sch->id.cu_type = VIRTIO_CCW_CU_TYPE;
+     sch->do_subchannel_work = do_subchannel_work_virtual;
+-    sch->irb_cb = build_irb_virtual;
+     ccw_dev->sch = sch;
+     dev->indicators = NULL;
+     dev->revision = -1;
+diff --git a/hw/vfio/ccw.c b/hw/vfio/ccw.c
+index 000992fb9f..139a3d9d1b 100644
+--- a/hw/vfio/ccw.c
++++ b/hw/vfio/ccw.c
+@@ -321,7 +321,6 @@ static void vfio_ccw_io_notifier_handler(void *opaque)
+     SCHIB *schib = &sch->curr_status;
+     SCSW s;
+     IRB irb;
+-    ESW esw;
+     int size;
+ 
+     if (!event_notifier_test_and_clear(&vcdev->io_notifier)) {
+@@ -372,9 +371,6 @@ static void vfio_ccw_io_notifier_handler(void *opaque)
+     copy_scsw_to_guest(&s, &irb.scsw);
+     schib->scsw = s;
+ 
+-    copy_esw_to_guest(&esw, &irb.esw);
+-    sch->esw = esw;
+-
+     /* If a uint check is pending, copy sense data. */
+     if ((schib->scsw.dstat & SCSW_DSTAT_UNIT_CHECK) &&
+         (schib->pmcw.chars & PMCW_CHARS_MASK_CSENSE)) {
+diff --git a/include/elf.h b/include/elf.h
+index 811bf4a1cb..033bcc9576 100644
+--- a/include/elf.h
++++ b/include/elf.h
+@@ -605,13 +605,6 @@ typedef struct {
+ #define HWCAP_S390_HIGH_GPRS    512
+ #define HWCAP_S390_TE           1024
+ #define HWCAP_S390_VXRS         2048
+-#define HWCAP_S390_VXRS_BCD     4096
+-#define HWCAP_S390_VXRS_EXT     8192
+-#define HWCAP_S390_GS           16384
+-#define HWCAP_S390_VXRS_EXT2    32768
+-#define HWCAP_S390_VXRS_PDE     65536
+-#define HWCAP_S390_SORT         131072
+-#define HWCAP_S390_DFLT         262144
+ 
+ /* M68K specific definitions. */
+ /* We use the top 24 bits to encode information about the
+diff --git a/include/hw/s390x/css.h b/include/hw/s390x/css.h
+index 10ed1df1bb..bba7593d2e 100644
+--- a/include/hw/s390x/css.h
++++ b/include/hw/s390x/css.h
+@@ -138,10 +138,8 @@ struct SubchDev {
+     int (*ccw_cb) (SubchDev *, CCW1);
+     void (*disable_cb)(SubchDev *);
+     IOInstEnding (*do_subchannel_work) (SubchDev *);
+-    void (*irb_cb)(SubchDev *, IRB *);
+     SenseId id;
+     void *driver_data;
+-    ESW esw;
+ };
+ 
+ static inline void sch_gen_unit_exception(SubchDev *sch)
+@@ -203,7 +201,6 @@ int css_sch_build_schib(SubchDev *sch, CssDevId *dev_id);
+ unsigned int css_find_free_chpid(uint8_t cssid);
+ uint16_t css_build_subchannel_id(SubchDev *sch);
+ void copy_scsw_to_guest(SCSW *dest, const SCSW *src);
+-void copy_esw_to_guest(ESW *dest, const ESW *src);
+ void css_inject_io_interrupt(SubchDev *sch);
+ void css_reset(void);
+ void css_reset_sch(SubchDev *sch);
+@@ -218,8 +215,6 @@ void css_clear_sei_pending(void);
+ IOInstEnding s390_ccw_cmd_request(SubchDev *sch);
+ IOInstEnding do_subchannel_work_virtual(SubchDev *sub);
+ IOInstEnding do_subchannel_work_passthrough(SubchDev *sub);
+-void build_irb_passthrough(SubchDev *sch, IRB *irb);
+-void build_irb_virtual(SubchDev *sch, IRB *irb);
+ 
+ int s390_ccw_halt(SubchDev *sch);
+ int s390_ccw_clear(SubchDev *sch);
+diff --git a/include/hw/s390x/ioinst.h b/include/hw/s390x/ioinst.h
+index 3771fff9d4..c6737a30d4 100644
+--- a/include/hw/s390x/ioinst.h
++++ b/include/hw/s390x/ioinst.h
+@@ -123,20 +123,10 @@ typedef struct SCHIB {
+     uint8_t mda[4];
+ } QEMU_PACKED SCHIB;
+ 
+-/* format-0 extended-status word */
+-typedef struct ESW {
+-    uint32_t word0;      /* subchannel logout for format 0 */
+-    uint32_t erw;
+-    uint64_t word2;     /* failing-storage address for format 0 */
+-    uint32_t word4;     /* secondary-CCW address for format 0 */
+-} QEMU_PACKED ESW;
+-
+-#define ESW_ERW_SENSE 0x01000000
+-
+ /* interruption response block */
+ typedef struct IRB {
+     SCSW scsw;
+-    ESW esw;
++    uint32_t esw[5];
+     uint32_t ecw[8];
+     uint32_t emw[8];
+ } IRB;
+diff --git a/linux-user/elfload.c b/linux-user/elfload.c
+index 4b0172339e..17ab06f612 100644
+--- a/linux-user/elfload.c
++++ b/linux-user/elfload.c
+@@ -1376,7 +1376,6 @@ static uint32_t get_elf_hwcap(void)
+         hwcap |= HWCAP_S390_ETF3EH;
+     }
+     GET_FEATURE(S390_FEAT_VECTOR, HWCAP_S390_VXRS);
+-    GET_FEATURE(S390_FEAT_VECTOR_ENH, HWCAP_S390_VXRS_EXT);
+ 
+     return hwcap;
+ }
+diff --git a/linux-user/s390x/signal.c b/linux-user/s390x/signal.c
+index bf8a8fbfe9..ef136dae33 100644
+--- a/linux-user/s390x/signal.c
++++ b/linux-user/s390x/signal.c
+@@ -112,23 +112,15 @@ get_sigframe(struct target_sigaction *ka, CPUS390XState *env, size_t frame_size)
+     return (sp - frame_size) & -8ul;
+ }
+ 
+-#define PSW_USER_BITS   (PSW_MASK_DAT | PSW_MASK_IO | PSW_MASK_EXT | \
+-                         PSW_MASK_MCHECK | PSW_MASK_PSTATE | PSW_ASC_PRIMARY)
+-#define PSW_MASK_USER   (PSW_MASK_ASC | PSW_MASK_CC | PSW_MASK_PM | \
+-                         PSW_MASK_64 | PSW_MASK_32)
+-
+ static void save_sigregs(CPUS390XState *env, target_sigregs *sregs)
+ {
+-    uint64_t psw_mask = s390_cpu_get_psw_mask(env);
+     int i;
+ 
+     /*
+      * Copy a 'clean' PSW mask to the user to avoid leaking
+      * information about whether PER is currently on.
+-     * TODO: qemu does not support PSW_MASK_RI; it will never be set.
+      */
+-    psw_mask = PSW_USER_BITS | (psw_mask & PSW_MASK_USER);
+-    __put_user(psw_mask, &sregs->regs.psw.mask);
++    __put_user(env->psw.mask, &sregs->regs.psw.mask);
+     __put_user(env->psw.addr, &sregs->regs.psw.addr);
+ 
+     for (i = 0; i < 16; i++) {
+@@ -297,7 +289,7 @@ void setup_rt_frame(int sig, struct target_sigaction *ka,
+ 
+ static void restore_sigregs(CPUS390XState *env, target_sigregs *sc)
+ {
+-    uint64_t prev_addr, prev_mask, mask, addr;
++    target_ulong prev_addr;
+     int i;
+ 
+     for (i = 0; i < 16; i++) {
+@@ -305,28 +297,9 @@ static void restore_sigregs(CPUS390XState *env, target_sigregs *sc)
+     }
+ 
+     prev_addr = env->psw.addr;
+-    __get_user(mask, &sc->regs.psw.mask);
+-    __get_user(addr, &sc->regs.psw.addr);
+-    trace_user_s390x_restore_sigregs(env, addr, prev_addr);
+-
+-    /*
+-     * Use current psw.mask to preserve PER bit.
+-     * TODO:
+-     *  if (!is_ri_task(current) && (user_sregs.regs.psw.mask & PSW_MASK_RI))
+-     *          return -EINVAL;
+-     * Simply do not allow it to be set in mask.
+-     */
+-    prev_mask = s390_cpu_get_psw_mask(env);
+-    mask = (prev_mask & ~PSW_MASK_USER) | (mask & PSW_MASK_USER);
+-    /* Check for invalid user address space control. */
+-    if ((mask & PSW_MASK_ASC) == PSW_ASC_HOME) {
+-        mask = (mask & ~PSW_MASK_ASC) | PSW_ASC_PRIMARY;
+-    }
+-    /* Check for invalid amode. */
+-    if (mask & PSW_MASK_64) {
+-        mask |= PSW_MASK_32;
+-    }
+-    s390_cpu_set_psw(env, mask, addr);
++    __get_user(env->psw.mask, &sc->regs.psw.mask);
++    __get_user(env->psw.addr, &sc->regs.psw.addr);
++    trace_user_s390x_restore_sigregs(env, env->psw.addr, prev_addr);
+ 
+     for (i = 0; i < 16; i++) {
+         __get_user(env->aregs[i], &sc->regs.acrs[i]);
+diff --git a/target/s390x/cc_helper.c b/target/s390x/cc_helper.c
+index e7a74d66dd..e7039d0d18 100644
+--- a/target/s390x/cc_helper.c
++++ b/target/s390x/cc_helper.c
+@@ -509,7 +509,7 @@ uint32_t HELPER(calc_cc)(CPUS390XState *env, uint32_t cc_op, uint64_t src,
+ #ifndef CONFIG_USER_ONLY
+ void HELPER(load_psw)(CPUS390XState *env, uint64_t mask, uint64_t addr)
+ {
+-    s390_cpu_set_psw(env, mask, addr);
++    load_psw(env, mask, addr);
+     cpu_loop_exit(env_cpu(env));
+ }
+ 
+diff --git a/target/s390x/cpu.h b/target/s390x/cpu.h
+index b26ae8fff2..2464d4076c 100644
+--- a/target/s390x/cpu.h
++++ b/target/s390x/cpu.h
+@@ -845,9 +845,6 @@ int s390_cpu_pv_mem_rw(S390CPU *cpu, unsigned int offset, void *hostbuf,
+ int s390_cpu_restart(S390CPU *cpu);
+ void s390_init_sigp(void);
+ 
+-/* helper.c */
+-void s390_cpu_set_psw(CPUS390XState *env, uint64_t mask, uint64_t addr);
+-uint64_t s390_cpu_get_psw_mask(CPUS390XState *env);
+ 
+ /* outside of target/s390x/ */
+ S390CPU *s390_cpu_addr2state(uint16_t cpu_addr);
+diff --git a/target/s390x/cpu_models.c b/target/s390x/cpu_models.c
+index 94090a6e22..050dcf2d42 100644
+--- a/target/s390x/cpu_models.c
++++ b/target/s390x/cpu_models.c
+@@ -90,8 +90,8 @@ static S390CPUDef s390_cpu_defs[] = {
+     CPUDEF_INIT(0x8562, 15, 1, 47, 0x08000000U, "gen15b", "IBM z15 T02 GA1"),
+ };
+ 
+-#define QEMU_MAX_CPU_TYPE 0x3906
+-#define QEMU_MAX_CPU_GEN 14
++#define QEMU_MAX_CPU_TYPE 0x2964
++#define QEMU_MAX_CPU_GEN 13
+ #define QEMU_MAX_CPU_EC_GA 2
+ static const S390FeatInit qemu_max_cpu_feat_init = { S390_FEAT_LIST_QEMU_MAX };
+ static S390FeatBitmap qemu_max_cpu_feat;
+diff --git a/target/s390x/excp_helper.c b/target/s390x/excp_helper.c
+index 9c361428c8..20625c2c8f 100644
+--- a/target/s390x/excp_helper.c
++++ b/target/s390x/excp_helper.c
+@@ -252,7 +252,7 @@ static void do_program_interrupt(CPUS390XState *env)
+ 
+     lowcore->pgm_ilen = cpu_to_be16(ilen);
+     lowcore->pgm_code = cpu_to_be16(env->int_pgm_code);
+-    lowcore->program_old_psw.mask = cpu_to_be64(s390_cpu_get_psw_mask(env));
++    lowcore->program_old_psw.mask = cpu_to_be64(get_psw_mask(env));
+     lowcore->program_old_psw.addr = cpu_to_be64(env->psw.addr);
+     mask = be64_to_cpu(lowcore->program_new_psw.mask);
+     addr = be64_to_cpu(lowcore->program_new_psw.addr);
+@@ -260,7 +260,7 @@ static void do_program_interrupt(CPUS390XState *env)
+ 
+     cpu_unmap_lowcore(lowcore);
+ 
+-    s390_cpu_set_psw(env, mask, addr);
++    load_psw(env, mask, addr);
+ }
+ 
+ static void do_svc_interrupt(CPUS390XState *env)
+@@ -272,14 +272,14 @@ static void do_svc_interrupt(CPUS390XState *env)
+ 
+     lowcore->svc_code = cpu_to_be16(env->int_svc_code);
+     lowcore->svc_ilen = cpu_to_be16(env->int_svc_ilen);
+-    lowcore->svc_old_psw.mask = cpu_to_be64(s390_cpu_get_psw_mask(env));
++    lowcore->svc_old_psw.mask = cpu_to_be64(get_psw_mask(env));
+     lowcore->svc_old_psw.addr = cpu_to_be64(env->psw.addr + env->int_svc_ilen);
+     mask = be64_to_cpu(lowcore->svc_new_psw.mask);
+     addr = be64_to_cpu(lowcore->svc_new_psw.addr);
+ 
+     cpu_unmap_lowcore(lowcore);
+ 
+-    s390_cpu_set_psw(env, mask, addr);
++    load_psw(env, mask, addr);
+ 
+     /* When a PER event is pending, the PER exception has to happen
+        immediately after the SERVICE CALL one.  */
+@@ -348,12 +348,12 @@ static void do_ext_interrupt(CPUS390XState *env)
+ 
+     mask = be64_to_cpu(lowcore->external_new_psw.mask);
+     addr = be64_to_cpu(lowcore->external_new_psw.addr);
+-    lowcore->external_old_psw.mask = cpu_to_be64(s390_cpu_get_psw_mask(env));
++    lowcore->external_old_psw.mask = cpu_to_be64(get_psw_mask(env));
+     lowcore->external_old_psw.addr = cpu_to_be64(env->psw.addr);
+ 
+     cpu_unmap_lowcore(lowcore);
+ 
+-    s390_cpu_set_psw(env, mask, addr);
++    load_psw(env, mask, addr);
+ }
+ 
+ static void do_io_interrupt(CPUS390XState *env)
+@@ -373,7 +373,7 @@ static void do_io_interrupt(CPUS390XState *env)
+     lowcore->subchannel_nr = cpu_to_be16(io->nr);
+     lowcore->io_int_parm = cpu_to_be32(io->parm);
+     lowcore->io_int_word = cpu_to_be32(io->word);
+-    lowcore->io_old_psw.mask = cpu_to_be64(s390_cpu_get_psw_mask(env));
++    lowcore->io_old_psw.mask = cpu_to_be64(get_psw_mask(env));
+     lowcore->io_old_psw.addr = cpu_to_be64(env->psw.addr);
+     mask = be64_to_cpu(lowcore->io_new_psw.mask);
+     addr = be64_to_cpu(lowcore->io_new_psw.addr);
+@@ -381,7 +381,7 @@ static void do_io_interrupt(CPUS390XState *env)
+     cpu_unmap_lowcore(lowcore);
+     g_free(io);
+ 
+-    s390_cpu_set_psw(env, mask, addr);
++    load_psw(env, mask, addr);
+ }
+ 
+ typedef struct MchkExtSaveArea {
+@@ -457,14 +457,14 @@ static void do_mchk_interrupt(CPUS390XState *env)
+     lowcore->clock_comp_save_area = cpu_to_be64(env->ckc >> 8);
+ 
+     lowcore->mcic = cpu_to_be64(mcic);
+-    lowcore->mcck_old_psw.mask = cpu_to_be64(s390_cpu_get_psw_mask(env));
++    lowcore->mcck_old_psw.mask = cpu_to_be64(get_psw_mask(env));
+     lowcore->mcck_old_psw.addr = cpu_to_be64(env->psw.addr);
+     mask = be64_to_cpu(lowcore->mcck_new_psw.mask);
+     addr = be64_to_cpu(lowcore->mcck_new_psw.addr);
+ 
+     cpu_unmap_lowcore(lowcore);
+ 
+-    s390_cpu_set_psw(env, mask, addr);
++    load_psw(env, mask, addr);
+ }
+ 
+ void s390_cpu_do_interrupt(CPUState *cs)
+@@ -592,11 +592,9 @@ void s390x_cpu_debug_excp_handler(CPUState *cs)
+            and MVCS instrutions are not used.  */
+         env->per_perc_atmid |= env->psw.mask & (PSW_MASK_ASC) >> 46;
+ 
+-        /*
+-         * Remove all watchpoints to re-execute the code.  A PER exception
+-         * will be triggered, it will call s390_cpu_set_psw which will
+-         * recompute the watchpoints.
+-         */
++        /* Remove all watchpoints to re-execute the code.  A PER exception
++           will be triggered, it will call load_psw which will recompute
++           the watchpoints.  */
+         cpu_watchpoint_remove_all(cs, BP_CPU);
+         cpu_loop_exit_noexc(cs);
+     }
+diff --git a/target/s390x/fpu_helper.c b/target/s390x/fpu_helper.c
+index 13af158748..f155bc048c 100644
+--- a/target/s390x/fpu_helper.c
++++ b/target/s390x/fpu_helper.c
+@@ -509,9 +509,6 @@ uint64_t HELPER(cgeb)(CPUS390XState *env, uint64_t v2, uint32_t m34)
+ 
+     s390_restore_bfp_rounding_mode(env, old_mode);
+     handle_exceptions(env, xxc_from_m34(m34), GETPC());
+-    if (float32_is_any_nan(v2)) {
+-        return INT64_MIN;
+-    }
+     return ret;
+ }
+ 
+@@ -523,9 +520,6 @@ uint64_t HELPER(cgdb)(CPUS390XState *env, uint64_t v2, uint32_t m34)
+ 
+     s390_restore_bfp_rounding_mode(env, old_mode);
+     handle_exceptions(env, xxc_from_m34(m34), GETPC());
+-    if (float64_is_any_nan(v2)) {
+-        return INT64_MIN;
+-    }
+     return ret;
+ }
+ 
+@@ -538,9 +532,6 @@ uint64_t HELPER(cgxb)(CPUS390XState *env, uint64_t h, uint64_t l, uint32_t m34)
+ 
+     s390_restore_bfp_rounding_mode(env, old_mode);
+     handle_exceptions(env, xxc_from_m34(m34), GETPC());
+-    if (float128_is_any_nan(v2)) {
+-        return INT64_MIN;
+-    }
+     return ret;
+ }
+ 
+@@ -552,9 +543,6 @@ uint64_t HELPER(cfeb)(CPUS390XState *env, uint64_t v2, uint32_t m34)
+ 
+     s390_restore_bfp_rounding_mode(env, old_mode);
+     handle_exceptions(env, xxc_from_m34(m34), GETPC());
+-    if (float32_is_any_nan(v2)) {
+-        return INT32_MIN;
+-    }
+     return ret;
+ }
+ 
+@@ -566,9 +554,6 @@ uint64_t HELPER(cfdb)(CPUS390XState *env, uint64_t v2, uint32_t m34)
+ 
+     s390_restore_bfp_rounding_mode(env, old_mode);
+     handle_exceptions(env, xxc_from_m34(m34), GETPC());
+-    if (float64_is_any_nan(v2)) {
+-        return INT32_MIN;
+-    }
+     return ret;
+ }
+ 
+@@ -581,9 +566,6 @@ uint64_t HELPER(cfxb)(CPUS390XState *env, uint64_t h, uint64_t l, uint32_t m34)
+ 
+     s390_restore_bfp_rounding_mode(env, old_mode);
+     handle_exceptions(env, xxc_from_m34(m34), GETPC());
+-    if (float128_is_any_nan(v2)) {
+-        return INT32_MIN;
+-    }
+     return ret;
+ }
+ 
+@@ -591,12 +573,12 @@ uint64_t HELPER(cfxb)(CPUS390XState *env, uint64_t h, uint64_t l, uint32_t m34)
+ uint64_t HELPER(clgeb)(CPUS390XState *env, uint64_t v2, uint32_t m34)
+ {
+     int old_mode = s390_swap_bfp_rounding_mode(env, round_from_m34(m34));
+-    uint64_t ret = float32_to_uint64(v2, &env->fpu_status);
++    uint64_t ret;
++
++    v2 = float32_to_float64(v2, &env->fpu_status);
++    ret = float64_to_uint64(v2, &env->fpu_status);
+     s390_restore_bfp_rounding_mode(env, old_mode);
+     handle_exceptions(env, xxc_from_m34(m34), GETPC());
+-    if (float32_is_any_nan(v2)) {
+-        return 0;
+-    }
+     return ret;
+ }
+ 
+@@ -608,9 +590,6 @@ uint64_t HELPER(clgdb)(CPUS390XState *env, uint64_t v2, uint32_t m34)
+ 
+     s390_restore_bfp_rounding_mode(env, old_mode);
+     handle_exceptions(env, xxc_from_m34(m34), GETPC());
+-    if (float64_is_any_nan(v2)) {
+-        return 0;
+-    }
+     return ret;
+ }
+ 
+@@ -622,9 +601,6 @@ uint64_t HELPER(clgxb)(CPUS390XState *env, uint64_t h, uint64_t l, uint32_t m34)
+ 
+     s390_restore_bfp_rounding_mode(env, old_mode);
+     handle_exceptions(env, xxc_from_m34(m34), GETPC());
+-    if (float128_is_any_nan(make_float128(h, l))) {
+-        return 0;
+-    }
+     return ret;
+ }
+ 
+@@ -636,9 +612,6 @@ uint64_t HELPER(clfeb)(CPUS390XState *env, uint64_t v2, uint32_t m34)
+ 
+     s390_restore_bfp_rounding_mode(env, old_mode);
+     handle_exceptions(env, xxc_from_m34(m34), GETPC());
+-    if (float32_is_any_nan(v2)) {
+-        return 0;
+-    }
+     return ret;
+ }
+ 
+@@ -650,9 +623,6 @@ uint64_t HELPER(clfdb)(CPUS390XState *env, uint64_t v2, uint32_t m34)
+ 
+     s390_restore_bfp_rounding_mode(env, old_mode);
+     handle_exceptions(env, xxc_from_m34(m34), GETPC());
+-    if (float64_is_any_nan(v2)) {
+-        return 0;
+-    }
+     return ret;
+ }
+ 
+@@ -664,9 +634,6 @@ uint64_t HELPER(clfxb)(CPUS390XState *env, uint64_t h, uint64_t l, uint32_t m34)
+ 
+     s390_restore_bfp_rounding_mode(env, old_mode);
+     handle_exceptions(env, xxc_from_m34(m34), GETPC());
+-    if (float128_is_any_nan(make_float128(h, l))) {
+-        return 0;
+-    }
+     return ret;
+ }
+ 
+diff --git a/target/s390x/gdbstub.c b/target/s390x/gdbstub.c
+index 5b4e38a13b..d6fce5ff1e 100644
+--- a/target/s390x/gdbstub.c
++++ b/target/s390x/gdbstub.c
+@@ -31,10 +31,18 @@ int s390_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
+ {
+     S390CPU *cpu = S390_CPU(cs);
+     CPUS390XState *env = &cpu->env;
++    uint64_t val;
++    int cc_op;
+ 
+     switch (n) {
+     case S390_PSWM_REGNUM:
+-        return gdb_get_regl(mem_buf, s390_cpu_get_psw_mask(env));
++        if (tcg_enabled()) {
++            cc_op = calc_cc(env, env->cc_op, env->cc_src, env->cc_dst,
++                            env->cc_vr);
++            val = deposit64(env->psw.mask, 44, 2, cc_op);
++            return gdb_get_regl(mem_buf, val);
++        }
++        return gdb_get_regl(mem_buf, env->psw.mask);
+     case S390_PSWA_REGNUM:
+         return gdb_get_regl(mem_buf, env->psw.addr);
+     case S390_R0_REGNUM ... S390_R15_REGNUM:
+@@ -51,7 +59,10 @@ int s390_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n)
+ 
+     switch (n) {
+     case S390_PSWM_REGNUM:
+-        s390_cpu_set_psw(env, tmpl, env->psw.addr);
++        env->psw.mask = tmpl;
++        if (tcg_enabled()) {
++            env->cc_op = extract64(tmpl, 44, 2);
++        }
+         break;
+     case S390_PSWA_REGNUM:
+         env->psw.addr = tmpl;
+diff --git a/target/s390x/gen-features.c b/target/s390x/gen-features.c
+index 242c95ede4..a6ec918e90 100644
+--- a/target/s390x/gen-features.c
++++ b/target/s390x/gen-features.c
+@@ -706,23 +706,20 @@ static uint16_t qemu_V4_1[] = {
+     S390_FEAT_VECTOR,
+ };
+ 
+-static uint16_t qemu_V6_0[] = {
++static uint16_t qemu_LATEST[] = {
+     S390_FEAT_ACCESS_EXCEPTION_FS_INDICATION,
+     S390_FEAT_SIDE_EFFECT_ACCESS_ESOP2,
+     S390_FEAT_ESOP,
+ };
+ 
+-static uint16_t qemu_LATEST[] = {
+-    S390_FEAT_INSTRUCTION_EXEC_PROT,
+-    S390_FEAT_MISC_INSTRUCTION_EXT2,
+-    S390_FEAT_MSA_EXT_8,
+-    S390_FEAT_VECTOR_ENH,
+-};
+-
+ /* add all new definitions before this point */
+ static uint16_t qemu_MAX[] = {
+     /* generates a dependency warning, leave it out for now */
+     S390_FEAT_MSA_EXT_5,
++    /* features introduced after the z13 */
++    S390_FEAT_INSTRUCTION_EXEC_PROT,
++    S390_FEAT_MISC_INSTRUCTION_EXT2,
++    S390_FEAT_MSA_EXT_8,
+ };
+ 
+ /****** END FEATURE DEFS ******/
+@@ -841,7 +838,6 @@ static FeatGroupDefSpec QemuFeatDef[] = {
+     QEMU_FEAT_INITIALIZER(V3_1),
+     QEMU_FEAT_INITIALIZER(V4_0),
+     QEMU_FEAT_INITIALIZER(V4_1),
+-    QEMU_FEAT_INITIALIZER(V6_0),
+     QEMU_FEAT_INITIALIZER(LATEST),
+     QEMU_FEAT_INITIALIZER(MAX),
+ };
+diff --git a/target/s390x/helper.c b/target/s390x/helper.c
+index 1445b74451..7678994feb 100644
+--- a/target/s390x/helper.c
++++ b/target/s390x/helper.c
+@@ -104,6 +104,44 @@ void s390_handle_wait(S390CPU *cpu)
+     }
+ }
+ 
++void load_psw(CPUS390XState *env, uint64_t mask, uint64_t addr)
++{
++    uint64_t old_mask = env->psw.mask;
++
++    env->psw.addr = addr;
++    env->psw.mask = mask;
++
++    /* KVM will handle all WAITs and trigger a WAIT exit on disabled_wait */
++    if (!tcg_enabled()) {
++        return;
++    }
++    env->cc_op = (mask >> 44) & 3;
++
++    if ((old_mask ^ mask) & PSW_MASK_PER) {
++        s390_cpu_recompute_watchpoints(env_cpu(env));
++    }
++
++    if (mask & PSW_MASK_WAIT) {
++        s390_handle_wait(env_archcpu(env));
++    }
++}
++
++uint64_t get_psw_mask(CPUS390XState *env)
++{
++    uint64_t r = env->psw.mask;
++
++    if (tcg_enabled()) {
++        env->cc_op = calc_cc(env, env->cc_op, env->cc_src, env->cc_dst,
++                             env->cc_vr);
++
++        r &= ~PSW_MASK_CC;
++        assert(!(env->cc_op & ~3));
++        r |= (uint64_t)env->cc_op << 44;
++    }
++
++    return r;
++}
++
+ LowCore *cpu_map_lowcore(CPUS390XState *env)
+ {
+     LowCore *lowcore;
+@@ -130,7 +168,7 @@ void do_restart_interrupt(CPUS390XState *env)
+ 
+     lowcore = cpu_map_lowcore(env);
+ 
+-    lowcore->restart_old_psw.mask = cpu_to_be64(s390_cpu_get_psw_mask(env));
++    lowcore->restart_old_psw.mask = cpu_to_be64(get_psw_mask(env));
+     lowcore->restart_old_psw.addr = cpu_to_be64(env->psw.addr);
+     mask = be64_to_cpu(lowcore->restart_new_psw.mask);
+     addr = be64_to_cpu(lowcore->restart_new_psw.addr);
+@@ -138,7 +176,7 @@ void do_restart_interrupt(CPUS390XState *env)
+     cpu_unmap_lowcore(lowcore);
+     env->pending_int &= ~INTERRUPT_RESTART;
+ 
+-    s390_cpu_set_psw(env, mask, addr);
++    load_psw(env, mask, addr);
+ }
+ 
+ void s390_cpu_recompute_watchpoints(CPUState *cs)
+@@ -228,7 +266,7 @@ int s390_store_status(S390CPU *cpu, hwaddr addr, bool store_arch)
+         sa->grs[i] = cpu_to_be64(cpu->env.regs[i]);
+     }
+     sa->psw.addr = cpu_to_be64(cpu->env.psw.addr);
+-    sa->psw.mask = cpu_to_be64(s390_cpu_get_psw_mask(&cpu->env));
++    sa->psw.mask = cpu_to_be64(get_psw_mask(&cpu->env));
+     sa->prefix = cpu_to_be32(cpu->env.psa);
+     sa->fpc = cpu_to_be32(cpu->env.fpc);
+     sa->todpr = cpu_to_be32(cpu->env.todpr);
+@@ -285,67 +323,20 @@ int s390_store_adtl_status(S390CPU *cpu, hwaddr addr, hwaddr len)
+     cpu_physical_memory_unmap(sa, len, 1, len);
+     return 0;
+ }
+-#else
+-/* For user-only, tcg is always enabled. */
+-#define tcg_enabled() true
+ #endif /* CONFIG_USER_ONLY */
+ 
+-void s390_cpu_set_psw(CPUS390XState *env, uint64_t mask, uint64_t addr)
+-{
+-#ifndef CONFIG_USER_ONLY
+-    uint64_t old_mask = env->psw.mask;
+-#endif
+-
+-    env->psw.addr = addr;
+-    env->psw.mask = mask;
+-
+-    /* KVM will handle all WAITs and trigger a WAIT exit on disabled_wait */
+-    if (!tcg_enabled()) {
+-        return;
+-    }
+-    env->cc_op = (mask >> 44) & 3;
+-
+-#ifndef CONFIG_USER_ONLY
+-    if ((old_mask ^ mask) & PSW_MASK_PER) {
+-        s390_cpu_recompute_watchpoints(env_cpu(env));
+-    }
+-
+-    if (mask & PSW_MASK_WAIT) {
+-        s390_handle_wait(env_archcpu(env));
+-    }
+-#endif
+-}
+-
+-uint64_t s390_cpu_get_psw_mask(CPUS390XState *env)
+-{
+-    uint64_t r = env->psw.mask;
+-
+-    if (tcg_enabled()) {
+-        uint64_t cc = calc_cc(env, env->cc_op, env->cc_src,
+-                              env->cc_dst, env->cc_vr);
+-
+-        assert(cc <= 3);
+-        r &= ~PSW_MASK_CC;
+-        r |= cc << 44;
+-    }
+-
+-    return r;
+-}
+-
+ void s390_cpu_dump_state(CPUState *cs, FILE *f, int flags)
+ {
+     S390CPU *cpu = S390_CPU(cs);
+     CPUS390XState *env = &cpu->env;
+     int i;
+ 
+-    qemu_fprintf(f, "PSW=mask %016" PRIx64 " addr %016" PRIx64,
+-                 s390_cpu_get_psw_mask(env), env->psw.addr);
+-    if (!tcg_enabled()) {
+-        qemu_fprintf(f, "\n");
+-    } else if (env->cc_op > 3) {
+-        qemu_fprintf(f, " cc %15s\n", cc_name(env->cc_op));
++    if (env->cc_op > 3) {
++        qemu_fprintf(f, "PSW=mask %016" PRIx64 " addr %016" PRIx64 " cc %15s\n",
++                     env->psw.mask, env->psw.addr, cc_name(env->cc_op));
+     } else {
+-        qemu_fprintf(f, " cc %02x\n", env->cc_op);
++        qemu_fprintf(f, "PSW=mask %016" PRIx64 " addr %016" PRIx64 " cc %02x\n",
++                     env->psw.mask, env->psw.addr, env->cc_op);
+     }
+ 
+     for (i = 0; i < 16; i++) {
+diff --git a/target/s390x/helper.h b/target/s390x/helper.h
+index ba045f559d..d4e4f3388f 100644
+--- a/target/s390x/helper.h
++++ b/target/s390x/helper.h
+@@ -126,7 +126,6 @@ DEF_HELPER_FLAGS_1(stck, TCG_CALL_NO_RWG_SE, i64, env)
+ DEF_HELPER_FLAGS_3(probe_write_access, TCG_CALL_NO_WG, void, env, i64, i64)
+ 
+ /* === Vector Support Instructions === */
+-DEF_HELPER_FLAGS_4(gvec_vbperm, TCG_CALL_NO_RWG, void, ptr, cptr, cptr, i32)
+ DEF_HELPER_FLAGS_4(vll, TCG_CALL_NO_WG, void, env, ptr, i64, i64)
+ DEF_HELPER_FLAGS_4(gvec_vpk16, TCG_CALL_NO_RWG, void, ptr, cptr, cptr, i32)
+ DEF_HELPER_FLAGS_4(gvec_vpk32, TCG_CALL_NO_RWG, void, ptr, cptr, cptr, i32)
+@@ -247,77 +246,50 @@ DEF_HELPER_6(gvec_vstrc_cc_rt16, void, ptr, cptr, cptr, cptr, env, i32)
+ DEF_HELPER_6(gvec_vstrc_cc_rt32, void, ptr, cptr, cptr, cptr, env, i32)
+ 
+ /* === Vector Floating-Point Instructions */
+-DEF_HELPER_FLAGS_5(gvec_vfa32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfa64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfa128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_4(gvec_wfc32, void, cptr, cptr, env, i32)
+-DEF_HELPER_4(gvec_wfk32, void, cptr, cptr, env, i32)
++DEF_HELPER_FLAGS_5(gvec_vfa64s, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_4(gvec_wfc64, void, cptr, cptr, env, i32)
+ DEF_HELPER_4(gvec_wfk64, void, cptr, cptr, env, i32)
+-DEF_HELPER_4(gvec_wfc128, void, cptr, cptr, env, i32)
+-DEF_HELPER_4(gvec_wfk128, void, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfce32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_5(gvec_vfce32_cc, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfce64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
++DEF_HELPER_FLAGS_5(gvec_vfce64s, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_5(gvec_vfce64_cc, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfce128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_5(gvec_vfce128_cc, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfch32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_5(gvec_vfch32_cc, void, ptr, cptr, cptr, env, i32)
++DEF_HELPER_5(gvec_vfce64s_cc, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfch64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
++DEF_HELPER_FLAGS_5(gvec_vfch64s, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_5(gvec_vfch64_cc, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfch128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_5(gvec_vfch128_cc, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfche32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_5(gvec_vfche32_cc, void, ptr, cptr, cptr, env, i32)
++DEF_HELPER_5(gvec_vfch64s_cc, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfche64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
++DEF_HELPER_FLAGS_5(gvec_vfche64s, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_5(gvec_vfche64_cc, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfche128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_5(gvec_vfche128_cc, void, ptr, cptr, cptr, env, i32)
++DEF_HELPER_5(gvec_vfche64s_cc, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vcdg64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
++DEF_HELPER_FLAGS_4(gvec_vcdg64s, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vcdlg64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
++DEF_HELPER_FLAGS_4(gvec_vcdlg64s, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vcgd64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
++DEF_HELPER_FLAGS_4(gvec_vcgd64s, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vclgd64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfd32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
++DEF_HELPER_FLAGS_4(gvec_vclgd64s, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfd64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfd128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_4(gvec_vfi32, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
++DEF_HELPER_FLAGS_5(gvec_vfd64s, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vfi64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_4(gvec_vfi128, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
++DEF_HELPER_FLAGS_4(gvec_vfi64s, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vfll32, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_4(gvec_vfll64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
++DEF_HELPER_FLAGS_4(gvec_vfll32s, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vflr64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_4(gvec_vflr128, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfm32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
++DEF_HELPER_FLAGS_4(gvec_vflr64s, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfm64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfm128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfmax32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfmax64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfmax128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfmin32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfmin64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfmin128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfma32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
++DEF_HELPER_FLAGS_5(gvec_vfm64s, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_6(gvec_vfma64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfma128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfms32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
++DEF_HELPER_FLAGS_6(gvec_vfma64s, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_6(gvec_vfms64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfms128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfnma32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfnma64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfnma128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfnms32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfnms64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfnms128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_4(gvec_vfsq32, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
++DEF_HELPER_FLAGS_6(gvec_vfms64s, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vfsq64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_4(gvec_vfsq128, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfs32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
++DEF_HELPER_FLAGS_4(gvec_vfsq64s, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfs64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_5(gvec_vfs128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+-DEF_HELPER_4(gvec_vftci32, void, ptr, cptr, env, i32)
++DEF_HELPER_FLAGS_5(gvec_vfs64s, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_4(gvec_vftci64, void, ptr, cptr, env, i32)
+-DEF_HELPER_4(gvec_vftci128, void, ptr, cptr, env, i32)
++DEF_HELPER_4(gvec_vftci64s, void, ptr, cptr, env, i32)
+ 
+ #ifndef CONFIG_USER_ONLY
+ DEF_HELPER_3(servc, i32, env, i64, i64)
+diff --git a/target/s390x/insn-data.def b/target/s390x/insn-data.def
+index 3e5594210c..0bb1886a2e 100644
+--- a/target/s390x/insn-data.def
++++ b/target/s390x/insn-data.def
+@@ -989,8 +989,6 @@
+ 
+ /* === Vector Support Instructions === */
+ 
+-/* VECTOR BIT PERMUTE */
+-    E(0xe785, VBPERM,  VRR_c, VE,  0, 0, 0, 0, vbperm, 0, 0, IF_VEC)
+ /* VECTOR GATHER ELEMENT */
+     E(0xe713, VGEF,    VRV,   V,   la2, 0, 0, 0, vge, 0, ES_32, IF_VEC)
+     E(0xe712, VGEG,    VRV,   V,   la2, 0, 0, 0, vge, 0, ES_64, IF_VEC)
+@@ -1151,8 +1149,6 @@
+     F(0xe7a7, VMO,     VRR_c, V,   0, 0, 0, 0, vm, 0, IF_VEC)
+ /* VECTOR MULTIPLY LOGICAL ODD */
+     F(0xe7a5, VMLO,    VRR_c, V,   0, 0, 0, 0, vm, 0, IF_VEC)
+-/* VECTOR MULTIPLY SUM LOGICAL */
+-    F(0xe7b8, VMSL,    VRR_d, VE,  0, 0, 0, 0, vmsl, 0, IF_VEC)
+ /* VECTOR NAND */
+     F(0xe76e, VNN,     VRR_c, VE,  0, 0, 0, 0, vnn, 0, IF_VEC)
+ /* VECTOR NOR */
+@@ -1249,24 +1245,16 @@
+     F(0xe7e5, VFD,     VRR_c, V,   0, 0, 0, 0, vfa, 0, IF_VEC)
+ /* VECTOR LOAD FP INTEGER */
+     F(0xe7c7, VFI,     VRR_a, V,   0, 0, 0, 0, vcdg, 0, IF_VEC)
+-/* VECTOR FP LOAD LENGTHENED */
++/* VECTOR LOAD LENGTHENED */
+     F(0xe7c4, VFLL,    VRR_a, V,   0, 0, 0, 0, vfll, 0, IF_VEC)
+-/* VECTOR FP LOAD ROUNDED */
++/* VECTOR LOAD ROUNDED */
+     F(0xe7c5, VFLR,    VRR_a, V,   0, 0, 0, 0, vcdg, 0, IF_VEC)
+-/* VECTOR FP MAXIMUM */
+-    F(0xe7ef, VFMAX,   VRR_c, VE,  0, 0, 0, 0, vfmax, 0, IF_VEC)
+-/* VECTOR FP MINIMUM */
+-    F(0xe7ee, VFMIN,   VRR_c, VE,  0, 0, 0, 0, vfmax, 0, IF_VEC)
+ /* VECTOR FP MULTIPLY */
+     F(0xe7e7, VFM,     VRR_c, V,   0, 0, 0, 0, vfa, 0, IF_VEC)
+ /* VECTOR FP MULTIPLY AND ADD */
+     F(0xe78f, VFMA,    VRR_e, V,   0, 0, 0, 0, vfma, 0, IF_VEC)
+ /* VECTOR FP MULTIPLY AND SUBTRACT */
+     F(0xe78e, VFMS,    VRR_e, V,   0, 0, 0, 0, vfma, 0, IF_VEC)
+-/* VECTOR FP NEGATIVE MULTIPLY AND ADD */
+-    F(0xe79f, VFNMA,   VRR_e, VE,  0, 0, 0, 0, vfma, 0, IF_VEC)
+-/* VECTOR FP NEGATIVE MULTIPLY AND SUBTRACT */
+-    F(0xe79e, VFNMS,   VRR_e, VE,   0, 0, 0, 0, vfma, 0, IF_VEC)
+ /* VECTOR FP PERFORM SIGN OPERATION */
+     F(0xe7cc, VFPSO,   VRR_a, V,   0, 0, 0, 0, vfpso, 0, IF_VEC)
+ /* VECTOR FP SQUARE ROOT */
+diff --git a/target/s390x/internal.h b/target/s390x/internal.h
+index 9256275376..11515bb617 100644
+--- a/target/s390x/internal.h
++++ b/target/s390x/internal.h
+@@ -235,6 +235,10 @@ int s390_cpu_write_elf64_note(WriteCoreDumpFunction f, CPUState *cs,
+ const char *cc_name(enum cc_op cc_op);
+ uint32_t calc_cc(CPUS390XState *env, uint32_t cc_op, uint64_t src, uint64_t dst,
+                  uint64_t vr);
++#ifndef CONFIG_USER_ONLY
++void load_psw(CPUS390XState *env, uint64_t mask, uint64_t addr);
++#endif /* CONFIG_USER_ONLY */
++
+ 
+ /* cpu.c */
+ #ifndef CONFIG_USER_ONLY
+@@ -284,15 +288,6 @@ uint8_t s390_softfloat_exc_to_ieee(unsigned int exc);
+ int s390_swap_bfp_rounding_mode(CPUS390XState *env, int m3);
+ void s390_restore_bfp_rounding_mode(CPUS390XState *env, int old_mode);
+ int float_comp_to_cc(CPUS390XState *env, int float_compare);
+-
+-#define DCMASK_ZERO             0x0c00
+-#define DCMASK_NORMAL           0x0300
+-#define DCMASK_SUBNORMAL        0x00c0
+-#define DCMASK_INFINITY         0x0030
+-#define DCMASK_QUIET_NAN        0x000c
+-#define DCMASK_SIGNALING_NAN    0x0003
+-#define DCMASK_NAN              0x000f
+-#define DCMASK_NEGATIVE         0x0555
+ uint16_t float32_dcmask(CPUS390XState *env, float32 f1);
+ uint16_t float64_dcmask(CPUS390XState *env, float64 f1);
+ uint16_t float128_dcmask(CPUS390XState *env, float128 f1);
+@@ -308,6 +303,7 @@ void s390_cpu_gdb_init(CPUState *cs);
+ void s390_cpu_dump_state(CPUState *cpu, FILE *f, int flags);
+ void do_restart_interrupt(CPUS390XState *env);
+ #ifndef CONFIG_USER_ONLY
++uint64_t get_psw_mask(CPUS390XState *env);
+ void s390_cpu_recompute_watchpoints(CPUState *cs);
+ void s390x_tod_timer(void *opaque);
+ void s390x_cpu_timer(void *opaque);
+diff --git a/target/s390x/kvm-stub.c b/target/s390x/kvm-stub.c
+index 8a308cfebb..9970b5a8c7 100644
+--- a/target/s390x/kvm-stub.c
++++ b/target/s390x/kvm-stub.c
+@@ -49,6 +49,11 @@ int kvm_s390_get_ri(void)
+     return 0;
+ }
+ 
++int kvm_s390_get_gs(void)
++{
++    return 0;
++}
++
+ int kvm_s390_get_clock(uint8_t *tod_high, uint64_t *tod_low)
+ {
+     return -ENOSYS;
+diff --git a/target/s390x/kvm.c b/target/s390x/kvm.c
+index 2388924587..4fb3bbfef5 100644
+--- a/target/s390x/kvm.c
++++ b/target/s390x/kvm.c
+@@ -154,6 +154,7 @@ static int cap_async_pf;
+ static int cap_mem_op;
+ static int cap_s390_irq;
+ static int cap_ri;
++static int cap_gs;
+ static int cap_hpage_1m;
+ static int cap_vcpu_resets;
+ static int cap_protected;
+@@ -368,7 +369,9 @@ int kvm_arch_init(MachineState *ms, KVMState *s)
+         }
+     }
+     if (cpu_model_allowed()) {
+-        kvm_vm_enable_cap(s, KVM_CAP_S390_GS, 0);
++        if (kvm_vm_enable_cap(s, KVM_CAP_S390_GS, 0) == 0) {
++            cap_gs = 1;
++        }
+     }
+ 
+     /*
+@@ -2036,6 +2039,11 @@ int kvm_s390_get_ri(void)
+     return cap_ri;
+ }
+ 
++int kvm_s390_get_gs(void)
++{
++    return cap_gs;
++}
++
+ int kvm_s390_set_cpu_state(S390CPU *cpu, uint8_t cpu_state)
+ {
+     struct kvm_mp_state mp_state = {};
+diff --git a/target/s390x/kvm_s390x.h b/target/s390x/kvm_s390x.h
+index 05a5e1e6f4..25bbe98b25 100644
+--- a/target/s390x/kvm_s390x.h
++++ b/target/s390x/kvm_s390x.h
+@@ -27,6 +27,7 @@ void kvm_s390_vcpu_interrupt_pre_save(S390CPU *cpu);
+ int kvm_s390_vcpu_interrupt_post_load(S390CPU *cpu);
+ int kvm_s390_get_hpage_1m(void);
+ int kvm_s390_get_ri(void);
++int kvm_s390_get_gs(void);
+ int kvm_s390_get_clock(uint8_t *tod_high, uint64_t *tod_clock);
+ int kvm_s390_get_clock_ext(uint8_t *tod_high, uint64_t *tod_clock);
+ int kvm_s390_set_clock(uint8_t tod_high, uint64_t tod_clock);
+diff --git a/target/s390x/sigp.c b/target/s390x/sigp.c
+index c2d5cdf061..c604f17710 100644
+--- a/target/s390x/sigp.c
++++ b/target/s390x/sigp.c
+@@ -235,8 +235,7 @@ static void sigp_restart(CPUState *cs, run_on_cpu_data arg)
+         cpu_synchronize_state(cs);
+         /*
+          * Set OPERATING (and unhalting) before loading the restart PSW.
+-         * s390_cpu_set_psw() will then properly halt the CPU again if
+-         * necessary (TCG).
++         * load_psw() will then properly halt the CPU again if necessary (TCG).
+          */
+         s390_cpu_set_state(S390_CPU_STATE_OPERATING, cpu);
+         do_restart_interrupt(&cpu->env);
+diff --git a/target/s390x/translate_vx.c.inc b/target/s390x/translate_vx.c.inc
+index a9d51b1f4c..eb767f5288 100644
+--- a/target/s390x/translate_vx.c.inc
++++ b/target/s390x/translate_vx.c.inc
+@@ -327,14 +327,6 @@ static void gen_addi2_i64(TCGv_i64 dl, TCGv_i64 dh, TCGv_i64 al, TCGv_i64 ah,
+     tcg_temp_free_i64(bh);
+ }
+ 
+-static DisasJumpType op_vbperm(DisasContext *s, DisasOps *o)
+-{
+-    gen_gvec_3_ool(get_field(s, v1), get_field(s, v2), get_field(s, v3), 0,
+-                   gen_helper_gvec_vbperm);
+-
+-    return DISAS_NEXT;
+-}
+-
+ static DisasJumpType op_vge(DisasContext *s, DisasOps *o)
+ {
+     const uint8_t es = s->insn->data;
+@@ -1779,56 +1771,6 @@ static DisasJumpType op_vm(DisasContext *s, DisasOps *o)
+     return DISAS_NEXT;
+ }
+ 
+-static DisasJumpType op_vmsl(DisasContext *s, DisasOps *o)
+-{
+-    TCGv_i64 l1, h1, l2, h2;
+-
+-    if (get_field(s, m4) != ES_64) {
+-        gen_program_exception(s, PGM_SPECIFICATION);
+-        return DISAS_NORETURN;
+-    }
+-
+-    l1 = tcg_temp_new_i64();
+-    h1 = tcg_temp_new_i64();
+-    l2 = tcg_temp_new_i64();
+-    h2 = tcg_temp_new_i64();
+-
+-    /* Multipy both even elements from v2 and v3 */
+-    read_vec_element_i64(l1, get_field(s, v2), 0, ES_64);
+-    read_vec_element_i64(h1, get_field(s, v3), 0, ES_64);
+-    tcg_gen_mulu2_i64(l1, h1, l1, h1);
+-    /* Shift result left by one (x2) if requested */
+-    if (extract32(get_field(s, m6), 3, 1)) {
+-        tcg_gen_add2_i64(l1, h1, l1, h1, l1, h1);
+-    }
+-
+-    /* Multipy both odd elements from v2 and v3 */
+-    read_vec_element_i64(l2, get_field(s, v2), 1, ES_64);
+-    read_vec_element_i64(h2, get_field(s, v3), 1, ES_64);
+-    tcg_gen_mulu2_i64(l2, h2, l2, h2);
+-    /* Shift result left by one (x2) if requested */
+-    if (extract32(get_field(s, m6), 2, 1)) {
+-        tcg_gen_add2_i64(l2, h2, l2, h2, l2, h2);
+-    }
+-
+-    /* Add both intermediate results */
+-    tcg_gen_add2_i64(l1, h1, l1, h1, l2, h2);
+-    /* Add whole v4 */
+-    read_vec_element_i64(h2, get_field(s, v4), 0, ES_64);
+-    read_vec_element_i64(l2, get_field(s, v4), 1, ES_64);
+-    tcg_gen_add2_i64(l1, h1, l1, h1, l2, h2);
+-
+-    /* Store final result into v1. */
+-    write_vec_element_i64(h1, get_field(s, v1), 0, ES_64);
+-    write_vec_element_i64(l1, get_field(s, v1), 1, ES_64);
+-
+-    tcg_temp_free_i64(l1);
+-    tcg_temp_free_i64(h1);
+-    tcg_temp_free_i64(l2);
+-    tcg_temp_free_i64(h2);
+-    return DISAS_NEXT;
+-}
+-
+ static DisasJumpType op_vnn(DisasContext *s, DisasOps *o)
+ {
+     gen_gvec_fn_3(nand, ES_8, get_field(s, v1),
+@@ -2501,96 +2443,32 @@ static DisasJumpType op_vfa(DisasContext *s, DisasOps *o)
+ {
+     const uint8_t fpf = get_field(s, m4);
+     const uint8_t m5 = get_field(s, m5);
+-    gen_helper_gvec_3_ptr *fn = NULL;
++    const bool se = extract32(m5, 3, 1);
++    gen_helper_gvec_3_ptr *fn;
++
++    if (fpf != FPF_LONG || extract32(m5, 0, 3)) {
++        gen_program_exception(s, PGM_SPECIFICATION);
++        return DISAS_NORETURN;
++    }
+ 
+     switch (s->fields.op2) {
+     case 0xe3:
+-        switch (fpf) {
+-        case FPF_SHORT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vfa32;
+-            }
+-            break;
+-        case FPF_LONG:
+-            fn = gen_helper_gvec_vfa64;
+-            break;
+-        case FPF_EXT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vfa128;
+-            }
+-            break;
+-        default:
+-            break;
+-        }
++        fn = se ? gen_helper_gvec_vfa64s : gen_helper_gvec_vfa64;
+         break;
+     case 0xe5:
+-        switch (fpf) {
+-        case FPF_SHORT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vfd32;
+-            }
+-            break;
+-        case FPF_LONG:
+-            fn = gen_helper_gvec_vfd64;
+-            break;
+-        case FPF_EXT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vfd128;
+-            }
+-            break;
+-        default:
+-            break;
+-        }
++        fn = se ? gen_helper_gvec_vfd64s : gen_helper_gvec_vfd64;
+         break;
+     case 0xe7:
+-        switch (fpf) {
+-        case FPF_SHORT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vfm32;
+-            }
+-            break;
+-        case FPF_LONG:
+-            fn = gen_helper_gvec_vfm64;
+-            break;
+-        case FPF_EXT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vfm128;
+-            }
+-            break;
+-        default:
+-            break;
+-        }
++        fn = se ? gen_helper_gvec_vfm64s : gen_helper_gvec_vfm64;
+         break;
+     case 0xe2:
+-        switch (fpf) {
+-        case FPF_SHORT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vfs32;
+-            }
+-            break;
+-        case FPF_LONG:
+-            fn = gen_helper_gvec_vfs64;
+-            break;
+-        case FPF_EXT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vfs128;
+-            }
+-            break;
+-        default:
+-            break;
+-        }
++        fn = se ? gen_helper_gvec_vfs64s : gen_helper_gvec_vfs64;
+         break;
+     default:
+         g_assert_not_reached();
+     }
+-
+-    if (!fn || extract32(m5, 0, 3)) {
+-        gen_program_exception(s, PGM_SPECIFICATION);
+-        return DISAS_NORETURN;
+-    }
+-
+     gen_gvec_3_ptr(get_field(s, v1), get_field(s, v2),
+-                   get_field(s, v3), cpu_env, m5, fn);
++                   get_field(s, v3), cpu_env, 0, fn);
+     return DISAS_NEXT;
+ }
+ 
+@@ -2598,41 +2476,19 @@ static DisasJumpType op_wfc(DisasContext *s, DisasOps *o)
+ {
+     const uint8_t fpf = get_field(s, m3);
+     const uint8_t m4 = get_field(s, m4);
+-    gen_helper_gvec_2_ptr *fn = NULL;
+ 
+-    switch (fpf) {
+-    case FPF_SHORT:
+-        if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-            fn = gen_helper_gvec_wfk32;
+-            if (s->fields.op2 == 0xcb) {
+-                fn = gen_helper_gvec_wfc32;
+-            }
+-        }
+-        break;
+-    case FPF_LONG:
+-        fn = gen_helper_gvec_wfk64;
+-        if (s->fields.op2 == 0xcb) {
+-            fn = gen_helper_gvec_wfc64;
+-        }
+-        break;
+-    case FPF_EXT:
+-        if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-            fn = gen_helper_gvec_wfk128;
+-            if (s->fields.op2 == 0xcb) {
+-                fn = gen_helper_gvec_wfc128;
+-            }
+-        }
+-        break;
+-    default:
+-        break;
+-    };
+-
+-    if (!fn || m4) {
++    if (fpf != FPF_LONG || m4) {
+         gen_program_exception(s, PGM_SPECIFICATION);
+         return DISAS_NORETURN;
+     }
+ 
+-    gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2), cpu_env, 0, fn);
++    if (s->fields.op2 == 0xcb) {
++        gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2),
++                       cpu_env, 0, gen_helper_gvec_wfc64);
++    } else {
++        gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2),
++                       cpu_env, 0, gen_helper_gvec_wfk64);
++    }
+     set_cc_static(s);
+     return DISAS_NEXT;
+ }
+@@ -2642,68 +2498,46 @@ static DisasJumpType op_vfc(DisasContext *s, DisasOps *o)
+     const uint8_t fpf = get_field(s, m4);
+     const uint8_t m5 = get_field(s, m5);
+     const uint8_t m6 = get_field(s, m6);
++    const bool se = extract32(m5, 3, 1);
+     const bool cs = extract32(m6, 0, 1);
+-    const bool sq = extract32(m5, 2, 1);
+-    gen_helper_gvec_3_ptr *fn = NULL;
++    gen_helper_gvec_3_ptr *fn;
+ 
+-    switch (s->fields.op2) {
+-    case 0xe8:
+-        switch (fpf) {
+-        case FPF_SHORT:
+-            fn = cs ? gen_helper_gvec_vfce32_cc : gen_helper_gvec_vfce32;
+-            break;
+-        case FPF_LONG:
+-            fn = cs ? gen_helper_gvec_vfce64_cc : gen_helper_gvec_vfce64;
+-            break;
+-        case FPF_EXT:
+-            fn = cs ? gen_helper_gvec_vfce128_cc : gen_helper_gvec_vfce128;
+-            break;
+-        default:
+-            break;
+-        }
+-        break;
+-    case 0xeb:
+-        switch (fpf) {
+-        case FPF_SHORT:
+-            fn = cs ? gen_helper_gvec_vfch32_cc : gen_helper_gvec_vfch32;
++    if (fpf != FPF_LONG || extract32(m5, 0, 3) || extract32(m6, 1, 3)) {
++        gen_program_exception(s, PGM_SPECIFICATION);
++        return DISAS_NORETURN;
++    }
++
++    if (cs) {
++        switch (s->fields.op2) {
++        case 0xe8:
++            fn = se ? gen_helper_gvec_vfce64s_cc : gen_helper_gvec_vfce64_cc;
+             break;
+-        case FPF_LONG:
+-            fn = cs ? gen_helper_gvec_vfch64_cc : gen_helper_gvec_vfch64;
++        case 0xeb:
++            fn = se ? gen_helper_gvec_vfch64s_cc : gen_helper_gvec_vfch64_cc;
+             break;
+-        case FPF_EXT:
+-            fn = cs ? gen_helper_gvec_vfch128_cc : gen_helper_gvec_vfch128;
++        case 0xea:
++            fn = se ? gen_helper_gvec_vfche64s_cc : gen_helper_gvec_vfche64_cc;
+             break;
+         default:
+-            break;
++            g_assert_not_reached();
+         }
+-        break;
+-    case 0xea:
+-        switch (fpf) {
+-        case FPF_SHORT:
+-            fn = cs ? gen_helper_gvec_vfche32_cc : gen_helper_gvec_vfche32;
++    } else {
++        switch (s->fields.op2) {
++        case 0xe8:
++            fn = se ? gen_helper_gvec_vfce64s : gen_helper_gvec_vfce64;
+             break;
+-        case FPF_LONG:
+-            fn = cs ? gen_helper_gvec_vfche64_cc : gen_helper_gvec_vfche64;
++        case 0xeb:
++            fn = se ? gen_helper_gvec_vfch64s : gen_helper_gvec_vfch64;
+             break;
+-        case FPF_EXT:
+-            fn = cs ? gen_helper_gvec_vfche128_cc : gen_helper_gvec_vfche128;
++        case 0xea:
++            fn = se ? gen_helper_gvec_vfche64s : gen_helper_gvec_vfche64;
+             break;
+         default:
+-            break;
++            g_assert_not_reached();
+         }
+-        break;
+-    default:
+-        g_assert_not_reached();
+     }
+-
+-    if (!fn || extract32(m5, 0, 2) || extract32(m6, 1, 3) ||
+-        (!s390_has_feat(S390_FEAT_VECTOR_ENH) && (fpf != FPF_LONG || sq))) {
+-        gen_program_exception(s, PGM_SPECIFICATION);
+-        return DISAS_NORETURN;
+-    }
+-
+-    gen_gvec_3_ptr(get_field(s, v1), get_field(s, v2), get_field(s, v3),
+-                   cpu_env, m5, fn);
++    gen_gvec_3_ptr(get_field(s, v1), get_field(s, v2),
++                   get_field(s, v3), cpu_env, 0, fn);
+     if (cs) {
+         set_cc_static(s);
+     }
+@@ -2715,72 +2549,36 @@ static DisasJumpType op_vcdg(DisasContext *s, DisasOps *o)
+     const uint8_t fpf = get_field(s, m3);
+     const uint8_t m4 = get_field(s, m4);
+     const uint8_t erm = get_field(s, m5);
+-    gen_helper_gvec_2_ptr *fn = NULL;
++    const bool se = extract32(m4, 3, 1);
++    gen_helper_gvec_2_ptr *fn;
+ 
++    if (fpf != FPF_LONG || extract32(m4, 0, 2) || erm > 7 || erm == 2) {
++        gen_program_exception(s, PGM_SPECIFICATION);
++        return DISAS_NORETURN;
++    }
+ 
+     switch (s->fields.op2) {
+     case 0xc3:
+-        if (fpf == FPF_LONG) {
+-            fn = gen_helper_gvec_vcdg64;
+-        }
++        fn = se ? gen_helper_gvec_vcdg64s : gen_helper_gvec_vcdg64;
+         break;
+     case 0xc1:
+-        if (fpf == FPF_LONG) {
+-            fn = gen_helper_gvec_vcdlg64;
+-        }
++        fn = se ? gen_helper_gvec_vcdlg64s : gen_helper_gvec_vcdlg64;
+         break;
+     case 0xc2:
+-        if (fpf == FPF_LONG) {
+-            fn = gen_helper_gvec_vcgd64;
+-        }
++        fn = se ? gen_helper_gvec_vcgd64s : gen_helper_gvec_vcgd64;
+         break;
+     case 0xc0:
+-        if (fpf == FPF_LONG) {
+-            fn = gen_helper_gvec_vclgd64;
+-        }
++        fn = se ? gen_helper_gvec_vclgd64s : gen_helper_gvec_vclgd64;
+         break;
+     case 0xc7:
+-        switch (fpf) {
+-        case FPF_SHORT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vfi32;
+-            }
+-            break;
+-        case FPF_LONG:
+-            fn = gen_helper_gvec_vfi64;
+-            break;
+-        case FPF_EXT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vfi128;
+-            }
+-            break;
+-        default:
+-            break;
+-        }
++        fn = se ? gen_helper_gvec_vfi64s : gen_helper_gvec_vfi64;
+         break;
+     case 0xc5:
+-        switch (fpf) {
+-        case FPF_LONG:
+-            fn = gen_helper_gvec_vflr64;
+-            break;
+-        case FPF_EXT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vflr128;
+-            }
+-            break;
+-        default:
+-            break;
+-        }
++        fn = se ? gen_helper_gvec_vflr64s : gen_helper_gvec_vflr64;
+         break;
+     default:
+         g_assert_not_reached();
+     }
+-
+-    if (!fn || extract32(m4, 0, 2) || erm > 7 || erm == 2) {
+-        gen_program_exception(s, PGM_SPECIFICATION);
+-        return DISAS_NORETURN;
+-    }
+-
+     gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2), cpu_env,
+                    deposit32(m4, 4, 4, erm), fn);
+     return DISAS_NEXT;
+@@ -2790,71 +2588,18 @@ static DisasJumpType op_vfll(DisasContext *s, DisasOps *o)
+ {
+     const uint8_t fpf = get_field(s, m3);
+     const uint8_t m4 = get_field(s, m4);
+-    gen_helper_gvec_2_ptr *fn = NULL;
++    gen_helper_gvec_2_ptr *fn = gen_helper_gvec_vfll32;
+ 
+-    switch (fpf) {
+-    case FPF_SHORT:
+-        fn = gen_helper_gvec_vfll32;
+-        break;
+-    case FPF_LONG:
+-        if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-            fn = gen_helper_gvec_vfll64;
+-        }
+-        break;
+-    default:
+-        break;
+-    }
+-
+-    if (!fn || extract32(m4, 0, 3)) {
++    if (fpf != FPF_SHORT || extract32(m4, 0, 3)) {
+         gen_program_exception(s, PGM_SPECIFICATION);
+         return DISAS_NORETURN;
+     }
+ 
+-    gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2), cpu_env, m4, fn);
+-    return DISAS_NEXT;
+-}
+-
+-static DisasJumpType op_vfmax(DisasContext *s, DisasOps *o)
+-{
+-    const uint8_t fpf = get_field(s, m4);
+-    const uint8_t m6 = get_field(s, m6);
+-    const uint8_t m5 = get_field(s, m5);
+-    gen_helper_gvec_3_ptr *fn;
+-
+-    if (m6 == 5 || m6 == 6 || m6 == 7 || m6 > 13) {
+-        gen_program_exception(s, PGM_SPECIFICATION);
+-        return DISAS_NORETURN;
++    if (extract32(m4, 3, 1)) {
++        fn = gen_helper_gvec_vfll32s;
+     }
+-
+-    switch (fpf) {
+-    case FPF_SHORT:
+-        if (s->fields.op2 == 0xef) {
+-            fn = gen_helper_gvec_vfmax32;
+-        } else {
+-            fn = gen_helper_gvec_vfmin32;
+-        }
+-        break;
+-    case FPF_LONG:
+-        if (s->fields.op2 == 0xef) {
+-            fn = gen_helper_gvec_vfmax64;
+-        } else {
+-            fn = gen_helper_gvec_vfmin64;
+-        }
+-        break;
+-    case FPF_EXT:
+-        if (s->fields.op2 == 0xef) {
+-            fn = gen_helper_gvec_vfmax128;
+-        } else {
+-            fn = gen_helper_gvec_vfmin128;
+-        }
+-        break;
+-    default:
+-        gen_program_exception(s, PGM_SPECIFICATION);
+-        return DISAS_NORETURN;
+-    }
+-
+-    gen_gvec_3_ptr(get_field(s, v1), get_field(s, v2), get_field(s, v3),
+-                   cpu_env, deposit32(m5, 4, 4, m6), fn);
++    gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2), cpu_env,
++                   0, fn);
+     return DISAS_NEXT;
+ }
+ 
+@@ -2862,88 +2607,22 @@ static DisasJumpType op_vfma(DisasContext *s, DisasOps *o)
+ {
+     const uint8_t m5 = get_field(s, m5);
+     const uint8_t fpf = get_field(s, m6);
+-    gen_helper_gvec_4_ptr *fn = NULL;
++    const bool se = extract32(m5, 3, 1);
++    gen_helper_gvec_4_ptr *fn;
+ 
+-    switch (s->fields.op2) {
+-    case 0x8f:
+-        switch (fpf) {
+-        case FPF_SHORT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vfma32;
+-            }
+-            break;
+-        case FPF_LONG:
+-            fn = gen_helper_gvec_vfma64;
+-            break;
+-        case FPF_EXT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vfma128;
+-            }
+-            break;
+-        default:
+-            break;
+-        }
+-        break;
+-    case 0x8e:
+-        switch (fpf) {
+-        case FPF_SHORT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vfms32;
+-            }
+-            break;
+-        case FPF_LONG:
+-            fn = gen_helper_gvec_vfms64;
+-            break;
+-        case FPF_EXT:
+-            if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-                fn = gen_helper_gvec_vfms128;
+-            }
+-            break;
+-        default:
+-            break;
+-        }
+-        break;
+-    case 0x9f:
+-        switch (fpf) {
+-        case FPF_SHORT:
+-            fn = gen_helper_gvec_vfnma32;
+-            break;
+-        case FPF_LONG:
+-            fn = gen_helper_gvec_vfnma64;
+-            break;
+-        case FPF_EXT:
+-            fn = gen_helper_gvec_vfnma128;
+-            break;
+-        default:
+-            break;
+-        }
+-        break;
+-    case 0x9e:
+-        switch (fpf) {
+-        case FPF_SHORT:
+-            fn = gen_helper_gvec_vfnms32;
+-            break;
+-        case FPF_LONG:
+-            fn = gen_helper_gvec_vfnms64;
+-            break;
+-        case FPF_EXT:
+-            fn = gen_helper_gvec_vfnms128;
+-            break;
+-        default:
+-            break;
+-        }
+-        break;
+-    default:
+-        g_assert_not_reached();
+-    }
+-
+-    if (!fn || extract32(m5, 0, 3)) {
++    if (fpf != FPF_LONG || extract32(m5, 0, 3)) {
+         gen_program_exception(s, PGM_SPECIFICATION);
+         return DISAS_NORETURN;
+     }
+ 
++    if (s->fields.op2 == 0x8f) {
++        fn = se ? gen_helper_gvec_vfma64s : gen_helper_gvec_vfma64;
++    } else {
++        fn = se ? gen_helper_gvec_vfms64s : gen_helper_gvec_vfms64;
++    }
+     gen_gvec_4_ptr(get_field(s, v1), get_field(s, v2),
+-                   get_field(s, v3), get_field(s, v4), cpu_env, m5, fn);
++                   get_field(s, v3), get_field(s, v4), cpu_env,
++                   0, fn);
+     return DISAS_NEXT;
+ }
+ 
+@@ -2954,88 +2633,48 @@ static DisasJumpType op_vfpso(DisasContext *s, DisasOps *o)
+     const uint8_t fpf = get_field(s, m3);
+     const uint8_t m4 = get_field(s, m4);
+     const uint8_t m5 = get_field(s, m5);
+-    const bool se = extract32(m4, 3, 1);
+     TCGv_i64 tmp;
+ 
+-    if ((fpf != FPF_LONG && !s390_has_feat(S390_FEAT_VECTOR_ENH)) ||
+-        extract32(m4, 0, 3) || m5 > 2) {
++    if (fpf != FPF_LONG || extract32(m4, 0, 3) || m5 > 2) {
+         gen_program_exception(s, PGM_SPECIFICATION);
+         return DISAS_NORETURN;
+     }
+ 
+-    switch (fpf) {
+-    case FPF_SHORT:
+-        if (!se) {
+-            switch (m5) {
+-            case 0:
+-                /* sign bit is inverted (complement) */
+-                gen_gvec_fn_2i(xori, ES_32, v1, v2, 1ull << 31);
+-                break;
+-            case 1:
+-                /* sign bit is set to one (negative) */
+-                gen_gvec_fn_2i(ori, ES_32, v1, v2, 1ull << 31);
+-                break;
+-            case 2:
+-                /* sign bit is set to zero (positive) */
+-                gen_gvec_fn_2i(andi, ES_32, v1, v2, (1ull << 31) - 1);
+-                break;
+-            }
+-            return DISAS_NEXT;
++    if (extract32(m4, 3, 1)) {
++        tmp = tcg_temp_new_i64();
++        read_vec_element_i64(tmp, v2, 0, ES_64);
++        switch (m5) {
++        case 0:
++            /* sign bit is inverted (complement) */
++            tcg_gen_xori_i64(tmp, tmp, 1ull << 63);
++            break;
++        case 1:
++            /* sign bit is set to one (negative) */
++            tcg_gen_ori_i64(tmp, tmp, 1ull << 63);
++            break;
++        case 2:
++            /* sign bit is set to zero (positive) */
++            tcg_gen_andi_i64(tmp, tmp, (1ull << 63) - 1);
++            break;
+         }
+-        break;
+-    case FPF_LONG:
+-        if (!se) {
+-            switch (m5) {
+-            case 0:
+-                /* sign bit is inverted (complement) */
+-                gen_gvec_fn_2i(xori, ES_64, v1, v2, 1ull << 63);
+-                break;
+-            case 1:
+-                /* sign bit is set to one (negative) */
+-                gen_gvec_fn_2i(ori, ES_64, v1, v2, 1ull << 63);
+-                break;
+-            case 2:
+-                /* sign bit is set to zero (positive) */
+-                gen_gvec_fn_2i(andi, ES_64, v1, v2, (1ull << 63) - 1);
+-                break;
+-            }
+-            return DISAS_NEXT;
++        write_vec_element_i64(tmp, v1, 0, ES_64);
++        tcg_temp_free_i64(tmp);
++    } else {
++        switch (m5) {
++        case 0:
++            /* sign bit is inverted (complement) */
++            gen_gvec_fn_2i(xori, ES_64, v1, v2, 1ull << 63);
++            break;
++        case 1:
++            /* sign bit is set to one (negative) */
++            gen_gvec_fn_2i(ori, ES_64, v1, v2, 1ull << 63);
++            break;
++        case 2:
++            /* sign bit is set to zero (positive) */
++            gen_gvec_fn_2i(andi, ES_64, v1, v2, (1ull << 63) - 1);
++            break;
+         }
+-        break;
+-    case FPF_EXT:
+-        /* Only a single element. */
+-        break;
+-    default:
+-        gen_program_exception(s, PGM_SPECIFICATION);
+-        return DISAS_NORETURN;
+-    }
+-
+-    /* With a single element, we are only interested in bit 0. */
+-    tmp = tcg_temp_new_i64();
+-    read_vec_element_i64(tmp, v2, 0, ES_64);
+-    switch (m5) {
+-    case 0:
+-        /* sign bit is inverted (complement) */
+-        tcg_gen_xori_i64(tmp, tmp, 1ull << 63);
+-        break;
+-    case 1:
+-        /* sign bit is set to one (negative) */
+-        tcg_gen_ori_i64(tmp, tmp, 1ull << 63);
+-        break;
+-    case 2:
+-        /* sign bit is set to zero (positive) */
+-        tcg_gen_andi_i64(tmp, tmp, (1ull << 63) - 1);
+-        break;
+     }
+-    write_vec_element_i64(tmp, v1, 0, ES_64);
+-
+-    if (fpf == FPF_EXT) {
+-        read_vec_element_i64(tmp, v2, 1, ES_64);
+-        write_vec_element_i64(tmp, v1, 1, ES_64);
+-    }
+-
+-    tcg_temp_free_i64(tmp);
+-
+     return DISAS_NEXT;
+ }
+ 
+@@ -3043,32 +2682,18 @@ static DisasJumpType op_vfsq(DisasContext *s, DisasOps *o)
+ {
+     const uint8_t fpf = get_field(s, m3);
+     const uint8_t m4 = get_field(s, m4);
+-    gen_helper_gvec_2_ptr *fn = NULL;
++    gen_helper_gvec_2_ptr *fn = gen_helper_gvec_vfsq64;
+ 
+-    switch (fpf) {
+-    case FPF_SHORT:
+-        if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-            fn = gen_helper_gvec_vfsq32;
+-        }
+-        break;
+-    case FPF_LONG:
+-        fn = gen_helper_gvec_vfsq64;
+-        break;
+-    case FPF_EXT:
+-        if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-            fn = gen_helper_gvec_vfsq128;
+-        }
+-        break;
+-    default:
+-        break;
+-    }
+-
+-    if (!fn || extract32(m4, 0, 3)) {
++    if (fpf != FPF_LONG || extract32(m4, 0, 3)) {
+         gen_program_exception(s, PGM_SPECIFICATION);
+         return DISAS_NORETURN;
+     }
+ 
+-    gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2), cpu_env, m4, fn);
++    if (extract32(m4, 3, 1)) {
++        fn = gen_helper_gvec_vfsq64s;
++    }
++    gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2), cpu_env,
++                   0, fn);
+     return DISAS_NEXT;
+ }
+ 
+@@ -3077,33 +2702,17 @@ static DisasJumpType op_vftci(DisasContext *s, DisasOps *o)
+     const uint16_t i3 = get_field(s, i3);
+     const uint8_t fpf = get_field(s, m4);
+     const uint8_t m5 = get_field(s, m5);
+-    gen_helper_gvec_2_ptr *fn = NULL;
+-
+-    switch (fpf) {
+-    case FPF_SHORT:
+-        if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-            fn = gen_helper_gvec_vftci32;
+-        }
+-        break;
+-    case FPF_LONG:
+-        fn = gen_helper_gvec_vftci64;
+-        break;
+-    case FPF_EXT:
+-        if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+-            fn = gen_helper_gvec_vftci128;
+-        }
+-        break;
+-    default:
+-        break;
+-    }
++    gen_helper_gvec_2_ptr *fn = gen_helper_gvec_vftci64;
+ 
+-    if (!fn || extract32(m5, 0, 3)) {
++    if (fpf != FPF_LONG || extract32(m5, 0, 3)) {
+         gen_program_exception(s, PGM_SPECIFICATION);
+         return DISAS_NORETURN;
+     }
+ 
+-    gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2), cpu_env,
+-                   deposit32(m5, 4, 12, i3), fn);
++    if (extract32(m5, 3, 1)) {
++        fn = gen_helper_gvec_vftci64s;
++    }
++    gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2), cpu_env, i3, fn);
+     set_cc_static(s);
+     return DISAS_NEXT;
+ }
+diff --git a/target/s390x/vec_fpu_helper.c b/target/s390x/vec_fpu_helper.c
+index 8e2b274547..c1564e819b 100644
+--- a/target/s390x/vec_fpu_helper.c
++++ b/target/s390x/vec_fpu_helper.c
+@@ -78,41 +78,9 @@ static void handle_ieee_exc(CPUS390XState *env, uint8_t vxc, uint8_t vec_exc,
+     }
+ }
+ 
+-static float32 s390_vec_read_float32(const S390Vector *v, uint8_t enr)
+-{
+-    return make_float32(s390_vec_read_element32(v, enr));
+-}
+-
+-static float64 s390_vec_read_float64(const S390Vector *v, uint8_t enr)
+-{
+-    return make_float64(s390_vec_read_element64(v, enr));
+-}
+-
+-static float128 s390_vec_read_float128(const S390Vector *v)
+-{
+-    return make_float128(s390_vec_read_element64(v, 0),
+-                         s390_vec_read_element64(v, 1));
+-}
+-
+-static void s390_vec_write_float32(S390Vector *v, uint8_t enr, float32 data)
+-{
+-    return s390_vec_write_element32(v, enr, data);
+-}
+-
+-static void s390_vec_write_float64(S390Vector *v, uint8_t enr, float64 data)
+-{
+-    return s390_vec_write_element64(v, enr, data);
+-}
+-
+-static void s390_vec_write_float128(S390Vector *v, float128 data)
+-{
+-    s390_vec_write_element64(v, 0, data.high);
+-    s390_vec_write_element64(v, 1, data.low);
+-}
+-
+-typedef float32 (*vop32_2_fn)(float32 a, float_status *s);
+-static void vop32_2(S390Vector *v1, const S390Vector *v2, CPUS390XState *env,
+-                    bool s, bool XxC, uint8_t erm, vop32_2_fn fn,
++typedef uint64_t (*vop64_2_fn)(uint64_t a, float_status *s);
++static void vop64_2(S390Vector *v1, const S390Vector *v2, CPUS390XState *env,
++                    bool s, bool XxC, uint8_t erm, vop64_2_fn fn,
+                     uintptr_t retaddr)
+ {
+     uint8_t vxc, vec_exc = 0;
+@@ -120,10 +88,10 @@ static void vop32_2(S390Vector *v1, const S390Vector *v2, CPUS390XState *env,
+     int i, old_mode;
+ 
+     old_mode = s390_swap_bfp_rounding_mode(env, erm);
+-    for (i = 0; i < 4; i++) {
+-        const float32 a = s390_vec_read_float32(v2, i);
++    for (i = 0; i < 2; i++) {
++        const uint64_t a = s390_vec_read_element64(v2, i);
+ 
+-        s390_vec_write_float32(&tmp, i, fn(a, &env->fpu_status));
++        s390_vec_write_element64(&tmp, i, fn(a, &env->fpu_status));
+         vxc = check_ieee_exc(env, i, XxC, &vec_exc);
+         if (s || vxc) {
+             break;
+@@ -134,374 +102,317 @@ static void vop32_2(S390Vector *v1, const S390Vector *v2, CPUS390XState *env,
+     *v1 = tmp;
+ }
+ 
+-typedef float64 (*vop64_2_fn)(float64 a, float_status *s);
+-static void vop64_2(S390Vector *v1, const S390Vector *v2, CPUS390XState *env,
+-                    bool s, bool XxC, uint8_t erm, vop64_2_fn fn,
++typedef uint64_t (*vop64_3_fn)(uint64_t a, uint64_t b, float_status *s);
++static void vop64_3(S390Vector *v1, const S390Vector *v2, const S390Vector *v3,
++                    CPUS390XState *env, bool s, vop64_3_fn fn,
+                     uintptr_t retaddr)
+ {
+     uint8_t vxc, vec_exc = 0;
+     S390Vector tmp = {};
+-    int i, old_mode;
++    int i;
+ 
+-    old_mode = s390_swap_bfp_rounding_mode(env, erm);
+     for (i = 0; i < 2; i++) {
+-        const float64 a = s390_vec_read_float64(v2, i);
++        const uint64_t a = s390_vec_read_element64(v2, i);
++        const uint64_t b = s390_vec_read_element64(v3, i);
+ 
+-        s390_vec_write_float64(&tmp, i, fn(a, &env->fpu_status));
+-        vxc = check_ieee_exc(env, i, XxC, &vec_exc);
++        s390_vec_write_element64(&tmp, i, fn(a, b, &env->fpu_status));
++        vxc = check_ieee_exc(env, i, false, &vec_exc);
+         if (s || vxc) {
+             break;
+         }
+     }
+-    s390_restore_bfp_rounding_mode(env, old_mode);
+     handle_ieee_exc(env, vxc, vec_exc, retaddr);
+     *v1 = tmp;
+ }
+ 
+-typedef float128 (*vop128_2_fn)(float128 a, float_status *s);
+-static void vop128_2(S390Vector *v1, const S390Vector *v2, CPUS390XState *env,
+-                    bool s, bool XxC, uint8_t erm, vop128_2_fn fn,
+-                    uintptr_t retaddr)
++static uint64_t vfa64(uint64_t a, uint64_t b, float_status *s)
+ {
+-    const float128 a = s390_vec_read_float128(v2);
+-    uint8_t vxc, vec_exc = 0;
+-    S390Vector tmp = {};
+-    int old_mode;
+-
+-    old_mode = s390_swap_bfp_rounding_mode(env, erm);
+-    s390_vec_write_float128(&tmp, fn(a, &env->fpu_status));
+-    vxc = check_ieee_exc(env, 0, XxC, &vec_exc);
+-    s390_restore_bfp_rounding_mode(env, old_mode);
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
+-    *v1 = tmp;
++    return float64_add(a, b, s);
+ }
+ 
+-static float64 vcdg64(float64 a, float_status *s)
++void HELPER(gvec_vfa64)(void *v1, const void *v2, const void *v3,
++                        CPUS390XState *env, uint32_t desc)
+ {
+-    return int64_to_float64(a, s);
++    vop64_3(v1, v2, v3, env, false, vfa64, GETPC());
+ }
+ 
+-static float64 vcdlg64(float64 a, float_status *s)
++void HELPER(gvec_vfa64s)(void *v1, const void *v2, const void *v3,
++                         CPUS390XState *env, uint32_t desc)
+ {
+-    return uint64_to_float64(a, s);
++    vop64_3(v1, v2, v3, env, true, vfa64, GETPC());
+ }
+ 
+-static float64 vcgd64(float64 a, float_status *s)
++static int wfc64(const S390Vector *v1, const S390Vector *v2,
++                 CPUS390XState *env, bool signal, uintptr_t retaddr)
+ {
+-    const float64 tmp = float64_to_int64(a, s);
++    /* only the zero-indexed elements are compared */
++    const float64 a = s390_vec_read_element64(v1, 0);
++    const float64 b = s390_vec_read_element64(v2, 0);
++    uint8_t vxc, vec_exc = 0;
++    int cmp;
+ 
+-    return float64_is_any_nan(a) ? INT64_MIN : tmp;
++    if (signal) {
++        cmp = float64_compare(a, b, &env->fpu_status);
++    } else {
++        cmp = float64_compare_quiet(a, b, &env->fpu_status);
++    }
++    vxc = check_ieee_exc(env, 0, false, &vec_exc);
++    handle_ieee_exc(env, vxc, vec_exc, retaddr);
++
++    return float_comp_to_cc(env, cmp);
+ }
+ 
+-static float64 vclgd64(float64 a, float_status *s)
++void HELPER(gvec_wfc64)(const void *v1, const void *v2, CPUS390XState *env,
++                        uint32_t desc)
+ {
+-    const float64 tmp = float64_to_uint64(a, s);
+-
+-    return float64_is_any_nan(a) ? 0 : tmp;
++    env->cc_op = wfc64(v1, v2, env, false, GETPC());
+ }
+ 
+-#define DEF_GVEC_VOP2_FN(NAME, FN, BITS)                                       \
+-void HELPER(gvec_##NAME##BITS)(void *v1, const void *v2, CPUS390XState *env,   \
+-                               uint32_t desc)                                  \
+-{                                                                              \
+-    const uint8_t erm = extract32(simd_data(desc), 4, 4);                      \
+-    const bool se = extract32(simd_data(desc), 3, 1);                          \
+-    const bool XxC = extract32(simd_data(desc), 2, 1);                         \
+-                                                                               \
+-    vop##BITS##_2(v1, v2, env, se, XxC, erm, FN, GETPC());                     \
++void HELPER(gvec_wfk64)(const void *v1, const void *v2, CPUS390XState *env,
++                        uint32_t desc)
++{
++    env->cc_op = wfc64(v1, v2, env, true, GETPC());
+ }
+ 
+-#define DEF_GVEC_VOP2_64(NAME)                                                 \
+-DEF_GVEC_VOP2_FN(NAME, NAME##64, 64)
+-
+-#define DEF_GVEC_VOP2(NAME, OP)                                                \
+-DEF_GVEC_VOP2_FN(NAME, float32_##OP, 32)                                       \
+-DEF_GVEC_VOP2_FN(NAME, float64_##OP, 64)                                       \
+-DEF_GVEC_VOP2_FN(NAME, float128_##OP, 128)
+-
+-DEF_GVEC_VOP2_64(vcdg)
+-DEF_GVEC_VOP2_64(vcdlg)
+-DEF_GVEC_VOP2_64(vcgd)
+-DEF_GVEC_VOP2_64(vclgd)
+-DEF_GVEC_VOP2(vfi, round_to_int)
+-DEF_GVEC_VOP2(vfsq, sqrt)
+-
+-typedef float32 (*vop32_3_fn)(float32 a, float32 b, float_status *s);
+-static void vop32_3(S390Vector *v1, const S390Vector *v2, const S390Vector *v3,
+-                    CPUS390XState *env, bool s, vop32_3_fn fn,
+-                    uintptr_t retaddr)
++typedef bool (*vfc64_fn)(float64 a, float64 b, float_status *status);
++static int vfc64(S390Vector *v1, const S390Vector *v2, const S390Vector *v3,
++                 CPUS390XState *env, bool s, vfc64_fn fn, uintptr_t retaddr)
+ {
+     uint8_t vxc, vec_exc = 0;
+     S390Vector tmp = {};
++    int match = 0;
+     int i;
+ 
+-    for (i = 0; i < 4; i++) {
+-        const float32 a = s390_vec_read_float32(v2, i);
+-        const float32 b = s390_vec_read_float32(v3, i);
++    for (i = 0; i < 2; i++) {
++        const float64 a = s390_vec_read_element64(v2, i);
++        const float64 b = s390_vec_read_element64(v3, i);
+ 
+-        s390_vec_write_float32(&tmp, i, fn(a, b, &env->fpu_status));
++        /* swap the order of the parameters, so we can use existing functions */
++        if (fn(b, a, &env->fpu_status)) {
++            match++;
++            s390_vec_write_element64(&tmp, i, -1ull);
++        }
+         vxc = check_ieee_exc(env, i, false, &vec_exc);
+         if (s || vxc) {
+             break;
+         }
+     }
++
+     handle_ieee_exc(env, vxc, vec_exc, retaddr);
+     *v1 = tmp;
++    if (match) {
++        return s || match == 2 ? 0 : 1;
++    }
++    return 3;
+ }
+ 
+-typedef float64 (*vop64_3_fn)(float64 a, float64 b, float_status *s);
+-static void vop64_3(S390Vector *v1, const S390Vector *v2, const S390Vector *v3,
+-                    CPUS390XState *env, bool s, vop64_3_fn fn,
+-                    uintptr_t retaddr)
++void HELPER(gvec_vfce64)(void *v1, const void *v2, const void *v3,
++                         CPUS390XState *env, uint32_t desc)
+ {
+-    uint8_t vxc, vec_exc = 0;
+-    S390Vector tmp = {};
+-    int i;
++    vfc64(v1, v2, v3, env, false, float64_eq_quiet, GETPC());
++}
+ 
+-    for (i = 0; i < 2; i++) {
+-        const float64 a = s390_vec_read_float64(v2, i);
+-        const float64 b = s390_vec_read_float64(v3, i);
++void HELPER(gvec_vfce64s)(void *v1, const void *v2, const void *v3,
++                          CPUS390XState *env, uint32_t desc)
++{
++    vfc64(v1, v2, v3, env, true, float64_eq_quiet, GETPC());
++}
+ 
+-        s390_vec_write_float64(&tmp, i, fn(a, b, &env->fpu_status));
+-        vxc = check_ieee_exc(env, i, false, &vec_exc);
+-        if (s || vxc) {
+-            break;
+-        }
+-    }
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
+-    *v1 = tmp;
++void HELPER(gvec_vfce64_cc)(void *v1, const void *v2, const void *v3,
++                            CPUS390XState *env, uint32_t desc)
++{
++    env->cc_op = vfc64(v1, v2, v3, env, false, float64_eq_quiet, GETPC());
+ }
+ 
+-typedef float128 (*vop128_3_fn)(float128 a, float128 b, float_status *s);
+-static void vop128_3(S390Vector *v1, const S390Vector *v2, const S390Vector *v3,
+-                     CPUS390XState *env, bool s, vop128_3_fn fn,
+-                     uintptr_t retaddr)
++void HELPER(gvec_vfce64s_cc)(void *v1, const void *v2, const void *v3,
++                            CPUS390XState *env, uint32_t desc)
+ {
+-    const float128 a = s390_vec_read_float128(v2);
+-    const float128 b = s390_vec_read_float128(v3);
+-    uint8_t vxc, vec_exc = 0;
+-    S390Vector tmp = {};
++    env->cc_op = vfc64(v1, v2, v3, env, true, float64_eq_quiet, GETPC());
++}
+ 
+-    s390_vec_write_float128(&tmp, fn(a, b, &env->fpu_status));
+-    vxc = check_ieee_exc(env, 0, false, &vec_exc);
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
+-    *v1 = tmp;
++void HELPER(gvec_vfch64)(void *v1, const void *v2, const void *v3,
++                         CPUS390XState *env, uint32_t desc)
++{
++    vfc64(v1, v2, v3, env, false, float64_lt_quiet, GETPC());
++}
++
++void HELPER(gvec_vfch64s)(void *v1, const void *v2, const void *v3,
++                          CPUS390XState *env, uint32_t desc)
++{
++    vfc64(v1, v2, v3, env, true, float64_lt_quiet, GETPC());
+ }
+ 
+-#define DEF_GVEC_VOP3_B(NAME, OP, BITS)                                        \
+-void HELPER(gvec_##NAME##BITS)(void *v1, const void *v2, const void *v3,       \
+-                              CPUS390XState *env, uint32_t desc)               \
+-{                                                                              \
+-    const bool se = extract32(simd_data(desc), 3, 1);                          \
+-                                                                               \
+-    vop##BITS##_3(v1, v2, v3, env, se, float##BITS##_##OP, GETPC());           \
++void HELPER(gvec_vfch64_cc)(void *v1, const void *v2, const void *v3,
++                            CPUS390XState *env, uint32_t desc)
++{
++    env->cc_op = vfc64(v1, v2, v3, env, false, float64_lt_quiet, GETPC());
+ }
+ 
+-#define DEF_GVEC_VOP3(NAME, OP)                                                \
+-DEF_GVEC_VOP3_B(NAME, OP, 32)                                                  \
+-DEF_GVEC_VOP3_B(NAME, OP, 64)                                                  \
+-DEF_GVEC_VOP3_B(NAME, OP, 128)
++void HELPER(gvec_vfch64s_cc)(void *v1, const void *v2, const void *v3,
++                             CPUS390XState *env, uint32_t desc)
++{
++    env->cc_op = vfc64(v1, v2, v3, env, true, float64_lt_quiet, GETPC());
++}
+ 
+-DEF_GVEC_VOP3(vfa, add)
+-DEF_GVEC_VOP3(vfs, sub)
+-DEF_GVEC_VOP3(vfd, div)
+-DEF_GVEC_VOP3(vfm, mul)
++void HELPER(gvec_vfche64)(void *v1, const void *v2, const void *v3,
++                          CPUS390XState *env, uint32_t desc)
++{
++    vfc64(v1, v2, v3, env, false, float64_le_quiet, GETPC());
++}
+ 
+-static int wfc32(const S390Vector *v1, const S390Vector *v2,
+-                 CPUS390XState *env, bool signal, uintptr_t retaddr)
++void HELPER(gvec_vfche64s)(void *v1, const void *v2, const void *v3,
++                           CPUS390XState *env, uint32_t desc)
+ {
+-    /* only the zero-indexed elements are compared */
+-    const float32 a = s390_vec_read_float32(v1, 0);
+-    const float32 b = s390_vec_read_float32(v2, 0);
+-    uint8_t vxc, vec_exc = 0;
+-    int cmp;
++    vfc64(v1, v2, v3, env, true, float64_le_quiet, GETPC());
++}
+ 
+-    if (signal) {
+-        cmp = float32_compare(a, b, &env->fpu_status);
+-    } else {
+-        cmp = float32_compare_quiet(a, b, &env->fpu_status);
+-    }
+-    vxc = check_ieee_exc(env, 0, false, &vec_exc);
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
++void HELPER(gvec_vfche64_cc)(void *v1, const void *v2, const void *v3,
++                             CPUS390XState *env, uint32_t desc)
++{
++    env->cc_op = vfc64(v1, v2, v3, env, false, float64_le_quiet, GETPC());
++}
+ 
+-    return float_comp_to_cc(env, cmp);
++void HELPER(gvec_vfche64s_cc)(void *v1, const void *v2, const void *v3,
++                              CPUS390XState *env, uint32_t desc)
++{
++    env->cc_op = vfc64(v1, v2, v3, env, true, float64_le_quiet, GETPC());
+ }
+ 
+-static int wfc64(const S390Vector *v1, const S390Vector *v2,
+-                 CPUS390XState *env, bool signal, uintptr_t retaddr)
++static uint64_t vcdg64(uint64_t a, float_status *s)
+ {
+-    /* only the zero-indexed elements are compared */
+-    const float64 a = s390_vec_read_float64(v1, 0);
+-    const float64 b = s390_vec_read_float64(v2, 0);
+-    uint8_t vxc, vec_exc = 0;
+-    int cmp;
++    return int64_to_float64(a, s);
++}
+ 
+-    if (signal) {
+-        cmp = float64_compare(a, b, &env->fpu_status);
+-    } else {
+-        cmp = float64_compare_quiet(a, b, &env->fpu_status);
+-    }
+-    vxc = check_ieee_exc(env, 0, false, &vec_exc);
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
++void HELPER(gvec_vcdg64)(void *v1, const void *v2, CPUS390XState *env,
++                         uint32_t desc)
++{
++    const uint8_t erm = extract32(simd_data(desc), 4, 4);
++    const bool XxC = extract32(simd_data(desc), 2, 1);
+ 
+-    return float_comp_to_cc(env, cmp);
++    vop64_2(v1, v2, env, false, XxC, erm, vcdg64, GETPC());
+ }
+ 
+-static int wfc128(const S390Vector *v1, const S390Vector *v2,
+-                  CPUS390XState *env, bool signal, uintptr_t retaddr)
++void HELPER(gvec_vcdg64s)(void *v1, const void *v2, CPUS390XState *env,
++                          uint32_t desc)
+ {
+-    /* only the zero-indexed elements are compared */
+-    const float128 a = s390_vec_read_float128(v1);
+-    const float128 b = s390_vec_read_float128(v2);
+-    uint8_t vxc, vec_exc = 0;
+-    int cmp;
++    const uint8_t erm = extract32(simd_data(desc), 4, 4);
++    const bool XxC = extract32(simd_data(desc), 2, 1);
+ 
+-    if (signal) {
+-        cmp = float128_compare(a, b, &env->fpu_status);
+-    } else {
+-        cmp = float128_compare_quiet(a, b, &env->fpu_status);
+-    }
+-    vxc = check_ieee_exc(env, 0, false, &vec_exc);
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
++    vop64_2(v1, v2, env, true, XxC, erm, vcdg64, GETPC());
++}
+ 
+-    return float_comp_to_cc(env, cmp);
++static uint64_t vcdlg64(uint64_t a, float_status *s)
++{
++    return uint64_to_float64(a, s);
+ }
+ 
+-#define DEF_GVEC_WFC_B(NAME, SIGNAL, BITS)                                     \
+-void HELPER(gvec_##NAME##BITS)(const void *v1, const void *v2,                 \
+-                               CPUS390XState *env, uint32_t desc)              \
+-{                                                                              \
+-    env->cc_op = wfc##BITS(v1, v2, env, SIGNAL, GETPC());                      \
++void HELPER(gvec_vcdlg64)(void *v1, const void *v2, CPUS390XState *env,
++                          uint32_t desc)
++{
++    const uint8_t erm = extract32(simd_data(desc), 4, 4);
++    const bool XxC = extract32(simd_data(desc), 2, 1);
++
++    vop64_2(v1, v2, env, false, XxC, erm, vcdlg64, GETPC());
+ }
+ 
+-#define DEF_GVEC_WFC(NAME, SIGNAL)                                             \
+-     DEF_GVEC_WFC_B(NAME, SIGNAL, 32)                                          \
+-     DEF_GVEC_WFC_B(NAME, SIGNAL, 64)                                          \
+-     DEF_GVEC_WFC_B(NAME, SIGNAL, 128)
++void HELPER(gvec_vcdlg64s)(void *v1, const void *v2, CPUS390XState *env,
++                           uint32_t desc)
++{
++    const uint8_t erm = extract32(simd_data(desc), 4, 4);
++    const bool XxC = extract32(simd_data(desc), 2, 1);
+ 
+-DEF_GVEC_WFC(wfc, false)
+-DEF_GVEC_WFC(wfk, true)
++    vop64_2(v1, v2, env, true, XxC, erm, vcdlg64, GETPC());
++}
+ 
+-typedef bool (*vfc32_fn)(float32 a, float32 b, float_status *status);
+-static int vfc32(S390Vector *v1, const S390Vector *v2, const S390Vector *v3,
+-                 CPUS390XState *env, bool s, vfc32_fn fn, uintptr_t retaddr)
++static uint64_t vcgd64(uint64_t a, float_status *s)
+ {
+-    uint8_t vxc, vec_exc = 0;
+-    S390Vector tmp = {};
+-    int match = 0;
+-    int i;
++    return float64_to_int64(a, s);
++}
+ 
+-    for (i = 0; i < 4; i++) {
+-        const float32 a = s390_vec_read_float32(v2, i);
+-        const float32 b = s390_vec_read_float32(v3, i);
++void HELPER(gvec_vcgd64)(void *v1, const void *v2, CPUS390XState *env,
++                         uint32_t desc)
++{
++    const uint8_t erm = extract32(simd_data(desc), 4, 4);
++    const bool XxC = extract32(simd_data(desc), 2, 1);
+ 
+-        /* swap the order of the parameters, so we can use existing functions */
+-        if (fn(b, a, &env->fpu_status)) {
+-            match++;
+-            s390_vec_write_element32(&tmp, i, -1u);
+-        }
+-        vxc = check_ieee_exc(env, i, false, &vec_exc);
+-        if (s || vxc) {
+-            break;
+-        }
+-    }
++    vop64_2(v1, v2, env, false, XxC, erm, vcgd64, GETPC());
++}
+ 
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
+-    *v1 = tmp;
+-    if (match) {
+-        return s || match == 4 ? 0 : 1;
+-    }
+-    return 3;
++void HELPER(gvec_vcgd64s)(void *v1, const void *v2, CPUS390XState *env,
++                          uint32_t desc)
++{
++    const uint8_t erm = extract32(simd_data(desc), 4, 4);
++    const bool XxC = extract32(simd_data(desc), 2, 1);
++
++    vop64_2(v1, v2, env, true, XxC, erm, vcgd64, GETPC());
+ }
+ 
+-typedef bool (*vfc64_fn)(float64 a, float64 b, float_status *status);
+-static int vfc64(S390Vector *v1, const S390Vector *v2, const S390Vector *v3,
+-                 CPUS390XState *env, bool s, vfc64_fn fn, uintptr_t retaddr)
++static uint64_t vclgd64(uint64_t a, float_status *s)
+ {
+-    uint8_t vxc, vec_exc = 0;
+-    S390Vector tmp = {};
+-    int match = 0;
+-    int i;
++    return float64_to_uint64(a, s);
++}
+ 
+-    for (i = 0; i < 2; i++) {
+-        const float64 a = s390_vec_read_float64(v2, i);
+-        const float64 b = s390_vec_read_float64(v3, i);
++void HELPER(gvec_vclgd64)(void *v1, const void *v2, CPUS390XState *env,
++                          uint32_t desc)
++{
++    const uint8_t erm = extract32(simd_data(desc), 4, 4);
++    const bool XxC = extract32(simd_data(desc), 2, 1);
+ 
+-        /* swap the order of the parameters, so we can use existing functions */
+-        if (fn(b, a, &env->fpu_status)) {
+-            match++;
+-            s390_vec_write_element64(&tmp, i, -1ull);
+-        }
+-        vxc = check_ieee_exc(env, i, false, &vec_exc);
+-        if (s || vxc) {
+-            break;
+-        }
+-    }
++    vop64_2(v1, v2, env, false, XxC, erm, vclgd64, GETPC());
++}
+ 
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
+-    *v1 = tmp;
+-    if (match) {
+-        return s || match == 2 ? 0 : 1;
+-    }
+-    return 3;
++void HELPER(gvec_vclgd64s)(void *v1, const void *v2, CPUS390XState *env,
++                           uint32_t desc)
++{
++    const uint8_t erm = extract32(simd_data(desc), 4, 4);
++    const bool XxC = extract32(simd_data(desc), 2, 1);
++
++    vop64_2(v1, v2, env, true, XxC, erm, vclgd64, GETPC());
+ }
+ 
+-typedef bool (*vfc128_fn)(float128 a, float128 b, float_status *status);
+-static int vfc128(S390Vector *v1, const S390Vector *v2, const S390Vector *v3,
+-                 CPUS390XState *env, bool s, vfc128_fn fn, uintptr_t retaddr)
++static uint64_t vfd64(uint64_t a, uint64_t b, float_status *s)
+ {
+-    const float128 a = s390_vec_read_float128(v2);
+-    const float128 b = s390_vec_read_float128(v3);
+-    uint8_t vxc, vec_exc = 0;
+-    S390Vector tmp = {};
+-    bool match = false;
++    return float64_div(a, b, s);
++}
+ 
+-    /* swap the order of the parameters, so we can use existing functions */
+-    if (fn(b, a, &env->fpu_status)) {
+-        match = true;
+-        s390_vec_write_element64(&tmp, 0, -1ull);
+-        s390_vec_write_element64(&tmp, 1, -1ull);
+-    }
+-    vxc = check_ieee_exc(env, 0, false, &vec_exc);
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
+-    *v1 = tmp;
+-    return match ? 0 : 3;
+-}
+-
+-#define DEF_GVEC_VFC_B(NAME, OP, BITS)                                         \
+-void HELPER(gvec_##NAME##BITS)(void *v1, const void *v2, const void *v3,       \
+-                               CPUS390XState *env, uint32_t desc)              \
+-{                                                                              \
+-    const bool se = extract32(simd_data(desc), 3, 1);                          \
+-    const bool sq = extract32(simd_data(desc), 2, 1);                          \
+-    vfc##BITS##_fn fn = sq ? float##BITS##_##OP : float##BITS##_##OP##_quiet;  \
+-                                                                               \
+-    vfc##BITS(v1, v2, v3, env, se, fn, GETPC());                               \
+-}                                                                              \
+-                                                                               \
+-void HELPER(gvec_##NAME##BITS##_cc)(void *v1, const void *v2, const void *v3,  \
+-                                    CPUS390XState *env, uint32_t desc)         \
+-{                                                                              \
+-    const bool se = extract32(simd_data(desc), 3, 1);                          \
+-    const bool sq = extract32(simd_data(desc), 2, 1);                          \
+-    vfc##BITS##_fn fn = sq ? float##BITS##_##OP : float##BITS##_##OP##_quiet;  \
+-                                                                               \
+-    env->cc_op = vfc##BITS(v1, v2, v3, env, se, fn, GETPC());                  \
+-}
+-
+-#define DEF_GVEC_VFC(NAME, OP)                                                 \
+-DEF_GVEC_VFC_B(NAME, OP, 32)                                                   \
+-DEF_GVEC_VFC_B(NAME, OP, 64)                                                   \
+-DEF_GVEC_VFC_B(NAME, OP, 128)                                                  \
+-
+-DEF_GVEC_VFC(vfce, eq)
+-DEF_GVEC_VFC(vfch, lt)
+-DEF_GVEC_VFC(vfche, le)
++void HELPER(gvec_vfd64)(void *v1, const void *v2, const void *v3,
++                        CPUS390XState *env, uint32_t desc)
++{
++    vop64_3(v1, v2, v3, env, false, vfd64, GETPC());
++}
+ 
+-void HELPER(gvec_vfll32)(void *v1, const void *v2, CPUS390XState *env,
++void HELPER(gvec_vfd64s)(void *v1, const void *v2, const void *v3,
++                         CPUS390XState *env, uint32_t desc)
++{
++    vop64_3(v1, v2, v3, env, true, vfd64, GETPC());
++}
++
++static uint64_t vfi64(uint64_t a, float_status *s)
++{
++    return float64_round_to_int(a, s);
++}
++
++void HELPER(gvec_vfi64)(void *v1, const void *v2, CPUS390XState *env,
++                        uint32_t desc)
++{
++    const uint8_t erm = extract32(simd_data(desc), 4, 4);
++    const bool XxC = extract32(simd_data(desc), 2, 1);
++
++    vop64_2(v1, v2, env, false, XxC, erm, vfi64, GETPC());
++}
++
++void HELPER(gvec_vfi64s)(void *v1, const void *v2, CPUS390XState *env,
+                          uint32_t desc)
+ {
+-    const bool s = extract32(simd_data(desc), 3, 1);
++    const uint8_t erm = extract32(simd_data(desc), 4, 4);
++    const bool XxC = extract32(simd_data(desc), 2, 1);
++
++    vop64_2(v1, v2, env, true, XxC, erm, vfi64, GETPC());
++}
++
++static void vfll32(S390Vector *v1, const S390Vector *v2, CPUS390XState *env,
++                   bool s, uintptr_t retaddr)
++{
+     uint8_t vxc, vec_exc = 0;
+     S390Vector tmp = {};
+     int i;
+@@ -518,29 +429,25 @@ void HELPER(gvec_vfll32)(void *v1, const void *v2, CPUS390XState *env,
+             break;
+         }
+     }
+-    handle_ieee_exc(env, vxc, vec_exc, GETPC());
+-    *(S390Vector *)v1 = tmp;
++    handle_ieee_exc(env, vxc, vec_exc, retaddr);
++    *v1 = tmp;
+ }
+ 
+-void HELPER(gvec_vfll64)(void *v1, const void *v2, CPUS390XState *env,
++void HELPER(gvec_vfll32)(void *v1, const void *v2, CPUS390XState *env,
+                          uint32_t desc)
+ {
+-    /* load from even element */
+-    const float128 ret = float64_to_float128(s390_vec_read_float64(v2, 0),
+-                                             &env->fpu_status);
+-    uint8_t vxc, vec_exc = 0;
++    vfll32(v1, v2, env, false, GETPC());
++}
+ 
+-    vxc = check_ieee_exc(env, 0, false, &vec_exc);
+-    handle_ieee_exc(env, vxc, vec_exc, GETPC());
+-    s390_vec_write_float128(v1, ret);
++void HELPER(gvec_vfll32s)(void *v1, const void *v2, CPUS390XState *env,
++                          uint32_t desc)
++{
++    vfll32(v1, v2, env, true, GETPC());
+ }
+ 
+-void HELPER(gvec_vflr64)(void *v1, const void *v2, CPUS390XState *env,
+-                         uint32_t desc)
++static void vflr64(S390Vector *v1, const S390Vector *v2, CPUS390XState *env,
++                   bool s, bool XxC, uint8_t erm, uintptr_t retaddr)
+ {
+-    const uint8_t erm = extract32(simd_data(desc), 4, 4);
+-    const bool s = extract32(simd_data(desc), 3, 1);
+-    const bool XxC = extract32(simd_data(desc), 2, 1);
+     uint8_t vxc, vec_exc = 0;
+     S390Vector tmp = {};
+     int i, old_mode;
+@@ -559,51 +466,43 @@ void HELPER(gvec_vflr64)(void *v1, const void *v2, CPUS390XState *env,
+         }
+     }
+     s390_restore_bfp_rounding_mode(env, old_mode);
+-    handle_ieee_exc(env, vxc, vec_exc, GETPC());
+-    *(S390Vector *)v1 = tmp;
++    handle_ieee_exc(env, vxc, vec_exc, retaddr);
++    *v1 = tmp;
+ }
+ 
+-void HELPER(gvec_vflr128)(void *v1, const void *v2, CPUS390XState *env,
+-                          uint32_t desc)
++void HELPER(gvec_vflr64)(void *v1, const void *v2, CPUS390XState *env,
++                         uint32_t desc)
+ {
+     const uint8_t erm = extract32(simd_data(desc), 4, 4);
+     const bool XxC = extract32(simd_data(desc), 2, 1);
+-    uint8_t vxc, vec_exc = 0;
+-    int old_mode;
+-    float64 ret;
+ 
+-    old_mode = s390_swap_bfp_rounding_mode(env, erm);
+-    ret = float128_to_float64(s390_vec_read_float128(v2), &env->fpu_status);
+-    vxc = check_ieee_exc(env, 0, XxC, &vec_exc);
+-    s390_restore_bfp_rounding_mode(env, old_mode);
+-    handle_ieee_exc(env, vxc, vec_exc, GETPC());
++    vflr64(v1, v2, env, false, XxC, erm, GETPC());
++}
+ 
+-    /* place at even element, odd element is unpredictable */
+-    s390_vec_write_float64(v1, 0, ret);
++void HELPER(gvec_vflr64s)(void *v1, const void *v2, CPUS390XState *env,
++                          uint32_t desc)
++{
++    const uint8_t erm = extract32(simd_data(desc), 4, 4);
++    const bool XxC = extract32(simd_data(desc), 2, 1);
++
++    vflr64(v1, v2, env, true, XxC, erm, GETPC());
+ }
+ 
+-static void vfma32(S390Vector *v1, const S390Vector *v2, const S390Vector *v3,
+-                   const S390Vector *v4, CPUS390XState *env, bool s, int flags,
+-                   uintptr_t retaddr)
++static uint64_t vfm64(uint64_t a, uint64_t b, float_status *s)
+ {
+-    uint8_t vxc, vec_exc = 0;
+-    S390Vector tmp = {};
+-    int i;
++    return float64_mul(a, b, s);
++}
+ 
+-    for (i = 0; i < 4; i++) {
+-        const float32 a = s390_vec_read_float32(v2, i);
+-        const float32 b = s390_vec_read_float32(v3, i);
+-        const float32 c = s390_vec_read_float32(v4, i);
+-        float32 ret = float32_muladd(a, b, c, flags, &env->fpu_status);
++void HELPER(gvec_vfm64)(void *v1, const void *v2, const void *v3,
++                        CPUS390XState *env, uint32_t desc)
++{
++    vop64_3(v1, v2, v3, env, false, vfm64, GETPC());
++}
+ 
+-        s390_vec_write_float32(&tmp, i, ret);
+-        vxc = check_ieee_exc(env, i, false, &vec_exc);
+-        if (s || vxc) {
+-            break;
+-        }
+-    }
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
+-    *v1 = tmp;
++void HELPER(gvec_vfm64s)(void *v1, const void *v2, const void *v3,
++                         CPUS390XState *env, uint32_t desc)
++{
++    vop64_3(v1, v2, v3, env, true, vfm64, GETPC());
+ }
+ 
+ static void vfma64(S390Vector *v1, const S390Vector *v2, const S390Vector *v3,
+@@ -615,12 +514,12 @@ static void vfma64(S390Vector *v1, const S390Vector *v2, const S390Vector *v3,
+     int i;
+ 
+     for (i = 0; i < 2; i++) {
+-        const float64 a = s390_vec_read_float64(v2, i);
+-        const float64 b = s390_vec_read_float64(v3, i);
+-        const float64 c = s390_vec_read_float64(v4, i);
+-        const float64 ret = float64_muladd(a, b, c, flags, &env->fpu_status);
++        const uint64_t a = s390_vec_read_element64(v2, i);
++        const uint64_t b = s390_vec_read_element64(v3, i);
++        const uint64_t c = s390_vec_read_element64(v4, i);
++        uint64_t ret = float64_muladd(a, b, c, flags, &env->fpu_status);
+ 
+-        s390_vec_write_float64(&tmp, i, ret);
++        s390_vec_write_element64(&tmp, i, ret);
+         vxc = check_ieee_exc(env, i, false, &vec_exc);
+         if (s || vxc) {
+             break;
+@@ -630,443 +529,97 @@ static void vfma64(S390Vector *v1, const S390Vector *v2, const S390Vector *v3,
+     *v1 = tmp;
+ }
+ 
+-static void vfma128(S390Vector *v1, const S390Vector *v2, const S390Vector *v3,
+-                    const S390Vector *v4, CPUS390XState *env, bool s, int flags,
+-                    uintptr_t retaddr)
++void HELPER(gvec_vfma64)(void *v1, const void *v2, const void *v3,
++                         const void *v4, CPUS390XState *env, uint32_t desc)
+ {
+-    const float128 a = s390_vec_read_float128(v2);
+-    const float128 b = s390_vec_read_float128(v3);
+-    const float128 c = s390_vec_read_float128(v4);
+-    uint8_t vxc, vec_exc = 0;
+-    float128 ret;
+-
+-    ret = float128_muladd(a, b, c, flags, &env->fpu_status);
+-    vxc = check_ieee_exc(env, 0, false, &vec_exc);
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
+-    s390_vec_write_float128(v1, ret);
++    vfma64(v1, v2, v3, v4, env, false, 0, GETPC());
+ }
+ 
+-#define DEF_GVEC_VFMA_B(NAME, FLAGS, BITS)                                     \
+-void HELPER(gvec_##NAME##BITS)(void *v1, const void *v2, const void *v3,       \
+-                               const void *v4, CPUS390XState *env,             \
+-                               uint32_t desc)                                  \
+-{                                                                              \
+-    const bool se = extract32(simd_data(desc), 3, 1);                          \
+-                                                                               \
+-    vfma##BITS(v1, v2, v3, v4, env, se, FLAGS, GETPC());                       \
++void HELPER(gvec_vfma64s)(void *v1, const void *v2, const void *v3,
++                         const void *v4, CPUS390XState *env, uint32_t desc)
++{
++    vfma64(v1, v2, v3, v4, env, true, 0, GETPC());
+ }
+ 
+-#define DEF_GVEC_VFMA(NAME, FLAGS)                                             \
+-    DEF_GVEC_VFMA_B(NAME, FLAGS, 32)                                           \
+-    DEF_GVEC_VFMA_B(NAME, FLAGS, 64)                                           \
+-    DEF_GVEC_VFMA_B(NAME, FLAGS, 128)
+-
+-DEF_GVEC_VFMA(vfma, 0)
+-DEF_GVEC_VFMA(vfms, float_muladd_negate_c)
+-DEF_GVEC_VFMA(vfnma, float_muladd_negate_result)
+-DEF_GVEC_VFMA(vfnms, float_muladd_negate_c | float_muladd_negate_result)
+-
+-void HELPER(gvec_vftci32)(void *v1, const void *v2, CPUS390XState *env,
+-                          uint32_t desc)
++void HELPER(gvec_vfms64)(void *v1, const void *v2, const void *v3,
++                         const void *v4, CPUS390XState *env, uint32_t desc)
+ {
+-    uint16_t i3 = extract32(simd_data(desc), 4, 12);
+-    bool s = extract32(simd_data(desc), 3, 1);
+-    int i, match = 0;
+-
+-    for (i = 0; i < 4; i++) {
+-        float32 a = s390_vec_read_float32(v2, i);
+-
+-        if (float32_dcmask(env, a) & i3) {
+-            match++;
+-            s390_vec_write_element32(v1, i, -1u);
+-        } else {
+-            s390_vec_write_element32(v1, i, 0);
+-        }
+-        if (s) {
+-            break;
+-        }
+-    }
+-
+-    if (match == 4 || (s && match)) {
+-        env->cc_op = 0;
+-    } else if (match) {
+-        env->cc_op = 1;
+-    } else {
+-        env->cc_op = 3;
+-    }
++    vfma64(v1, v2, v3, v4, env, false, float_muladd_negate_c, GETPC());
+ }
+ 
+-void HELPER(gvec_vftci64)(void *v1, const void *v2, CPUS390XState *env,
+-                          uint32_t desc)
++void HELPER(gvec_vfms64s)(void *v1, const void *v2, const void *v3,
++                         const void *v4, CPUS390XState *env, uint32_t desc)
+ {
+-    const uint16_t i3 = extract32(simd_data(desc), 4, 12);
+-    const bool s = extract32(simd_data(desc), 3, 1);
+-    int i, match = 0;
+-
+-    for (i = 0; i < 2; i++) {
+-        const float64 a = s390_vec_read_float64(v2, i);
+-
+-        if (float64_dcmask(env, a) & i3) {
+-            match++;
+-            s390_vec_write_element64(v1, i, -1ull);
+-        } else {
+-            s390_vec_write_element64(v1, i, 0);
+-        }
+-        if (s) {
+-            break;
+-        }
+-    }
+-
+-    if (match == 2 || (s && match)) {
+-        env->cc_op = 0;
+-    } else if (match) {
+-        env->cc_op = 1;
+-    } else {
+-        env->cc_op = 3;
+-    }
++    vfma64(v1, v2, v3, v4, env, true, float_muladd_negate_c, GETPC());
+ }
+ 
+-void HELPER(gvec_vftci128)(void *v1, const void *v2, CPUS390XState *env,
+-                           uint32_t desc)
++static uint64_t vfsq64(uint64_t a, float_status *s)
+ {
+-    const float128 a = s390_vec_read_float128(v2);
+-    uint16_t i3 = extract32(simd_data(desc), 4, 12);
+-
+-    if (float128_dcmask(env, a) & i3) {
+-        env->cc_op = 0;
+-        s390_vec_write_element64(v1, 0, -1ull);
+-        s390_vec_write_element64(v1, 1, -1ull);
+-    } else {
+-        env->cc_op = 3;
+-        s390_vec_write_element64(v1, 0, 0);
+-        s390_vec_write_element64(v1, 1, 0);
+-    }
++    return float64_sqrt(a, s);
+ }
+ 
+-typedef enum S390MinMaxType {
+-    S390_MINMAX_TYPE_IEEE = 0,
+-    S390_MINMAX_TYPE_JAVA,
+-    S390_MINMAX_TYPE_C_MACRO,
+-    S390_MINMAX_TYPE_CPP,
+-    S390_MINMAX_TYPE_F,
+-} S390MinMaxType;
+-
+-typedef enum S390MinMaxRes {
+-    S390_MINMAX_RES_MINMAX = 0,
+-    S390_MINMAX_RES_A,
+-    S390_MINMAX_RES_B,
+-    S390_MINMAX_RES_SILENCE_A,
+-    S390_MINMAX_RES_SILENCE_B,
+-} S390MinMaxRes;
+-
+-static S390MinMaxRes vfmin_res(uint16_t dcmask_a, uint16_t dcmask_b,
+-                               S390MinMaxType type, float_status *s)
++void HELPER(gvec_vfsq64)(void *v1, const void *v2, CPUS390XState *env,
++                         uint32_t desc)
+ {
+-    const bool neg_a = dcmask_a & DCMASK_NEGATIVE;
+-    const bool nan_a = dcmask_a & DCMASK_NAN;
+-    const bool nan_b = dcmask_b & DCMASK_NAN;
+-
+-    g_assert(type > S390_MINMAX_TYPE_IEEE && type <= S390_MINMAX_TYPE_F);
+-
+-    if (unlikely((dcmask_a | dcmask_b) & DCMASK_NAN)) {
+-        const bool sig_a = dcmask_a & DCMASK_SIGNALING_NAN;
+-        const bool sig_b = dcmask_b & DCMASK_SIGNALING_NAN;
+-
+-        if ((dcmask_a | dcmask_b) & DCMASK_SIGNALING_NAN) {
+-            s->float_exception_flags |= float_flag_invalid;
+-        }
+-        switch (type) {
+-        case S390_MINMAX_TYPE_JAVA:
+-            if (sig_a) {
+-                return S390_MINMAX_RES_SILENCE_A;
+-            } else if (sig_b) {
+-                return S390_MINMAX_RES_SILENCE_B;
+-            }
+-            return nan_a ? S390_MINMAX_RES_A : S390_MINMAX_RES_B;
+-        case S390_MINMAX_TYPE_F:
+-            return nan_b ? S390_MINMAX_RES_A : S390_MINMAX_RES_B;
+-        case S390_MINMAX_TYPE_C_MACRO:
+-            s->float_exception_flags |= float_flag_invalid;
+-            return S390_MINMAX_RES_B;
+-        case S390_MINMAX_TYPE_CPP:
+-            s->float_exception_flags |= float_flag_invalid;
+-            return S390_MINMAX_RES_A;
+-        default:
+-            g_assert_not_reached();
+-        }
+-    } else if (unlikely(dcmask_a & dcmask_b & DCMASK_ZERO)) {
+-        switch (type) {
+-        case S390_MINMAX_TYPE_JAVA:
+-            return neg_a ? S390_MINMAX_RES_A : S390_MINMAX_RES_B;
+-        case S390_MINMAX_TYPE_C_MACRO:
+-            return S390_MINMAX_RES_B;
+-        case S390_MINMAX_TYPE_F:
+-            return !neg_a ? S390_MINMAX_RES_B : S390_MINMAX_RES_A;
+-        case S390_MINMAX_TYPE_CPP:
+-            return S390_MINMAX_RES_A;
+-        default:
+-            g_assert_not_reached();
+-        }
+-    }
+-    return S390_MINMAX_RES_MINMAX;
++    vop64_2(v1, v2, env, false, false, 0, vfsq64, GETPC());
+ }
+ 
+-static S390MinMaxRes vfmax_res(uint16_t dcmask_a, uint16_t dcmask_b,
+-                               S390MinMaxType type, float_status *s)
++void HELPER(gvec_vfsq64s)(void *v1, const void *v2, CPUS390XState *env,
++                          uint32_t desc)
+ {
+-    g_assert(type > S390_MINMAX_TYPE_IEEE && type <= S390_MINMAX_TYPE_F);
+-
+-    if (unlikely((dcmask_a | dcmask_b) & DCMASK_NAN)) {
+-        const bool sig_a = dcmask_a & DCMASK_SIGNALING_NAN;
+-        const bool sig_b = dcmask_b & DCMASK_SIGNALING_NAN;
+-        const bool nan_a = dcmask_a & DCMASK_NAN;
+-        const bool nan_b = dcmask_b & DCMASK_NAN;
+-
+-        if ((dcmask_a | dcmask_b) & DCMASK_SIGNALING_NAN) {
+-            s->float_exception_flags |= float_flag_invalid;
+-        }
+-        switch (type) {
+-        case S390_MINMAX_TYPE_JAVA:
+-            if (sig_a) {
+-                return S390_MINMAX_RES_SILENCE_A;
+-            } else if (sig_b) {
+-                return S390_MINMAX_RES_SILENCE_B;
+-            }
+-            return nan_a ? S390_MINMAX_RES_A : S390_MINMAX_RES_B;
+-        case S390_MINMAX_TYPE_F:
+-            return nan_b ? S390_MINMAX_RES_A : S390_MINMAX_RES_B;
+-        case S390_MINMAX_TYPE_C_MACRO:
+-            s->float_exception_flags |= float_flag_invalid;
+-            return S390_MINMAX_RES_B;
+-        case S390_MINMAX_TYPE_CPP:
+-            s->float_exception_flags |= float_flag_invalid;
+-            return S390_MINMAX_RES_A;
+-        default:
+-            g_assert_not_reached();
+-        }
+-    } else if (unlikely(dcmask_a & dcmask_b & DCMASK_ZERO)) {
+-        const bool neg_a = dcmask_a & DCMASK_NEGATIVE;
+-
+-        switch (type) {
+-        case S390_MINMAX_TYPE_JAVA:
+-        case S390_MINMAX_TYPE_F:
+-            return neg_a ? S390_MINMAX_RES_B : S390_MINMAX_RES_A;
+-        case S390_MINMAX_TYPE_C_MACRO:
+-            return S390_MINMAX_RES_B;
+-        case S390_MINMAX_TYPE_CPP:
+-            return S390_MINMAX_RES_A;
+-        default:
+-            g_assert_not_reached();
+-        }
+-    }
+-    return S390_MINMAX_RES_MINMAX;
++    vop64_2(v1, v2, env, true, false, 0, vfsq64, GETPC());
+ }
+ 
+-static S390MinMaxRes vfminmax_res(uint16_t dcmask_a, uint16_t dcmask_b,
+-                                  S390MinMaxType type, bool is_min,
+-                                  float_status *s)
++static uint64_t vfs64(uint64_t a, uint64_t b, float_status *s)
+ {
+-    return is_min ? vfmin_res(dcmask_a, dcmask_b, type, s) :
+-                    vfmax_res(dcmask_a, dcmask_b, type, s);
++    return float64_sub(a, b, s);
+ }
+ 
+-static void vfminmax32(S390Vector *v1, const S390Vector *v2,
+-                       const S390Vector *v3, CPUS390XState *env,
+-                       S390MinMaxType type, bool is_min, bool is_abs, bool se,
+-                       uintptr_t retaddr)
++void HELPER(gvec_vfs64)(void *v1, const void *v2, const void *v3,
++                        CPUS390XState *env, uint32_t desc)
+ {
+-    float_status *s = &env->fpu_status;
+-    uint8_t vxc, vec_exc = 0;
+-    S390Vector tmp = {};
+-    int i;
+-
+-    for (i = 0; i < 4; i++) {
+-        float32 a = s390_vec_read_float32(v2, i);
+-        float32 b = s390_vec_read_float32(v3, i);
+-        float32 result;
+-
+-        if (type != S390_MINMAX_TYPE_IEEE) {
+-            S390MinMaxRes res;
+-
+-            if (is_abs) {
+-                a = float32_abs(a);
+-                b = float32_abs(b);
+-            }
+-
+-            res = vfminmax_res(float32_dcmask(env, a), float32_dcmask(env, b),
+-                               type, is_min, s);
+-            switch (res) {
+-            case S390_MINMAX_RES_MINMAX:
+-                result = is_min ? float32_min(a, b, s) : float32_max(a, b, s);
+-                break;
+-            case S390_MINMAX_RES_A:
+-                result = a;
+-                break;
+-            case S390_MINMAX_RES_B:
+-                result = b;
+-                break;
+-            case S390_MINMAX_RES_SILENCE_A:
+-                result = float32_silence_nan(a, s);
+-                break;
+-            case S390_MINMAX_RES_SILENCE_B:
+-                result = float32_silence_nan(b, s);
+-                break;
+-            default:
+-                g_assert_not_reached();
+-            }
+-        } else if (!is_abs) {
+-            result = is_min ? float32_minnum(a, b, &env->fpu_status) :
+-                              float32_maxnum(a, b, &env->fpu_status);
+-        } else {
+-            result = is_min ? float32_minnummag(a, b, &env->fpu_status) :
+-                              float32_maxnummag(a, b, &env->fpu_status);
+-        }
++    vop64_3(v1, v2, v3, env, false, vfs64, GETPC());
++}
+ 
+-        s390_vec_write_float32(&tmp, i, result);
+-        vxc = check_ieee_exc(env, i, false, &vec_exc);
+-        if (se || vxc) {
+-            break;
+-        }
+-    }
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
+-    *v1 = tmp;
++void HELPER(gvec_vfs64s)(void *v1, const void *v2, const void *v3,
++                         CPUS390XState *env, uint32_t desc)
++{
++    vop64_3(v1, v2, v3, env, true, vfs64, GETPC());
+ }
+ 
+-static void vfminmax64(S390Vector *v1, const S390Vector *v2,
+-                       const S390Vector *v3, CPUS390XState *env,
+-                       S390MinMaxType type, bool is_min, bool is_abs, bool se,
+-                       uintptr_t retaddr)
++static int vftci64(S390Vector *v1, const S390Vector *v2, CPUS390XState *env,
++                   bool s, uint16_t i3)
+ {
+-    float_status *s = &env->fpu_status;
+-    uint8_t vxc, vec_exc = 0;
+-    S390Vector tmp = {};
+-    int i;
++    int i, match = 0;
+ 
+     for (i = 0; i < 2; i++) {
+-        float64 a = s390_vec_read_float64(v2, i);
+-        float64 b = s390_vec_read_float64(v3, i);
+-        float64 result;
+-
+-        if (type != S390_MINMAX_TYPE_IEEE) {
+-            S390MinMaxRes res;
+-
+-            if (is_abs) {
+-                a = float64_abs(a);
+-                b = float64_abs(b);
+-            }
+-
+-            res = vfminmax_res(float64_dcmask(env, a), float64_dcmask(env, b),
+-                               type, is_min, s);
+-            switch (res) {
+-            case S390_MINMAX_RES_MINMAX:
+-                result = is_min ? float64_min(a, b, s) : float64_max(a, b, s);
+-                break;
+-            case S390_MINMAX_RES_A:
+-                result = a;
+-                break;
+-            case S390_MINMAX_RES_B:
+-                result = b;
+-                break;
+-            case S390_MINMAX_RES_SILENCE_A:
+-                result = float64_silence_nan(a, s);
+-                break;
+-            case S390_MINMAX_RES_SILENCE_B:
+-                result = float64_silence_nan(b, s);
+-                break;
+-            default:
+-                g_assert_not_reached();
+-            }
+-        } else if (!is_abs) {
+-            result = is_min ? float64_minnum(a, b, &env->fpu_status) :
+-                              float64_maxnum(a, b, &env->fpu_status);
++        float64 a = s390_vec_read_element64(v2, i);
++
++        if (float64_dcmask(env, a) & i3) {
++            match++;
++            s390_vec_write_element64(v1, i, -1ull);
+         } else {
+-            result = is_min ? float64_minnummag(a, b, &env->fpu_status) :
+-                              float64_maxnummag(a, b, &env->fpu_status);
++            s390_vec_write_element64(v1, i, 0);
+         }
+-
+-        s390_vec_write_float64(&tmp, i, result);
+-        vxc = check_ieee_exc(env, i, false, &vec_exc);
+-        if (se || vxc) {
++        if (s) {
+             break;
+         }
+     }
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
+-    *v1 = tmp;
++
++    if (match) {
++        return s || match == 2 ? 0 : 1;
++    }
++    return 3;
+ }
+ 
+-static void vfminmax128(S390Vector *v1, const S390Vector *v2,
+-                        const S390Vector *v3, CPUS390XState *env,
+-                        S390MinMaxType type, bool is_min, bool is_abs, bool se,
+-                        uintptr_t retaddr)
++void HELPER(gvec_vftci64)(void *v1, const void *v2, CPUS390XState *env,
++                          uint32_t desc)
+ {
+-    float128 a = s390_vec_read_float128(v2);
+-    float128 b = s390_vec_read_float128(v3);
+-    float_status *s = &env->fpu_status;
+-    uint8_t vxc, vec_exc = 0;
+-    float128 result;
+-
+-    if (type != S390_MINMAX_TYPE_IEEE) {
+-        S390MinMaxRes res;
+-
+-        if (is_abs) {
+-            a = float128_abs(a);
+-            b = float128_abs(b);
+-        }
+-
+-        res = vfminmax_res(float128_dcmask(env, a), float128_dcmask(env, b),
+-                           type, is_min, s);
+-        switch (res) {
+-        case S390_MINMAX_RES_MINMAX:
+-            result = is_min ? float128_min(a, b, s) : float128_max(a, b, s);
+-            break;
+-        case S390_MINMAX_RES_A:
+-            result = a;
+-            break;
+-        case S390_MINMAX_RES_B:
+-            result = b;
+-            break;
+-        case S390_MINMAX_RES_SILENCE_A:
+-            result = float128_silence_nan(a, s);
+-            break;
+-        case S390_MINMAX_RES_SILENCE_B:
+-            result = float128_silence_nan(b, s);
+-            break;
+-        default:
+-            g_assert_not_reached();
+-        }
+-    } else if (!is_abs) {
+-        result = is_min ? float128_minnum(a, b, &env->fpu_status) :
+-                          float128_maxnum(a, b, &env->fpu_status);
+-    } else {
+-        result = is_min ? float128_minnummag(a, b, &env->fpu_status) :
+-                          float128_maxnummag(a, b, &env->fpu_status);
+-    }
++    env->cc_op = vftci64(v1, v2, env, false, simd_data(desc));
++}
+ 
+-    vxc = check_ieee_exc(env, 0, false, &vec_exc);
+-    handle_ieee_exc(env, vxc, vec_exc, retaddr);
+-    s390_vec_write_float128(v1, result);
+-}
+-
+-#define DEF_GVEC_VFMINMAX_B(NAME, IS_MIN, BITS)                                \
+-void HELPER(gvec_##NAME##BITS)(void *v1, const void *v2, const void *v3,       \
+-                               CPUS390XState *env, uint32_t desc)              \
+-{                                                                              \
+-    const bool se = extract32(simd_data(desc), 3, 1);                          \
+-    uint8_t type = extract32(simd_data(desc), 4, 4);                           \
+-    bool is_abs = false;                                                       \
+-                                                                               \
+-    if (type >= 8) {                                                           \
+-        is_abs = true;                                                         \
+-        type -= 8;                                                             \
+-    }                                                                          \
+-                                                                               \
+-    vfminmax##BITS(v1, v2, v3, env, type, IS_MIN, is_abs, se, GETPC());        \
+-}
+-
+-#define DEF_GVEC_VFMINMAX(NAME, IS_MIN)                                        \
+-    DEF_GVEC_VFMINMAX_B(NAME, IS_MIN, 32)                                      \
+-    DEF_GVEC_VFMINMAX_B(NAME, IS_MIN, 64)                                      \
+-    DEF_GVEC_VFMINMAX_B(NAME, IS_MIN, 128)
+-
+-DEF_GVEC_VFMINMAX(vfmax, false)
+-DEF_GVEC_VFMINMAX(vfmin, true)
++void HELPER(gvec_vftci64s)(void *v1, const void *v2, CPUS390XState *env,
++                           uint32_t desc)
++{
++    env->cc_op = vftci64(v1, v2, env, true, simd_data(desc));
++}
+diff --git a/target/s390x/vec_helper.c b/target/s390x/vec_helper.c
+index 599bab06bd..986e7cc825 100644
+--- a/target/s390x/vec_helper.c
++++ b/target/s390x/vec_helper.c
+@@ -19,28 +19,6 @@
+ #include "exec/cpu_ldst.h"
+ #include "exec/exec-all.h"
+ 
+-void HELPER(gvec_vbperm)(void *v1, const void *v2, const void *v3,
+-                         uint32_t desc)
+-{
+-    S390Vector tmp = {};
+-    uint16_t result = 0;
+-    int i;
+-
+-    for (i = 0; i < 16; i++) {
+-        const uint8_t bit_nr = s390_vec_read_element8(v3, i);
+-        uint16_t bit;
+-
+-        if (bit_nr >= 128) {
+-            continue;
+-        }
+-        bit = (s390_vec_read_element8(v2, bit_nr / 8)
+-               >> (7 - (bit_nr % 8))) & 1;
+-        result |= (bit << (15 - i));
+-    }
+-    s390_vec_write_element16(&tmp, 3, result);
+-    *(S390Vector *)v1 = tmp;
+-}
+-
+ void HELPER(vll)(CPUS390XState *env, void *v1, uint64_t addr, uint64_t bytes)
+ {
+     if (likely(bytes >= 16)) {

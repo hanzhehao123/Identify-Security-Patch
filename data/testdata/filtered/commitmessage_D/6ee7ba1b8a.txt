@@ -1,0 +1,14 @@
+commit 6ee7ba1b8a10bd8eb1d3b918eaaf9f832a51adb4
+Author: Lukas Jünger <lukas.juenger@greensocs.com>
+Date:   Wed Jun 16 11:23:26 2021 +0200
+
+    hw/char: QOMify sifive_uart
+    
+    This QOMifies the SiFive UART model. Migration and reset have been
+    implemented.
+    
+    Signed-off-by: Lukas Jünger <lukas.juenger@greensocs.com>
+    Reviewed-by: Bin Meng <bmeng.cn@gmail.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-id: 20210616092326.59639-3-lukas.juenger@greensocs.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

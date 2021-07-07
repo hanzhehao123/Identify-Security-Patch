@@ -1,0 +1,14 @@
+commit da215c239439539ffcbc0f79fba7b867eb3d8030
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:35 2021 +0200
+
+    linux-user: elf: s390x: Prepare for Vector enhancements facility
+    
+    Let's check for S390_FEAT_VECTOR_ENH and set HWCAP_S390_VXRS_EXT
+    accordingly. Add all missing HWCAP defined in upstream Linux.
+    
+    Cc: Laurent Vivier <laurent@vivier.eu>
+    Acked-by: Laurent Vivier <laurent@vivier.eu>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-25-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

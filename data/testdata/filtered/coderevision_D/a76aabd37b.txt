@@ -1,0 +1,77 @@
+diff --git a/accel/tcg/translate-all.c b/accel/tcg/translate-all.c
+index 4f563b8724..ad7a25d9f0 100644
+--- a/accel/tcg/translate-all.c
++++ b/accel/tcg/translate-all.c
+@@ -920,9 +920,10 @@ static void tb_htable_init(void)
+ void tcg_exec_init(unsigned long tb_size, int splitwx)
+ {
+     tcg_allowed = true;
++    tcg_context_init(&tcg_init_ctx);
+     page_init();
+     tb_htable_init();
+-    tcg_init(tb_size, splitwx);
++    tcg_region_init(tb_size, splitwx);
+ 
+ #if defined(CONFIG_SOFTMMU)
+     /* There's no guest base to take into account, so go ahead and
+diff --git a/include/tcg/tcg.h b/include/tcg/tcg.h
+index b3304ce095..834785fc23 100644
+--- a/include/tcg/tcg.h
++++ b/include/tcg/tcg.h
+@@ -873,6 +873,7 @@ void *tcg_malloc_internal(TCGContext *s, int size);
+ void tcg_pool_reset(TCGContext *s);
+ TranslationBlock *tcg_tb_alloc(TCGContext *s);
+ 
++void tcg_region_init(size_t tb_size, int splitwx);
+ void tb_destroy(TranslationBlock *tb);
+ void tcg_region_reset_all(void);
+ 
+@@ -905,7 +906,7 @@ static inline void *tcg_malloc(int size)
+     }
+ }
+ 
+-void tcg_init(size_t tb_size, int splitwx);
++void tcg_context_init(TCGContext *s);
+ void tcg_register_thread(void);
+ void tcg_prologue_init(TCGContext *s);
+ void tcg_func_start(TCGContext *s);
+diff --git a/tcg/tcg-internal.h b/tcg/tcg-internal.h
+index f13c564d9b..b1dda343c2 100644
+--- a/tcg/tcg-internal.h
++++ b/tcg/tcg-internal.h
+@@ -30,7 +30,6 @@
+ extern TCGContext **tcg_ctxs;
+ extern unsigned int n_tcg_ctxs;
+ 
+-void tcg_region_init(size_t tb_size, int splitwx);
+ bool tcg_region_alloc(TCGContext *s);
+ void tcg_region_initial_alloc(TCGContext *s);
+ void tcg_region_prologue_set(TCGContext *s);
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index 2625d9e502..8c43c0f316 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -576,9 +576,8 @@ static void process_op_defs(TCGContext *s);
+ static TCGTemp *tcg_global_reg_new_internal(TCGContext *s, TCGType type,
+                                             TCGReg reg, const char *name);
+ 
+-static void tcg_context_init(void)
++void tcg_context_init(TCGContext *s)
+ {
+-    TCGContext *s = &tcg_init_ctx;
+     int op, total_args, n, i;
+     TCGOpDef *def;
+     TCGArgConstraint *args_ct;
+@@ -655,12 +654,6 @@ static void tcg_context_init(void)
+     cpu_env = temp_tcgv_ptr(ts);
+ }
+ 
+-void tcg_init(size_t tb_size, int splitwx)
+-{
+-    tcg_context_init();
+-    tcg_region_init(tb_size, splitwx);
+-}
+-
+ /*
+  * Allocate TBs right before their corresponding translated code, making
+  * sure that TBs and code are on different cache lines.

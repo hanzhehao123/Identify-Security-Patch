@@ -1,0 +1,35 @@
+commit fa856736b6d0dabdcbe1b199ef2bb4fdec0f4911
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 18 15:10:15 2021 +0100
+
+    target/arm: Don't NOCP fault for FPCXT_NS accesses
+    
+    The M-profile architecture requires that accesses to FPCXT_NS when
+    there is no active FP state must not take a NOCP fault even if the
+    FPU is disabled. We were not implementing this correctly, because
+    in our decode we catch the NOCP faults early in m-nocp.decode.
+    
+    Fix this bug by moving all the handling of M-profile FP system
+    register accesses from vfp.decode into m-nocp.decode and putting
+    it above the NOCP blocks. This provides the correct behaviour:
+     * for accesses other than FPCXT_NS the trans functions call
+       vfp_access_check(), which will check for FPU disabled and
+       raise a NOCP exception if necessary
+     * for FPCXT_NS we have the special case code that doesn't
+       call vfp_access_check()
+     * when these trans functions want to raise an UNDEF they return
+       false, so the decoder will fall through into the NOCP blocks.
+       This means that NOCP correctly takes precedence over UNDEF
+       for these insns. (This is a difference from the other insns
+       handled by m-nocp.decode, where UNDEF takes precedence and
+       which we implement by having those trans functions call
+       unallocated_encoding() in the appropriate places.)
+    
+    [Note for backport to stable: this commit has a semantic dependency
+    on commit 9a486856e9173af, which was not marked as cc-stable because
+    we didn't know we'd need it for a for-stable bugfix.]
+    
+    Cc: qemu-stable@nongnu.org
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210618141019.10671-4-peter.maydell@linaro.org

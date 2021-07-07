@@ -1,0 +1,1023 @@
+diff --git a/block.c b/block.c
+index 0dc97281dc..3f456892d0 100644
+--- a/block.c
++++ b/block.c
+@@ -84,14 +84,6 @@ static BlockDriverState *bdrv_open_inherit(const char *filename,
+ 
+ static void bdrv_replace_child_noperm(BdrvChild *child,
+                                       BlockDriverState *new_bs);
+-static int bdrv_attach_child_noperm(BlockDriverState *parent_bs,
+-                                    BlockDriverState *child_bs,
+-                                    const char *child_name,
+-                                    const BdrvChildClass *child_class,
+-                                    BdrvChildRole child_role,
+-                                    BdrvChild **child,
+-                                    Transaction *tran,
+-                                    Error **errp);
+ static void bdrv_remove_filter_or_cow_child(BlockDriverState *bs,
+                                             Transaction *tran);
+ 
+@@ -265,7 +257,7 @@ void bdrv_parse_filename_strip_prefix(const char *filename, const char *prefix,
+  * image is inactivated. */
+ bool bdrv_is_read_only(BlockDriverState *bs)
+ {
+-    return bs->read_only;
++    return !(bs->open_flags & BDRV_O_RDWR);
+ }
+ 
+ int bdrv_can_set_read_only(BlockDriverState *bs, bool read_only,
+@@ -317,7 +309,6 @@ int bdrv_apply_auto_read_only(BlockDriverState *bs, const char *errmsg,
+         goto fail;
+     }
+ 
+-    bs->read_only = true;
+     bs->open_flags &= ~BDRV_O_RDWR;
+ 
+     return 0;
+@@ -1158,7 +1149,7 @@ int bdrv_parse_cache_mode(const char *mode, int *flags, bool *writethrough)
+ static char *bdrv_child_get_parent_desc(BdrvChild *c)
+ {
+     BlockDriverState *parent = c->opaque;
+-    return g_strdup(bdrv_get_device_or_node_name(parent));
++    return g_strdup_printf("node '%s'", bdrv_get_node_name(parent));
+ }
+ 
+ static void bdrv_child_cb_drained_begin(BdrvChild *child)
+@@ -1412,7 +1403,7 @@ static int bdrv_child_cb_update_filename(BdrvChild *c, BlockDriverState *base,
+     return 0;
+ }
+ 
+-static AioContext *bdrv_child_cb_get_parent_aio_context(BdrvChild *c)
++AioContext *child_of_bds_get_parent_aio_context(BdrvChild *c)
+ {
+     BlockDriverState *bs = c->opaque;
+ 
+@@ -1432,7 +1423,7 @@ const BdrvChildClass child_of_bds = {
+     .can_set_aio_ctx = bdrv_child_cb_can_set_aio_ctx,
+     .set_aio_ctx     = bdrv_child_cb_set_aio_ctx,
+     .update_filename = bdrv_child_cb_update_filename,
+-    .get_parent_aio_context = bdrv_child_cb_get_parent_aio_context,
++    .get_parent_aio_context = child_of_bds_get_parent_aio_context,
+ };
+ 
+ AioContext *bdrv_child_get_parent_aio_context(BdrvChild *c)
+@@ -1549,7 +1540,6 @@ static int bdrv_open_driver(BlockDriverState *bs, BlockDriver *drv,
+     }
+ 
+     bs->drv = drv;
+-    bs->read_only = !(bs->open_flags & BDRV_O_RDWR);
+     bs->opaque = g_malloc0(drv->instance_size);
+ 
+     if (drv->bdrv_file_open) {
+@@ -1720,6 +1710,7 @@ static int bdrv_open_common(BlockDriverState *bs, BlockBackend *file,
+     QemuOpts *opts;
+     BlockDriver *drv;
+     Error *local_err = NULL;
++    bool ro;
+ 
+     assert(bs->file == NULL);
+     assert(options != NULL && bs->options != options);
+@@ -1770,17 +1761,17 @@ static int bdrv_open_common(BlockDriverState *bs, BlockBackend *file,
+     trace_bdrv_open_common(bs, filename ?: "", bs->open_flags,
+                            drv->format_name);
+ 
+-    bs->read_only = !(bs->open_flags & BDRV_O_RDWR);
++    ro = bdrv_is_read_only(bs);
+ 
+-    if (use_bdrv_whitelist && !bdrv_is_whitelisted(drv, bs->read_only)) {
+-        if (!bs->read_only && bdrv_is_whitelisted(drv, true)) {
++    if (use_bdrv_whitelist && !bdrv_is_whitelisted(drv, ro)) {
++        if (!ro && bdrv_is_whitelisted(drv, true)) {
+             ret = bdrv_apply_auto_read_only(bs, NULL, NULL);
+         } else {
+             ret = -ENOTSUP;
+         }
+         if (ret < 0) {
+             error_setg(errp,
+-                       !bs->read_only && bdrv_is_whitelisted(drv, true)
++                       !ro && bdrv_is_whitelisted(drv, true)
+                        ? "Driver '%s' can only be used for read-only devices"
+                        : "Driver '%s' is not whitelisted",
+                        drv->format_name);
+@@ -1792,7 +1783,7 @@ static int bdrv_open_common(BlockDriverState *bs, BlockBackend *file,
+     assert(qatomic_read(&bs->copy_on_read) == 0);
+ 
+     if (bs->open_flags & BDRV_O_COPY_ON_READ) {
+-        if (!bs->read_only) {
++        if (!ro) {
+             bdrv_enable_copy_on_read(bs);
+         } else {
+             error_setg(errp, "Can't use copy-on-read on read-only device");
+@@ -2035,27 +2026,38 @@ bool bdrv_is_writable(BlockDriverState *bs)
+ 
+ static char *bdrv_child_user_desc(BdrvChild *c)
+ {
+-    if (c->klass->get_parent_desc) {
+-        return c->klass->get_parent_desc(c);
+-    }
+-
+-    return g_strdup("another user");
++    return c->klass->get_parent_desc(c);
+ }
+ 
++/*
++ * Check that @a allows everything that @b needs. @a and @b must reference same
++ * child node.
++ */
+ static bool bdrv_a_allow_b(BdrvChild *a, BdrvChild *b, Error **errp)
+ {
+-    g_autofree char *user = NULL;
+-    g_autofree char *perm_names = NULL;
++    const char *child_bs_name;
++    g_autofree char *a_user = NULL;
++    g_autofree char *b_user = NULL;
++    g_autofree char *perms = NULL;
++
++    assert(a->bs);
++    assert(a->bs == b->bs);
+ 
+     if ((b->perm & a->shared_perm) == b->perm) {
+         return true;
+     }
+ 
+-    perm_names = bdrv_perm_names(b->perm & ~a->shared_perm);
+-    user = bdrv_child_user_desc(a);
+-    error_setg(errp, "Conflicts with use by %s as '%s', which does not "
+-               "allow '%s' on %s",
+-               user, a->name, perm_names, bdrv_get_node_name(b->bs));
++    child_bs_name = bdrv_get_node_name(b->bs);
++    a_user = bdrv_child_user_desc(a);
++    b_user = bdrv_child_user_desc(b);
++    perms = bdrv_perm_names(b->perm & ~a->shared_perm);
++
++    error_setg(errp, "Permission conflict on node '%s': permissions '%s' are "
++               "both required by %s (uses node '%s' as '%s' child) and "
++               "unshared by %s (uses node '%s' as '%s' child).",
++               child_bs_name, perms,
++               b_user, child_bs_name, b->name,
++               a_user, child_bs_name, a->name);
+ 
+     return false;
+ }
+@@ -2760,6 +2762,12 @@ static TransactionActionDrv bdrv_attach_child_common_drv = {
+ 
+ /*
+  * Common part of attaching bdrv child to bs or to blk or to job
++ *
++ * Resulting new child is returned through @child.
++ * At start *@child must be NULL.
++ * @child is saved to a new entry of @tran, so that *@child could be reverted to
++ * NULL on abort(). So referenced variable must live at least until transaction
++ * end.
+  */
+ static int bdrv_attach_child_common(BlockDriverState *child_bs,
+                                     const char *child_name,
+@@ -2775,6 +2783,7 @@ static int bdrv_attach_child_common(BlockDriverState *child_bs,
+ 
+     assert(child);
+     assert(*child == NULL);
++    assert(child_class->get_parent_desc);
+ 
+     new_child = g_new(BdrvChild, 1);
+     *new_child = (BdrvChild) {
+@@ -2834,6 +2843,10 @@ static int bdrv_attach_child_common(BlockDriverState *child_bs,
+     return 0;
+ }
+ 
++/*
++ * Variable referenced by @child must live at least until transaction end.
++ * (see bdrv_attach_child_common() doc for details)
++ */
+ static int bdrv_attach_child_noperm(BlockDriverState *parent_bs,
+                                     BlockDriverState *child_bs,
+                                     const char *child_name,
+@@ -2916,7 +2929,6 @@ BdrvChild *bdrv_root_attach_child(BlockDriverState *child_bs,
+                                    child_role, perm, shared_perm, opaque,
+                                    &child, tran, errp);
+     if (ret < 0) {
+-        assert(child == NULL);
+         goto out;
+     }
+ 
+@@ -2924,6 +2936,9 @@ BdrvChild *bdrv_root_attach_child(BlockDriverState *child_bs,
+ 
+ out:
+     tran_finalize(tran, ret);
++    /* child is unset on failure by bdrv_attach_child_common_abort() */
++    assert((ret < 0) == !child);
++
+     bdrv_unref(child_bs);
+     return child;
+ }
+@@ -2963,6 +2978,8 @@ BdrvChild *bdrv_attach_child(BlockDriverState *parent_bs,
+ 
+ out:
+     tran_finalize(tran, ret);
++    /* child is unset on failure by bdrv_attach_child_common_abort() */
++    assert((ret < 0) == !child);
+ 
+     bdrv_unref(child_bs);
+ 
+@@ -4545,7 +4562,6 @@ static void bdrv_reopen_commit(BDRVReopenState *reopen_state)
+     bs->explicit_options   = reopen_state->explicit_options;
+     bs->options            = reopen_state->options;
+     bs->open_flags         = reopen_state->flags;
+-    bs->read_only = !(reopen_state->flags & BDRV_O_RDWR);
+     bs->detect_zeroes      = reopen_state->detect_zeroes;
+ 
+     if (reopen_state->replace_backing_bs) {
+diff --git a/block/block-backend.c b/block/block-backend.c
+index de5496af66..15f1ea4288 100644
+--- a/block/block-backend.c
++++ b/block/block-backend.c
+@@ -141,19 +141,18 @@ static void blk_root_set_aio_ctx(BdrvChild *child, AioContext *ctx,
+ static char *blk_root_get_parent_desc(BdrvChild *child)
+ {
+     BlockBackend *blk = child->opaque;
+-    char *dev_id;
++    g_autofree char *dev_id = NULL;
+ 
+     if (blk->name) {
+-        return g_strdup(blk->name);
++        return g_strdup_printf("block device '%s'", blk->name);
+     }
+ 
+     dev_id = blk_get_attached_dev_id(blk);
+     if (*dev_id) {
+-        return dev_id;
++        return g_strdup_printf("block device '%s'", dev_id);
+     } else {
+         /* TODO Callback into the BB owner for something more detailed */
+-        g_free(dev_id);
+-        return g_strdup("a block device");
++        return g_strdup("an unnamed block device");
+     }
+ }
+ 
+@@ -1852,7 +1851,7 @@ bool blk_supports_write_perm(BlockBackend *blk)
+     if (bs) {
+         return !bdrv_is_read_only(bs);
+     } else {
+-        return !blk->root_state.read_only;
++        return blk->root_state.open_flags & BDRV_O_RDWR;
+     }
+ }
+ 
+@@ -2269,7 +2268,6 @@ void blk_update_root_state(BlockBackend *blk)
+     assert(blk->root);
+ 
+     blk->root_state.open_flags    = blk->root->bs->open_flags;
+-    blk->root_state.read_only     = blk->root->bs->read_only;
+     blk->root_state.detect_zeroes = blk->root->bs->detect_zeroes;
+ }
+ 
+@@ -2288,12 +2286,7 @@ bool blk_get_detect_zeroes_from_root_state(BlockBackend *blk)
+  */
+ int blk_get_open_flags_from_root_state(BlockBackend *blk)
+ {
+-    int bs_flags;
+-
+-    bs_flags = blk->root_state.read_only ? 0 : BDRV_O_RDWR;
+-    bs_flags |= blk->root_state.open_flags & ~BDRV_O_RDWR;
+-
+-    return bs_flags;
++    return blk->root_state.open_flags;
+ }
+ 
+ BlockBackendRootState *blk_get_root_state(BlockBackend *blk)
+@@ -2393,8 +2386,13 @@ static void blk_root_drained_begin(BdrvChild *child)
+ static bool blk_root_drained_poll(BdrvChild *child)
+ {
+     BlockBackend *blk = child->opaque;
++    bool busy = false;
+     assert(blk->quiesce_counter);
+-    return !!blk->in_flight;
++
++    if (blk->dev_ops && blk->dev_ops->drained_poll) {
++        busy = blk->dev_ops->drained_poll(blk->dev_opaque);
++    }
++    return busy || !!blk->in_flight;
+ }
+ 
+ static void blk_root_drained_end(BdrvChild *child, int *drained_end_counter)
+diff --git a/block/block-copy.c b/block/block-copy.c
+index c2e5090412..5808cfe657 100644
+--- a/block/block-copy.c
++++ b/block/block-copy.c
+@@ -65,6 +65,7 @@ typedef struct BlockCopyTask {
+     int64_t offset;
+     int64_t bytes;
+     bool zeroes;
++    bool copy_range;
+     QLIST_ENTRY(BlockCopyTask) list;
+     CoQueue wait_queue; /* coroutines blocked on this task */
+ } BlockCopyTask;
+@@ -183,6 +184,7 @@ static BlockCopyTask *block_copy_task_create(BlockCopyState *s,
+         .call_state = call_state,
+         .offset = offset,
+         .bytes = bytes,
++        .copy_range = s->use_copy_range,
+     };
+     qemu_co_queue_init(&task->wait_queue);
+     QLIST_INSERT_HEAD(&s->tasks, task, list);
+@@ -342,11 +344,18 @@ static coroutine_fn int block_copy_task_run(AioTaskPool *pool,
+  *
+  * No sync here: nor bitmap neighter intersecting requests handling, only copy.
+  *
++ * @copy_range is an in-out argument: if *copy_range is false, copy_range is not
++ * done. If *copy_range is true, copy_range is attempted. If the copy_range
++ * attempt fails, the function falls back to the usual read+write and
++ * *copy_range is set to false. *copy_range and zeroes must not be true
++ * simultaneously.
++ *
+  * Returns 0 on success.
+  */
+ static int coroutine_fn block_copy_do_copy(BlockCopyState *s,
+                                            int64_t offset, int64_t bytes,
+-                                           bool zeroes, bool *error_is_read)
++                                           bool zeroes, bool *copy_range,
++                                           bool *error_is_read)
+ {
+     int ret;
+     int64_t nbytes = MIN(offset + bytes, s->len) - offset;
+@@ -359,6 +368,7 @@ static int coroutine_fn block_copy_do_copy(BlockCopyState *s,
+     assert(offset + bytes <= s->len ||
+            offset + bytes == QEMU_ALIGN_UP(s->len, s->cluster_size));
+     assert(nbytes < INT_MAX);
++    assert(!(*copy_range && zeroes));
+ 
+     if (zeroes) {
+         ret = bdrv_co_pwrite_zeroes(s->target, offset, nbytes, s->write_flags &
+@@ -370,32 +380,15 @@ static int coroutine_fn block_copy_do_copy(BlockCopyState *s,
+         return ret;
+     }
+ 
+-    if (s->use_copy_range) {
++    if (*copy_range) {
+         ret = bdrv_co_copy_range(s->source, offset, s->target, offset, nbytes,
+                                  0, s->write_flags);
+         if (ret < 0) {
+             trace_block_copy_copy_range_fail(s, offset, ret);
+-            s->use_copy_range = false;
+-            s->copy_size = MAX(s->cluster_size, BLOCK_COPY_MAX_BUFFER);
++            *copy_range = false;
+             /* Fallback to read+write with allocated buffer */
+         } else {
+-            if (s->use_copy_range) {
+-                /*
+-                 * Successful copy-range. Now increase copy_size.  copy_range
+-                 * does not respect max_transfer (it's a TODO), so we factor
+-                 * that in here.
+-                 *
+-                 * Note: we double-check s->use_copy_range for the case when
+-                 * parallel block-copy request unsets it during previous
+-                 * bdrv_co_copy_range call.
+-                 */
+-                s->copy_size =
+-                        MIN(MAX(s->cluster_size, BLOCK_COPY_MAX_COPY_RANGE),
+-                            QEMU_ALIGN_DOWN(block_copy_max_transfer(s->source,
+-                                                                    s->target),
+-                                            s->cluster_size));
+-            }
+-            goto out;
++            return 0;
+         }
+     }
+ 
+@@ -431,17 +424,49 @@ out:
+     return ret;
+ }
+ 
++static void block_copy_handle_copy_range_result(BlockCopyState *s,
++                                                bool is_success)
++{
++    if (!s->use_copy_range) {
++        /* already disabled */
++        return;
++    }
++
++    if (is_success) {
++        /*
++         * Successful copy-range. Now increase copy_size.  copy_range
++         * does not respect max_transfer (it's a TODO), so we factor
++         * that in here.
++         */
++        s->copy_size =
++                MIN(MAX(s->cluster_size, BLOCK_COPY_MAX_COPY_RANGE),
++                    QEMU_ALIGN_DOWN(block_copy_max_transfer(s->source,
++                                                            s->target),
++                                    s->cluster_size));
++    } else {
++        /* Copy-range failed, disable it. */
++        s->use_copy_range = false;
++        s->copy_size = MAX(s->cluster_size, BLOCK_COPY_MAX_BUFFER);
++    }
++}
++
+ static coroutine_fn int block_copy_task_entry(AioTask *task)
+ {
+     BlockCopyTask *t = container_of(task, BlockCopyTask, task);
+     bool error_is_read = false;
++    bool copy_range = t->copy_range;
+     int ret;
+ 
+     ret = block_copy_do_copy(t->s, t->offset, t->bytes, t->zeroes,
+-                             &error_is_read);
+-    if (ret < 0 && !t->call_state->ret) {
+-        t->call_state->ret = ret;
+-        t->call_state->error_is_read = error_is_read;
++                             &copy_range, &error_is_read);
++    if (t->copy_range) {
++        block_copy_handle_copy_range_result(t->s, copy_range);
++    }
++    if (ret < 0) {
++        if (!t->call_state->ret) {
++            t->call_state->ret = ret;
++            t->call_state->error_is_read = error_is_read;
++        }
+     } else {
+         progress_work_done(t->s->progress, t->bytes);
+     }
+@@ -617,7 +642,10 @@ block_copy_dirty_clusters(BlockCopyCallState *call_state)
+             g_free(task);
+             continue;
+         }
+-        task->zeroes = ret & BDRV_BLOCK_ZERO;
++        if (ret & BDRV_BLOCK_ZERO) {
++            task->zeroes = true;
++            task->copy_range = false;
++        }
+ 
+         if (s->speed) {
+             if (!call_state->ignore_ratelimit) {
+diff --git a/block/commit.c b/block/commit.c
+index b89bb20b75..b7f0c7c061 100644
+--- a/block/commit.c
++++ b/block/commit.c
+@@ -453,7 +453,7 @@ int bdrv_commit(BlockDriverState *bs)
+         return -EBUSY;
+     }
+ 
+-    ro = backing_file_bs->read_only;
++    ro = bdrv_is_read_only(backing_file_bs);
+ 
+     if (ro) {
+         if (bdrv_reopen_set_read_only(backing_file_bs, false, NULL)) {
+diff --git a/block/file-posix.c b/block/file-posix.c
+index 10b71d9a13..f37dfc10b3 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -1625,17 +1625,17 @@ static int handle_aiocb_write_zeroes(void *opaque)
+     if (s->has_write_zeroes) {
+         int ret = do_fallocate(s->fd, FALLOC_FL_ZERO_RANGE,
+                                aiocb->aio_offset, aiocb->aio_nbytes);
+-        if (ret == -EINVAL) {
+-            /*
+-             * Allow falling back to pwrite for file systems that
+-             * do not support fallocate() for an unaligned byte range.
+-             */
+-            return -ENOTSUP;
+-        }
+-        if (ret == 0 || ret != -ENOTSUP) {
++        if (ret == -ENOTSUP) {
++            s->has_write_zeroes = false;
++        } else if (ret == 0 || ret != -EINVAL) {
+             return ret;
+         }
+-        s->has_write_zeroes = false;
++        /*
++         * Note: Some file systems do not like unaligned byte ranges, and
++         * return EINVAL in such a case, though they should not do it according
++         * to the man-page of fallocate(). Thus we simply ignore this return
++         * value and try the other fallbacks instead.
++         */
+     }
+ #endif
+ 
+@@ -1650,6 +1650,17 @@ static int handle_aiocb_write_zeroes(void *opaque)
+                 return ret;
+             }
+             s->has_fallocate = false;
++        } else if (ret == -EINVAL) {
++            /*
++             * Some file systems like older versions of GPFS do not like un-
++             * aligned byte ranges, and return EINVAL in such a case, though
++             * they should not do it according to the man-page of fallocate().
++             * Warn about the bad filesystem and try the final fallback instead.
++             */
++            warn_report_once("Your file system is misbehaving: "
++                             "fallocate(FALLOC_FL_PUNCH_HOLE) returned EINVAL. "
++                             "Please report this bug to your file sytem "
++                             "vendor.");
+         } else if (ret != -ENOTSUP) {
+             return ret;
+         } else {
+diff --git a/block/io.c b/block/io.c
+index 1e826ba9e8..323854d063 100644
+--- a/block/io.c
++++ b/block/io.c
+@@ -1973,7 +1973,7 @@ bdrv_co_write_req_prepare(BdrvChild *child, int64_t offset, int64_t bytes,
+ 
+     bdrv_check_request(offset, bytes, &error_abort);
+ 
+-    if (bs->read_only) {
++    if (bdrv_is_read_only(bs)) {
+         return -EPERM;
+     }
+ 
+@@ -3406,7 +3406,7 @@ int coroutine_fn bdrv_co_truncate(BdrvChild *child, int64_t offset, bool exact,
+     if (new_bytes) {
+         bdrv_make_request_serialising(&req, 1);
+     }
+-    if (bs->read_only) {
++    if (bdrv_is_read_only(bs)) {
+         error_setg(errp, "Image is read-only");
+         ret = -EACCES;
+         goto out;
+diff --git a/block/qapi.c b/block/qapi.c
+index 943e7b15ad..dc69341bfe 100644
+--- a/block/qapi.c
++++ b/block/qapi.c
+@@ -59,7 +59,7 @@ BlockDeviceInfo *bdrv_block_device_info(BlockBackend *blk,
+ 
+     info = g_malloc0(sizeof(*info));
+     info->file                   = g_strdup(bs->filename);
+-    info->ro                     = bs->read_only;
++    info->ro                     = bdrv_is_read_only(bs);
+     info->drv                    = g_strdup(bs->drv->format_name);
+     info->encrypted              = bs->encrypted;
+ 
+diff --git a/block/qcow2-snapshot.c b/block/qcow2-snapshot.c
+index 2e98c7f4b6..71ddb08c21 100644
+--- a/block/qcow2-snapshot.c
++++ b/block/qcow2-snapshot.c
+@@ -1026,7 +1026,7 @@ int qcow2_snapshot_load_tmp(BlockDriverState *bs,
+     int new_l1_bytes;
+     int ret;
+ 
+-    assert(bs->read_only);
++    assert(bdrv_is_read_only(bs));
+ 
+     /* Search the snapshot */
+     snapshot_index = find_snapshot_by_id_and_name(bs, snapshot_id, name);
+diff --git a/block/qcow2.c b/block/qcow2.c
+index 39b91ef940..ee4530cdbd 100644
+--- a/block/qcow2.c
++++ b/block/qcow2.c
+@@ -1723,8 +1723,7 @@ static int coroutine_fn qcow2_do_open(BlockDriverState *bs, QDict *options,
+ 
+     /* Clear unknown autoclear feature bits */
+     update_header |= s->autoclear_features & ~QCOW2_AUTOCLEAR_MASK;
+-    update_header =
+-        update_header && !bs->read_only && !(flags & BDRV_O_INACTIVE);
++    update_header = update_header && bdrv_is_writable(bs);
+     if (update_header) {
+         s->autoclear_features &= QCOW2_AUTOCLEAR_MASK;
+     }
+@@ -1811,7 +1810,7 @@ static int coroutine_fn qcow2_do_open(BlockDriverState *bs, QDict *options,
+     bs->supported_truncate_flags = BDRV_REQ_ZERO_WRITE;
+ 
+     /* Repair image if dirty */
+-    if (!(flags & (BDRV_O_CHECK | BDRV_O_INACTIVE)) && !bs->read_only &&
++    if (!(flags & BDRV_O_CHECK) && bdrv_is_writable(bs) &&
+         (s->incompatible_features & QCOW2_INCOMPAT_DIRTY)) {
+         BdrvCheckResult result = {0};
+ 
+diff --git a/block/quorum.c b/block/quorum.c
+index cfc1436abb..f2c0805000 100644
+--- a/block/quorum.c
++++ b/block/quorum.c
+@@ -1279,7 +1279,7 @@ static BlockDriver bdrv_quorum = {
+     .bdrv_dirname                       = quorum_dirname,
+     .bdrv_co_block_status               = quorum_co_block_status,
+ 
+-    .bdrv_co_flush_to_disk              = quorum_co_flush,
++    .bdrv_co_flush                      = quorum_co_flush,
+ 
+     .bdrv_getlength                     = quorum_getlength,
+ 
+diff --git a/block/snapshot.c b/block/snapshot.c
+index e8ae9a28c1..6702c75e42 100644
+--- a/block/snapshot.c
++++ b/block/snapshot.c
+@@ -415,7 +415,7 @@ int bdrv_snapshot_load_tmp(BlockDriverState *bs,
+         error_setg(errp, "snapshot_id and name are both NULL");
+         return -EINVAL;
+     }
+-    if (!bs->read_only) {
++    if (!bdrv_is_read_only(bs)) {
+         error_setg(errp, "Device is not readonly");
+         return -EINVAL;
+     }
+diff --git a/block/vhdx-log.c b/block/vhdx-log.c
+index 404fb5f3cb..7672161d95 100644
+--- a/block/vhdx-log.c
++++ b/block/vhdx-log.c
+@@ -801,7 +801,7 @@ int vhdx_parse_log(BlockDriverState *bs, BDRVVHDXState *s, bool *flushed,
+     }
+ 
+     if (logs.valid) {
+-        if (bs->read_only) {
++        if (bdrv_is_read_only(bs)) {
+             bdrv_refresh_filename(bs);
+             ret = -EPERM;
+             error_setg(errp,
+diff --git a/block/vvfat.c b/block/vvfat.c
+index 54807f82ca..ae9d387da7 100644
+--- a/block/vvfat.c
++++ b/block/vvfat.c
+@@ -3127,10 +3127,7 @@ static void vvfat_qcow_options(BdrvChildRole role, bool parent_is_format,
+     qdict_set_default_str(child_options, BDRV_OPT_CACHE_NO_FLUSH, "on");
+ }
+ 
+-static const BdrvChildClass child_vvfat_qcow = {
+-    .parent_is_bds      = true,
+-    .inherit_options    = vvfat_qcow_options,
+-};
++static BdrvChildClass child_vvfat_qcow;
+ 
+ static int enable_write_target(BlockDriverState *bs, Error **errp)
+ {
+@@ -3208,15 +3205,12 @@ static void vvfat_child_perm(BlockDriverState *bs, BdrvChild *c,
+                              uint64_t perm, uint64_t shared,
+                              uint64_t *nperm, uint64_t *nshared)
+ {
+-    BDRVVVFATState *s = bs->opaque;
+-
+-    assert(c == s->qcow || (role & BDRV_CHILD_COW));
+-
+-    if (c == s->qcow) {
++    if (role & BDRV_CHILD_DATA) {
+         /* This is a private node, nobody should try to attach to it */
+         *nperm = BLK_PERM_CONSISTENT_READ | BLK_PERM_WRITE;
+         *nshared = BLK_PERM_WRITE_UNCHANGED;
+     } else {
++        assert(role & BDRV_CHILD_COW);
+         /* The backing file is there so 'commit' can use it. vvfat doesn't
+          * access it in any way. */
+         *nperm = 0;
+@@ -3270,6 +3264,8 @@ static BlockDriver bdrv_vvfat = {
+ 
+ static void bdrv_vvfat_init(void)
+ {
++    child_vvfat_qcow = child_of_bds;
++    child_vvfat_qcow.inherit_options = vvfat_qcow_options;
+     bdrv_register(&bdrv_vvfat);
+ }
+ 
+diff --git a/blockdev.c b/blockdev.c
+index 834c2304a1..f08192deda 100644
+--- a/blockdev.c
++++ b/blockdev.c
+@@ -583,8 +583,7 @@ static BlockBackend *blockdev_init(const char *file, QDict *bs_opts,
+ 
+         blk = blk_new(qemu_get_aio_context(), 0, BLK_PERM_ALL);
+         blk_rs = blk_get_root_state(blk);
+-        blk_rs->open_flags    = bdrv_flags;
+-        blk_rs->read_only     = read_only;
++        blk_rs->open_flags    = bdrv_flags | (read_only ? 0 : BDRV_O_RDWR);
+         blk_rs->detect_zeroes = detect_zeroes;
+ 
+         qobject_unref(bs_opts);
+diff --git a/docs/devel/secure-coding-practices.rst b/docs/devel/secure-coding-practices.rst
+index cbfc8af67e..0454cc527e 100644
+--- a/docs/devel/secure-coding-practices.rst
++++ b/docs/devel/secure-coding-practices.rst
+@@ -104,3 +104,12 @@ structures and only process the local copy.  This prevents
+ time-of-check-to-time-of-use (TOCTOU) race conditions that could cause QEMU to
+ crash when a vCPU thread modifies guest RAM while device emulation is
+ processing it.
++
++Use of null-co block drivers
++----------------------------
++
++The ``null-co`` block driver is designed for performance: its read accesses are
++not initialized by default. In case this driver has to be used for security
++research, it must be used with the ``read-zeroes=on`` option which fills read
++buffers with zeroes. Security issues reported with the default
++(``read-zeroes=off``) will be discarded.
+diff --git a/include/block/block.h b/include/block/block.h
+index 82185965ff..8e707a83b7 100644
+--- a/include/block/block.h
++++ b/include/block/block.h
+@@ -701,6 +701,7 @@ bool bdrv_child_can_set_aio_context(BdrvChild *c, AioContext *ctx,
+ bool bdrv_can_set_aio_context(BlockDriverState *bs, AioContext *ctx,
+                               GSList **ignore, Error **errp);
+ AioContext *bdrv_child_get_parent_aio_context(BdrvChild *c);
++AioContext *child_of_bds_get_parent_aio_context(BdrvChild *c);
+ 
+ int bdrv_probe_blocksizes(BlockDriverState *bs, BlockSizes *bsz);
+ int bdrv_probe_geometry(BlockDriverState *bs, HDGeometry *geo);
+diff --git a/include/block/block_int.h b/include/block/block_int.h
+index b2c8b09d0f..057d88b1fc 100644
+--- a/include/block/block_int.h
++++ b/include/block/block_int.h
+@@ -843,7 +843,6 @@ struct BlockDriverState {
+      * locking needed during I/O...
+      */
+     int open_flags; /* flags used to open the file, re-used for re-open */
+-    bool read_only; /* if true, the media is read only */
+     bool encrypted; /* if true, the media is encrypted */
+     bool sg;        /* if true, the device is a /dev/sg* */
+     bool probed;    /* if true, format was probed rather than specified */
+@@ -1008,7 +1007,6 @@ struct BlockDriverState {
+ 
+ struct BlockBackendRootState {
+     int open_flags;
+-    bool read_only;
+     BlockdevDetectZeroesOptions detect_zeroes;
+ };
+ 
+diff --git a/include/sysemu/block-backend.h b/include/sysemu/block-backend.h
+index 880e903293..5423e3d9c6 100644
+--- a/include/sysemu/block-backend.h
++++ b/include/sysemu/block-backend.h
+@@ -66,6 +66,10 @@ typedef struct BlockDevOps {
+      * Runs when the backend's last drain request ends.
+      */
+     void (*drained_end)(void *opaque);
++    /*
++     * Is the device still busy?
++     */
++    bool (*drained_poll)(void *opaque);
+ } BlockDevOps;
+ 
+ /* This struct is embedded in (the private) BlockBackend struct and contains
+diff --git a/nbd/server.c b/nbd/server.c
+index 86a44a9b41..b60ebc3ab6 100644
+--- a/nbd/server.c
++++ b/nbd/server.c
+@@ -1513,6 +1513,11 @@ static void nbd_request_put(NBDRequestData *req)
+     g_free(req);
+ 
+     client->nb_requests--;
++
++    if (client->quiescing && client->nb_requests == 0) {
++        aio_wait_kick();
++    }
++
+     nbd_client_receive_next_request(client);
+ 
+     nbd_client_put(client);
+@@ -1530,49 +1535,68 @@ static void blk_aio_attached(AioContext *ctx, void *opaque)
+     QTAILQ_FOREACH(client, &exp->clients, next) {
+         qio_channel_attach_aio_context(client->ioc, ctx);
+ 
++        assert(client->nb_requests == 0);
+         assert(client->recv_coroutine == NULL);
+         assert(client->send_coroutine == NULL);
+-
+-        if (client->quiescing) {
+-            client->quiescing = false;
+-            nbd_client_receive_next_request(client);
+-        }
+     }
+ }
+ 
+-static void nbd_aio_detach_bh(void *opaque)
++static void blk_aio_detach(void *opaque)
+ {
+     NBDExport *exp = opaque;
+     NBDClient *client;
+ 
++    trace_nbd_blk_aio_detach(exp->name, exp->common.ctx);
++
+     QTAILQ_FOREACH(client, &exp->clients, next) {
+         qio_channel_detach_aio_context(client->ioc);
++    }
++
++    exp->common.ctx = NULL;
++}
++
++static void nbd_drained_begin(void *opaque)
++{
++    NBDExport *exp = opaque;
++    NBDClient *client;
++
++    QTAILQ_FOREACH(client, &exp->clients, next) {
+         client->quiescing = true;
++    }
++}
+ 
+-        if (client->recv_coroutine) {
+-            if (client->read_yielding) {
+-                qemu_aio_coroutine_enter(exp->common.ctx,
+-                                         client->recv_coroutine);
+-            } else {
+-                AIO_WAIT_WHILE(exp->common.ctx, client->recv_coroutine != NULL);
+-            }
+-        }
++static void nbd_drained_end(void *opaque)
++{
++    NBDExport *exp = opaque;
++    NBDClient *client;
+ 
+-        if (client->send_coroutine) {
+-            AIO_WAIT_WHILE(exp->common.ctx, client->send_coroutine != NULL);
+-        }
++    QTAILQ_FOREACH(client, &exp->clients, next) {
++        client->quiescing = false;
++        nbd_client_receive_next_request(client);
+     }
+ }
+ 
+-static void blk_aio_detach(void *opaque)
++static bool nbd_drained_poll(void *opaque)
+ {
+     NBDExport *exp = opaque;
++    NBDClient *client;
+ 
+-    trace_nbd_blk_aio_detach(exp->name, exp->common.ctx);
++    QTAILQ_FOREACH(client, &exp->clients, next) {
++        if (client->nb_requests != 0) {
++            /*
++             * If there's a coroutine waiting for a request on nbd_read_eof()
++             * enter it here so we don't depend on the client to wake it up.
++             */
++            if (client->recv_coroutine != NULL && client->read_yielding) {
++                qemu_aio_coroutine_enter(exp->common.ctx,
++                                         client->recv_coroutine);
++            }
+ 
+-    aio_wait_bh_oneshot(exp->common.ctx, nbd_aio_detach_bh, exp);
++            return true;
++        }
++    }
+ 
+-    exp->common.ctx = NULL;
++    return false;
+ }
+ 
+ static void nbd_eject_notifier(Notifier *n, void *data)
+@@ -1594,6 +1618,12 @@ void nbd_export_set_on_eject_blk(BlockExport *exp, BlockBackend *blk)
+     blk_add_remove_bs_notifier(blk, &nbd_exp->eject_notifier);
+ }
+ 
++static const BlockDevOps nbd_block_ops = {
++    .drained_begin = nbd_drained_begin,
++    .drained_end = nbd_drained_end,
++    .drained_poll = nbd_drained_poll,
++};
++
+ static int nbd_export_create(BlockExport *blk_exp, BlockExportOptions *exp_args,
+                              Error **errp)
+ {
+@@ -1715,8 +1745,17 @@ static int nbd_export_create(BlockExport *blk_exp, BlockExportOptions *exp_args,
+ 
+     exp->allocation_depth = arg->allocation_depth;
+ 
++    /*
++     * We need to inhibit request queuing in the block layer to ensure we can
++     * be properly quiesced when entering a drained section, as our coroutines
++     * servicing pending requests might enter blk_pread().
++     */
++    blk_set_disable_request_queuing(blk, true);
++
+     blk_add_aio_context_notifier(blk, blk_aio_attached, blk_aio_detach, exp);
+ 
++    blk_set_dev_ops(blk, &nbd_block_ops, exp);
++
+     QTAILQ_INSERT_TAIL(&exports, exp, next);
+ 
+     return 0;
+@@ -1788,6 +1827,7 @@ static void nbd_export_delete(BlockExport *blk_exp)
+         }
+         blk_remove_aio_context_notifier(exp->common.blk, blk_aio_attached,
+                                         blk_aio_detach, exp);
++        blk_set_disable_request_queuing(exp->common.blk, false);
+     }
+ 
+     for (i = 0; i < exp->nr_export_bitmaps; i++) {
+diff --git a/qemu-io-cmds.c b/qemu-io-cmds.c
+index 998b67186d..e8d862a426 100644
+--- a/qemu-io-cmds.c
++++ b/qemu-io-cmds.c
+@@ -92,9 +92,19 @@ static int command(BlockBackend *blk, const cmdinfo_t *ct, int argc,
+         return -EINVAL;
+     }
+ 
+-    /* Request additional permissions if necessary for this command. The caller
++    /*
++     * Request additional permissions if necessary for this command. The caller
+      * is responsible for restoring the original permissions afterwards if this
+-     * is what it wants. */
++     * is what it wants.
++     *
++     * Coverity thinks that blk may be NULL in the following if condition. It's
++     * not so: in init_check_command() we fail if blk is NULL for command with
++     * both CMD_FLAG_GLOBAL and CMD_NOFILE_OK flags unset. And in
++     * qemuio_add_command() we assert that command with non-zero .perm field
++     * doesn't set this flags. So, the following assertion is to silence
++     * Coverity:
++     */
++    assert(blk || !ct->perm);
+     if (ct->perm && blk_is_available(blk)) {
+         uint64_t orig_perm, orig_shared_perm;
+         blk_get_perm(blk, &orig_perm, &orig_shared_perm);
+diff --git a/target/ppc/cpu.c b/target/ppc/cpu.c
+index 9cf3288b7a..d957d1a687 100644
+--- a/target/ppc/cpu.c
++++ b/target/ppc/cpu.c
+@@ -77,13 +77,13 @@ void ppc_store_sdr1(CPUPPCState *env, target_ulong value)
+         target_ulong htabsize = value & SDR_64_HTABSIZE;
+ 
+         if (value & ~sdr_mask) {
+-            qemu_log_mask(LOG_GUEST_ERROR, "Invalid bits 0x"TARGET_FMT_lx
+-                     " set in SDR1", value & ~sdr_mask);
++            error_report("Invalid bits 0x"TARGET_FMT_lx" set in SDR1",
++                         value & ~sdr_mask);
+             value &= sdr_mask;
+         }
+         if (htabsize > 28) {
+-            qemu_log_mask(LOG_GUEST_ERROR, "Invalid HTABSIZE 0x" TARGET_FMT_lx
+-                     " stored in SDR1", htabsize);
++            error_report("Invalid HTABSIZE 0x" TARGET_FMT_lx" stored in SDR1",
++                         htabsize);
+             return;
+         }
+     }
+diff --git a/tests/qemu-iotests/283.out b/tests/qemu-iotests/283.out
+index 97e62a4c94..c6e12b15c5 100644
+--- a/tests/qemu-iotests/283.out
++++ b/tests/qemu-iotests/283.out
+@@ -5,7 +5,7 @@
+ {"execute": "blockdev-add", "arguments": {"driver": "blkdebug", "image": "base", "node-name": "other", "take-child-perms": ["write"]}}
+ {"return": {}}
+ {"execute": "blockdev-backup", "arguments": {"device": "source", "sync": "full", "target": "target"}}
+-{"error": {"class": "GenericError", "desc": "Cannot append backup-top filter: Conflicts with use by source as 'image', which does not allow 'write' on base"}}
++{"error": {"class": "GenericError", "desc": "Cannot append backup-top filter: Permission conflict on node 'base': permissions 'write' are both required by node 'other' (uses node 'base' as 'image' child) and unshared by node 'source' (uses node 'base' as 'image' child)."}}
+ 
+ === backup-top should be gone after job-finalize ===
+ 
+diff --git a/tests/qemu-iotests/307.out b/tests/qemu-iotests/307.out
+index daa8ad2da0..4b0c7e155a 100644
+--- a/tests/qemu-iotests/307.out
++++ b/tests/qemu-iotests/307.out
+@@ -53,7 +53,7 @@ exports available: 1
+ 
+ === Add a writable export ===
+ {"execute": "block-export-add", "arguments": {"description": "This is the writable second export", "id": "export1", "name": "export1", "node-name": "fmt", "type": "nbd", "writable": true, "writethrough": true}}
+-{"error": {"class": "GenericError", "desc": "Conflicts with use by sda as 'root', which does not allow 'write' on fmt"}}
++{"error": {"class": "GenericError", "desc": "Permission conflict on node 'fmt': permissions 'write' are both required by an unnamed block device (uses node 'fmt' as 'root' child) and unshared by block device 'sda' (uses node 'fmt' as 'root' child)."}}
+ {"execute": "device_del", "arguments": {"id": "sda"}}
+ {"return": {}}
+ {"data": {"device": "sda", "path": "/machine/peripheral/sda"}, "event": "DEVICE_DELETED", "timestamp": {"microseconds": "USECS", "seconds": "SECS"}}
+diff --git a/tests/qemu-iotests/tests/qsd-jobs.out b/tests/qemu-iotests/tests/qsd-jobs.out
+index 9f52255da8..189423354b 100644
+--- a/tests/qemu-iotests/tests/qsd-jobs.out
++++ b/tests/qemu-iotests/tests/qsd-jobs.out
+@@ -16,7 +16,7 @@ QMP_VERSION
+ {"return": {}}
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "JOB_STATUS_CHANGE", "data": {"status": "created", "id": "job0"}}
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "JOB_STATUS_CHANGE", "data": {"status": "null", "id": "job0"}}
+-{"error": {"class": "GenericError", "desc": "Conflicts with use by stream job 'job0' as 'intermediate node', which does not allow 'write' on fmt_base"}}
++{"error": {"class": "GenericError", "desc": "Permission conflict on node 'fmt_base': permissions 'write' are both required by an unnamed block device (uses node 'fmt_base' as 'root' child) and unshared by stream job 'job0' (uses node 'fmt_base' as 'intermediate node' child)."}}
+ {"return": {}}
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "BLOCK_EXPORT_DELETED", "data": {"id": "export1"}}
+ *** done
+diff --git a/tests/unit/test-block-iothread.c b/tests/unit/test-block-iothread.c
+index 8cf172cb7a..c39e70b2f5 100644
+--- a/tests/unit/test-block-iothread.c
++++ b/tests/unit/test-block-iothread.c
+@@ -194,13 +194,11 @@ static void test_sync_op_truncate(BdrvChild *c)
+     g_assert_cmpint(ret, ==, -EINVAL);
+ 
+     /* Error: Read-only image */
+-    c->bs->read_only = true;
+     c->bs->open_flags &= ~BDRV_O_RDWR;
+ 
+     ret = bdrv_truncate(c, 65536, false, PREALLOC_MODE_OFF, 0, NULL);
+     g_assert_cmpint(ret, ==, -EACCES);
+ 
+-    c->bs->read_only = false;
+     c->bs->open_flags |= BDRV_O_RDWR;
+ }
+ 
+@@ -236,13 +234,11 @@ static void test_sync_op_flush(BdrvChild *c)
+     g_assert_cmpint(ret, ==, 0);
+ 
+     /* Early success: Read-only image */
+-    c->bs->read_only = true;
+     c->bs->open_flags &= ~BDRV_O_RDWR;
+ 
+     ret = bdrv_flush(c->bs);
+     g_assert_cmpint(ret, ==, 0);
+ 
+-    c->bs->read_only = false;
+     c->bs->open_flags |= BDRV_O_RDWR;
+ }
+ 
+@@ -256,13 +252,11 @@ static void test_sync_op_blk_flush(BlockBackend *blk)
+     g_assert_cmpint(ret, ==, 0);
+ 
+     /* Early success: Read-only image */
+-    bs->read_only = true;
+     bs->open_flags &= ~BDRV_O_RDWR;
+ 
+     ret = blk_flush(blk);
+     g_assert_cmpint(ret, ==, 0);
+ 
+-    bs->read_only = false;
+     bs->open_flags |= BDRV_O_RDWR;
+ }
+ 

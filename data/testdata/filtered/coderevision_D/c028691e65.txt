@@ -1,0 +1,13 @@
+diff --git a/tests/acceptance/virtiofs_submounts.py b/tests/acceptance/virtiofs_submounts.py
+index ca64b76301..5b74ce2929 100644
+--- a/tests/acceptance/virtiofs_submounts.py
++++ b/tests/acceptance/virtiofs_submounts.py
+@@ -251,7 +251,7 @@ def setUp(self):
+ 
+         super(VirtiofsSubmountsTest, self).setUp(pubkey)
+ 
+-        if vmlinuz:
++        if len(vmlinuz) > 0:
+             self.vm.add_args('-kernel', vmlinuz,
+                              '-append', 'console=ttyS0 root=/dev/sda1')
+ 

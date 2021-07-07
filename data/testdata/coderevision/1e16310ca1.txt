@@ -1,0 +1,59 @@
+diff --git a/target/riscv/insn32.decode b/target/riscv/insn32.decode
+index 6f7671872d..9a2ffab150 100644
+--- a/target/riscv/insn32.decode
++++ b/target/riscv/insn32.decode
+@@ -662,9 +662,7 @@ vamomaxud_v     11100 . . ..... ..... 111 ..... 0101111 @r_wdvm
+ # *** RV32B Standard Extension ***
+ clz        011000 000000 ..... 001 ..... 0010011 @r2
+ ctz        011000 000001 ..... 001 ..... 0010011 @r2
+-cpop       011000 000010 ..... 001 ..... 0010011 @r2
+ 
+ # *** RV64B Standard Extension (in addition to RV32B) ***
+ clzw       0110000 00000 ..... 001 ..... 0011011 @r2
+ ctzw       0110000 00001 ..... 001 ..... 0011011 @r2
+-cpopw      0110000 00010 ..... 001 ..... 0011011 @r2
+diff --git a/target/riscv/insn_trans/trans_rvb.c.inc b/target/riscv/insn_trans/trans_rvb.c.inc
+index 4a5d271b43..157b4e3c41 100644
+--- a/target/riscv/insn_trans/trans_rvb.c.inc
++++ b/target/riscv/insn_trans/trans_rvb.c.inc
+@@ -29,12 +29,6 @@ static bool trans_ctz(DisasContext *ctx, arg_ctz *a)
+     return gen_unary(ctx, a, gen_ctz);
+ }
+ 
+-static bool trans_cpop(DisasContext *ctx, arg_cpop *a)
+-{
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_unary(ctx, a, tcg_gen_ctpop_tl);
+-}
+-
+ static bool trans_clzw(DisasContext *ctx, arg_clzw *a)
+ {
+     REQUIRE_64BIT(ctx);
+@@ -48,10 +42,3 @@ static bool trans_ctzw(DisasContext *ctx, arg_ctzw *a)
+     REQUIRE_EXT(ctx, RVB);
+     return gen_unary(ctx, a, gen_ctzw);
+ }
+-
+-static bool trans_cpopw(DisasContext *ctx, arg_cpopw *a)
+-{
+-    REQUIRE_64BIT(ctx);
+-    REQUIRE_EXT(ctx, RVB);
+-    return gen_unary(ctx, a, gen_cpopw);
+-}
+diff --git a/target/riscv/translate.c b/target/riscv/translate.c
+index c1a30c2172..60fac0fe27 100644
+--- a/target/riscv/translate.c
++++ b/target/riscv/translate.c
+@@ -561,12 +561,6 @@ static void gen_clzw(TCGv ret, TCGv arg1)
+     tcg_gen_subi_tl(ret, ret, 32);
+ }
+ 
+-static void gen_cpopw(TCGv ret, TCGv arg1)
+-{
+-    tcg_gen_ext32u_tl(arg1, arg1);
+-    tcg_gen_ctpop_tl(ret, arg1);
+-}
+-
+ static bool gen_arith(DisasContext *ctx, arg_r *a,
+                       void(*func)(TCGv, TCGv, TCGv))
+ {

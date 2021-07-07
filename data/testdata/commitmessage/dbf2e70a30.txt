@@ -1,0 +1,13 @@
+commit dbf2e70a3029890f4c7c426f4eb724bac78d8c54
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Fri May 21 17:17:51 2021 -0300
+
+    target/ppc: cleaned error_report from ppc_store_sdr1
+    
+    Changed how the function ppc_store_sdr1, from error_report(...) to
+    qemu_log_mask(LOG_GUEST_ERROR, ...).
+    
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Suggested-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210521201759.85475-2-bruno.larsen@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

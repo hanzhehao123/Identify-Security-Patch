@@ -1,0 +1,391 @@
+diff --git a/meson.build b/meson.build
+index a91b39465c..d8a92666fb 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1882,7 +1882,7 @@ if have_system or have_user
+     'target/hppa',
+     'target/i386',
+     'target/i386/kvm',
+-    'target/mips/tcg',
++    'target/mips',
+     'target/ppc',
+     'target/riscv',
+     'target/s390x',
+diff --git a/target/mips/cpu.c b/target/mips/cpu.c
+index d426918291..96236abc00 100644
+--- a/target/mips/cpu.c
++++ b/target/mips/cpu.c
+@@ -35,7 +35,7 @@
+ #include "qapi/qapi-commands-machine-target.h"
+ #include "fpu_helper.h"
+ 
+-const char regnames[32][3] = {
++const char regnames[32][4] = {
+     "r0", "at", "v0", "v1", "a0", "a1", "a2", "a3",
+     "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
+     "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
+diff --git a/target/mips/cpu.h b/target/mips/cpu.h
+index 1dfe69c6c0..075c24abda 100644
+--- a/target/mips/cpu.h
++++ b/target/mips/cpu.h
+@@ -1152,13 +1152,13 @@ struct CPUMIPSState {
+     CPUMIPSMVPContext *mvp;
+ #if !defined(CONFIG_USER_ONLY)
+     CPUMIPSTLBContext *tlb;
+-    void *irq[8];
+-    struct MIPSITUState *itu;
+-    MemoryRegion *itc_tag; /* ITC Configuration Tags */
+ #endif
+ 
+     const mips_def_t *cpu_model;
++    void *irq[8];
+     QEMUTimer *timer; /* Internal timer */
++    struct MIPSITUState *itu;
++    MemoryRegion *itc_tag; /* ITC Configuration Tags */
+     target_ulong exception_base; /* ExceptionBase input to the core */
+     uint64_t cp0_count_ns; /* CP0_Count clock period (in nanoseconds) */
+ };
+@@ -1316,16 +1316,12 @@ uint64_t cpu_mips_phys_to_kseg1(void *opaque, uint64_t addr);
+ bool mips_um_ksegs_enabled(void);
+ void mips_um_ksegs_enable(void);
+ 
+-#if !defined(CONFIG_USER_ONLY)
+-
+ /* mips_int.c */
+ void cpu_mips_soft_irq(CPUMIPSState *env, int irq, int level);
+ 
+ /* mips_itu.c */
+ void itc_reconfigure(struct MIPSITUState *tag);
+ 
+-#endif /* !CONFIG_USER_ONLY */
+-
+ /* helper.c */
+ target_ulong exception_resume_pc(CPUMIPSState *env);
+ 
+diff --git a/target/mips/internal.h b/target/mips/internal.h
+index eecdd10116..18d5da64a5 100644
+--- a/target/mips/internal.h
++++ b/target/mips/internal.h
+@@ -74,7 +74,7 @@ struct mips_def_t {
+     int32_t SAARP;
+ };
+ 
+-extern const char regnames[32][3];
++extern const char regnames[32][4];
+ extern const char fregnames[32][4];
+ 
+ extern const struct mips_def_t mips_defs[];
+diff --git a/target/mips/tcg/meson.build b/target/mips/tcg/meson.build
+index bf4001e574..5d8acbaf0d 100644
+--- a/target/mips/tcg/meson.build
++++ b/target/mips/tcg/meson.build
+@@ -1,7 +1,8 @@
+ gen = [
+   decodetree.process('mips32r6.decode', extra_args: '--static-decode=decode_mips32r6'),
+   decodetree.process('mips64r6.decode', extra_args: '--static-decode=decode_mips64r6'),
+-  decodetree.process('msa.decode', extra_args: '--decode=decode_ase_msa'),
++  decodetree.process('msa32.decode', extra_args: '--static-decode=decode_msa32'),
++  decodetree.process('msa64.decode', extra_args: '--static-decode=decode_msa64'),
+   decodetree.process('tx79.decode', extra_args: '--static-decode=decode_tx79'),
+ ]
+ 
+diff --git a/target/mips/tcg/msa.decode b/target/mips/tcg/msa32.decode
+similarity index 74%
+rename from target/mips/tcg/msa.decode
+rename to target/mips/tcg/msa32.decode
+index bf132e36b9..ca200e373b 100644
+--- a/target/mips/tcg/msa.decode
++++ b/target/mips/tcg/msa32.decode
+@@ -6,10 +6,9 @@
+ #
+ # Reference:
+ #       MIPS Architecture for Programmers Volume IV-j
+-#       - The MIPS32 SIMD Architecture Module, Revision 1.12
+-#         (Document Number: MD00866-2B-MSA32-AFP-01.12)
+-#       - The MIPS64 SIMD Architecture Module, Revision 1.12
+-#         (Document Number: MD00868-1D-MSA64-AFP-01.12)
++#       The MIPS32 SIMD Architecture Module, Revision 1.12
++#       (Document Number: MD00866-2B-MSA32-AFP-01.12)
++#
+ 
+ &rtype              rs rt rd sa
+ 
+@@ -20,7 +19,6 @@
+ @bz_df              ...... ... df:2 wt:5 s16:16             &msa_bz
+ 
+ LSA                 000000 ..... ..... ..... 000 .. 000101  @lsa
+-DLSA                000000 ..... ..... ..... 000 .. 010101  @lsa
+ 
+ BZ_V                010001 01011  ..... ................    @bz
+ BNZ_V               010001 01111  ..... ................    @bz
+diff --git a/target/mips/tcg/msa64.decode b/target/mips/tcg/msa64.decode
+new file mode 100644
+index 0000000000..d2442474d0
+--- /dev/null
++++ b/target/mips/tcg/msa64.decode
+@@ -0,0 +1,17 @@
++# MIPS SIMD Architecture Module instruction set
++#
++# Copyright (C) 2020  Philippe Mathieu-Daudé
++#
++# SPDX-License-Identifier: LGPL-2.1-or-later
++#
++# Reference:
++#       MIPS Architecture for Programmers Volume IV-j
++#       The MIPS64 SIMD Architecture Module, Revision 1.12
++#       (Document Number: MD00868-1D-MSA64-AFP-01.12)
++#
++
++&rtype              rs rt rd sa !extern
++
++@lsa                ...... rs:5 rt:5 rd:5 ... sa:2 ......   &rtype
++
++DLSA                 000000 ..... ..... ..... 000 .. 010101 @lsa
+diff --git a/target/mips/tcg/msa_translate.c b/target/mips/tcg/msa_translate.c
+index eed2eca6c9..ae6587edf6 100644
+--- a/target/mips/tcg/msa_translate.c
++++ b/target/mips/tcg/msa_translate.c
+@@ -18,7 +18,8 @@
+ #include "internal.h"
+ 
+ /* Include the auto-generated decoder.  */
+-#include "decode-msa.c.inc"
++#include "decode-msa32.c.inc"
++#include "decode-msa64.c.inc"
+ 
+ #define OPC_MSA (0x1E << 26)
+ 
+@@ -254,7 +255,7 @@ enum {
+     OPC_BINSRI_df   = (0x7 << 23) | OPC_MSA_BIT_09,
+ };
+ 
+-static const char msaregnames[][6] = {
++static const char * const msaregnames[] = {
+     "w0.d0",  "w0.d1",  "w1.d0",  "w1.d1",
+     "w2.d0",  "w2.d1",  "w3.d0",  "w3.d1",
+     "w4.d0",  "w4.d1",  "w5.d0",  "w5.d1",
+@@ -2161,7 +2162,7 @@ static void gen_msa_vec(DisasContext *ctx)
+     }
+ }
+ 
+-static bool trans_MSA(DisasContext *ctx, arg_MSA *a)
++static void gen_msa(DisasContext *ctx)
+ {
+     uint32_t opcode = ctx->opcode;
+ 
+@@ -2257,6 +2258,11 @@ static bool trans_MSA(DisasContext *ctx, arg_MSA *a)
+         gen_reserved_instruction(ctx);
+         break;
+     }
++}
++
++static bool trans_MSA(DisasContext *ctx, arg_MSA *a)
++{
++    gen_msa(ctx);
+ 
+     return true;
+ }
+@@ -2268,8 +2274,13 @@ static bool trans_LSA(DisasContext *ctx, arg_rtype *a)
+ 
+ static bool trans_DLSA(DisasContext *ctx, arg_rtype *a)
+ {
+-    if (TARGET_LONG_BITS != 64) {
+-        return false;
+-    }
+     return gen_dlsa(ctx, a->rd, a->rt, a->rs, a->sa);
+ }
++
++bool decode_ase_msa(DisasContext *ctx, uint32_t insn)
++{
++    if (TARGET_LONG_BITS == 64 && decode_msa64(ctx, insn)) {
++        return true;
++    }
++    return decode_msa32(ctx, insn);
++}
+diff --git a/target/mips/tcg/mxu_translate.c b/target/mips/tcg/mxu_translate.c
+index 963d4ba8b1..fb0a811af6 100644
+--- a/target/mips/tcg/mxu_translate.c
++++ b/target/mips/tcg/mxu_translate.c
+@@ -447,9 +447,9 @@ enum {
+ static TCGv mxu_gpr[NUMBER_OF_MXU_REGISTERS - 1];
+ static TCGv mxu_CR;
+ 
+-static const char mxuregnames[][4] = {
++static const char * const mxuregnames[] = {
+     "XR1",  "XR2",  "XR3",  "XR4",  "XR5",  "XR6",  "XR7",  "XR8",
+-    "XR9",  "XR10", "XR11", "XR12", "XR13", "XR14", "XR15", "XCR",
++    "XR9",  "XR10", "XR11", "XR12", "XR13", "XR14", "XR15", "MXU_CR",
+ };
+ 
+ void mxu_translate_init(void)
+diff --git a/target/mips/tcg/sysemu/mips-semi.c b/target/mips/tcg/sysemu/mips-semi.c
+index 77108b0b1a..6de60fa6dd 100644
+--- a/target/mips/tcg/sysemu/mips-semi.c
++++ b/target/mips/tcg/sysemu/mips-semi.c
+@@ -75,7 +75,7 @@ enum UHIOpenFlags {
+ };
+ 
+ /* Errno values taken from asm-mips/errno.h */
+-static const uint16_t host_to_mips_errno[] = {
++static uint16_t host_to_mips_errno[] = {
+     [ENAMETOOLONG] = 78,
+ #ifdef EOVERFLOW
+     [EOVERFLOW]    = 79,
+diff --git a/target/mips/tcg/sysemu/tlb_helper.c b/target/mips/tcg/sysemu/tlb_helper.c
+index a150a014ec..259f780d19 100644
+--- a/target/mips/tcg/sysemu/tlb_helper.c
++++ b/target/mips/tcg/sysemu/tlb_helper.c
+@@ -17,7 +17,6 @@
+  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+  */
+ #include "qemu/osdep.h"
+-#include "qemu/bitops.h"
+ 
+ #include "cpu.h"
+ #include "internal.h"
+@@ -660,7 +659,7 @@ static int walk_directory(CPUMIPSState *env, uint64_t *vaddr,
+         w = directory_index - 1;
+         if (directory_index & 0x1) {
+             /* Generate adjacent page from same PTE for odd TLB page */
+-            lsb = BIT_ULL(w) >> 6;
++            lsb = (1 << w) >> 6;
+             *pw_entrylo0 = entry & ~lsb; /* even page */
+             *pw_entrylo1 = entry | lsb; /* odd page */
+         } else if (dph) {
+diff --git a/target/mips/tcg/trace.h b/target/mips/tcg/trace.h
+deleted file mode 100644
+index b8c6c4568e..0000000000
+--- a/target/mips/tcg/trace.h
++++ /dev/null
+@@ -1 +0,0 @@
+-#include "trace/trace-target_mips_tcg.h"
+diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
+index b4a454ec09..797eba4434 100644
+--- a/target/mips/tcg/translate.c
++++ b/target/mips/tcg/translate.c
+@@ -31,7 +31,7 @@
+ #include "exec/helper-gen.h"
+ #include "semihosting/semihost.h"
+ 
+-#include "trace.h"
++#include "target/mips/trace.h"
+ #include "trace-tcg.h"
+ #include "exec/translator.h"
+ #include "exec/log.h"
+@@ -1280,11 +1280,11 @@ TCGv_i64 fpu_f64[32];
+ #define DISAS_STOP       DISAS_TARGET_0
+ #define DISAS_EXIT       DISAS_TARGET_1
+ 
+-static const char regnames_HI[][4] = {
++static const char * const regnames_HI[] = {
+     "HI0", "HI1", "HI2", "HI3",
+ };
+ 
+-static const char regnames_LO[][4] = {
++static const char * const regnames_LO[] = {
+     "LO0", "LO1", "LO2", "LO3",
+ };
+ 
+@@ -12151,8 +12151,8 @@ static void gen_branch(DisasContext *ctx, int insn_bytes)
+             tcg_gen_lookup_and_goto_ptr();
+             break;
+         default:
+-            LOG_DISAS("unknown branch 0x%x\n", proc_hflags);
+-            gen_reserved_instruction(ctx);
++            fprintf(stderr, "unknown branch 0x%x\n", proc_hflags);
++            abort();
+         }
+     }
+ }
+@@ -14076,6 +14076,8 @@ enum {
+     BGEZALS = 0x13,
+     BC2F = 0x14,
+     BC2T = 0x15,
++    BPOSGE64 = 0x1a,
++    BPOSGE32 = 0x1b,
+     /* These overlap and are distinguished by bit16 of the instruction */
+     BC1F = 0x1c,
+     BC1T = 0x1d,
+@@ -16119,6 +16121,10 @@ static void decode_micromips32_opc(CPUMIPSState *env, DisasContext *ctx)
+                 generate_exception_err(ctx, EXCP_CpU, 1);
+             }
+             break;
++        case BPOSGE64:
++        case BPOSGE32:
++            /* MIPS DSP: not implemented */
++            /* Fall through */
+         default:
+             MIPS_INVAL("pool32i");
+             gen_reserved_instruction(ctx);
+@@ -20176,8 +20182,6 @@ static void gen_pool32a5_nanomips_insn(DisasContext *ctx, int opc,
+             tcg_gen_movi_tl(tv0, rd >> 3);
+             tcg_gen_movi_tl(tv1, imm);
+             gen_helper_shilo(tv0, tv1, cpu_env);
+-            tcg_temp_free(tv1);
+-            tcg_temp_free(tv0);
+         }
+         break;
+     case NM_MULEQ_S_W_PHL:
+@@ -20292,10 +20296,6 @@ static void gen_pool32a5_nanomips_insn(DisasContext *ctx, int opc,
+         gen_reserved_instruction(ctx);
+         break;
+     }
+-
+-    tcg_temp_free(v2_t);
+-    tcg_temp_free(v1_t);
+-    tcg_temp_free(t0);
+ }
+ 
+ static int decode_nanomips_32_48_opc(CPUMIPSState *env, DisasContext *ctx)
+@@ -21137,7 +21137,7 @@ static int decode_nanomips_32_48_opc(CPUMIPSState *env, DisasContext *ctx)
+                                       extract32(ctx->opcode, 0, 1) << 13;
+ 
+                         gen_compute_branch_nm(ctx, OPC_BPOSGE32, 4, -1, -2,
+-                                              imm << 1);
++                                              imm);
+                     }
+                     break;
+                 default:
+@@ -21572,6 +21572,14 @@ static int decode_nanomips_opc(CPUMIPSState *env, DisasContext *ctx)
+ }
+ 
+ 
++/* SmartMIPS extension to MIPS32 */
++
++#if defined(TARGET_MIPS64)
++
++/* MDMX extension to MIPS64 */
++
++#endif
++
+ /* MIPSDSP functions. */
+ static void gen_mipsdsp_ld(DisasContext *ctx, uint32_t opc,
+                            int rd, int base, int offset)
+@@ -24365,11 +24373,10 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
+         {
+             TCGv t0, t1;
+ 
+-            check_dsp(ctx);
+-
+             if (rt == 0) {
+                 break;
+             }
++            check_dsp(ctx);
+ 
+             t0 = tcg_temp_new();
+             t1 = tcg_temp_new();
+diff --git a/target/mips/tcg/trace-events b/target/mips/trace-events
+similarity index 100%
+rename from target/mips/tcg/trace-events
+rename to target/mips/trace-events
+diff --git a/target/mips/trace.h b/target/mips/trace.h
+new file mode 100644
+index 0000000000..f25b88ca6f
+--- /dev/null
++++ b/target/mips/trace.h
+@@ -0,0 +1 @@
++#include "trace/trace-target_mips.h"
+diff --git a/target/mips/tcg/translate.h b/target/mips/translate.h
+similarity index 100%
+rename from target/mips/tcg/translate.h
+rename to target/mips/translate.h

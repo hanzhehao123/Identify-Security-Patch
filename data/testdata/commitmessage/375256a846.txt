@@ -1,0 +1,22 @@
+commit 375256a8460ae7310b053b52fe579c8832e73d10
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 16:09:13 2021 +0100
+
+    target/arm: Handle VPR semantics in existing code
+    
+    When MVE is supported, the VPR register has a place on the exception
+    stack frame in a previously reserved slot just above the FPSCR.
+    It must also be zeroed in various situations when we invalidate
+    FPU context.
+    
+    Update the code which handles the stack frames (exception entry and
+    exit code, VLLDM, and VLSTM) to save/restore VPR.
+    
+    Update code which invalidates FP registers (mostly also exception
+    entry and exit code, but also VSCCLRM and the code in
+    full_vfp_access_check() that corresponds to the ExecuteFPCheck()
+    pseudocode) to zero VPR.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210614151007.4545-4-peter.maydell@linaro.org

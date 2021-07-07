@@ -1,0 +1,8 @@
+commit 45a76b71abadedb2ff77ea1cc4d03a13cf6f9f8b
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 21 12:51:14 2020 -0800
+
+    softfloat: Convert floatx80_round to FloatParts
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

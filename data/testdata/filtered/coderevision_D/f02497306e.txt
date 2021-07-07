@@ -1,0 +1,109 @@
+diff --git a/target/s390x/helper.h b/target/s390x/helper.h
+index 913967ce4e..2366756063 100644
+--- a/target/s390x/helper.h
++++ b/target/s390x/helper.h
+@@ -297,12 +297,6 @@ DEF_HELPER_FLAGS_6(gvec_vfma128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, en
+ DEF_HELPER_FLAGS_6(gvec_vfms32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_6(gvec_vfms64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_6(gvec_vfms128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfnma32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfnma64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfnma128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfnms32, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfnms64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+-DEF_HELPER_FLAGS_6(gvec_vfnms128, TCG_CALL_NO_WG, void, ptr, cptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vfsq32, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vfsq64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vfsq128, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+diff --git a/target/s390x/insn-data.def b/target/s390x/insn-data.def
+index 19b02dffca..1a3ae7e7e7 100644
+--- a/target/s390x/insn-data.def
++++ b/target/s390x/insn-data.def
+@@ -1259,10 +1259,6 @@
+     F(0xe78f, VFMA,    VRR_e, V,   0, 0, 0, 0, vfma, 0, IF_VEC)
+ /* VECTOR FP MULTIPLY AND SUBTRACT */
+     F(0xe78e, VFMS,    VRR_e, V,   0, 0, 0, 0, vfma, 0, IF_VEC)
+-/* VECTOR FP NEGATIVE MULTIPLY AND ADD */
+-    F(0xe79f, VFNMA,   VRR_e, VE,  0, 0, 0, 0, vfma, 0, IF_VEC)
+-/* VECTOR FP NEGATIVE MULTIPLY AND SUBTRACT */
+-    F(0xe79e, VFNMS,   VRR_e, VE,   0, 0, 0, 0, vfma, 0, IF_VEC)
+ /* VECTOR FP PERFORM SIGN OPERATION */
+     F(0xe7cc, VFPSO,   VRR_a, V,   0, 0, 0, 0, vfpso, 0, IF_VEC)
+ /* VECTOR FP SQUARE ROOT */
+diff --git a/target/s390x/translate_vx.c.inc b/target/s390x/translate_vx.c.inc
+index 200d83e783..17d41b178f 100644
+--- a/target/s390x/translate_vx.c.inc
++++ b/target/s390x/translate_vx.c.inc
+@@ -2820,8 +2820,7 @@ static DisasJumpType op_vfma(DisasContext *s, DisasOps *o)
+     const uint8_t fpf = get_field(s, m6);
+     gen_helper_gvec_4_ptr *fn = NULL;
+ 
+-    switch (s->fields.op2) {
+-    case 0x8f:
++    if (s->fields.op2 == 0x8f) {
+         switch (fpf) {
+         case FPF_SHORT:
+             if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+@@ -2839,8 +2838,7 @@ static DisasJumpType op_vfma(DisasContext *s, DisasOps *o)
+         default:
+             break;
+         }
+-        break;
+-    case 0x8e:
++    } else {
+         switch (fpf) {
+         case FPF_SHORT:
+             if (s390_has_feat(S390_FEAT_VECTOR_ENH)) {
+@@ -2858,39 +2856,6 @@ static DisasJumpType op_vfma(DisasContext *s, DisasOps *o)
+         default:
+             break;
+         }
+-        break;
+-    case 0x9f:
+-        switch (fpf) {
+-        case FPF_SHORT:
+-            fn = gen_helper_gvec_vfnma32;
+-            break;
+-        case FPF_LONG:
+-            fn = gen_helper_gvec_vfnma64;
+-            break;
+-        case FPF_EXT:
+-            fn = gen_helper_gvec_vfnma128;
+-            break;
+-        default:
+-            break;
+-        }
+-        break;
+-    case 0x9e:
+-        switch (fpf) {
+-        case FPF_SHORT:
+-            fn = gen_helper_gvec_vfnms32;
+-            break;
+-        case FPF_LONG:
+-            fn = gen_helper_gvec_vfnms64;
+-            break;
+-        case FPF_EXT:
+-            fn = gen_helper_gvec_vfnms128;
+-            break;
+-        default:
+-            break;
+-        }
+-        break;
+-    default:
+-        g_assert_not_reached();
+     }
+ 
+     if (!fn || extract32(m5, 0, 3)) {
+diff --git a/target/s390x/vec_fpu_helper.c b/target/s390x/vec_fpu_helper.c
+index dc9bcc90a7..29ccc608dc 100644
+--- a/target/s390x/vec_fpu_helper.c
++++ b/target/s390x/vec_fpu_helper.c
+@@ -663,8 +663,6 @@ void HELPER(gvec_##NAME##BITS)(void *v1, const void *v2, const void *v3,       \
+ 
+ DEF_GVEC_VFMA(vfma, 0)
+ DEF_GVEC_VFMA(vfms, float_muladd_negate_c)
+-DEF_GVEC_VFMA(vfnma, float_muladd_negate_result)
+-DEF_GVEC_VFMA(vfnms, float_muladd_negate_c | float_muladd_negate_result)
+ 
+ void HELPER(gvec_vftci32)(void *v1, const void *v2, CPUS390XState *env,
+                           uint32_t desc)

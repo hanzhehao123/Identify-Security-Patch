@@ -1,0 +1,18 @@
+commit 6cc702beac795a6de7b5f97700b140dcd9936055
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:36 2021 +0300
+
+    block/nbd: call socket_address_parse_named_fd() in advance
+    
+    Detecting monitor by current coroutine works bad when we are not in
+    coroutine context. And that's exactly so in nbd reconnect code, where
+    qio_channel_socket_connect_sync() is called from thread.
+    
+    Monitor is needed only to parse named file descriptor. So, let's just
+    parse it during nbd_open(), so that all further users of s->saddr don't
+    need to access monitor.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210610100802.5888-7-vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

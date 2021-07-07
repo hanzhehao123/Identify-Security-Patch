@@ -1,0 +1,14 @@
+commit 0c5d547625989685742da9765608c0bb1abd7877
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Mon May 31 11:56:28 2021 -0300
+
+    target/ppc: removed GEN_OPCODE decision tree
+    
+    since both, PPC_DO_STATISTICS and PPC_DUMP_CPU, are obsoleted as
+    target/ppc moves to decodetree, we can remove this ifdef based decision
+    tree, and only have what is now the standard option for the macro.
+    
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Message-Id: <20210531145629.21300-4-bruno.larsen@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

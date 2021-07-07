@@ -1,0 +1,11 @@
+commit 249b5309c44831555b7fb6dab68d7a6f9f573882
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:15:49 2021 +0100
+
+    target/arm: Implement MVE VREV16, VREV32, VREV64
+    
+    Implement the MVE instructions VREV16, VREV32 and VREV64.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-6-peter.maydell@linaro.org

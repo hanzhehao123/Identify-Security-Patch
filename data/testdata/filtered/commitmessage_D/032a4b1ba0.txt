@@ -1,0 +1,13 @@
+commit 032a4b1ba09ab15bb9331a75d49db186e782c00c
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Wed Mar 10 12:34:27 2021 -0600
+
+    tcg: Allocate code_gen_buffer into struct tcg_region_state
+    
+    Do not mess around with setting values within tcg_init_ctx.
+    Put the values into 'region' directly, which is where they
+    will live for the lifetime of the program.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

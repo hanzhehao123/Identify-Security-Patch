@@ -1,0 +1,15 @@
+diff --git a/target/arm/translate-a64.c b/target/arm/translate-a64.c
+index 2477b55c53..8713dfec17 100644
+--- a/target/arm/translate-a64.c
++++ b/target/arm/translate-a64.c
+@@ -13234,8 +13234,8 @@ static void disas_simd_two_reg_misc_fp16(DisasContext *s, uint32_t insn)
+     case 0x7f: /* FSQRT (vector) */
+         break;
+     default:
+-        unallocated_encoding(s);
+-        return;
++        fprintf(stderr, "%s: insn 0x%04x fpop 0x%2x\n", __func__, insn, fpop);
++        g_assert_not_reached();
+     }
+ 
+ 

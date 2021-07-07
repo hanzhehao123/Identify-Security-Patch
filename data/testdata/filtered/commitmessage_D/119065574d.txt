@@ -1,0 +1,13 @@
+commit 119065574d02deffc28fe5b6a864db9b467c6ffd
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Feb 27 15:21:17 2021 -0800
+
+    hw/core: Constify TCGCPUOps
+    
+    We no longer have any runtime modifications to this struct,
+    so declare them all const.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-ID: <20210227232519.222663-3-richard.henderson@linaro.org>

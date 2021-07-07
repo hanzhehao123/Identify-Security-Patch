@@ -1,0 +1,10 @@
+commit 1c6b5b47da8d9c8797cdf866fa180466b56a9204
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:27 2021 +0200
+
+    s390x/tcg: Implement 32/128 bit for VECTOR FP COMPARE (AND SIGNAL) SCALAR
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-17-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

@@ -1,0 +1,16 @@
+commit 4336073b9b13943e050edfe9aebb99974c3b6ee1
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:28 2021 +0200
+
+    cpu: Assert DeviceClass::vmsd is NULL on user emulation
+    
+    Migration is specific to system emulation.
+    
+    Restrict current DeviceClass::vmsd to sysemu using #ifdef'ry,
+    and assert in cpu_exec_realizefn() that dc->vmsd not set under
+    user emulation.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-12-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

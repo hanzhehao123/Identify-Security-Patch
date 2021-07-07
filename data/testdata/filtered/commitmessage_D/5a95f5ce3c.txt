@@ -1,0 +1,41 @@
+commit 5a95f5ce3cd5842cc8f61a91ecd4fb4e8d10104f
+Merge: 453d9c61dd 5d0204b82a
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 4 10:04:11 2021 +0100
+
+    Merge remote-tracking branch 'remotes/rth-gitlab/tags/pull-fpu-20210603' into staging
+    
+    Finish conversion of float128 and floatx80 to FloatParts.
+    Implement float128_muladd and float128_{min,max}*.
+    Optimize int-to-float conversion with hard-float.
+    
+    # gpg: Signature made Thu 03 Jun 2021 22:13:10 BST
+    # gpg:                using RSA key 7A481E78868B4DB6A85A05C064DF38E8AF7E215F
+    # gpg:                issuer "richard.henderson@linaro.org"
+    # gpg: Good signature from "Richard Henderson <richard.henderson@linaro.org>" [full]
+    # Primary key fingerprint: 7A48 1E78 868B 4DB6 A85A  05C0 64DF 38E8 AF7E 215F
+    
+    * remotes/rth-gitlab/tags/pull-fpu-20210603: (29 commits)
+      softfloat: Use hard-float for {u}int64_to_float{32,64}
+      tests/fp: Enable more tests
+      softfloat: Convert modrem operations to FloatParts
+      softfloat: Move floatN_log2 to softfloat-parts.c.inc
+      softfloat: Convert float32_exp2 to FloatParts
+      softfloat: Convert floatx80 compare to FloatParts
+      softfloat: Convert floatx80_scalbn to FloatParts
+      softfloat: Convert floatx80 to integer to FloatParts
+      softfloat: Convert floatx80 float conversions to FloatParts
+      softfloat: Convert integer to floatx80 to FloatParts
+      softfloat: Convert floatx80_round_to_int to FloatParts
+      softfloat: Convert floatx80_round to FloatParts
+      softfloat: Convert floatx80_sqrt to FloatParts
+      softfloat: Convert floatx80_div to FloatParts
+      softfloat: Convert floatx80_mul to FloatParts
+      softfloat: Convert floatx80_add/sub to FloatParts
+      tests/fp/fp-test: Reverse order of floatx80 precision tests
+      softfloat: Adjust parts_uncanon_normal for floatx80
+      softfloat: Introduce Floatx80RoundPrec
+      softfloat: Reduce FloatFmt
+      ...
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

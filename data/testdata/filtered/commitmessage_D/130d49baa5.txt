@@ -1,0 +1,13 @@
+commit 130d49baa50655729f09efb72e77bebf09421dd7
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:49 2021 +0300
+
+    nbd/client-connection: add possibility of negotiation
+    
+    Add arguments and logic to support nbd negotiation in the same thread
+    after successful connection.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210610100802.5888-20-vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

@@ -1,0 +1,21 @@
+diff --git a/.gitlab-ci.d/static_checks.yml b/.gitlab-ci.d/static_checks.yml
+index 9c9a771b74..f695627b7c 100644
+--- a/.gitlab-ci.d/static_checks.yml
++++ b/.gitlab-ci.d/static_checks.yml
+@@ -6,7 +6,7 @@ check-patch:
+   script: .gitlab-ci.d/check-patch.py
+   except:
+     variables:
+-      - $CI_PROJECT_NAMESPACE == 'qemu-project' && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
++      - $CI_PROJECT_NAMESPACE == 'qemu-project' && $CI_COMMIT_BRANCH == 'master'
+   variables:
+     GIT_DEPTH: 1000
+   allow_failure: true
+@@ -19,6 +19,6 @@ check-dco:
+   script: .gitlab-ci.d/check-dco.py
+   except:
+     variables:
+-      - $CI_PROJECT_NAMESPACE == 'qemu-project' && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
++      - $CI_PROJECT_NAMESPACE == 'qemu-project' && $CI_COMMIT_BRANCH == 'master'
+   variables:
+     GIT_DEPTH: 1000

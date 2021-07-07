@@ -1,0 +1,13 @@
+commit 85cd1cc6687e827f3e5e94ad2e13444b75d0c5fa
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri Apr 30 12:59:06 2021 +0100
+
+    migration: use GDateTime for formatting timestamp in snapshot names
+    
+    The GDateTime APIs provided by GLib avoid portability pitfalls, such
+    as some platforms where 'struct timeval.tv_sec' field is still 'long'
+    instead of 'time_t'. When combined with automatic cleanup, GDateTime
+    often results in simpler code too.
+    
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>

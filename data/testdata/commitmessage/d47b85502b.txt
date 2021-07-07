@@ -1,0 +1,16 @@
+commit d47b85502b92fe8015d38904cde54eb4d3364326
+Author: Connor Kuehl <ckuehl@redhat.com>
+Date:   Fri Apr 30 08:48:30 2021 -0500
+
+    sev: add missing firmware error conditions
+    
+    The SEV userspace header[1] exports a couple of other error conditions that
+    aren't listed in QEMU's SEV implementation, so let's just round out the
+    list.
+    
+    [1] linux-headers/linux/psp-sev.h
+    
+    Signed-off-by: Connor Kuehl <ckuehl@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210430134830.254741-3-ckuehl@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

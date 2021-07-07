@@ -1,0 +1,12 @@
+commit 68245e442c9e5175d5e9d3a797dcab7eee800253
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:15:55 2021 +0100
+
+    target/arm: Implement MVE VAND, VBIC, VORR, VORN, VEOR
+    
+    Implement the MVE vector logical operations operating
+    on two registers.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-12-peter.maydell@linaro.org

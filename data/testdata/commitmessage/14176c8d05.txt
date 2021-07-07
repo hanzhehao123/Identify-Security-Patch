@@ -1,0 +1,12 @@
+commit 14176c8d05fe910e9f1ee537e7af016565ccffc3
+Author: Joelle van Dyne <j@getutm.app>
+Date:   Mon Mar 15 11:03:38 2021 -0700
+
+    block: feature detection for host block support
+    
+    On Darwin (iOS), there are no system level APIs for directly accessing
+    host block devices. We detect this at configure time.
+    
+    Signed-off-by: Joelle van Dyne <j@getutm.app>
+    Message-Id: <20210315180341.31638-2-j@getutm.app>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

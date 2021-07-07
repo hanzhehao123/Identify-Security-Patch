@@ -1,0 +1,13 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index ea6a87e0b3..c46f4f516b 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -101,7 +101,7 @@ class FuzzyJSON(ast.NodeTransformer):
+     """
+ 
+     @classmethod
+-    def visit_Name(cls, node):  # pylint: disable=invalid-name
++    def visit_Name(cls, node):
+         if node.id == 'true':
+             node.id = 'True'
+         if node.id == 'false':

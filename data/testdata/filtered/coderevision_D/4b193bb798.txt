@@ -1,0 +1,90 @@
+diff --git a/include/qemu/thread-posix.h b/include/qemu/thread-posix.h
+index cf8bc90468..c903525062 100644
+--- a/include/qemu/thread-posix.h
++++ b/include/qemu/thread-posix.h
+@@ -5,6 +5,10 @@
+ #include <semaphore.h>
+ 
+ typedef QemuMutex QemuRecMutex;
++#define qemu_rec_mutex_destroy qemu_mutex_destroy
++#define qemu_rec_mutex_lock_impl    qemu_mutex_lock_impl
++#define qemu_rec_mutex_trylock_impl qemu_mutex_trylock_impl
++#define qemu_rec_mutex_unlock qemu_mutex_unlock
+ 
+ struct QemuMutex {
+     pthread_mutex_t lock;
+diff --git a/include/qemu/thread-win32.h b/include/qemu/thread-win32.h
+index d95af4498f..d0a1a9597e 100644
+--- a/include/qemu/thread-win32.h
++++ b/include/qemu/thread-win32.h
+@@ -18,6 +18,12 @@ struct QemuRecMutex {
+     bool initialized;
+ };
+ 
++void qemu_rec_mutex_destroy(QemuRecMutex *mutex);
++void qemu_rec_mutex_lock_impl(QemuRecMutex *mutex, const char *file, int line);
++int qemu_rec_mutex_trylock_impl(QemuRecMutex *mutex, const char *file,
++                                int line);
++void qemu_rec_mutex_unlock(QemuRecMutex *mutex);
++
+ struct QemuCond {
+     CONDITION_VARIABLE var;
+     bool initialized;
+diff --git a/include/qemu/thread.h b/include/qemu/thread.h
+index 2c0d85f3bc..5435763184 100644
+--- a/include/qemu/thread.h
++++ b/include/qemu/thread.h
+@@ -28,12 +28,6 @@ int qemu_mutex_trylock_impl(QemuMutex *mutex, const char *file, const int line);
+ void qemu_mutex_lock_impl(QemuMutex *mutex, const char *file, const int line);
+ void qemu_mutex_unlock_impl(QemuMutex *mutex, const char *file, const int line);
+ 
+-void qemu_rec_mutex_init(QemuRecMutex *mutex);
+-void qemu_rec_mutex_destroy(QemuRecMutex *mutex);
+-void qemu_rec_mutex_lock_impl(QemuRecMutex *mutex, const char *file, int line);
+-int qemu_rec_mutex_trylock_impl(QemuRecMutex *mutex, const char *file, int line);
+-void qemu_rec_mutex_unlock(QemuRecMutex *mutex);
+-
+ typedef void (*QemuMutexLockFunc)(QemuMutex *m, const char *f, int l);
+ typedef int (*QemuMutexTrylockFunc)(QemuMutex *m, const char *f, int l);
+ typedef void (*QemuRecMutexLockFunc)(QemuRecMutex *m, const char *f, int l);
+@@ -135,6 +129,9 @@ static inline int (qemu_rec_mutex_trylock)(QemuRecMutex *mutex)
+     return qemu_rec_mutex_trylock(mutex);
+ }
+ 
++/* Prototypes for other functions are in thread-posix.h/thread-win32.h.  */
++void qemu_rec_mutex_init(QemuRecMutex *mutex);
++
+ void qemu_cond_init(QemuCond *cond);
+ void qemu_cond_destroy(QemuCond *cond);
+ 
+diff --git a/util/qemu-thread-posix.c b/util/qemu-thread-posix.c
+index 8e2b6653f5..dcff5e7c5d 100644
+--- a/util/qemu-thread-posix.c
++++ b/util/qemu-thread-posix.c
+@@ -124,26 +124,6 @@ void qemu_rec_mutex_init(QemuRecMutex *mutex)
+     mutex->initialized = true;
+ }
+ 
+-void qemu_rec_mutex_destroy(QemuRecMutex *mutex)
+-{
+-    qemu_mutex_destroy(mutex);
+-}
+-
+-void qemu_rec_mutex_lock_impl(QemuRecMutex *mutex, const char *file, int line)
+-{
+-    qemu_mutex_lock_impl(mutex, file, line);
+-}
+-
+-int qemu_rec_mutex_trylock_impl(QemuRecMutex *mutex, const char *file, int line)
+-{
+-    return qemu_mutex_trylock_impl(mutex, file, line);
+-}
+-
+-void qemu_rec_mutex_unlock(QemuRecMutex *mutex)
+-{
+-    qemu_mutex_unlock(mutex);
+-}
+-
+ void qemu_cond_init(QemuCond *cond)
+ {
+     int err;

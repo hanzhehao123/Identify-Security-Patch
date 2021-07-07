@@ -1,0 +1,17 @@
+commit 67ec113b119360092dee679ca0f5eca8ac60992c
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:25 2021 +0100
+
+    target/arm: Implement MVE VCADD
+    
+    Implement the MVE VCADD insn, which performs a complex add with
+    rotate.  Note that the size=0b11 encoding is VSBC.
+    
+    The architecture grants some leeway for the "destination and Vm
+    source overlap" case for the size MO_32 case, but we choose not to
+    make use of it, instead always calculating all 16 bytes worth of
+    results before setting the destination register.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-42-peter.maydell@linaro.org

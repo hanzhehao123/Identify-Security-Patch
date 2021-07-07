@@ -1,0 +1,17 @@
+commit 0a3be7be73e594388ae2a91017b7ffafab15a7d9
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:12 2021 +0200
+
+    s390x/tcg: Fix FP CONVERT TO (LOGICAL) FIXED NaN handling
+    
+    In case we encounter a NaN, we have to return the smallest possible
+    number, corresponding to either 0 or the maximum negative number. This
+    seems to differ from IEEE handling as implemented in softfloat, whereby
+    we return the biggest possible number.
+    
+    While at it, use float32_to_uint64() in the CLGEB handler.
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-2-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

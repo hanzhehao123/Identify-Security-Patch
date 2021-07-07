@@ -1,0 +1,14 @@
+commit a41d3aae52c6b1657f665fcd26d122b0646cd330
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:23 2021 +0200
+
+    cpu: Un-inline cpu_get_phys_page_debug and cpu_asidx_from_attrs
+    
+    To be able to later extract the cpu_get_phys_page_debug() and
+    cpu_asidx_from_attrs() handlers from CPUClass, un-inline them
+    from "hw/core/cpu.h".
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-7-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

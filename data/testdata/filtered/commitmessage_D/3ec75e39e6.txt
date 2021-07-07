@@ -1,0 +1,15 @@
+commit 3ec75e39e67d69fe56731606c0c03921889a3019
+Author: Patrick Venture <venture@google.com>
+Date:   Tue Jun 8 13:25:22 2021 -0700
+
+    hw/arm: quanta-q71l add pca954x muxes
+    
+    Adds the pca954x muxes expected.
+    
+    Tested: Booted quanta-q71l image to userspace.
+    Signed-off-by: Patrick Venture <venture@google.com>
+    Reviewed-by: Hao Wu <wuhaotsh@google.com>
+    Reviewed-by: Joel Stanley <joel@jms.id.au>
+    Reviewed-by: Cédric Le Goater <clg@kaod.org>
+    Message-id: 20210608202522.2677850-4-venture@google.com
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

@@ -1,0 +1,12 @@
+commit 563d32ba9bb92df6170a53826a174e59ae73412f
+Author: Peter Xu <peterx@redhat.com>
+Date:   Thu May 6 12:05:46 2021 -0400
+
+    KVM: Cache kvm slot dirty bitmap size
+    
+    Cache it too because we'll reference it more frequently in the future.
+    
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Message-Id: <20210506160549.130416-8-peterx@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

@@ -1,0 +1,17 @@
+commit 1c81f5735af3e2356bb75482a58786a4f26d8300
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:24:37 2021 +0100
+
+    hw/acpi: Provide function acpi_ghes_present()
+    
+    Allow code elsewhere in the system to check whether the ACPI GHES
+    table is present, so it can determine whether it is OK to try to
+    record an error by calling acpi_ghes_record_errors().
+    
+    (We don't need to migrate the new 'present' field in AcpiGhesState,
+    because it is set once at system initialization and doesn't change.)
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Dongjiu Geng <gengdongjiu1@gmail.com>
+    Message-id: 20210603171259.27962-3-peter.maydell@linaro.org

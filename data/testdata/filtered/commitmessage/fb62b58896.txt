@@ -1,0 +1,73 @@
+commit fb62b5889695825ea22f29d4eadb9ac1b8935a71
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Mon May 24 13:12:56 2021 +0300
+
+    block/vvfat: child_vvfat_qcow: add .get_parent_aio_context, fix crash
+    
+    Commit 3ca1f3225727419ba573673b744edac10904276f
+    "block: BdrvChildClass: add .get_parent_aio_context handler" introduced
+    new handler and commit 228ca37e12f97788e05bd0c92f89b3e5e4019607
+    "block: drop ctx argument from bdrv_root_attach_child" made a generic
+    use of it. But 3ca1f3225727419ba573673b744edac10904276f didn't update
+    child_vvfat_qcow. Fix that.
+    
+    Before that fix the command
+    
+    ./build/qemu-system-x86_64 -usb -device usb-storage,drive=fat16 \
+      -drive file=fat:rw:fat-type=16:"<path of a host folder>",id=fat16,format=raw,if=none
+    
+    crashes:
+    
+    1  bdrv_child_get_parent_aio_context (c=0x559d62426d20)
+        at ../block.c:1440
+    2  bdrv_attach_child_common
+        (child_bs=0x559d62468190, child_name=0x559d606f9e3d "write-target",
+         child_class=0x559d60c58d20 <child_vvfat_qcow>, child_role=3,
+         perm=3, shared_perm=4, opaque=0x559d62445690,
+         child=0x7ffc74c2acc8, tran=0x559d6246ddd0, errp=0x7ffc74c2ae60)
+        at ../block.c:2795
+    3  bdrv_attach_child_noperm
+        (parent_bs=0x559d62445690, child_bs=0x559d62468190,
+         child_name=0x559d606f9e3d "write-target",
+         child_class=0x559d60c58d20 <child_vvfat_qcow>, child_role=3,
+         child=0x7ffc74c2acc8, tran=0x559d6246ddd0, errp=0x7ffc74c2ae60) at
+        ../block.c:2855
+    4  bdrv_attach_child
+        (parent_bs=0x559d62445690, child_bs=0x559d62468190,
+         child_name=0x559d606f9e3d "write-target",
+         child_class=0x559d60c58d20 <child_vvfat_qcow>, child_role=3,
+         errp=0x7ffc74c2ae60) at ../block.c:2953
+    5  bdrv_open_child
+        (filename=0x559d62464b80 "/var/tmp/vl.h3TIS4",
+         options=0x559d6246ec20, bdref_key=0x559d606f9e3d "write-target",
+         parent=0x559d62445690, child_class=0x559d60c58d20
+         <child_vvfat_qcow>, child_role=3, allow_none=false,
+         errp=0x7ffc74c2ae60) at ../block.c:3351
+    6  enable_write_target (bs=0x559d62445690, errp=0x7ffc74c2ae60) at
+       ../block/vvfat.c:3176
+    7  vvfat_open (bs=0x559d62445690, options=0x559d6244adb0, flags=155650,
+                   errp=0x7ffc74c2ae60) at ../block/vvfat.c:1236
+    8  bdrv_open_driver (bs=0x559d62445690, drv=0x559d60d4f7e0
+                         <bdrv_vvfat>, node_name=0x0,
+                         options=0x559d6244adb0, open_flags=155650,
+                         errp=0x7ffc74c2af70) at ../block.c:1557
+    9  bdrv_open_common (bs=0x559d62445690, file=0x0,
+                         options=0x559d6244adb0, errp=0x7ffc74c2af70) at
+    ...
+    
+    (gdb) fr 1
+     #1  0x0000559d603ea3bf in bdrv_child_get_parent_aio_context
+         (c=0x559d62426d20) at ../block.c:1440
+    1440        return c->klass->get_parent_aio_context(c);
+     (gdb) p c->klass
+    $1 = (const BdrvChildClass *) 0x559d60c58d20 <child_vvfat_qcow>
+     (gdb) p c->klass->get_parent_aio_context
+    $2 = (AioContext *(*)(BdrvChild *)) 0x0
+    
+    Fixes: 3ca1f3225727419ba573673b744edac10904276f
+    Fixes: 228ca37e12f97788e05bd0c92f89b3e5e4019607
+    Reported-by: John Arbuckle <programmingkidx@gmail.com>
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210524101257.119377-2-vsementsov@virtuozzo.com>
+    Tested-by: John Arbuckle <programmingkidx@gmail.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

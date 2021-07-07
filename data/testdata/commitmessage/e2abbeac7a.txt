@@ -1,0 +1,12 @@
+commit e2abbeac7a0c19e7757370da4c5164c862016d31
+Author: Stefan Weil <sw@weilnetz.de>
+Date:   Sat Jun 19 17:42:53 2021 +0200
+
+    Update documentation to refer to new location for issues
+    
+    Signed-off-by: Stefan Weil <sw@weilnetz.de>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Message-Id: <20210619154253.553446-1-sw@weilnetz.de>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

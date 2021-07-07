@@ -1,0 +1,18 @@
+commit a81a592698c5cf3d84486b00c84b7979dfa0a3da
+Author: Peter Xu <peterx@redhat.com>
+Date:   Thu May 6 12:05:48 2021 -0400
+
+    KVM: Disable manual dirty log when dirty ring enabled
+    
+    KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2 is for KVM_CLEAR_DIRTY_LOG, which is only
+    useful for KVM_GET_DIRTY_LOG.  Skip enabling it for kvm dirty ring.
+    
+    More importantly, KVM_DIRTY_LOG_INITIALLY_SET will not wr-protect all the pages
+    initially, which is against how kvm dirty ring is used - there's no way for kvm
+    dirty ring to re-protect a page before it's notified as being written first
+    with a GFN entry in the ring!  So when KVM_DIRTY_LOG_INITIALLY_SET is enabled
+    with dirty ring, we'll see silent data loss after migration.
+    
+    Signed-off-by: Peter Xu <peterx@redhat.com>
+    Message-Id: <20210506160549.130416-10-peterx@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

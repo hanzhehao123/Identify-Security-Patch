@@ -1,0 +1,13 @@
+diff --git a/configure b/configure
+index 4478f3889a..8dcb9965b2 100755
+--- a/configure
++++ b/configure
+@@ -6384,7 +6384,7 @@ if test "$skip_meson" = no; then
+         i386)
+             echo "cpu_family = 'x86'" >> $cross
+             ;;
+-        x86_64|x32)
++        x86_64)
+             echo "cpu_family = 'x86_64'" >> $cross
+             ;;
+         ppc64le)

@@ -1,0 +1,11 @@
+commit 6e24a7edb8b64854636acd1f74abd8e5f1735b50
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:36 2021 -0400
+
+    scripts/qmp-shell: unprivatize 'pretty' property
+    
+    Similar to verbose, there's no reason this needs to be hidden.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-30-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

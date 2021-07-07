@@ -1,0 +1,105 @@
+diff --git a/fpu/softfloat-parts.c.inc b/fpu/softfloat-parts.c.inc
+index e05909db8c..d69f357352 100644
+--- a/fpu/softfloat-parts.c.inc
++++ b/fpu/softfloat-parts.c.inc
+@@ -140,8 +140,8 @@ static void partsN(canonicalize)(FloatPartsN *p, float_status *status,
+  * fraction; these bits will be removed. The exponent will be biased
+  * by EXP_BIAS and must be bounded by [EXP_MAX-1, 0].
+  */
+-static void partsN(uncanon_normal)(FloatPartsN *p, float_status *s,
+-                                   const FloatFmt *fmt)
++static void partsN(uncanon)(FloatPartsN *p, float_status *s,
++                            const FloatFmt *fmt)
+ {
+     const int exp_max = fmt->exp_max;
+     const int frac_shift = fmt->frac_shift;
+@@ -150,9 +150,33 @@ static void partsN(uncanon_normal)(FloatPartsN *p, float_status *s,
+     const uint64_t round_mask = fmt->round_mask;
+     const uint64_t roundeven_mask = fmt->roundeven_mask;
+     uint64_t inc;
+-    bool overflow_norm = false;
++    bool overflow_norm;
+     int exp, flags = 0;
+ 
++    if (unlikely(p->cls != float_class_normal)) {
++        switch (p->cls) {
++        case float_class_zero:
++            p->exp = 0;
++            frac_clear(p);
++            return;
++        case float_class_inf:
++            g_assert(!fmt->arm_althp);
++            p->exp = fmt->exp_max;
++            frac_clear(p);
++            return;
++        case float_class_qnan:
++        case float_class_snan:
++            g_assert(!fmt->arm_althp);
++            p->exp = fmt->exp_max;
++            frac_shr(p, fmt->frac_shift);
++            return;
++        default:
++            break;
++        }
++        g_assert_not_reached();
++    }
++
++    overflow_norm = false;
+     switch (s->float_rounding_mode) {
+     case float_round_nearest_even:
+         inc = ((p->frac_lo & roundeven_mask) != frac_lsbm1 ? frac_lsbm1 : 0);
+@@ -260,35 +284,6 @@ static void partsN(uncanon_normal)(FloatPartsN *p, float_status *s,
+     float_raise(flags, s);
+ }
+ 
+-static void partsN(uncanon)(FloatPartsN *p, float_status *s,
+-                            const FloatFmt *fmt)
+-{
+-    if (likely(p->cls == float_class_normal)) {
+-        parts_uncanon_normal(p, s, fmt);
+-    } else {
+-        switch (p->cls) {
+-        case float_class_zero:
+-            p->exp = 0;
+-            frac_clear(p);
+-            return;
+-        case float_class_inf:
+-            g_assert(!fmt->arm_althp);
+-            p->exp = fmt->exp_max;
+-            frac_clear(p);
+-            return;
+-        case float_class_qnan:
+-        case float_class_snan:
+-            g_assert(!fmt->arm_althp);
+-            p->exp = fmt->exp_max;
+-            frac_shr(p, fmt->frac_shift);
+-            return;
+-        default:
+-            break;
+-        }
+-        g_assert_not_reached();
+-    }
+-}
+-
+ /*
+  * Returns the result of adding or subtracting the values of the
+  * floating-point values `a' and `b'. The operation is performed
+diff --git a/fpu/softfloat.c b/fpu/softfloat.c
+index ea7ee13201..0f2eed8d29 100644
+--- a/fpu/softfloat.c
++++ b/fpu/softfloat.c
+@@ -764,14 +764,6 @@ static void parts128_canonicalize(FloatParts128 *p, float_status *status,
+ #define parts_canonicalize(A, S, F) \
+     PARTS_GENERIC_64_128(canonicalize, A)(A, S, F)
+ 
+-static void parts64_uncanon_normal(FloatParts64 *p, float_status *status,
+-                                   const FloatFmt *fmt);
+-static void parts128_uncanon_normal(FloatParts128 *p, float_status *status,
+-                                    const FloatFmt *fmt);
+-
+-#define parts_uncanon_normal(A, S, F) \
+-    PARTS_GENERIC_64_128(uncanon_normal, A)(A, S, F)
+-
+ static void parts64_uncanon(FloatParts64 *p, float_status *status,
+                             const FloatFmt *fmt);
+ static void parts128_uncanon(FloatParts128 *p, float_status *status,

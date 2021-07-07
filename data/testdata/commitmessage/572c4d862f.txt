@@ -1,0 +1,12 @@
+commit 572c4d862ff2b5f1525044639aa60ec5854c813d
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 21 19:20:23 2020 -0800
+
+    softfloat: Convert float32_exp2 to FloatParts
+    
+    Keep the intermediate results in FloatParts instead of
+    converting back and forth between float64.  Use muladd
+    instead of separate mul+add.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

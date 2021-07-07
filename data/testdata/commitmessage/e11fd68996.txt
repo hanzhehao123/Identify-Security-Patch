@@ -1,0 +1,9 @@
+commit e11fd68996fb27c040552320f01a7d30a15a7cc1
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Mon May 3 19:35:24 2021 +0200
+
+    target/i386/cpu: Constify X86CPUDefinition
+    
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210503173524.833052-3-philmd@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

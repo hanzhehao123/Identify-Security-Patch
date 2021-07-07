@@ -1,0 +1,10 @@
+commit c6347541728b0face2c509c4ebc8ba6fdf807fc6
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Mar 8 12:15:06 2021 -0800
+
+    meson: Split out fpu/meson.build
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

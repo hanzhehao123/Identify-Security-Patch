@@ -1,0 +1,24 @@
+diff --git a/qapi/ui.json b/qapi/ui.json
+index 90b44c5c5c..1052ca9c38 100644
+--- a/qapi/ui.json
++++ b/qapi/ui.json
+@@ -786,9 +786,6 @@
+ # @muhenkan: since 2.12
+ # @katakanahiragana: since 2.12
+ #
+-# @lang1: since 6.1
+-# @lang2: since 6.1
+-#
+ # 'sysrq' was mistakenly added to hack around the fact that
+ # the ps2 driver was not generating correct scancodes sequences
+ # when 'alt+print' was pressed. This flaw is now fixed and the
+@@ -821,8 +818,7 @@
+             'audionext', 'audioprev', 'audiostop', 'audioplay', 'audiomute',
+             'volumeup', 'volumedown', 'mediaselect',
+             'mail', 'calculator', 'computer',
+-            'ac_home', 'ac_back', 'ac_forward', 'ac_refresh', 'ac_bookmarks',
+-            'lang1', 'lang2' ] }
++            'ac_home', 'ac_back', 'ac_forward', 'ac_refresh', 'ac_bookmarks' ] }
+ 
+ ##
+ # @KeyValue:

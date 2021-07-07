@@ -1,0 +1,18 @@
+commit b5fd59cf907df7fa2272426010c4d264682347f2
+Author: Vivek Goyal <vgoyal@redhat.com>
+Date:   Tue May 18 17:35:38 2021 -0400
+
+    virtiofsd: Set req->reply_sent right after sending reply
+    
+    There is no reason to set it in label "err". We should be able to set
+    it right after sending reply. It is easier to read.
+    
+    Also got rid of label "err" because now only thing it was doing was
+    return a code. We can return from the error location itself and no
+    need to first jump to label "err".
+    
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Signed-off-by: Vivek Goyal <vgoyal@redhat.com>
+    Message-Id: <20210518213538.693422-8-vgoyal@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

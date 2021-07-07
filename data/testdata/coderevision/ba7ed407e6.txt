@@ -1,0 +1,84 @@
+diff --git a/configure b/configure
+index 3d36eea55f..897e968e02 100755
+--- a/configure
++++ b/configure
+@@ -2799,6 +2799,20 @@ EOF
+   fi
+ fi
+ 
++##########################################
++# libtasn1 - only for the TLS creds/session test suite
++
++tasn1=yes
++tasn1_cflags=""
++tasn1_libs=""
++if $pkg_config --exists "libtasn1"; then
++    tasn1_cflags=$($pkg_config --cflags libtasn1)
++    tasn1_libs=$($pkg_config --libs libtasn1)
++else
++    tasn1=no
++fi
++
++
+ ##########################################
+ # PAM probe
+ 
+@@ -5540,6 +5554,9 @@ if test "$gdbus_codegen" != "" ; then
+     echo "GDBUS_CODEGEN=$gdbus_codegen" >> $config_host_mak
+ fi
+ echo "CONFIG_TLS_PRIORITY=\"$tls_priority\"" >> $config_host_mak
++if test "$tasn1" = "yes" ; then
++  echo "CONFIG_TASN1=y" >> $config_host_mak
++fi
+ if test "$auth_pam" = "yes" ; then
+     echo "CONFIG_AUTH_PAM=y" >> $config_host_mak
+ fi
+@@ -6000,6 +6017,8 @@ echo "LD_I386_EMULATION=$ld_i386_emulation" >> $config_host_mak
+ echo "EXESUF=$EXESUF" >> $config_host_mak
+ echo "HOST_DSOSUF=$HOST_DSOSUF" >> $config_host_mak
+ echo "LIBS_QGA=$libs_qga" >> $config_host_mak
++echo "TASN1_LIBS=$tasn1_libs" >> $config_host_mak
++echo "TASN1_CFLAGS=$tasn1_cflags" >> $config_host_mak
+ if test "$gcov" = "yes" ; then
+   echo "CONFIG_GCOV=y" >> $config_host_mak
+ fi
+diff --git a/meson.build b/meson.build
+index d4ce2ca57b..286b37aecb 100644
+--- a/meson.build
++++ b/meson.build
+@@ -985,10 +985,9 @@ if 'CONFIG_LIBDAXCTL' in config_host
+   libdaxctl = declare_dependency(link_args: config_host['LIBDAXCTL_LIBS'].split())
+ endif
+ tasn1 = not_found
+-if gnutls.found()
+-  tasn1 = dependency('libtasn1',
+-                     method: 'pkg-config',
+-                     kwargs: static_kwargs)
++if 'CONFIG_TASN1' in config_host
++  tasn1 = declare_dependency(compile_args: config_host['TASN1_CFLAGS'].split(),
++                             link_args: config_host['TASN1_LIBS'].split())
+ endif
+ keyutils = dependency('libkeyutils', required: false,
+                       method: 'pkg-config', kwargs: static_kwargs)
+@@ -2728,7 +2727,7 @@ summary_info += {'pixman':            pixman.found()}
+ summary_info += {'VTE support':       config_host.has_key('CONFIG_VTE')}
+ # TODO: add back version
+ summary_info += {'slirp support':     slirp_opt == 'disabled' ? false : slirp_opt}
+-summary_info += {'libtasn1':          tasn1.found()}
++summary_info += {'libtasn1':          config_host.has_key('CONFIG_TASN1')}
+ summary_info += {'PAM':               config_host.has_key('CONFIG_AUTH_PAM')}
+ summary_info += {'iconv support':     iconv.found()}
+ summary_info += {'curses support':    curses.found()}
+diff --git a/tests/unit/meson.build b/tests/unit/meson.build
+index 4c1ebc06ac..fcf6ed2ef5 100644
+--- a/tests/unit/meson.build
++++ b/tests/unit/meson.build
+@@ -84,7 +84,7 @@ if have_block
+     'test-crypto-block': [io],
+   }
+   if gnutls.found() and \
+-     tasn1.found() and \
++     'CONFIG_TASN1' in config_host and \
+      'CONFIG_POSIX' in config_host
+     tests += {
+       'test-crypto-tlscredsx509': ['crypto-tls-x509-helpers.c', 'pkix_asn1_tab.c',

@@ -1,0 +1,53 @@
+commit a2cd86a94a881b38a7d8bb67c61920ab3b23e82d
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Wed Jun 16 12:43:49 2021 +0200
+
+    hw/audio/sb16: Avoid assertion by restricting I/O sampling rate range
+    
+    While the SB16 seems to work up to 48000 Hz, the "Sound Blaster Series
+    Hardware Programming Guide" limit the sampling range from 4000 Hz to
+    44100 Hz (Section 3-9, 3-10: Digitized Sound I/O Programming, tables
+    3-2 and 3-3).
+    
+    Later, section 6-15 (DSP Commands) is more specific regarding the 41h /
+    42h registers (Set digitized sound output sampling rate):
+    
+      Valid sampling rates range from 5000 to 45000 Hz inclusive.
+    
+    There is no comment regarding error handling if the register is filled
+    with an out-of-range value.  (See also section 3-28 "8-bit or 16-bit
+    Auto-initialize Transfer"). Assume limits are enforced in hardware.
+    
+    This fixes triggering an assertion in audio_calloc():
+    
+      #1 abort
+      #2 audio_bug audio/audio.c:119:9
+      #3 audio_calloc audio/audio.c:154:9
+      #4 audio_pcm_sw_alloc_resources_out audio/audio_template.h:116:15
+      #5 audio_pcm_sw_init_out audio/audio_template.h:175:11
+      #6 audio_pcm_create_voice_pair_out audio/audio_template.h:410:9
+      #7 AUD_open_out audio/audio_template.h:503:14
+      #8 continue_dma8 hw/audio/sb16.c:216:20
+      #9 dma_cmd8 hw/audio/sb16.c:276:5
+      #10 command hw/audio/sb16.c:0
+      #11 dsp_write hw/audio/sb16.c:949:13
+      #12 portio_write softmmu/ioport.c:205:13
+      #13 memory_region_write_accessor softmmu/memory.c:491:5
+      #14 access_with_adjusted_size softmmu/memory.c:552:18
+      #15 memory_region_dispatch_write softmmu/memory.c:0:13
+      #16 flatview_write_continue softmmu/physmem.c:2759:23
+      #17 flatview_write softmmu/physmem.c:2799:14
+      #18 address_space_write softmmu/physmem.c:2891:18
+      #19 cpu_outw softmmu/ioport.c:70:5
+    
+    [*] http://www.baudline.com/solutions/full_duplex/sb16_pci/index.html
+    
+    OSS-Fuzz Report: https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=29174
+    
+    Fixes: 85571bc7415 ("audio merge (malc)")
+    Buglink: https://bugs.launchpad.net/bugs/1910603
+    Tested-by: Qiang Liu <cyruscyliu@gmail.com>
+    Reviewed-by: Qiang Liu <cyruscyliu@gmail.com>
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Message-Id: <20210616104349.2398060-1-f4bug@amsat.org>
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>

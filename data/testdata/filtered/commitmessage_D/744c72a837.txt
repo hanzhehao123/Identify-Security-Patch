@@ -1,0 +1,52 @@
+commit 744c72a837a0428f2d5373793e42aba963bf47c6
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:29 2021 +0200
+
+    cpu: Rename CPUClass vmsd -> legacy_vmsd
+    
+    Quoting Peter Maydell [*]:
+    
+      There are two ways to handle migration for
+      a CPU object:
+    
+      (1) like any other device, so it has a dc->vmsd that covers
+      migration for the whole object. As usual for objects that are a
+      subclass of a parent that has state, the first entry in the
+      VMStateDescription field list is VMSTATE_CPU(), which migrates
+      the cpu_common fields, followed by whatever the CPU's own migration
+      fields are.
+    
+      (2) a backwards-compatible mechanism for CPUs that were
+      originally migrated using manual "write fields to the migration
+      stream structures". The on-the-wire migration format
+      for those is based on the 'env' pointer (which isn't a QOM object),
+      and the cpu_common part of the migration data is elsewhere.
+    
+      cpu_exec_realizefn() handles both possibilities:
+    
+      * for type 1, dc->vmsd is set and cc->vmsd is not,
+        so cpu_exec_realizefn() does nothing, and the standard
+        "register dc->vmsd for a device" code does everything needed
+    
+      * for type 2, dc->vmsd is NULL and so we register the
+        vmstate_cpu_common directly to handle the cpu-common fields,
+        and the cc->vmsd to handle the per-CPU stuff
+    
+      You can't change a CPU from one type to the other without breaking
+      migration compatibility, which is why some guest architectures
+      are stuck on the cc->vmsd form. New targets should use dc->vmsd.
+    
+    To avoid new targets to start using type (2), rename cc->vmsd as
+    cc->legacy_vmsd. The correct field to implement is dc->vmsd (the
+    DeviceClass one).
+    
+    See also commit b170fce3dd0 ("cpu: Register VMStateDescription
+    through CPUState") for historic background.
+    
+    [*] https://www.mail-archive.com/qemu-devel@nongnu.org/msg800849.html
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Cc: Peter Maydell <peter.maydell@linaro.org>
+    Message-Id: <20210517105140.1062037-13-f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

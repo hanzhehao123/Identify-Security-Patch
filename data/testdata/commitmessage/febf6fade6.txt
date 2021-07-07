@@ -1,0 +1,19 @@
+commit febf6fade63801ebca765797fa2ad9de8d9f2700
+Author: Michael Forney <mforney@mforney.org>
+Date:   Tue May 25 20:55:31 2021 -0700
+
+    linux-user: Fix incorrect use of feature-test-macros
+    
+    The _POSIX_C_SOURCE and _XOPEN_SOURCE macros are used by the
+    application to indicate to libc which declarations it should expose.
+    Since qemu does not define them anywhere, it does not make sense
+    to check their value.
+    
+    Instead, since the intent is to determine whether the host struct
+    stat supports the st_*tim fields, use the configure test result
+    which does exactly that.
+    
+    Signed-off-by: Michael Forney <mforney@mforney.org>
+    Reviewed-by: Laurent Vivier <laurent@vivier.eu>
+    Message-Id: <20210526035531.7871-1-mforney@mforney.org>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

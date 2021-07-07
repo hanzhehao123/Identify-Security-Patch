@@ -1,0 +1,11 @@
+commit 644f717c35ec29d53f6fc34523e096fbad6eeaf9
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:08 2021 +0100
+
+    target/arm: Implement MVE VHADD, VHSUB (scalar)
+    
+    Implement the scalar variants of the MVE VHADD and VHSUB insns.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-25-peter.maydell@linaro.org

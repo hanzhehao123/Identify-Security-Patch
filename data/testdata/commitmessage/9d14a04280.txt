@@ -1,0 +1,12 @@
+commit 9d14a0428012b0bb7969aec512f2357247a86236
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Jun 21 10:02:34 2021 -0700
+
+    target/alpha: Honor the FEN bit
+    
+    This bit is used by NetBSD for lazy fpu migration.
+    
+    Tested-by: Jason Thorpe <thorpej@me.com>
+    Reported-by: Jason Thorpe <thorpej@me.com>
+    Resolves: https://gitlab.com/qemu-project/qemu/-/issues/438
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

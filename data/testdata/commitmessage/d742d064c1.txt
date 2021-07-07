@@ -1,0 +1,25 @@
+commit d742d064c1f541ac8ad6541e248a97f2dc502721
+Author: Kirti Wankhede <kwankhede@nvidia.com>
+Date:   Wed Jun 9 00:07:21 2021 +0530
+
+    vfio/migration: Correct device state from vmstate change for savevm case
+    
+    Set _SAVING flag for device state from vmstate change handler when it
+    gets called from savevm.
+    
+    Currently State transition savevm/suspend is seen as:
+        _RUNNING -> _STOP -> Stop-and-copy -> _STOP
+    
+    State transition savevm/suspend should be:
+        _RUNNING -> Stop-and-copy -> _STOP
+    
+    State transition from _RUNNING to _STOP occurs from
+    vfio_vmstate_change() where when vmstate changes from running to
+    !running, _RUNNING flag is reset but at the same time when
+    vfio_vmstate_change() is called for RUN_STATE_SAVE_VM, _SAVING bit
+    should be set.
+    
+    Reported by: Yishai Hadas <yishaih@nvidia.com>
+    Signed-off-by: Kirti Wankhede <kwankhede@nvidia.com>
+    Message-Id: <1623177441-27496-1-git-send-email-kwankhede@nvidia.com>
+    Signed-off-by: Alex Williamson <alex.williamson@redhat.com>

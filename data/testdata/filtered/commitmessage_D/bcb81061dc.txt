@@ -1,0 +1,12 @@
+commit bcb81061dc8173076d9669f969d132b998cd2af9
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sun Jan 31 23:23:07 2021 -1000
+
+    tcg/tci: Move call-return regs to end of tcg_target_reg_alloc_order
+    
+    As the only call-clobbered regs for TCI, these should
+    receive the least priority.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

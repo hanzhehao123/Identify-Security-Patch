@@ -1,0 +1,49 @@
+diff --git a/meson.build b/meson.build
+index 9b6d93b8bb..632b380738 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1899,7 +1899,7 @@ util_ss.add_all(trace_ss)
+ util_ss = util_ss.apply(config_all, strict: false)
+ libqemuutil = static_library('qemuutil',
+                              sources: util_ss.sources() + stub_ss.sources() + genh,
+-                             dependencies: [util_ss.dependencies(), m, glib, socket, malloc, pixman])
++                             dependencies: [util_ss.dependencies(), m, glib, socket, malloc])
+ qemuutil = declare_dependency(link_with: libqemuutil,
+                               sources: genh + version_res)
+ 
+diff --git a/stubs/meson.build b/stubs/meson.build
+index c32d182585..3faef16892 100644
+--- a/stubs/meson.build
++++ b/stubs/meson.build
+@@ -52,7 +52,6 @@ if have_system
+   stub_ss.add(files('semihost.c'))
+   stub_ss.add(files('usb-dev-stub.c'))
+   stub_ss.add(files('xen-hw-stub.c'))
+-  stub_ss.add(files('virtio-gpu-udmabuf.c'))
+ else
+   stub_ss.add(files('qdev.c'))
+ endif
+diff --git a/stubs/virtio-gpu-udmabuf.c b/stubs/virtio-gpu-udmabuf.c
+deleted file mode 100644
+index e962e00d86..0000000000
+--- a/stubs/virtio-gpu-udmabuf.c
++++ /dev/null
+@@ -1,18 +0,0 @@
+-#include "qemu/osdep.h"
+-#include "hw/virtio/virtio-gpu.h"
+-
+-bool virtio_gpu_have_udmabuf(void)
+-{
+-    /* nothing (stub) */
+-    return false;
+-}
+-
+-void virtio_gpu_init_udmabuf(struct virtio_gpu_simple_resource *res)
+-{
+-    /* nothing (stub) */
+-}
+-
+-void virtio_gpu_fini_udmabuf(struct virtio_gpu_simple_resource *res)
+-{
+-    /* nothing (stub) */
+-}

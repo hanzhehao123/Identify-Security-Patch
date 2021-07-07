@@ -1,0 +1,21 @@
+diff --git a/python/qemu/console_socket.py b/python/qemu/console_socket.py
+index 87237bebef..ac21130e44 100644
+--- a/python/qemu/console_socket.py
++++ b/python/qemu/console_socket.py
+@@ -46,11 +46,11 @@ def __init__(self, address: str, file: Optional[str] = None,
+             self._drain_thread = self._thread_start()
+ 
+     def __repr__(self) -> str:
+-        tmp = super().__repr__()
+-        tmp = tmp.rstrip(">")
+-        tmp = "%s,  logfile=%s, drain_thread=%s>" % (tmp, self._logfile,
+-                                                     self._drain_thread)
+-        return tmp
++        s = super().__repr__()
++        s = s.rstrip(">")
++        s = "%s,  logfile=%s, drain_thread=%s>" % (s, self._logfile,
++                                                   self._drain_thread)
++        return s
+ 
+     def _drain_fn(self) -> None:
+         """Drains the socket and runs while the socket is open."""

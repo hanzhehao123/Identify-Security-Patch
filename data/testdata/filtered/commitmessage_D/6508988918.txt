@@ -1,0 +1,36 @@
+commit 650898891837a9772a5410e73c637a55d99e1e50
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Mon Feb 1 21:27:41 2021 -1000
+
+    tcg/tci: Change encoding to uint32_t units
+    
+    This removes all of the problems with unaligned accesses
+    to the bytecode stream.
+    
+    With an 8-bit opcode at the bottom, we have 24 bits remaining,
+    which are generally split into 6 4-bit slots.  This fits well
+    with the maximum length opcodes, e.g. INDEX_op_add2_i32, which
+    have 6 register operands.
+    
+    We have, in previous patches, rearranged things such that there
+    are no operations with a label which have more than one other
+    operand.  Which leaves us with a 20-bit field in which to encode
+    a label, giving us a maximum TB size of 512k -- easily large.
+    
+    Change the INDEX_op_tci_movi_{i32,i64} opcodes to tci_mov[il].
+    The former puts the immediate in the upper 20 bits of the insn,
+    like we do for the label displacement.  The later uses a label
+    to reference an entry in the constant pool.  Thus, in the worst
+    case we still have a single memory reference for any constant,
+    but now the constants are out-of-line of the bytecode and can
+    be shared between different moves saving space.
+    
+    Change INDEX_op_call to use a label to reference a pair of
+    pointers in the constant pool.  This removes the only slightly
+    dodgy link with the layout of struct TCGHelperInfo.
+    
+    The re-encode cannot be done in pieces.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

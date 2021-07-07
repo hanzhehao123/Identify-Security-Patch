@@ -1,0 +1,36 @@
+commit 44bcfd45e9806c78d9d526d69b0590227d215a78
+Author: Li Zhijian <lizhijian@cn.fujitsu.com>
+Date:   Tue May 25 16:05:51 2021 +0800
+
+    migration/rdma: destination: create the return patch after the first accept
+    
+    destination side:
+    $ build/qemu-system-x86_64 -enable-kvm -netdev tap,id=hn0,script=/etc/qemu-ifup,downscript=/etc/qemu-ifdown -device e1000,netdev=hn0,mac=50:52:54:00:11:22 -boot c -drive if=none,file=./Fedora-rdma-server-migration.qcow2,id=drive-virtio-disk0 -device virtio-blk-pci,bus=pci.0,addr=0x4,drive=drive-virtio-disk0,id=virtio-disk0 -m 2048 -smp 2 -device piix3-usb-uhci -device usb-tablet -monitor stdio -vga qxl -spice streaming-video=filter,port=5902,disable-ticketing -incoming rdma:192.168.1.10:8888
+    (qemu) migrate_set_capability postcopy-ram on
+    (qemu)
+    dest_init RDMA Device opened: kernel name rocep1s0f0 uverbs device name uverbs0, infiniband_verbs class device path /sys/class/infiniband_verbs/uverbs0, infiniband class device path /sys/class/infiniband/rocep1s0f0, transport: (2) Ethernet
+    Segmentation fault (core dumped)
+    
+     (gdb) bt
+     #0  qemu_rdma_accept (rdma=0x0) at ../migration/rdma.c:3272
+     #1  rdma_accept_incoming_migration (opaque=0x0) at     ../migration/rdma.c:3986
+     #2  0x0000563c9e51f02a in aio_dispatch_handler
+         (ctx=ctx@entry=0x563ca0606010, node=0x563ca12b2150) at ../util/aio-posix.c:329
+     #3  0x0000563c9e51f752 in aio_dispatch_handlers (ctx=0x563ca0606010) at      ../util/aio-posix.c:372
+     #4  aio_dispatch (ctx=0x563ca0606010) at ../util/aio-posix.c:382
+     #5  0x0000563c9e4f4d9e in aio_ctx_dispatch (source=<optimized out>,      callback=<optimized out>, user_data=<optimized out>)    at ../util/async.c:306
+     #6  0x00007fe96ef3fa9f in g_main_context_dispatch () at      /lib64/libglib-2.0.so.0
+     #7  0x0000563c9e4ffeb8 in glib_pollfds_poll () at     ../util/main-loop.c:231
+     #8  os_host_main_loop_wait (timeout=12188789) at     ../util/main-loop.c:254
+     #9  main_loop_wait (nonblocking=nonblocking@entry=0) at     ../util/main-loop.c:530
+     #10 0x0000563c9e3c7211 in qemu_main_loop () at     ../softmmu/runstate.c:725
+     #11 0x0000563c9dfd46fe in main (argc=<optimized out>, argv=<optimized     out>, envp=<optimized out>) at ../softmmu/main.c:50
+    
+    The rdma return path will not be created when qemu incoming is starting
+    since migrate_copy() is false at that moment, then a  NULL return path
+    rdma was referenced if the user enabled postcopy later.
+    
+    Signed-off-by: Li Zhijian <lizhijian@cn.fujitsu.com>
+    Message-Id: <20210525080552.28259-3-lizhijian@cn.fujitsu.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Signed-off-by: Dr. David Alan Gilbert <dgilbert@redhat.com>

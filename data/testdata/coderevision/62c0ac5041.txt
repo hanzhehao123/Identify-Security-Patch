@@ -1,0 +1,2389 @@
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 5f55404f2f..a77f246569 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -128,6 +128,7 @@ F: docs/devel/decodetree.rst
+ F: include/exec/cpu*.h
+ F: include/exec/exec-all.h
+ F: include/exec/helper*.h
++F: include/exec/tb-hash.h
+ F: include/sysemu/cpus.h
+ F: include/sysemu/tcg.h
+ F: include/hw/core/tcg-cpu-ops.h
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index ad1279d2ed..0dc5271715 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -29,6 +29,8 @@
+ #include "qemu/compiler.h"
+ #include "qemu/timer.h"
+ #include "qemu/rcu.h"
++#include "exec/tb-hash.h"
++#include "exec/tb-lookup.h"
+ #include "exec/log.h"
+ #include "qemu/main-loop.h"
+ #if defined(TARGET_I386) && !defined(CONFIG_USER_ONLY)
+@@ -38,9 +40,6 @@
+ #include "exec/cpu-all.h"
+ #include "sysemu/cpu-timers.h"
+ #include "sysemu/replay.h"
+-#include "tb-hash.h"
+-#include "tb-lookup.h"
+-#include "tb-context.h"
+ #include "internal.h"
+ 
+ /* -icount align implementation. */
+diff --git a/accel/tcg/cputlb.c b/accel/tcg/cputlb.c
+index f24348e979..2f7088614a 100644
+--- a/accel/tcg/cputlb.c
++++ b/accel/tcg/cputlb.c
+@@ -24,6 +24,7 @@
+ #include "exec/memory.h"
+ #include "exec/cpu_ldst.h"
+ #include "exec/cputlb.h"
++#include "exec/tb-hash.h"
+ #include "exec/memory-internal.h"
+ #include "exec/ram_addr.h"
+ #include "tcg/tcg.h"
+@@ -35,7 +36,6 @@
+ #include "exec/translate-all.h"
+ #include "trace/trace-root.h"
+ #include "trace/mem.h"
+-#include "tb-hash.h"
+ #include "internal.h"
+ #ifdef CONFIG_PLUGIN
+ #include "qemu/plugin-memory.h"
+diff --git a/accel/tcg/tcg-runtime.c b/accel/tcg/tcg-runtime.c
+index 66ac830e2f..49f5de37e8 100644
+--- a/accel/tcg/tcg-runtime.c
++++ b/accel/tcg/tcg-runtime.c
+@@ -30,7 +30,7 @@
+ #include "disas/disas.h"
+ #include "exec/log.h"
+ #include "tcg/tcg.h"
+-#include "tb-lookup.h"
++#include "exec/tb-lookup.h"
+ 
+ /* 32-bit helpers */
+ 
+diff --git a/accel/tcg/translate-all.c b/accel/tcg/translate-all.c
+index 1eefe6ea8d..640ff6e3e7 100644
+--- a/accel/tcg/translate-all.c
++++ b/accel/tcg/translate-all.c
+@@ -47,6 +47,7 @@
+ #endif
+ 
+ #include "exec/cputlb.h"
++#include "exec/tb-hash.h"
+ #include "exec/translate-all.h"
+ #include "qemu/bitmap.h"
+ #include "qemu/error-report.h"
+@@ -59,8 +60,6 @@
+ #include "sysemu/tcg.h"
+ #include "qapi/error.h"
+ #include "hw/core/tcg-cpu-ops.h"
+-#include "tb-hash.h"
+-#include "tb-context.h"
+ #include "internal.h"
+ 
+ /* #define DEBUG_TB_INVALIDATE */
+diff --git a/cpu.c b/cpu.c
+index 164fefeaa3..34a0484bf4 100644
+--- a/cpu.c
++++ b/cpu.c
+@@ -29,7 +29,6 @@
+ #ifdef CONFIG_USER_ONLY
+ #include "qemu.h"
+ #else
+-#include "hw/core/sysemu-cpu-ops.h"
+ #include "exec/address-spaces.h"
+ #endif
+ #include "sysemu/tcg.h"
+@@ -128,9 +127,7 @@ const VMStateDescription vmstate_cpu_common = {
+ 
+ void cpu_exec_realizefn(CPUState *cpu, Error **errp)
+ {
+-#ifndef CONFIG_USER_ONLY
+     CPUClass *cc = CPU_GET_CLASS(cpu);
+-#endif
+ 
+     cpu_list_add(cpu);
+     if (!accel_cpu_realizefn(cpu, errp)) {
+@@ -144,25 +141,26 @@ void cpu_exec_realizefn(CPUState *cpu, Error **errp)
+ #endif /* CONFIG_TCG */
+ 
+ #ifdef CONFIG_USER_ONLY
+-    assert(qdev_get_vmsd(DEVICE(cpu)) == NULL ||
+-           qdev_get_vmsd(DEVICE(cpu))->unmigratable);
++    assert(cc->vmsd == NULL);
+ #else
+     if (qdev_get_vmsd(DEVICE(cpu)) == NULL) {
+         vmstate_register(NULL, cpu->cpu_index, &vmstate_cpu_common, cpu);
+     }
+-    if (cc->sysemu_ops->legacy_vmsd != NULL) {
+-        vmstate_register(NULL, cpu->cpu_index, cc->sysemu_ops->legacy_vmsd, cpu);
++    if (cc->vmsd != NULL) {
++        vmstate_register(NULL, cpu->cpu_index, cc->vmsd, cpu);
+     }
+ #endif /* CONFIG_USER_ONLY */
+ }
+ 
+ void cpu_exec_unrealizefn(CPUState *cpu)
+ {
+-#ifndef CONFIG_USER_ONLY
+     CPUClass *cc = CPU_GET_CLASS(cpu);
+ 
+-    if (cc->sysemu_ops->legacy_vmsd != NULL) {
+-        vmstate_unregister(NULL, cc->sysemu_ops->legacy_vmsd, cpu);
++#ifdef CONFIG_USER_ONLY
++    assert(cc->vmsd == NULL);
++#else
++    if (cc->vmsd != NULL) {
++        vmstate_unregister(NULL, cc->vmsd, cpu);
+     }
+     if (qdev_get_vmsd(DEVICE(cpu)) == NULL) {
+         vmstate_unregister(NULL, &vmstate_cpu_common, cpu);
+diff --git a/hw/core/cpu-sysemu.c b/hw/core/cpu-sysemu.c
+deleted file mode 100644
+index 00253f8929..0000000000
+--- a/hw/core/cpu-sysemu.c
++++ /dev/null
+@@ -1,145 +0,0 @@
+-/*
+- * QEMU CPU model (system emulation specific)
+- *
+- * Copyright (c) 2012-2014 SUSE LINUX Products GmbH
+- *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
+- *
+- * This program is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
+- *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, see
+- * <http://www.gnu.org/licenses/gpl-2.0.html>
+- */
+-
+-#include "qemu/osdep.h"
+-#include "qapi/error.h"
+-#include "hw/core/cpu.h"
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-bool cpu_paging_enabled(const CPUState *cpu)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-
+-    if (cc->sysemu_ops->get_paging_enabled) {
+-        return cc->sysemu_ops->get_paging_enabled(cpu);
+-    }
+-
+-    return false;
+-}
+-
+-void cpu_get_memory_mapping(CPUState *cpu, MemoryMappingList *list,
+-                            Error **errp)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-
+-    if (cc->sysemu_ops->get_memory_mapping) {
+-        cc->sysemu_ops->get_memory_mapping(cpu, list, errp);
+-        return;
+-    }
+-
+-    error_setg(errp, "Obtaining memory mappings is unsupported on this CPU.");
+-}
+-
+-hwaddr cpu_get_phys_page_attrs_debug(CPUState *cpu, vaddr addr,
+-                                     MemTxAttrs *attrs)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-
+-    if (cc->sysemu_ops->get_phys_page_attrs_debug) {
+-        return cc->sysemu_ops->get_phys_page_attrs_debug(cpu, addr, attrs);
+-    }
+-    /* Fallback for CPUs which don't implement the _attrs_ hook */
+-    *attrs = MEMTXATTRS_UNSPECIFIED;
+-    return cc->sysemu_ops->get_phys_page_debug(cpu, addr);
+-}
+-
+-hwaddr cpu_get_phys_page_debug(CPUState *cpu, vaddr addr)
+-{
+-    MemTxAttrs attrs = {};
+-
+-    return cpu_get_phys_page_attrs_debug(cpu, addr, &attrs);
+-}
+-
+-int cpu_asidx_from_attrs(CPUState *cpu, MemTxAttrs attrs)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-    int ret = 0;
+-
+-    if (cc->sysemu_ops->asidx_from_attrs) {
+-        ret = cc->sysemu_ops->asidx_from_attrs(cpu, attrs);
+-        assert(ret < cpu->num_ases && ret >= 0);
+-    }
+-    return ret;
+-}
+-
+-int cpu_write_elf32_qemunote(WriteCoreDumpFunction f, CPUState *cpu,
+-                             void *opaque)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-
+-    if (!cc->sysemu_ops->write_elf32_qemunote) {
+-        return 0;
+-    }
+-    return (*cc->sysemu_ops->write_elf32_qemunote)(f, cpu, opaque);
+-}
+-
+-int cpu_write_elf32_note(WriteCoreDumpFunction f, CPUState *cpu,
+-                         int cpuid, void *opaque)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-
+-    if (!cc->sysemu_ops->write_elf32_note) {
+-        return -1;
+-    }
+-    return (*cc->sysemu_ops->write_elf32_note)(f, cpu, cpuid, opaque);
+-}
+-
+-int cpu_write_elf64_qemunote(WriteCoreDumpFunction f, CPUState *cpu,
+-                             void *opaque)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-
+-    if (!cc->sysemu_ops->write_elf64_qemunote) {
+-        return 0;
+-    }
+-    return (*cc->sysemu_ops->write_elf64_qemunote)(f, cpu, opaque);
+-}
+-
+-int cpu_write_elf64_note(WriteCoreDumpFunction f, CPUState *cpu,
+-                         int cpuid, void *opaque)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-
+-    if (!cc->sysemu_ops->write_elf64_note) {
+-        return -1;
+-    }
+-    return (*cc->sysemu_ops->write_elf64_note)(f, cpu, cpuid, opaque);
+-}
+-
+-bool cpu_virtio_is_big_endian(CPUState *cpu)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-
+-    if (cc->sysemu_ops->virtio_is_big_endian) {
+-        return cc->sysemu_ops->virtio_is_big_endian(cpu);
+-    }
+-    return target_words_bigendian();
+-}
+-
+-GuestPanicInformation *cpu_get_crash_info(CPUState *cpu)
+-{
+-    CPUClass *cc = CPU_GET_CLASS(cpu);
+-    GuestPanicInformation *res = NULL;
+-
+-    if (cc->sysemu_ops->get_crash_info) {
+-        res = cc->sysemu_ops->get_crash_info(cpu);
+-    }
+-    return res;
+-}
+diff --git a/hw/core/cpu-common.c b/hw/core/cpu.c
+similarity index 73%
+rename from hw/core/cpu-common.c
+rename to hw/core/cpu.c
+index 9530e266ec..00330ba07d 100644
+--- a/hw/core/cpu-common.c
++++ b/hw/core/cpu.c
+@@ -34,6 +34,7 @@
+ #include "hw/qdev-properties.h"
+ #include "trace/trace-root.h"
+ #include "qemu/plugin.h"
++#include "sysemu/hw_accel.h"
+ 
+ CPUState *cpu_by_arch_id(int64_t id)
+ {
+@@ -66,6 +67,33 @@ CPUState *cpu_create(const char *typename)
+     return cpu;
+ }
+ 
++bool cpu_paging_enabled(const CPUState *cpu)
++{
++    CPUClass *cc = CPU_GET_CLASS(cpu);
++
++    return cc->get_paging_enabled(cpu);
++}
++
++static bool cpu_common_get_paging_enabled(const CPUState *cpu)
++{
++    return false;
++}
++
++void cpu_get_memory_mapping(CPUState *cpu, MemoryMappingList *list,
++                            Error **errp)
++{
++    CPUClass *cc = CPU_GET_CLASS(cpu);
++
++    cc->get_memory_mapping(cpu, list, errp);
++}
++
++static void cpu_common_get_memory_mapping(CPUState *cpu,
++                                          MemoryMappingList *list,
++                                          Error **errp)
++{
++    error_setg(errp, "Obtaining memory mappings is unsupported on this CPU.");
++}
++
+ /* Resetting the IRQ comes from across the code base so we take the
+  * BQL here if we need to.  cpu_interrupt assumes it is held.*/
+ void cpu_reset_interrupt(CPUState *cpu, int mask)
+@@ -89,6 +117,65 @@ void cpu_exit(CPUState *cpu)
+     qatomic_set(&cpu->icount_decr_ptr->u16.high, -1);
+ }
+ 
++int cpu_write_elf32_qemunote(WriteCoreDumpFunction f, CPUState *cpu,
++                             void *opaque)
++{
++    CPUClass *cc = CPU_GET_CLASS(cpu);
++
++    return (*cc->write_elf32_qemunote)(f, cpu, opaque);
++}
++
++static int cpu_common_write_elf32_qemunote(WriteCoreDumpFunction f,
++                                           CPUState *cpu, void *opaque)
++{
++    return 0;
++}
++
++int cpu_write_elf32_note(WriteCoreDumpFunction f, CPUState *cpu,
++                         int cpuid, void *opaque)
++{
++    CPUClass *cc = CPU_GET_CLASS(cpu);
++
++    return (*cc->write_elf32_note)(f, cpu, cpuid, opaque);
++}
++
++static int cpu_common_write_elf32_note(WriteCoreDumpFunction f,
++                                       CPUState *cpu, int cpuid,
++                                       void *opaque)
++{
++    return -1;
++}
++
++int cpu_write_elf64_qemunote(WriteCoreDumpFunction f, CPUState *cpu,
++                             void *opaque)
++{
++    CPUClass *cc = CPU_GET_CLASS(cpu);
++
++    return (*cc->write_elf64_qemunote)(f, cpu, opaque);
++}
++
++static int cpu_common_write_elf64_qemunote(WriteCoreDumpFunction f,
++                                           CPUState *cpu, void *opaque)
++{
++    return 0;
++}
++
++int cpu_write_elf64_note(WriteCoreDumpFunction f, CPUState *cpu,
++                         int cpuid, void *opaque)
++{
++    CPUClass *cc = CPU_GET_CLASS(cpu);
++
++    return (*cc->write_elf64_note)(f, cpu, cpuid, opaque);
++}
++
++static int cpu_common_write_elf64_note(WriteCoreDumpFunction f,
++                                       CPUState *cpu, int cpuid,
++                                       void *opaque)
++{
++    return -1;
++}
++
++
+ static int cpu_common_gdb_read_register(CPUState *cpu, GByteArray *buf, int reg)
+ {
+     return 0;
+@@ -99,6 +186,28 @@ static int cpu_common_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg)
+     return 0;
+ }
+ 
++static bool cpu_common_virtio_is_big_endian(CPUState *cpu)
++{
++    return target_words_bigendian();
++}
++
++/*
++ * XXX the following #if is always true because this is a common_ss
++ * module, so target CONFIG_* is never defined.
++ */
++#if !defined(CONFIG_USER_ONLY)
++GuestPanicInformation *cpu_get_crash_info(CPUState *cpu)
++{
++    CPUClass *cc = CPU_GET_CLASS(cpu);
++    GuestPanicInformation *res = NULL;
++
++    if (cc->get_crash_info) {
++        res = cc->get_crash_info(cpu);
++    }
++    return res;
++}
++#endif
++
+ void cpu_dump_state(CPUState *cpu, FILE *f, int flags)
+ {
+     CPUClass *cc = CPU_GET_CLASS(cpu);
+@@ -289,8 +398,15 @@ static void cpu_class_init(ObjectClass *klass, void *data)
+     k->parse_features = cpu_common_parse_features;
+     k->get_arch_id = cpu_common_get_arch_id;
+     k->has_work = cpu_common_has_work;
++    k->get_paging_enabled = cpu_common_get_paging_enabled;
++    k->get_memory_mapping = cpu_common_get_memory_mapping;
++    k->write_elf32_qemunote = cpu_common_write_elf32_qemunote;
++    k->write_elf32_note = cpu_common_write_elf32_note;
++    k->write_elf64_qemunote = cpu_common_write_elf64_qemunote;
++    k->write_elf64_note = cpu_common_write_elf64_note;
+     k->gdb_read_register = cpu_common_gdb_read_register;
+     k->gdb_write_register = cpu_common_gdb_write_register;
++    k->virtio_is_big_endian = cpu_common_virtio_is_big_endian;
+     set_bit(DEVICE_CATEGORY_CPU, dc->categories);
+     dc->realize = cpu_common_realizefn;
+     dc->unrealize = cpu_common_unrealizefn;
+diff --git a/hw/core/meson.build b/hw/core/meson.build
+index 18f44fb7c2..59f1605bb0 100644
+--- a/hw/core/meson.build
++++ b/hw/core/meson.build
+@@ -13,7 +13,7 @@ hwcore_files = files(
+   'qdev-clock.c',
+ )
+ 
+-common_ss.add(files('cpu-common.c'))
++common_ss.add(files('cpu.c'))
+ common_ss.add(when: 'CONFIG_FITLOADER', if_true: files('loader-fit.c'))
+ common_ss.add(when: 'CONFIG_GENERIC_LOADER', if_true: files('generic-loader.c'))
+ common_ss.add(when: ['CONFIG_GUEST_LOADER', fdt], if_true: files('guest-loader.c'))
+@@ -25,7 +25,6 @@ common_ss.add(when: 'CONFIG_SPLIT_IRQ', if_true: files('split-irq.c'))
+ common_ss.add(when: 'CONFIG_XILINX_AXI', if_true: files('stream.c'))
+ 
+ softmmu_ss.add(files(
+-  'cpu-sysemu.c',
+   'fw-path-provider.c',
+   'loader.c',
+   'machine-hmp-cmds.c',
+diff --git a/hw/input/hid.c b/hw/input/hid.c
+index e1d2e46083..8aab0521f4 100644
+--- a/hw/input/hid.c
++++ b/hw/input/hid.c
+@@ -51,8 +51,8 @@ static const uint8_t hid_usage_keys[0x100] = {
+     0x45, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e,
+     0xe8, 0xe9, 0x71, 0x72, 0x73, 0x00, 0x00, 0x00,
+     0x00, 0x00, 0x00, 0x85, 0x00, 0x00, 0x00, 0x00,
+-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+-    0x00, 0x00, 0x00, 0x00, 0x00, 0xe3, 0xe7, 0x65,
++    0x88, 0x00, 0x00, 0x87, 0x00, 0x00, 0x00, 0x00,
++    0x00, 0x8a, 0x00, 0x8b, 0x00, 0x89, 0xe7, 0x65,
+ 
+     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+diff --git a/hw/mips/jazz.c b/hw/mips/jazz.c
+index 1e1cf8154e..dba2088ed1 100644
+--- a/hw/mips/jazz.c
++++ b/hw/mips/jazz.c
+@@ -119,6 +119,30 @@ static const MemoryRegionOps dma_dummy_ops = {
+ #define MAGNUM_BIOS_SIZE                                                       \
+         (BIOS_SIZE < MAGNUM_BIOS_SIZE_MAX ? BIOS_SIZE : MAGNUM_BIOS_SIZE_MAX)
+ 
++#if defined(CONFIG_TCG) && !defined(CONFIG_USER_ONLY)
++static void (*real_do_transaction_failed)(CPUState *cpu, hwaddr physaddr,
++                                          vaddr addr, unsigned size,
++                                          MMUAccessType access_type,
++                                          int mmu_idx, MemTxAttrs attrs,
++                                          MemTxResult response,
++                                          uintptr_t retaddr);
++
++static void mips_jazz_do_transaction_failed(CPUState *cs, hwaddr physaddr,
++                                            vaddr addr, unsigned size,
++                                            MMUAccessType access_type,
++                                            int mmu_idx, MemTxAttrs attrs,
++                                            MemTxResult response,
++                                            uintptr_t retaddr)
++{
++    if (access_type != MMU_INST_FETCH) {
++        /* ignore invalid access (ie do not raise exception) */
++        return;
++    }
++    (*real_do_transaction_failed)(cs, physaddr, addr, size, access_type,
++                                  mmu_idx, attrs, response, retaddr);
++}
++#endif /* CONFIG_TCG && !CONFIG_USER_ONLY */
++
+ static void mips_jazz_init(MachineState *machine,
+                            enum jazz_model_e jazz_model)
+ {
+@@ -127,7 +151,7 @@ static void mips_jazz_init(MachineState *machine,
+     int bios_size, n;
+     Clock *cpuclk;
+     MIPSCPU *cpu;
+-    MIPSCPUClass *mcc;
++    CPUClass *cc;
+     CPUMIPSState *env;
+     qemu_irq *i8259;
+     rc4030_dma *dmas;
+@@ -174,6 +198,8 @@ static void mips_jazz_init(MachineState *machine,
+      * However, we can't simply add a global memory region to catch
+      * everything, as this would make all accesses including instruction
+      * accesses be ignored and not raise exceptions.
++     * So instead we hijack the do_transaction_failed method on the CPU, and
++     * do not raise exceptions for data access.
+      *
+      * NOTE: this behaviour of raising exceptions for bad instruction
+      * fetches but not bad data accesses was added in commit 54e755588cf1e9
+@@ -183,8 +209,11 @@ static void mips_jazz_init(MachineState *machine,
+      * we could replace this hijacking of CPU methods with a simple global
+      * memory region that catches all memory accesses, as we do on Malta.
+      */
+-    mcc = MIPS_CPU_GET_CLASS(cpu);
+-    mcc->no_data_aborts = true;
++    cc = CPU_GET_CLASS(cpu);
++#if defined(CONFIG_TCG) && !defined(CONFIG_USER_ONLY)
++    real_do_transaction_failed = cc->tcg_ops->do_transaction_failed;
++    cc->tcg_ops->do_transaction_failed = mips_jazz_do_transaction_failed;
++#endif /* CONFIG_TCG && !CONFIG_USER_ONLY */
+ 
+     /* allocate RAM */
+     memory_region_add_subregion(address_space, 0, machine->ram);
+diff --git a/hw/usb/hcd-xhci-pci.c b/hw/usb/hcd-xhci-pci.c
+index 9421734d0f..e934b1a5b1 100644
+--- a/hw/usb/hcd-xhci-pci.c
++++ b/hw/usb/hcd-xhci-pci.c
+@@ -57,7 +57,7 @@ static void xhci_pci_intr_update(XHCIState *xhci, int n, bool enable)
+     }
+ }
+ 
+-static void xhci_pci_intr_raise(XHCIState *xhci, int n, bool level)
++static bool xhci_pci_intr_raise(XHCIState *xhci, int n, bool level)
+ {
+     XHCIPciState *s = container_of(xhci, XHCIPciState, xhci);
+     PCIDevice *pci_dev = PCI_DEVICE(s);
+@@ -67,15 +67,18 @@ static void xhci_pci_intr_raise(XHCIState *xhci, int n, bool level)
+          msi_enabled(pci_dev))) {
+         pci_set_irq(pci_dev, level);
+     }
+-    if (msix_enabled(pci_dev)) {
++
++    if (msix_enabled(pci_dev) && level) {
+         msix_notify(pci_dev, n);
+-        return;
++        return true;
+     }
+ 
+-    if (msi_enabled(pci_dev)) {
++    if (msi_enabled(pci_dev) && level) {
+         msi_notify(pci_dev, n);
+-        return;
++        return true;
+     }
++
++    return false;
+ }
+ 
+ static void xhci_pci_reset(DeviceState *dev)
+diff --git a/hw/usb/hcd-xhci-sysbus.c b/hw/usb/hcd-xhci-sysbus.c
+index 42e2574c82..a14e438196 100644
+--- a/hw/usb/hcd-xhci-sysbus.c
++++ b/hw/usb/hcd-xhci-sysbus.c
+@@ -16,11 +16,13 @@
+ #include "hw/acpi/aml-build.h"
+ #include "hw/irq.h"
+ 
+-static void xhci_sysbus_intr_raise(XHCIState *xhci, int n, bool level)
++static bool xhci_sysbus_intr_raise(XHCIState *xhci, int n, bool level)
+ {
+     XHCISysbusState *s = container_of(xhci, XHCISysbusState, xhci);
+ 
+     qemu_set_irq(s->irq[n], level);
++
++    return false;
+ }
+ 
+ void xhci_sysbus_reset(DeviceState *dev)
+diff --git a/hw/usb/hcd-xhci.c b/hw/usb/hcd-xhci.c
+index 46212b1e69..e01700039b 100644
+--- a/hw/usb/hcd-xhci.c
++++ b/hw/usb/hcd-xhci.c
+@@ -551,7 +551,9 @@ static void xhci_intr_update(XHCIState *xhci, int v)
+             level = 1;
+         }
+         if (xhci->intr_raise) {
+-            xhci->intr_raise(xhci, 0, level);
++            if (xhci->intr_raise(xhci, 0, level)) {
++                xhci->intr[0].iman &= ~IMAN_IP;
++            }
+         }
+     }
+     if (xhci->intr_update) {
+@@ -579,7 +581,9 @@ static void xhci_intr_raise(XHCIState *xhci, int v)
+         return;
+     }
+     if (xhci->intr_raise) {
+-        xhci->intr_raise(xhci, v, true);
++        if (xhci->intr_raise(xhci, v, true)) {
++            xhci->intr[v].iman &= ~IMAN_IP;
++        }
+     }
+ }
+ 
+diff --git a/hw/usb/hcd-xhci.h b/hw/usb/hcd-xhci.h
+index 7bba361f3b..98f598382a 100644
+--- a/hw/usb/hcd-xhci.h
++++ b/hw/usb/hcd-xhci.h
+@@ -194,7 +194,7 @@ typedef struct XHCIState {
+     uint32_t flags;
+     uint32_t max_pstreams_mask;
+     void (*intr_update)(XHCIState *s, int n, bool enable);
+-    void (*intr_raise)(XHCIState *s, int n, bool level);
++    bool (*intr_raise)(XHCIState *s, int n, bool level);
+     DeviceState *hostOpaque;
+ 
+     /* Operational Registers */
+diff --git a/hw/virtio/virtio.c b/hw/virtio/virtio.c
+index ab516ac614..e02544b2df 100644
+--- a/hw/virtio/virtio.c
++++ b/hw/virtio/virtio.c
+@@ -1972,7 +1972,9 @@ static enum virtio_device_endian virtio_default_endian(void)
+ 
+ static enum virtio_device_endian virtio_current_cpu_endian(void)
+ {
+-    if (cpu_virtio_is_big_endian(current_cpu)) {
++    CPUClass *cc = CPU_GET_CLASS(current_cpu);
++
++    if (cc->virtio_is_big_endian(current_cpu)) {
+         return VIRTIO_DEVICE_ENDIAN_BIG;
+     } else {
+         return VIRTIO_DEVICE_ENDIAN_LITTLE;
+diff --git a/include/exec/exec-all.h b/include/exec/exec-all.h
+index 754f4130c9..8021adf38f 100644
+--- a/include/exec/exec-all.h
++++ b/include/exec/exec-all.h
+@@ -21,6 +21,7 @@
+ #define EXEC_ALL_H
+ 
+ #include "cpu.h"
++#include "exec/tb-context.h"
+ #ifdef CONFIG_TCG
+ #include "exec/cpu_ldst.h"
+ #endif
+diff --git a/include/exec/memory.h b/include/exec/memory.h
+index c158fd7084..e38b7e3dce 100644
+--- a/include/exec/memory.h
++++ b/include/exec/memory.h
+@@ -2317,7 +2317,7 @@ static inline uint8_t address_space_ldub_cached(MemoryRegionCache *cache,
+ }
+ 
+ static inline void address_space_stb_cached(MemoryRegionCache *cache,
+-    hwaddr addr, uint8_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     assert(addr < cache->len);
+     if (likely(cache->ptr)) {
+diff --git a/include/exec/memory_ldst.h.inc b/include/exec/memory_ldst.h.inc
+index 7c3a641f7e..46e6c220d3 100644
+--- a/include/exec/memory_ldst.h.inc
++++ b/include/exec/memory_ldst.h.inc
+@@ -20,7 +20,7 @@
+  */
+ 
+ #ifdef TARGET_ENDIANNESS
+-extern uint16_t glue(address_space_lduw, SUFFIX)(ARG1_DECL,
++extern uint32_t glue(address_space_lduw, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+ extern uint32_t glue(address_space_ldl, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+@@ -29,17 +29,17 @@ extern uint64_t glue(address_space_ldq, SUFFIX)(ARG1_DECL,
+ extern void glue(address_space_stl_notdirty, SUFFIX)(ARG1_DECL,
+     hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stw, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result);
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stl, SUFFIX)(ARG1_DECL,
+     hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stq, SUFFIX)(ARG1_DECL,
+     hwaddr addr, uint64_t val, MemTxAttrs attrs, MemTxResult *result);
+ #else
+-extern uint8_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
++extern uint32_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+-extern uint16_t glue(address_space_lduw_le, SUFFIX)(ARG1_DECL,
++extern uint32_t glue(address_space_lduw_le, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+-extern uint16_t glue(address_space_lduw_be, SUFFIX)(ARG1_DECL,
++extern uint32_t glue(address_space_lduw_be, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+ extern uint32_t glue(address_space_ldl_le, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+@@ -50,11 +50,11 @@ extern uint64_t glue(address_space_ldq_le, SUFFIX)(ARG1_DECL,
+ extern uint64_t glue(address_space_ldq_be, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stb, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint8_t val, MemTxAttrs attrs, MemTxResult *result);
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stw_le, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result);
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stw_be, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result);
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stl_le, SUFFIX)(ARG1_DECL,
+     hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
+ extern void glue(address_space_stl_be, SUFFIX)(ARG1_DECL,
+diff --git a/include/exec/memory_ldst_cached.h.inc b/include/exec/memory_ldst_cached.h.inc
+index d7834f852c..7bc8790d34 100644
+--- a/include/exec/memory_ldst_cached.h.inc
++++ b/include/exec/memory_ldst_cached.h.inc
+@@ -24,18 +24,6 @@
+ #define LD_P(size) \
+     glue(glue(ld, size), glue(ENDIANNESS, _p))
+ 
+-static inline uint16_t ADDRESS_SPACE_LD_CACHED(uw)(MemoryRegionCache *cache,
+-    hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+-{
+-    assert(addr < cache->len && 2 <= cache->len - addr);
+-    fuzz_dma_read_cb(cache->xlat + addr, 2, cache->mrs.mr);
+-    if (likely(cache->ptr)) {
+-        return LD_P(uw)(cache->ptr + addr);
+-    } else {
+-        return ADDRESS_SPACE_LD_CACHED_SLOW(uw)(cache, addr, attrs, result);
+-    }
+-}
+-
+ static inline uint32_t ADDRESS_SPACE_LD_CACHED(l)(MemoryRegionCache *cache,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+@@ -60,6 +48,18 @@ static inline uint64_t ADDRESS_SPACE_LD_CACHED(q)(MemoryRegionCache *cache,
+     }
+ }
+ 
++static inline uint32_t ADDRESS_SPACE_LD_CACHED(uw)(MemoryRegionCache *cache,
++    hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
++{
++    assert(addr < cache->len && 2 <= cache->len - addr);
++    fuzz_dma_read_cb(cache->xlat + addr, 2, cache->mrs.mr);
++    if (likely(cache->ptr)) {
++        return LD_P(uw)(cache->ptr + addr);
++    } else {
++        return ADDRESS_SPACE_LD_CACHED_SLOW(uw)(cache, addr, attrs, result);
++    }
++}
++
+ #undef ADDRESS_SPACE_LD_CACHED
+ #undef ADDRESS_SPACE_LD_CACHED_SLOW
+ #undef LD_P
+@@ -71,25 +71,25 @@ static inline uint64_t ADDRESS_SPACE_LD_CACHED(q)(MemoryRegionCache *cache,
+ #define ST_P(size) \
+     glue(glue(st, size), glue(ENDIANNESS, _p))
+ 
+-static inline void ADDRESS_SPACE_ST_CACHED(w)(MemoryRegionCache *cache,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result)
++static inline void ADDRESS_SPACE_ST_CACHED(l)(MemoryRegionCache *cache,
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+-    assert(addr < cache->len && 2 <= cache->len - addr);
++    assert(addr < cache->len && 4 <= cache->len - addr);
+     if (likely(cache->ptr)) {
+-        ST_P(w)(cache->ptr + addr, val);
++        ST_P(l)(cache->ptr + addr, val);
+     } else {
+-        ADDRESS_SPACE_ST_CACHED_SLOW(w)(cache, addr, val, attrs, result);
++        ADDRESS_SPACE_ST_CACHED_SLOW(l)(cache, addr, val, attrs, result);
+     }
+ }
+ 
+-static inline void ADDRESS_SPACE_ST_CACHED(l)(MemoryRegionCache *cache,
++static inline void ADDRESS_SPACE_ST_CACHED(w)(MemoryRegionCache *cache,
+     hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+-    assert(addr < cache->len && 4 <= cache->len - addr);
++    assert(addr < cache->len && 2 <= cache->len - addr);
+     if (likely(cache->ptr)) {
+-        ST_P(l)(cache->ptr + addr, val);
++        ST_P(w)(cache->ptr + addr, val);
+     } else {
+-        ADDRESS_SPACE_ST_CACHED_SLOW(l)(cache, addr, val, attrs, result);
++        ADDRESS_SPACE_ST_CACHED_SLOW(w)(cache, addr, val, attrs, result);
+     }
+ }
+ 
+diff --git a/include/exec/memory_ldst_phys.h.inc b/include/exec/memory_ldst_phys.h.inc
+index ecd678610d..b9dd53c389 100644
+--- a/include/exec/memory_ldst_phys.h.inc
++++ b/include/exec/memory_ldst_phys.h.inc
+@@ -20,12 +20,6 @@
+  */
+ 
+ #ifdef TARGET_ENDIANNESS
+-static inline uint16_t glue(lduw_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+-{
+-    return glue(address_space_lduw, SUFFIX)(ARG1, addr,
+-                                            MEMTXATTRS_UNSPECIFIED, NULL);
+-}
+-
+ static inline uint32_t glue(ldl_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+ {
+     return glue(address_space_ldl, SUFFIX)(ARG1, addr,
+@@ -38,10 +32,10 @@ static inline uint64_t glue(ldq_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+                                            MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline void glue(stw_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint16_t val)
++static inline uint32_t glue(lduw_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+ {
+-    glue(address_space_stw, SUFFIX)(ARG1, addr, val,
+-                                    MEMTXATTRS_UNSPECIFIED, NULL);
++    return glue(address_space_lduw, SUFFIX)(ARG1, addr,
++                                            MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+ static inline void glue(stl_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+@@ -50,30 +44,18 @@ static inline void glue(stl_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+                                     MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline void glue(stq_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint64_t val)
++static inline void glue(stw_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+ {
+-    glue(address_space_stq, SUFFIX)(ARG1, addr, val,
++    glue(address_space_stw, SUFFIX)(ARG1, addr, val,
+                                     MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+-#else
+-static inline uint8_t glue(ldub_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+-{
+-    return glue(address_space_ldub, SUFFIX)(ARG1, addr,
+-                                            MEMTXATTRS_UNSPECIFIED, NULL);
+-}
+-
+-static inline uint16_t glue(lduw_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+-{
+-    return glue(address_space_lduw_le, SUFFIX)(ARG1, addr,
+-                                               MEMTXATTRS_UNSPECIFIED, NULL);
+-}
+ 
+-static inline uint16_t glue(lduw_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
++static inline void glue(stq_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint64_t val)
+ {
+-    return glue(address_space_lduw_be, SUFFIX)(ARG1, addr,
+-                                               MEMTXATTRS_UNSPECIFIED, NULL);
++    glue(address_space_stq, SUFFIX)(ARG1, addr, val,
++                                    MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+-
++#else
+ static inline uint32_t glue(ldl_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+ {
+     return glue(address_space_ldl_le, SUFFIX)(ARG1, addr,
+@@ -98,22 +80,22 @@ static inline uint64_t glue(ldq_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+                                               MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline void glue(stb_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint8_t val)
++static inline uint32_t glue(ldub_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+ {
+-    glue(address_space_stb, SUFFIX)(ARG1, addr, val,
+-                                    MEMTXATTRS_UNSPECIFIED, NULL);
++    return glue(address_space_ldub, SUFFIX)(ARG1, addr,
++                                            MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline void glue(stw_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint16_t val)
++static inline uint32_t glue(lduw_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+ {
+-    glue(address_space_stw_le, SUFFIX)(ARG1, addr, val,
+-                                       MEMTXATTRS_UNSPECIFIED, NULL);
++    return glue(address_space_lduw_le, SUFFIX)(ARG1, addr,
++                                               MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+-static inline void glue(stw_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint16_t val)
++static inline uint32_t glue(lduw_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr)
+ {
+-    glue(address_space_stw_be, SUFFIX)(ARG1, addr, val,
+-                                       MEMTXATTRS_UNSPECIFIED, NULL);
++    return glue(address_space_lduw_be, SUFFIX)(ARG1, addr,
++                                               MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
+ static inline void glue(stl_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
+@@ -128,6 +110,24 @@ static inline void glue(stl_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t va
+                                        MEMTXATTRS_UNSPECIFIED, NULL);
+ }
+ 
++static inline void glue(stb_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
++{
++    glue(address_space_stb, SUFFIX)(ARG1, addr, val,
++                                    MEMTXATTRS_UNSPECIFIED, NULL);
++}
++
++static inline void glue(stw_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
++{
++    glue(address_space_stw_le, SUFFIX)(ARG1, addr, val,
++                                       MEMTXATTRS_UNSPECIFIED, NULL);
++}
++
++static inline void glue(stw_be_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint32_t val)
++{
++    glue(address_space_stw_be, SUFFIX)(ARG1, addr, val,
++                                       MEMTXATTRS_UNSPECIFIED, NULL);
++}
++
+ static inline void glue(stq_le_phys, SUFFIX)(ARG1_DECL, hwaddr addr, uint64_t val)
+ {
+     glue(address_space_stq_le, SUFFIX)(ARG1, addr, val,
+diff --git a/accel/tcg/tb-context.h b/include/exec/tb-context.h
+similarity index 100%
+rename from accel/tcg/tb-context.h
+rename to include/exec/tb-context.h
+diff --git a/accel/tcg/tb-hash.h b/include/exec/tb-hash.h
+similarity index 100%
+rename from accel/tcg/tb-hash.h
+rename to include/exec/tb-hash.h
+diff --git a/accel/tcg/tb-lookup.h b/include/exec/tb-lookup.h
+similarity index 98%
+rename from accel/tcg/tb-lookup.h
+rename to include/exec/tb-lookup.h
+index 9c9e0079da..29d61ceb34 100644
+--- a/accel/tcg/tb-lookup.h
++++ b/include/exec/tb-lookup.h
+@@ -14,7 +14,7 @@
+ #endif
+ 
+ #include "exec/exec-all.h"
+-#include "tb-hash.h"
++#include "exec/tb-hash.h"
+ 
+ /* Might cause an exception, so have a longjmp destination ready */
+ static inline TranslationBlock *tb_lookup(CPUState *cpu, target_ulong pc,
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index 044f668a6e..753ca90668 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -80,9 +80,6 @@ struct TCGCPUOps;
+ /* see accel-cpu.h */
+ struct AccelCPUClass;
+ 
+-/* see sysemu-cpu-ops.h */
+-struct SysemuCPUOps;
+-
+ /**
+  * CPUClass:
+  * @class_by_name: Callback to map -cpu command line model name to an
+@@ -90,10 +87,16 @@ struct SysemuCPUOps;
+  * @parse_features: Callback to parse command line arguments.
+  * @reset_dump_flags: #CPUDumpFlags to use for reset logging.
+  * @has_work: Callback for checking if there is work to do.
++ * @virtio_is_big_endian: Callback to return %true if a CPU which supports
++ * runtime configurable endianness is currently big-endian. Non-configurable
++ * CPUs can use the default implementation of this method. This method should
++ * not be used by any callers other than the pre-1.0 virtio devices.
+  * @memory_rw_debug: Callback for GDB memory access.
+  * @dump_state: Callback for dumping state.
+  * @dump_statistics: Callback for dumping statistics.
+  * @get_arch_id: Callback for getting architecture-dependent CPU ID.
++ * @get_paging_enabled: Callback for inquiring whether paging is enabled.
++ * @get_memory_mapping: Callback for obtaining the memory mappings.
+  * @set_pc: Callback for setting the Program Counter register. This
+  *       should have the semantics used by the target architecture when
+  *       setting the PC from a source such as an ELF file entry point;
+@@ -102,8 +105,24 @@ struct SysemuCPUOps;
+  *       If the target behaviour here is anything other than "set
+  *       the PC register to the value passed in" then the target must
+  *       also implement the synchronize_from_tb hook.
++ * @get_phys_page_debug: Callback for obtaining a physical address.
++ * @get_phys_page_attrs_debug: Callback for obtaining a physical address and the
++ *       associated memory transaction attributes to use for the access.
++ *       CPUs which use memory transaction attributes should implement this
++ *       instead of get_phys_page_debug.
++ * @asidx_from_attrs: Callback to return the CPU AddressSpace to use for
++ *       a memory access with the specified memory transaction attributes.
+  * @gdb_read_register: Callback for letting GDB read a register.
+  * @gdb_write_register: Callback for letting GDB write a register.
++ * @write_elf64_note: Callback for writing a CPU-specific ELF note to a
++ * 64-bit VM coredump.
++ * @write_elf32_qemunote: Callback for writing a CPU- and QEMU-specific ELF
++ * note to a 32-bit VM coredump.
++ * @write_elf32_note: Callback for writing a CPU-specific ELF note to a
++ * 32-bit VM coredump.
++ * @write_elf32_qemunote: Callback for writing a CPU- and QEMU-specific ELF
++ * note to a 32-bit VM coredump.
++ * @vmsd: State description for migration.
+  * @gdb_num_core_regs: Number of core registers accessible to GDB.
+  * @gdb_core_xml_file: File name for core registers GDB XML description.
+  * @gdb_stop_before_watchpoint: Indicates whether GDB expects the CPU to stop
+@@ -131,15 +150,34 @@ struct CPUClass {
+ 
+     int reset_dump_flags;
+     bool (*has_work)(CPUState *cpu);
++    bool (*virtio_is_big_endian)(CPUState *cpu);
+     int (*memory_rw_debug)(CPUState *cpu, vaddr addr,
+                            uint8_t *buf, int len, bool is_write);
+     void (*dump_state)(CPUState *cpu, FILE *, int flags);
++    GuestPanicInformation* (*get_crash_info)(CPUState *cpu);
+     void (*dump_statistics)(CPUState *cpu, int flags);
+     int64_t (*get_arch_id)(CPUState *cpu);
++    bool (*get_paging_enabled)(const CPUState *cpu);
++    void (*get_memory_mapping)(CPUState *cpu, MemoryMappingList *list,
++                               Error **errp);
+     void (*set_pc)(CPUState *cpu, vaddr value);
++    hwaddr (*get_phys_page_debug)(CPUState *cpu, vaddr addr);
++    hwaddr (*get_phys_page_attrs_debug)(CPUState *cpu, vaddr addr,
++                                        MemTxAttrs *attrs);
++    int (*asidx_from_attrs)(CPUState *cpu, MemTxAttrs attrs);
+     int (*gdb_read_register)(CPUState *cpu, GByteArray *buf, int reg);
+     int (*gdb_write_register)(CPUState *cpu, uint8_t *buf, int reg);
+ 
++    int (*write_elf64_note)(WriteCoreDumpFunction f, CPUState *cpu,
++                            int cpuid, void *opaque);
++    int (*write_elf64_qemunote)(WriteCoreDumpFunction f, CPUState *cpu,
++                                void *opaque);
++    int (*write_elf32_note)(WriteCoreDumpFunction f, CPUState *cpu,
++                            int cpuid, void *opaque);
++    int (*write_elf32_qemunote)(WriteCoreDumpFunction f, CPUState *cpu,
++                                void *opaque);
++
++    const VMStateDescription *vmsd;
+     const char *gdb_core_xml_file;
+     gchar * (*gdb_arch_name)(CPUState *cpu);
+     const char * (*gdb_get_dynamic_xml)(CPUState *cpu, const char *xmlname);
+@@ -152,11 +190,8 @@ struct CPUClass {
+     bool gdb_stop_before_watchpoint;
+     struct AccelCPUClass *accel_cpu;
+ 
+-    /* when system emulation is not available, this pointer is NULL */
+-    const struct SysemuCPUOps *sysemu_ops;
+-
+     /* when TCG is not available, this pointer is NULL */
+-    const struct TCGCPUOps *tcg_ops;
++    struct TCGCPUOps *tcg_ops;
+ 
+     /*
+      * if not NULL, this is called in order for the CPUClass to initialize
+@@ -558,8 +593,18 @@ void cpu_dump_statistics(CPUState *cpu, int flags);
+  *
+  * Returns: Corresponding physical page address or -1 if no page found.
+  */
+-hwaddr cpu_get_phys_page_attrs_debug(CPUState *cpu, vaddr addr,
+-                                     MemTxAttrs *attrs);
++static inline hwaddr cpu_get_phys_page_attrs_debug(CPUState *cpu, vaddr addr,
++                                                   MemTxAttrs *attrs)
++{
++    CPUClass *cc = CPU_GET_CLASS(cpu);
++
++    if (cc->get_phys_page_attrs_debug) {
++        return cc->get_phys_page_attrs_debug(cpu, addr, attrs);
++    }
++    /* Fallback for CPUs which don't implement the _attrs_ hook */
++    *attrs = MEMTXATTRS_UNSPECIFIED;
++    return cc->get_phys_page_debug(cpu, addr);
++}
+ 
+ /**
+  * cpu_get_phys_page_debug:
+@@ -571,7 +616,12 @@ hwaddr cpu_get_phys_page_attrs_debug(CPUState *cpu, vaddr addr,
+  *
+  * Returns: Corresponding physical page address or -1 if no page found.
+  */
+-hwaddr cpu_get_phys_page_debug(CPUState *cpu, vaddr addr);
++static inline hwaddr cpu_get_phys_page_debug(CPUState *cpu, vaddr addr)
++{
++    MemTxAttrs attrs = {};
++
++    return cpu_get_phys_page_attrs_debug(cpu, addr, &attrs);
++}
+ 
+ /** cpu_asidx_from_attrs:
+  * @cpu: CPU
+@@ -580,16 +630,17 @@ hwaddr cpu_get_phys_page_debug(CPUState *cpu, vaddr addr);
+  * Returns the address space index specifying the CPU AddressSpace
+  * to use for a memory access with the given transaction attributes.
+  */
+-int cpu_asidx_from_attrs(CPUState *cpu, MemTxAttrs attrs);
+-
+-/**
+- * cpu_virtio_is_big_endian:
+- * @cpu: CPU
++static inline int cpu_asidx_from_attrs(CPUState *cpu, MemTxAttrs attrs)
++{
++    CPUClass *cc = CPU_GET_CLASS(cpu);
++    int ret = 0;
+ 
+- * Returns %true if a CPU which supports runtime configurable endianness
+- * is currently big-endian.
+- */
+-bool cpu_virtio_is_big_endian(CPUState *cpu);
++    if (cc->asidx_from_attrs) {
++        ret = cc->asidx_from_attrs(cpu, attrs);
++        assert(ret < cpu->num_ases && ret >= 0);
++    }
++    return ret;
++}
+ 
+ #endif /* CONFIG_USER_ONLY */
+ 
+@@ -1030,8 +1081,10 @@ bool target_words_bigendian(void);
+ #ifdef NEED_CPU_H
+ 
+ #ifdef CONFIG_SOFTMMU
+-
+ extern const VMStateDescription vmstate_cpu_common;
++#else
++#define vmstate_cpu_common vmstate_dummy
++#endif
+ 
+ #define VMSTATE_CPU() {                                                     \
+     .name = "parent_obj",                                                   \
+@@ -1040,7 +1093,6 @@ extern const VMStateDescription vmstate_cpu_common;
+     .flags = VMS_STRUCT,                                                    \
+     .offset = 0,                                                            \
+ }
+-#endif /* CONFIG_SOFTMMU */
+ 
+ #endif /* NEED_CPU_H */
+ 
+diff --git a/include/hw/core/sysemu-cpu-ops.h b/include/hw/core/sysemu-cpu-ops.h
+deleted file mode 100644
+index a9ba39e5f2..0000000000
+--- a/include/hw/core/sysemu-cpu-ops.h
++++ /dev/null
+@@ -1,92 +0,0 @@
+-/*
+- * CPU operations specific to system emulation
+- *
+- * Copyright (c) 2012 SUSE LINUX Products GmbH
+- *
+- * This work is licensed under the terms of the GNU GPL, version 2 or later.
+- * See the COPYING file in the top-level directory.
+- */
+-
+-#ifndef SYSEMU_CPU_OPS_H
+-#define SYSEMU_CPU_OPS_H
+-
+-#include "hw/core/cpu.h"
+-
+-/*
+- * struct SysemuCPUOps: System operations specific to a CPU class
+- */
+-typedef struct SysemuCPUOps {
+-    /**
+-     * @get_memory_mapping: Callback for obtaining the memory mappings.
+-     */
+-    void (*get_memory_mapping)(CPUState *cpu, MemoryMappingList *list,
+-                               Error **errp);
+-    /**
+-     * @get_paging_enabled: Callback for inquiring whether paging is enabled.
+-     */
+-    bool (*get_paging_enabled)(const CPUState *cpu);
+-    /**
+-     * @get_phys_page_debug: Callback for obtaining a physical address.
+-     */
+-    hwaddr (*get_phys_page_debug)(CPUState *cpu, vaddr addr);
+-    /**
+-     * @get_phys_page_attrs_debug: Callback for obtaining a physical address
+-     *       and the associated memory transaction attributes to use for the
+-     *       access.
+-     * CPUs which use memory transaction attributes should implement this
+-     * instead of get_phys_page_debug.
+-     */
+-    hwaddr (*get_phys_page_attrs_debug)(CPUState *cpu, vaddr addr,
+-                                        MemTxAttrs *attrs);
+-    /**
+-     * @asidx_from_attrs: Callback to return the CPU AddressSpace to use for
+-     *       a memory access with the specified memory transaction attributes.
+-     */
+-    int (*asidx_from_attrs)(CPUState *cpu, MemTxAttrs attrs);
+-    /**
+-     * @get_crash_info: Callback for reporting guest crash information in
+-     * GUEST_PANICKED events.
+-     */
+-    GuestPanicInformation* (*get_crash_info)(CPUState *cpu);
+-    /**
+-     * @write_elf32_note: Callback for writing a CPU-specific ELF note to a
+-     * 32-bit VM coredump.
+-     */
+-    int (*write_elf32_note)(WriteCoreDumpFunction f, CPUState *cpu,
+-                            int cpuid, void *opaque);
+-    /**
+-     * @write_elf64_note: Callback for writing a CPU-specific ELF note to a
+-     * 64-bit VM coredump.
+-     */
+-    int (*write_elf64_note)(WriteCoreDumpFunction f, CPUState *cpu,
+-                            int cpuid, void *opaque);
+-    /**
+-     * @write_elf32_qemunote: Callback for writing a CPU- and QEMU-specific ELF
+-     * note to a 32-bit VM coredump.
+-     */
+-    int (*write_elf32_qemunote)(WriteCoreDumpFunction f, CPUState *cpu,
+-                                void *opaque);
+-    /**
+-     * @write_elf64_qemunote: Callback for writing a CPU- and QEMU-specific ELF
+-     * note to a 64-bit VM coredump.
+-     */
+-    int (*write_elf64_qemunote)(WriteCoreDumpFunction f, CPUState *cpu,
+-                                void *opaque);
+-    /**
+-     * @virtio_is_big_endian: Callback to return %true if a CPU which supports
+-     * runtime configurable endianness is currently big-endian.
+-     * Non-configurable CPUs can use the default implementation of this method.
+-     * This method should not be used by any callers other than the pre-1.0
+-     * virtio devices.
+-     */
+-    bool (*virtio_is_big_endian)(CPUState *cpu);
+-
+-    /**
+-     * @legacy_vmsd: Legacy state for migration.
+-     *               Do not use in new targets, use #DeviceClass::vmsd instead.
+-     */
+-    const VMStateDescription *legacy_vmsd;
+-
+-} SysemuCPUOps;
+-
+-#endif /* SYSEMU_CPU_OPS_H */
+diff --git a/include/migration/vmstate.h b/include/migration/vmstate.h
+index 8df7b69f38..075ee80096 100644
+--- a/include/migration/vmstate.h
++++ b/include/migration/vmstate.h
+@@ -194,6 +194,8 @@ struct VMStateDescription {
+     const VMStateDescription **subsections;
+ };
+ 
++extern const VMStateDescription vmstate_dummy;
++
+ extern const VMStateInfo vmstate_info_bool;
+ 
+ extern const VMStateInfo vmstate_info_int8;
+diff --git a/include/tcg/tcg.h b/include/tcg/tcg.h
+index 74cb345308..0f0695e90d 100644
+--- a/include/tcg/tcg.h
++++ b/include/tcg/tcg.h
+@@ -27,6 +27,7 @@
+ 
+ #include "cpu.h"
+ #include "exec/memop.h"
++#include "exec/tb-context.h"
+ #include "qemu/bitops.h"
+ #include "qemu/plugin.h"
+ #include "qemu/queue.h"
+diff --git a/memory_ldst.c.inc b/memory_ldst.c.inc
+index 84b868f294..b56e961967 100644
+--- a/memory_ldst.c.inc
++++ b/memory_ldst.c.inc
+@@ -157,7 +157,7 @@ uint64_t glue(address_space_ldq_be, SUFFIX)(ARG1_DECL,
+                                                     DEVICE_BIG_ENDIAN);
+ }
+ 
+-uint8_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
++uint32_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+     uint8_t *ptr;
+@@ -193,7 +193,7 @@ uint8_t glue(address_space_ldub, SUFFIX)(ARG1_DECL,
+ }
+ 
+ /* warning: addr must be aligned */
+-static inline uint16_t glue(address_space_lduw_internal, SUFFIX)(ARG1_DECL,
++static inline uint32_t glue(address_space_lduw_internal, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result,
+     enum device_endian endian)
+ {
+@@ -240,21 +240,21 @@ static inline uint16_t glue(address_space_lduw_internal, SUFFIX)(ARG1_DECL,
+     return val;
+ }
+ 
+-uint16_t glue(address_space_lduw, SUFFIX)(ARG1_DECL,
++uint32_t glue(address_space_lduw, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+     return glue(address_space_lduw_internal, SUFFIX)(ARG1, addr, attrs, result,
+                                                      DEVICE_NATIVE_ENDIAN);
+ }
+ 
+-uint16_t glue(address_space_lduw_le, SUFFIX)(ARG1_DECL,
++uint32_t glue(address_space_lduw_le, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+     return glue(address_space_lduw_internal, SUFFIX)(ARG1, addr, attrs, result,
+                                                      DEVICE_LITTLE_ENDIAN);
+ }
+ 
+-uint16_t glue(address_space_lduw_be, SUFFIX)(ARG1_DECL,
++uint32_t glue(address_space_lduw_be, SUFFIX)(ARG1_DECL,
+     hwaddr addr, MemTxAttrs attrs, MemTxResult *result)
+ {
+     return glue(address_space_lduw_internal, SUFFIX)(ARG1, addr, attrs, result,
+@@ -366,7 +366,7 @@ void glue(address_space_stl_be, SUFFIX)(ARG1_DECL,
+ }
+ 
+ void glue(address_space_stb, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint8_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     uint8_t *ptr;
+     MemoryRegion *mr;
+@@ -398,7 +398,7 @@ void glue(address_space_stb, SUFFIX)(ARG1_DECL,
+ 
+ /* warning: addr must be aligned */
+ static inline void glue(address_space_stw_internal, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs,
++    hwaddr addr, uint32_t val, MemTxAttrs attrs,
+     MemTxResult *result, enum device_endian endian)
+ {
+     uint8_t *ptr;
+@@ -441,21 +441,21 @@ static inline void glue(address_space_stw_internal, SUFFIX)(ARG1_DECL,
+ }
+ 
+ void glue(address_space_stw, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     glue(address_space_stw_internal, SUFFIX)(ARG1, addr, val, attrs, result,
+                                              DEVICE_NATIVE_ENDIAN);
+ }
+ 
+ void glue(address_space_stw_le, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     glue(address_space_stw_internal, SUFFIX)(ARG1, addr, val, attrs, result,
+                                              DEVICE_LITTLE_ENDIAN);
+ }
+ 
+ void glue(address_space_stw_be, SUFFIX)(ARG1_DECL,
+-    hwaddr addr, uint16_t val, MemTxAttrs attrs, MemTxResult *result)
++    hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result)
+ {
+     glue(address_space_stw_internal, SUFFIX)(ARG1, addr, val, attrs, result,
+                                DEVICE_BIG_ENDIAN);
+diff --git a/plugins/plugin.h b/plugins/plugin.h
+index 55017e3581..1aa29dcadd 100644
+--- a/plugins/plugin.h
++++ b/plugins/plugin.h
+@@ -13,7 +13,6 @@
+ #define _PLUGIN_INTERNAL_H_
+ 
+ #include <gmodule.h>
+-#include "qemu/qht.h"
+ 
+ #define QEMU_PLUGIN_MIN_VERSION 0
+ 
+diff --git a/softmmu/physmem.c b/softmmu/physmem.c
+index 1c8717684a..e1da81ed2f 100644
+--- a/softmmu/physmem.c
++++ b/softmmu/physmem.c
+@@ -904,16 +904,6 @@ void cpu_check_watchpoint(CPUState *cpu, vaddr addr, vaddr len,
+         if (watchpoint_address_matches(wp, addr, len)
+             && (wp->flags & flags)) {
+             if (replay_running_debug()) {
+-                /*
+-                 * replay_breakpoint reads icount.
+-                 * Force recompile to succeed, because icount may
+-                 * be read only at the end of the block.
+-                 */
+-                if (!cpu->can_do_io) {
+-                    /* Force execution of one insn next time.  */
+-                    cpu->cflags_next_tb = 1 | CF_LAST_IO | curr_cflags(cpu);
+-                    cpu_loop_exit_restore(cpu, ra);
+-                }
+                 /*
+                  * Don't process the watchpoints when we are
+                  * in a reverse debugging operation.
+diff --git a/stubs/vmstate.c b/stubs/vmstate.c
+index 8513d9204e..cc4fe41dfc 100644
+--- a/stubs/vmstate.c
++++ b/stubs/vmstate.c
+@@ -1,6 +1,8 @@
+ #include "qemu/osdep.h"
+ #include "migration/vmstate.h"
+ 
++const VMStateDescription vmstate_dummy = {};
++
+ int vmstate_register_with_alias_id(VMStateIf *obj,
+                                    uint32_t instance_id,
+                                    const VMStateDescription *vmsd,
+diff --git a/target/alpha/cpu.c b/target/alpha/cpu.c
+index 4871ad0c0a..27192b62e2 100644
+--- a/target/alpha/cpu.c
++++ b/target/alpha/cpu.c
+@@ -206,17 +206,9 @@ static void alpha_cpu_initfn(Object *obj)
+ #endif
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps alpha_sysemu_ops = {
+-    .get_phys_page_debug = alpha_cpu_get_phys_page_debug,
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps alpha_tcg_ops = {
++static struct TCGCPUOps alpha_tcg_ops = {
+     .initialize = alpha_translate_init,
+     .cpu_exec_interrupt = alpha_cpu_exec_interrupt,
+     .tlb_fill = alpha_cpu_tlb_fill,
+@@ -244,8 +236,8 @@ static void alpha_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_read_register = alpha_cpu_gdb_read_register;
+     cc->gdb_write_register = alpha_cpu_gdb_write_register;
+ #ifndef CONFIG_USER_ONLY
++    cc->get_phys_page_debug = alpha_cpu_get_phys_page_debug;
+     dc->vmsd = &vmstate_alpha_cpu;
+-    cc->sysemu_ops = &alpha_sysemu_ops;
+ #endif
+     cc->disas_set_info = alpha_cpu_disas_set_info;
+ 
+diff --git a/target/arm/cpu.c b/target/arm/cpu.c
+index ad65b60b04..7aeb4b1381 100644
+--- a/target/arm/cpu.c
++++ b/target/arm/cpu.c
+@@ -1944,21 +1944,8 @@ static gchar *arm_gdb_arch_name(CPUState *cs)
+     return g_strdup("arm");
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps arm_sysemu_ops = {
+-    .get_phys_page_attrs_debug = arm_cpu_get_phys_page_attrs_debug,
+-    .asidx_from_attrs = arm_asidx_from_attrs,
+-    .write_elf32_note = arm_cpu_write_elf32_note,
+-    .write_elf64_note = arm_cpu_write_elf64_note,
+-    .virtio_is_big_endian = arm_cpu_virtio_is_big_endian,
+-    .legacy_vmsd = &vmstate_arm_cpu,
+-};
+-#endif
+-
+ #ifdef CONFIG_TCG
+-static const struct TCGCPUOps arm_tcg_ops = {
++static struct TCGCPUOps arm_tcg_ops = {
+     .initialize = arm_translate_init,
+     .synchronize_from_tb = arm_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = arm_cpu_exec_interrupt,
+@@ -1994,7 +1981,12 @@ static void arm_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_read_register = arm_cpu_gdb_read_register;
+     cc->gdb_write_register = arm_cpu_gdb_write_register;
+ #ifndef CONFIG_USER_ONLY
+-    cc->sysemu_ops = &arm_sysemu_ops;
++    cc->get_phys_page_attrs_debug = arm_cpu_get_phys_page_attrs_debug;
++    cc->asidx_from_attrs = arm_asidx_from_attrs;
++    cc->vmsd = &vmstate_arm_cpu;
++    cc->virtio_is_big_endian = arm_cpu_virtio_is_big_endian;
++    cc->write_elf64_note = arm_cpu_write_elf64_note;
++    cc->write_elf32_note = arm_cpu_write_elf32_note;
+ #endif
+     cc->gdb_num_core_regs = 26;
+     cc->gdb_core_xml_file = "arm-core.xml";
+diff --git a/target/arm/cpu_tcg.c b/target/arm/cpu_tcg.c
+index 2e0e508f0e..d3458335ed 100644
+--- a/target/arm/cpu_tcg.c
++++ b/target/arm/cpu_tcg.c
+@@ -898,7 +898,7 @@ static void pxa270c5_initfn(Object *obj)
+ }
+ 
+ #ifdef CONFIG_TCG
+-static const struct TCGCPUOps arm_v7m_tcg_ops = {
++static struct TCGCPUOps arm_v7m_tcg_ops = {
+     .initialize = arm_translate_init,
+     .synchronize_from_tb = arm_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = arm_v7m_cpu_exec_interrupt,
+diff --git a/target/avr/cpu.c b/target/avr/cpu.c
+index 57e3fab4a0..0f4596932b 100644
+--- a/target/avr/cpu.c
++++ b/target/avr/cpu.c
+@@ -184,15 +184,9 @@ static void avr_cpu_dump_state(CPUState *cs, FILE *f, int flags)
+     qemu_fprintf(f, "\n");
+ }
+ 
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps avr_sysemu_ops = {
+-    .get_phys_page_debug = avr_cpu_get_phys_page_debug,
+-};
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps avr_tcg_ops = {
++static struct TCGCPUOps avr_tcg_ops = {
+     .initialize = avr_cpu_tcg_init,
+     .synchronize_from_tb = avr_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = avr_cpu_exec_interrupt,
+@@ -218,8 +212,8 @@ static void avr_cpu_class_init(ObjectClass *oc, void *data)
+     cc->dump_state = avr_cpu_dump_state;
+     cc->set_pc = avr_cpu_set_pc;
+     cc->memory_rw_debug = avr_cpu_memory_rw_debug;
+-    dc->vmsd = &vms_avr_cpu;
+-    cc->sysemu_ops = &avr_sysemu_ops;
++    cc->get_phys_page_debug = avr_cpu_get_phys_page_debug;
++    cc->vmsd = &vms_avr_cpu;
+     cc->disas_set_info = avr_cpu_disas_set_info;
+     cc->gdb_read_register = avr_cpu_gdb_read_register;
+     cc->gdb_write_register = avr_cpu_gdb_write_register;
+diff --git a/target/avr/machine.c b/target/avr/machine.c
+index 16f7a3e031..de264f57c3 100644
+--- a/target/avr/machine.c
++++ b/target/avr/machine.c
+@@ -98,8 +98,8 @@ static const VMStateInfo vms_eind = {
+ 
+ const VMStateDescription vms_avr_cpu = {
+     .name = "cpu",
+-    .version_id = 1,
+-    .minimum_version_id = 1,
++    .version_id = 0,
++    .minimum_version_id = 0,
+     .fields = (VMStateField[]) {
+         VMSTATE_UINT32(env.pc_w, AVRCPU),
+         VMSTATE_UINT32(env.sp, AVRCPU),
+diff --git a/target/cris/cpu.c b/target/cris/cpu.c
+index 70932b1f8c..ed983380fc 100644
+--- a/target/cris/cpu.c
++++ b/target/cris/cpu.c
+@@ -193,17 +193,9 @@ static void cris_cpu_initfn(Object *obj)
+ #endif
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps cris_sysemu_ops = {
+-    .get_phys_page_debug = cris_cpu_get_phys_page_debug,
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps crisv10_tcg_ops = {
++static struct TCGCPUOps crisv10_tcg_ops = {
+     .initialize = cris_initialize_crisv10_tcg,
+     .cpu_exec_interrupt = cris_cpu_exec_interrupt,
+     .tlb_fill = cris_cpu_tlb_fill,
+@@ -213,7 +205,7 @@ static const struct TCGCPUOps crisv10_tcg_ops = {
+ #endif /* !CONFIG_USER_ONLY */
+ };
+ 
+-static const struct TCGCPUOps crisv32_tcg_ops = {
++static struct TCGCPUOps crisv32_tcg_ops = {
+     .initialize = cris_initialize_tcg,
+     .cpu_exec_interrupt = cris_cpu_exec_interrupt,
+     .tlb_fill = cris_cpu_tlb_fill,
+@@ -300,8 +292,8 @@ static void cris_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_read_register = cris_cpu_gdb_read_register;
+     cc->gdb_write_register = cris_cpu_gdb_write_register;
+ #ifndef CONFIG_USER_ONLY
++    cc->get_phys_page_debug = cris_cpu_get_phys_page_debug;
+     dc->vmsd = &vmstate_cris_cpu;
+-    cc->sysemu_ops = &cris_sysemu_ops;
+ #endif
+ 
+     cc->gdb_num_core_regs = 49;
+diff --git a/target/hexagon/cpu.c b/target/hexagon/cpu.c
+index 3338365c16..ebe60a6e15 100644
+--- a/target/hexagon/cpu.c
++++ b/target/hexagon/cpu.c
+@@ -269,7 +269,7 @@ static bool hexagon_tlb_fill(CPUState *cs, vaddr address, int size,
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps hexagon_tcg_ops = {
++static struct TCGCPUOps hexagon_tcg_ops = {
+     .initialize = hexagon_translate_init,
+     .synchronize_from_tb = hexagon_cpu_synchronize_from_tb,
+     .tlb_fill = hexagon_tlb_fill,
+diff --git a/target/hppa/cpu.c b/target/hppa/cpu.c
+index 2eace4ee12..d8fad52d1f 100644
+--- a/target/hppa/cpu.c
++++ b/target/hppa/cpu.c
+@@ -131,17 +131,9 @@ static ObjectClass *hppa_cpu_class_by_name(const char *cpu_model)
+     return object_class_by_name(TYPE_HPPA_CPU);
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps hppa_sysemu_ops = {
+-    .get_phys_page_debug = hppa_cpu_get_phys_page_debug,
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps hppa_tcg_ops = {
++static struct TCGCPUOps hppa_tcg_ops = {
+     .initialize = hppa_translate_init,
+     .synchronize_from_tb = hppa_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = hppa_cpu_exec_interrupt,
+@@ -169,8 +161,8 @@ static void hppa_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_read_register = hppa_cpu_gdb_read_register;
+     cc->gdb_write_register = hppa_cpu_gdb_write_register;
+ #ifndef CONFIG_USER_ONLY
++    cc->get_phys_page_debug = hppa_cpu_get_phys_page_debug;
+     dc->vmsd = &vmstate_hppa_cpu;
+-    cc->sysemu_ops = &hppa_sysemu_ops;
+ #endif
+     cc->disas_set_info = hppa_cpu_disas_set_info;
+     cc->gdb_num_core_regs = 128;
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index b4349119f8..9e211ac2ce 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -6485,14 +6485,12 @@ static int64_t x86_cpu_get_arch_id(CPUState *cs)
+     return cpu->apic_id;
+ }
+ 
+-#if !defined(CONFIG_USER_ONLY)
+ static bool x86_cpu_get_paging_enabled(const CPUState *cs)
+ {
+     X86CPU *cpu = X86_CPU(cs);
+ 
+     return cpu->env.cr[0] & CR0_PG_MASK;
+ }
+-#endif /* !CONFIG_USER_ONLY */
+ 
+ static void x86_cpu_set_pc(CPUState *cs, vaddr value)
+ {
+@@ -6716,23 +6714,6 @@ static Property x86_cpu_properties[] = {
+     DEFINE_PROP_END_OF_LIST()
+ };
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps i386_sysemu_ops = {
+-    .get_memory_mapping = x86_cpu_get_memory_mapping,
+-    .get_paging_enabled = x86_cpu_get_paging_enabled,
+-    .get_phys_page_attrs_debug = x86_cpu_get_phys_page_attrs_debug,
+-    .asidx_from_attrs = x86_asidx_from_attrs,
+-    .get_crash_info = x86_cpu_get_crash_info,
+-    .write_elf32_note = x86_cpu_write_elf32_note,
+-    .write_elf64_note = x86_cpu_write_elf64_note,
+-    .write_elf32_qemunote = x86_cpu_write_elf32_qemunote,
+-    .write_elf64_qemunote = x86_cpu_write_elf64_qemunote,
+-    .legacy_vmsd = &vmstate_x86_cpu,
+-};
+-#endif
+-
+ static void x86_cpu_common_class_init(ObjectClass *oc, void *data)
+ {
+     X86CPUClass *xcc = X86_CPU_CLASS(oc);
+@@ -6757,9 +6738,18 @@ static void x86_cpu_common_class_init(ObjectClass *oc, void *data)
+     cc->gdb_read_register = x86_cpu_gdb_read_register;
+     cc->gdb_write_register = x86_cpu_gdb_write_register;
+     cc->get_arch_id = x86_cpu_get_arch_id;
++    cc->get_paging_enabled = x86_cpu_get_paging_enabled;
+ 
+ #ifndef CONFIG_USER_ONLY
+-    cc->sysemu_ops = &i386_sysemu_ops;
++    cc->asidx_from_attrs = x86_asidx_from_attrs;
++    cc->get_memory_mapping = x86_cpu_get_memory_mapping;
++    cc->get_phys_page_attrs_debug = x86_cpu_get_phys_page_attrs_debug;
++    cc->get_crash_info = x86_cpu_get_crash_info;
++    cc->write_elf64_note = x86_cpu_write_elf64_note;
++    cc->write_elf64_qemunote = x86_cpu_write_elf64_qemunote;
++    cc->write_elf32_note = x86_cpu_write_elf32_note;
++    cc->write_elf32_qemunote = x86_cpu_write_elf32_qemunote;
++    cc->vmsd = &vmstate_x86_cpu;
+ #endif /* !CONFIG_USER_ONLY */
+ 
+     cc->gdb_arch_name = x86_gdb_arch_name;
+diff --git a/target/i386/tcg/tcg-cpu.c b/target/i386/tcg/tcg-cpu.c
+index 014ebea2f6..ba39531aa5 100644
+--- a/target/i386/tcg/tcg-cpu.c
++++ b/target/i386/tcg/tcg-cpu.c
+@@ -56,7 +56,7 @@ static void x86_cpu_synchronize_from_tb(CPUState *cs,
+ 
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps x86_tcg_ops = {
++static struct TCGCPUOps x86_tcg_ops = {
+     .initialize = tcg_x86_init,
+     .synchronize_from_tb = x86_cpu_synchronize_from_tb,
+     .cpu_exec_enter = x86_cpu_exec_enter,
+diff --git a/target/m68k/cpu.c b/target/m68k/cpu.c
+index 72de6e9726..a14874b4da 100644
+--- a/target/m68k/cpu.c
++++ b/target/m68k/cpu.c
+@@ -503,17 +503,9 @@ static const VMStateDescription vmstate_m68k_cpu = {
+ };
+ #endif
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps m68k_sysemu_ops = {
+-    .get_phys_page_debug = m68k_cpu_get_phys_page_debug,
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps m68k_tcg_ops = {
++static struct TCGCPUOps m68k_tcg_ops = {
+     .initialize = m68k_tcg_init,
+     .cpu_exec_interrupt = m68k_cpu_exec_interrupt,
+     .tlb_fill = m68k_cpu_tlb_fill,
+@@ -541,8 +533,8 @@ static void m68k_cpu_class_init(ObjectClass *c, void *data)
+     cc->gdb_read_register = m68k_cpu_gdb_read_register;
+     cc->gdb_write_register = m68k_cpu_gdb_write_register;
+ #if defined(CONFIG_SOFTMMU)
++    cc->get_phys_page_debug = m68k_cpu_get_phys_page_debug;
+     dc->vmsd = &vmstate_m68k_cpu;
+-    cc->sysemu_ops = &m68k_sysemu_ops;
+ #endif
+     cc->disas_set_info = m68k_cpu_disas_set_info;
+ 
+diff --git a/target/m68k/cpu.h b/target/m68k/cpu.h
+index 997d588911..402c86c876 100644
+--- a/target/m68k/cpu.h
++++ b/target/m68k/cpu.h
+@@ -230,9 +230,6 @@ typedef enum {
+ #define SR_T_SHIFT 14
+ #define SR_T  0xc000
+ 
+-#define M68K_SR_TRACE(sr) ((sr & SR_T) >> SR_T_SHIFT)
+-#define M68K_SR_TRACE_ANY_INS 0x2
+-
+ #define M68K_SSP    0
+ #define M68K_USP    1
+ #define M68K_ISP    2
+@@ -593,8 +590,6 @@ typedef M68kCPU ArchCPU;
+ #define TB_FLAGS_SFC_S          (1 << TB_FLAGS_SFC_S_BIT)
+ #define TB_FLAGS_DFC_S_BIT      15
+ #define TB_FLAGS_DFC_S          (1 << TB_FLAGS_DFC_S_BIT)
+-#define TB_FLAGS_TRACE          16
+-#define TB_FLAGS_TRACE_BIT      (1 << TB_FLAGS_TRACE)
+ 
+ static inline void cpu_get_tb_cpu_state(CPUM68KState *env, target_ulong *pc,
+                                         target_ulong *cs_base, uint32_t *flags)
+@@ -607,9 +602,6 @@ static inline void cpu_get_tb_cpu_state(CPUM68KState *env, target_ulong *pc,
+         *flags |= (env->sfc << (TB_FLAGS_SFC_S_BIT - 2)) & TB_FLAGS_SFC_S;
+         *flags |= (env->dfc << (TB_FLAGS_DFC_S_BIT - 2)) & TB_FLAGS_DFC_S;
+     }
+-    if (M68K_SR_TRACE(env->sr) == M68K_SR_TRACE_ANY_INS) {
+-        *flags |= TB_FLAGS_TRACE;
+-    }
+ }
+ 
+ void dump_mmu(CPUM68KState *env);
+diff --git a/target/m68k/translate.c b/target/m68k/translate.c
+index f0c5bf9154..200018ae6a 100644
+--- a/target/m68k/translate.c
++++ b/target/m68k/translate.c
+@@ -124,7 +124,6 @@ typedef struct DisasContext {
+ #define MAX_TO_RELEASE 8
+     int release_count;
+     TCGv release[MAX_TO_RELEASE];
+-    bool ss_active;
+ } DisasContext;
+ 
+ static void init_release_array(DisasContext *s)
+@@ -195,18 +194,6 @@ static void do_writebacks(DisasContext *s)
+     }
+ }
+ 
+-static bool is_singlestepping(DisasContext *s)
+-{
+-    /*
+-     * Return true if we are singlestepping either because of
+-     * architectural singlestep or QEMU gdbstub singlestep. This does
+-     * not include the command line '-singlestep' mode which is rather
+-     * misnamed as it only means "one instruction per TB" and doesn't
+-     * affect the code we generate.
+-     */
+-    return s->base.singlestep_enabled || s->ss_active;
+-}
+-
+ /* is_jmp field values */
+ #define DISAS_JUMP      DISAS_TARGET_0 /* only pc was modified dynamically */
+ #define DISAS_EXIT      DISAS_TARGET_1 /* cpu state was modified dynamically */
+@@ -321,20 +308,6 @@ static void gen_exception(DisasContext *s, uint32_t dest, int nr)
+     s->base.is_jmp = DISAS_NORETURN;
+ }
+ 
+-static void gen_singlestep_exception(DisasContext *s)
+-{
+-    /*
+-     * Generate the right kind of exception for singlestep, which is
+-     * either the architectural singlestep or EXCP_DEBUG for QEMU's
+-     * gdb singlestepping.
+-     */
+-    if (s->ss_active) {
+-        gen_raise_exception(EXCP_TRACE);
+-    } else {
+-        gen_raise_exception(EXCP_DEBUG);
+-    }
+-}
+-
+ static inline void gen_addr_fault(DisasContext *s)
+ {
+     gen_exception(s, s->base.pc_next, EXCP_ADDRESS);
+@@ -1533,10 +1506,8 @@ static inline bool use_goto_tb(DisasContext *s, uint32_t dest)
+ /* Generate a jump to an immediate address.  */
+ static void gen_jmp_tb(DisasContext *s, int n, uint32_t dest)
+ {
+-    if (unlikely(is_singlestepping(s))) {
+-        update_cc_op(s);
+-        tcg_gen_movi_i32(QREG_PC, dest);
+-        gen_singlestep_exception(s);
++    if (unlikely(s->base.singlestep_enabled)) {
++        gen_exception(s, dest, EXCP_DEBUG);
+     } else if (use_goto_tb(s, dest)) {
+         tcg_gen_goto_tb(n);
+         tcg_gen_movi_i32(QREG_PC, dest);
+@@ -6201,12 +6172,6 @@ static void m68k_tr_init_disas_context(DisasContextBase *dcbase, CPUState *cpu)
+     dc->done_mac = 0;
+     dc->writeback_mask = 0;
+     init_release_array(dc);
+-
+-    dc->ss_active = (M68K_SR_TRACE(env->sr) == M68K_SR_TRACE_ANY_INS);
+-    /* If architectural single step active, limit to 1 */
+-    if (is_singlestepping(dc)) {
+-        dc->base.max_insns = 1;
+-    }
+ }
+ 
+ static void m68k_tr_tb_start(DisasContextBase *dcbase, CPUState *cpu)
+@@ -6280,17 +6245,17 @@ static void m68k_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
+         break;
+     case DISAS_TOO_MANY:
+         update_cc_op(dc);
+-        if (is_singlestepping(dc)) {
++        if (dc->base.singlestep_enabled) {
+             tcg_gen_movi_i32(QREG_PC, dc->pc);
+-            gen_singlestep_exception(dc);
++            gen_raise_exception(EXCP_DEBUG);
+         } else {
+             gen_jmp_tb(dc, 0, dc->pc);
+         }
+         break;
+     case DISAS_JUMP:
+         /* We updated CC_OP and PC in gen_jmp/gen_jmp_im.  */
+-        if (is_singlestepping(dc)) {
+-            gen_singlestep_exception(dc);
++        if (dc->base.singlestep_enabled) {
++            gen_raise_exception(EXCP_DEBUG);
+         } else {
+             tcg_gen_lookup_and_goto_ptr();
+         }
+@@ -6300,8 +6265,8 @@ static void m68k_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
+          * We updated CC_OP and PC in gen_exit_tb, but also modified
+          * other state that may require returning to the main loop.
+          */
+-        if (is_singlestepping(dc)) {
+-            gen_singlestep_exception(dc);
++        if (dc->base.singlestep_enabled) {
++            gen_raise_exception(EXCP_DEBUG);
+         } else {
+             tcg_gen_exit_tb(NULL, 0);
+         }
+diff --git a/target/microblaze/cpu.c b/target/microblaze/cpu.c
+index 72d8f2a0da..433ba20203 100644
+--- a/target/microblaze/cpu.c
++++ b/target/microblaze/cpu.c
+@@ -352,17 +352,9 @@ static ObjectClass *mb_cpu_class_by_name(const char *cpu_model)
+     return object_class_by_name(TYPE_MICROBLAZE_CPU);
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps mb_sysemu_ops = {
+-    .get_phys_page_attrs_debug = mb_cpu_get_phys_page_attrs_debug,
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps mb_tcg_ops = {
++static struct TCGCPUOps mb_tcg_ops = {
+     .initialize = mb_tcg_init,
+     .synchronize_from_tb = mb_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = mb_cpu_exec_interrupt,
+@@ -394,8 +386,8 @@ static void mb_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_write_register = mb_cpu_gdb_write_register;
+ 
+ #ifndef CONFIG_USER_ONLY
++    cc->get_phys_page_attrs_debug = mb_cpu_get_phys_page_attrs_debug;
+     dc->vmsd = &vmstate_mb_cpu;
+-    cc->sysemu_ops = &mb_sysemu_ops;
+ #endif
+     device_class_set_props(dc, mb_properties);
+     cc->gdb_num_core_regs = 32 + 27;
+diff --git a/target/mips/cpu-qom.h b/target/mips/cpu-qom.h
+index dda0c911fa..826ab13019 100644
+--- a/target/mips/cpu-qom.h
++++ b/target/mips/cpu-qom.h
+@@ -47,9 +47,6 @@ struct MIPSCPUClass {
+     DeviceRealize parent_realize;
+     DeviceReset parent_reset;
+     const struct mips_def_t *cpu_def;
+-
+-    /* Used for the jazz board to modify mips_cpu_do_transaction_failed. */
+-    bool no_data_aborts;
+ };
+ 
+ 
+diff --git a/target/mips/cpu.c b/target/mips/cpu.c
+index 96236abc00..1ad2fe4aa3 100644
+--- a/target/mips/cpu.c
++++ b/target/mips/cpu.c
+@@ -521,22 +521,13 @@ static Property mips_cpu_properties[] = {
+     DEFINE_PROP_END_OF_LIST()
+ };
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps mips_sysemu_ops = {
+-    .get_phys_page_debug = mips_cpu_get_phys_page_debug,
+-    .legacy_vmsd = &vmstate_mips_cpu,
+-};
+-#endif
+-
+ #ifdef CONFIG_TCG
+ #include "hw/core/tcg-cpu-ops.h"
+ /*
+  * NB: cannot be const, as some elements are changed for specific
+  * mips hardware (see hw/mips/jazz.c).
+  */
+-static const struct TCGCPUOps mips_tcg_ops = {
++static struct TCGCPUOps mips_tcg_ops = {
+     .initialize = mips_tcg_init,
+     .synchronize_from_tb = mips_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = mips_cpu_exec_interrupt,
+@@ -569,7 +560,8 @@ static void mips_cpu_class_init(ObjectClass *c, void *data)
+     cc->gdb_read_register = mips_cpu_gdb_read_register;
+     cc->gdb_write_register = mips_cpu_gdb_write_register;
+ #ifndef CONFIG_USER_ONLY
+-    cc->sysemu_ops = &mips_sysemu_ops;
++    cc->get_phys_page_debug = mips_cpu_get_phys_page_debug;
++    cc->vmsd = &vmstate_mips_cpu;
+ #endif
+     cc->disas_set_info = mips_cpu_disas_set_info;
+     cc->gdb_num_core_regs = 73;
+diff --git a/target/mips/tcg/op_helper.c b/target/mips/tcg/op_helper.c
+index fafbf1faca..ce1549c985 100644
+--- a/target/mips/tcg/op_helper.c
++++ b/target/mips/tcg/op_helper.c
+@@ -409,12 +409,11 @@ void mips_cpu_do_transaction_failed(CPUState *cs, hwaddr physaddr,
+                                     MemTxResult response, uintptr_t retaddr)
+ {
+     MIPSCPU *cpu = MIPS_CPU(cs);
+-    MIPSCPUClass *mcc = MIPS_CPU_GET_CLASS(cpu);
+     CPUMIPSState *env = &cpu->env;
+ 
+     if (access_type == MMU_INST_FETCH) {
+         do_raise_exception(env, EXCP_IBE, retaddr);
+-    } else if (!mcc->no_data_aborts) {
++    } else {
+         do_raise_exception(env, EXCP_DBE, retaddr);
+     }
+ }
+diff --git a/target/nios2/cpu.c b/target/nios2/cpu.c
+index 5e37defef8..e9c9fc3a38 100644
+--- a/target/nios2/cpu.c
++++ b/target/nios2/cpu.c
+@@ -207,17 +207,9 @@ static Property nios2_properties[] = {
+     DEFINE_PROP_END_OF_LIST(),
+ };
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps nios2_sysemu_ops = {
+-    .get_phys_page_debug = nios2_cpu_get_phys_page_debug,
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps nios2_tcg_ops = {
++static struct TCGCPUOps nios2_tcg_ops = {
+     .initialize = nios2_tcg_init,
+     .cpu_exec_interrupt = nios2_cpu_exec_interrupt,
+     .tlb_fill = nios2_cpu_tlb_fill,
+@@ -245,7 +237,7 @@ static void nios2_cpu_class_init(ObjectClass *oc, void *data)
+     cc->set_pc = nios2_cpu_set_pc;
+     cc->disas_set_info = nios2_cpu_disas_set_info;
+ #ifndef CONFIG_USER_ONLY
+-    cc->sysemu_ops = &nios2_sysemu_ops;
++    cc->get_phys_page_debug = nios2_cpu_get_phys_page_debug;
+ #endif
+     cc->gdb_read_register = nios2_cpu_gdb_read_register;
+     cc->gdb_write_register = nios2_cpu_gdb_write_register;
+diff --git a/target/openrisc/cpu.c b/target/openrisc/cpu.c
+index bd34e429ec..2c64842f46 100644
+--- a/target/openrisc/cpu.c
++++ b/target/openrisc/cpu.c
+@@ -174,17 +174,9 @@ static void openrisc_any_initfn(Object *obj)
+                       | (IMMUCFGR_NTS & (ctz32(TLB_SIZE) << 2));
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps openrisc_sysemu_ops = {
+-    .get_phys_page_debug = openrisc_cpu_get_phys_page_debug,
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps openrisc_tcg_ops = {
++static struct TCGCPUOps openrisc_tcg_ops = {
+     .initialize = openrisc_translate_init,
+     .cpu_exec_interrupt = openrisc_cpu_exec_interrupt,
+     .tlb_fill = openrisc_cpu_tlb_fill,
+@@ -211,8 +203,8 @@ static void openrisc_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_read_register = openrisc_cpu_gdb_read_register;
+     cc->gdb_write_register = openrisc_cpu_gdb_write_register;
+ #ifndef CONFIG_USER_ONLY
++    cc->get_phys_page_debug = openrisc_cpu_get_phys_page_debug;
+     dc->vmsd = &vmstate_openrisc_cpu;
+-    cc->sysemu_ops = &openrisc_sysemu_ops;
+ #endif
+     cc->gdb_num_core_regs = 32 + 3;
+     cc->disas_set_info = openrisc_disas_set_info;
+diff --git a/target/ppc/cpu_init.c b/target/ppc/cpu_init.c
+index 7bdb443114..22ecbccad8 100644
+--- a/target/ppc/cpu_init.c
++++ b/target/ppc/cpu_init.c
+@@ -9263,22 +9263,10 @@ static Property ppc_cpu_properties[] = {
+     DEFINE_PROP_END_OF_LIST(),
+ };
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps ppc_sysemu_ops = {
+-    .get_phys_page_debug = ppc_cpu_get_phys_page_debug,
+-    .write_elf32_note = ppc32_cpu_write_elf32_note,
+-    .write_elf64_note = ppc64_cpu_write_elf64_note,
+-    .virtio_is_big_endian = ppc_cpu_is_big_endian,
+-    .legacy_vmsd = &vmstate_ppc_cpu,
+-};
+-#endif
+-
+ #ifdef CONFIG_TCG
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps ppc_tcg_ops = {
++static struct TCGCPUOps ppc_tcg_ops = {
+   .initialize = ppc_translate_init,
+   .cpu_exec_interrupt = ppc_cpu_exec_interrupt,
+   .tlb_fill = ppc_cpu_tlb_fill,
+@@ -9316,7 +9304,12 @@ static void ppc_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_read_register = ppc_cpu_gdb_read_register;
+     cc->gdb_write_register = ppc_cpu_gdb_write_register;
+ #ifndef CONFIG_USER_ONLY
+-    cc->sysemu_ops = &ppc_sysemu_ops;
++    cc->get_phys_page_debug = ppc_cpu_get_phys_page_debug;
++    cc->vmsd = &vmstate_ppc_cpu;
++#endif
++#if defined(CONFIG_SOFTMMU)
++    cc->write_elf64_note = ppc64_cpu_write_elf64_note;
++    cc->write_elf32_note = ppc32_cpu_write_elf32_note;
+ #endif
+ 
+     cc->gdb_num_core_regs = 71;
+@@ -9334,6 +9327,9 @@ static void ppc_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_core_xml_file = "power64-core.xml";
+ #else
+     cc->gdb_core_xml_file = "power-core.xml";
++#endif
++#ifndef CONFIG_USER_ONLY
++    cc->virtio_is_big_endian = ppc_cpu_is_big_endian;
+ #endif
+     cc->disas_set_info = ppc_disas_set_info;
+ 
+diff --git a/target/riscv/cpu.c b/target/riscv/cpu.c
+index 1f1cef1d6a..3191fd0082 100644
+--- a/target/riscv/cpu.c
++++ b/target/riscv/cpu.c
+@@ -596,20 +596,9 @@ static const char *riscv_gdb_get_dynamic_xml(CPUState *cs, const char *xmlname)
+     return NULL;
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps riscv_sysemu_ops = {
+-    .get_phys_page_debug = riscv_cpu_get_phys_page_debug,
+-    .write_elf64_note = riscv_cpu_write_elf64_note,
+-    .write_elf32_note = riscv_cpu_write_elf32_note,
+-    .legacy_vmsd = &vmstate_riscv_cpu,
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps riscv_tcg_ops = {
++static struct TCGCPUOps riscv_tcg_ops = {
+     .initialize = riscv_translate_init,
+     .synchronize_from_tb = riscv_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = riscv_cpu_exec_interrupt,
+@@ -648,7 +637,11 @@ static void riscv_cpu_class_init(ObjectClass *c, void *data)
+     cc->gdb_stop_before_watchpoint = true;
+     cc->disas_set_info = riscv_cpu_disas_set_info;
+ #ifndef CONFIG_USER_ONLY
+-    cc->sysemu_ops = &riscv_sysemu_ops;
++    cc->get_phys_page_debug = riscv_cpu_get_phys_page_debug;
++    /* For now, mark unmigratable: */
++    cc->vmsd = &vmstate_riscv_cpu;
++    cc->write_elf64_note = riscv_cpu_write_elf64_note;
++    cc->write_elf32_note = riscv_cpu_write_elf32_note;
+ #endif
+     cc->gdb_arch_name = riscv_gdb_arch_name;
+     cc->gdb_get_dynamic_xml = riscv_gdb_get_dynamic_xml;
+diff --git a/target/rx/cpu.c b/target/rx/cpu.c
+index 96cc96e514..7ac6618b26 100644
+--- a/target/rx/cpu.c
++++ b/target/rx/cpu.c
+@@ -173,17 +173,9 @@ static void rx_cpu_init(Object *obj)
+     qdev_init_gpio_in(DEVICE(cpu), rx_cpu_set_irq, 2);
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps rx_sysemu_ops = {
+-    .get_phys_page_debug = rx_cpu_get_phys_page_debug,
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps rx_tcg_ops = {
++static struct TCGCPUOps rx_tcg_ops = {
+     .initialize = rx_translate_init,
+     .synchronize_from_tb = rx_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = rx_cpu_exec_interrupt,
+@@ -210,11 +202,9 @@ static void rx_cpu_class_init(ObjectClass *klass, void *data)
+     cc->dump_state = rx_cpu_dump_state;
+     cc->set_pc = rx_cpu_set_pc;
+ 
+-#ifndef CONFIG_USER_ONLY
+-    cc->sysemu_ops = &rx_sysemu_ops;
+-#endif
+     cc->gdb_read_register = rx_cpu_gdb_read_register;
+     cc->gdb_write_register = rx_cpu_gdb_write_register;
++    cc->get_phys_page_debug = rx_cpu_get_phys_page_debug;
+     cc->disas_set_info = rx_cpu_disas_set_info;
+ 
+     cc->gdb_num_core_regs = 26;
+diff --git a/target/s390x/cpu.c b/target/s390x/cpu.c
+index 890f382a36..64455cf309 100644
+--- a/target/s390x/cpu.c
++++ b/target/s390x/cpu.c
+@@ -476,21 +476,10 @@ static void s390_cpu_reset_full(DeviceState *dev)
+     return s390_cpu_reset(s, S390_CPU_RESET_CLEAR);
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps s390_sysemu_ops = {
+-    .get_phys_page_debug = s390_cpu_get_phys_page_debug,
+-    .get_crash_info = s390_cpu_get_crash_info,
+-    .write_elf64_note = s390_cpu_write_elf64_note,
+-    .legacy_vmsd = &vmstate_s390_cpu,
+-};
+-#endif
+-
+ #ifdef CONFIG_TCG
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps s390_tcg_ops = {
++static struct TCGCPUOps s390_tcg_ops = {
+     .initialize = s390x_translate_init,
+     .tlb_fill = s390_cpu_tlb_fill,
+ 
+@@ -526,7 +515,10 @@ static void s390_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_read_register = s390_cpu_gdb_read_register;
+     cc->gdb_write_register = s390_cpu_gdb_write_register;
+ #ifndef CONFIG_USER_ONLY
+-    cc->sysemu_ops = &s390_sysemu_ops;
++    cc->get_phys_page_debug = s390_cpu_get_phys_page_debug;
++    cc->vmsd = &vmstate_s390_cpu;
++    cc->get_crash_info = s390_cpu_get_crash_info;
++    cc->write_elf64_note = s390_cpu_write_elf64_note;
+ #endif
+     cc->disas_set_info = s390_cpu_disas_set_info;
+     cc->gdb_num_core_regs = S390_NUM_CORE_REGS;
+diff --git a/target/sh4/cpu.c b/target/sh4/cpu.c
+index 8326922942..ac65c88f1f 100644
+--- a/target/sh4/cpu.c
++++ b/target/sh4/cpu.c
+@@ -218,22 +218,14 @@ static void superh_cpu_initfn(Object *obj)
+     env->movcal_backup_tail = &(env->movcal_backup);
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+ static const VMStateDescription vmstate_sh_cpu = {
+     .name = "cpu",
+     .unmigratable = 1,
+ };
+ 
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps sh4_sysemu_ops = {
+-    .get_phys_page_debug = superh_cpu_get_phys_page_debug,
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps superh_tcg_ops = {
++static struct TCGCPUOps superh_tcg_ops = {
+     .initialize = sh4_translate_init,
+     .synchronize_from_tb = superh_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = superh_cpu_exec_interrupt,
+@@ -264,12 +256,13 @@ static void superh_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_read_register = superh_cpu_gdb_read_register;
+     cc->gdb_write_register = superh_cpu_gdb_write_register;
+ #ifndef CONFIG_USER_ONLY
+-    cc->sysemu_ops = &sh4_sysemu_ops;
+-    dc->vmsd = &vmstate_sh_cpu;
++    cc->get_phys_page_debug = superh_cpu_get_phys_page_debug;
+ #endif
+     cc->disas_set_info = superh_cpu_disas_set_info;
+ 
+     cc->gdb_num_core_regs = 59;
++
++    dc->vmsd = &vmstate_sh_cpu;
+     cc->tcg_ops = &superh_tcg_ops;
+ }
+ 
+diff --git a/target/sparc/cpu.c b/target/sparc/cpu.c
+index da6b30ec74..aece2c7dc8 100644
+--- a/target/sparc/cpu.c
++++ b/target/sparc/cpu.c
+@@ -848,19 +848,10 @@ static Property sparc_cpu_properties[] = {
+     DEFINE_PROP_END_OF_LIST()
+ };
+ 
+-#ifndef CONFIG_USER_ONLY
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps sparc_sysemu_ops = {
+-    .get_phys_page_debug = sparc_cpu_get_phys_page_debug,
+-    .legacy_vmsd = &vmstate_sparc_cpu,
+-};
+-#endif
+-
+ #ifdef CONFIG_TCG
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps sparc_tcg_ops = {
++static struct TCGCPUOps sparc_tcg_ops = {
+     .initialize = sparc_tcg_init,
+     .synchronize_from_tb = sparc_cpu_synchronize_from_tb,
+     .cpu_exec_interrupt = sparc_cpu_exec_interrupt,
+@@ -897,7 +888,8 @@ static void sparc_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_read_register = sparc_cpu_gdb_read_register;
+     cc->gdb_write_register = sparc_cpu_gdb_write_register;
+ #ifndef CONFIG_USER_ONLY
+-    cc->sysemu_ops = &sparc_sysemu_ops;
++    cc->get_phys_page_debug = sparc_cpu_get_phys_page_debug;
++    cc->vmsd = &vmstate_sparc_cpu;
+ #endif
+     cc->disas_set_info = cpu_sparc_disas_set_info;
+ 
+diff --git a/target/tricore/cpu.c b/target/tricore/cpu.c
+index b95682b7f0..0b1e139bcb 100644
+--- a/target/tricore/cpu.c
++++ b/target/tricore/cpu.c
+@@ -142,15 +142,9 @@ static void tc27x_initfn(Object *obj)
+     set_feature(&cpu->env, TRICORE_FEATURE_161);
+ }
+ 
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps tricore_sysemu_ops = {
+-    .get_phys_page_debug = tricore_cpu_get_phys_page_debug,
+-};
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps tricore_tcg_ops = {
++static struct TCGCPUOps tricore_tcg_ops = {
+     .initialize = tricore_tcg_init,
+     .synchronize_from_tb = tricore_cpu_synchronize_from_tb,
+     .tlb_fill = tricore_cpu_tlb_fill,
+@@ -176,7 +170,7 @@ static void tricore_cpu_class_init(ObjectClass *c, void *data)
+ 
+     cc->dump_state = tricore_cpu_dump_state;
+     cc->set_pc = tricore_cpu_set_pc;
+-    cc->sysemu_ops = &tricore_sysemu_ops;
++    cc->get_phys_page_debug = tricore_cpu_get_phys_page_debug;
+     cc->tcg_ops = &tricore_tcg_ops;
+ }
+ 
+diff --git a/target/xtensa/cpu.c b/target/xtensa/cpu.c
+index 58ec3a0862..210ef80092 100644
+--- a/target/xtensa/cpu.c
++++ b/target/xtensa/cpu.c
+@@ -175,22 +175,14 @@ static void xtensa_cpu_initfn(Object *obj)
+ #endif
+ }
+ 
+-#ifndef CONFIG_USER_ONLY
+ static const VMStateDescription vmstate_xtensa_cpu = {
+     .name = "cpu",
+     .unmigratable = 1,
+ };
+ 
+-#include "hw/core/sysemu-cpu-ops.h"
+-
+-static const struct SysemuCPUOps xtensa_sysemu_ops = {
+-    .get_phys_page_debug = xtensa_cpu_get_phys_page_debug,
+-};
+-#endif
+-
+ #include "hw/core/tcg-cpu-ops.h"
+ 
+-static const struct TCGCPUOps xtensa_tcg_ops = {
++static struct TCGCPUOps xtensa_tcg_ops = {
+     .initialize = xtensa_translate_init,
+     .cpu_exec_interrupt = xtensa_cpu_exec_interrupt,
+     .tlb_fill = xtensa_cpu_tlb_fill,
+@@ -222,10 +214,10 @@ static void xtensa_cpu_class_init(ObjectClass *oc, void *data)
+     cc->gdb_write_register = xtensa_cpu_gdb_write_register;
+     cc->gdb_stop_before_watchpoint = true;
+ #ifndef CONFIG_USER_ONLY
+-    cc->sysemu_ops = &xtensa_sysemu_ops;
+-    dc->vmsd = &vmstate_xtensa_cpu;
++    cc->get_phys_page_debug = xtensa_cpu_get_phys_page_debug;
+ #endif
+     cc->disas_set_info = xtensa_cpu_disas_set_info;
++    dc->vmsd = &vmstate_xtensa_cpu;
+     cc->tcg_ops = &xtensa_tcg_ops;
+ }
+ 
+diff --git a/tcg/aarch64/tcg-target.c.inc b/tcg/aarch64/tcg-target.c.inc
+index 5bd366f2d4..f07ba98aa4 100644
+--- a/tcg/aarch64/tcg-target.c.inc
++++ b/tcg/aarch64/tcg-target.c.inc
+@@ -1291,8 +1291,9 @@ static inline void tcg_out_rotr(TCGContext *s, TCGType ext,
+ static inline void tcg_out_rotl(TCGContext *s, TCGType ext,
+                                 TCGReg rd, TCGReg rn, unsigned int m)
+ {
+-    int max = ext ? 63 : 31;
+-    tcg_out_extr(s, ext, rd, rn, rn, -m & max);
++    int bits = ext ? 64 : 32;
++    int max = bits - 1;
++    tcg_out_extr(s, ext, rd, rn, rn, bits - (m & max));
+ }
+ 
+ static inline void tcg_out_dep(TCGContext *s, TCGType ext, TCGReg rd,

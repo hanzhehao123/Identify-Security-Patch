@@ -1,0 +1,17 @@
+commit e0e67cbe58f42500e3451c46b3caba572f2a965f
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu Jun 10 13:07:50 2021 +0300
+
+    nbd/client-connection: implement connection retry
+    
+    Add an option for a thread to retry connecting until it succeeds. We'll
+    use nbd/client-connection both for reconnect and for initial connection
+    in nbd_open(), so we need a possibility to use same NBDClientConnection
+    instance to connect once in nbd_open() and then use retry semantics for
+    reconnect.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210610100802.5888-21-vsementsov@virtuozzo.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    [eblake: grammar tweak]
+    Signed-off-by: Eric Blake <eblake@redhat.com>

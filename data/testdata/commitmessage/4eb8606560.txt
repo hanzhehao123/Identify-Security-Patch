@@ -1,0 +1,15 @@
+commit 4eb86065603400fe27c17a346985a97b489b55d4
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Fri Jun 11 13:38:58 2021 +0200
+
+    esp: store lun coming from the MESSAGE OUT phase
+    
+    The LUN is selected with an IDENTIFY message, and persists
+    until the next message out phase.  Instead of passing it to
+    do_busid_cmd, store it in ESPState.  Because do_cmd can simply
+    skip the message out phase if cmdfifo_cdb_offset is zero, it
+    can now be used for the S without ATN cases as well.
+    
+    Reviewed-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Tested-by: Mark Cave-Ayland <mark.cave-ayland@ilande.co.uk>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

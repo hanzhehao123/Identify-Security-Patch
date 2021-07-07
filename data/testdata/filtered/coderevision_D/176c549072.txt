@@ -1,0 +1,55 @@
+diff --git a/python/qemu/qmp/qom.py b/python/qemu/qmp/qom.py
+index 7ec7843d57..7fe1448b5d 100644
+--- a/python/qemu/qmp/qom.py
++++ b/python/qemu/qmp/qom.py
+@@ -1,7 +1,7 @@
+ """
+ QEMU Object Model testing tools.
+ 
+-usage: qom [-h] {set,get,list,tree,fuse} ...
++usage: qom [-h] {set,get,list,tree} ...
+ 
+ Query and manipulate QOM data
+ 
+@@ -9,12 +9,11 @@
+   -h, --help           show this help message and exit
+ 
+ QOM commands:
+-  {set,get,list,tree,fuse}
++  {set,get,list,tree}
+     set                Set a QOM property value
+     get                Get a QOM property value
+     list               List QOM properties at a given path
+     tree               Show QOM tree from a given path
+-    fuse               Mount a QOM tree as a FUSE filesystem
+ """
+ ##
+ # Copyright John Snow 2020, for Red Hat, Inc.
+@@ -36,15 +35,6 @@
+ from .qom_common import QOMCommand
+ 
+ 
+-try:
+-    from .qom_fuse import QOMFuse
+-except ModuleNotFoundError as err:
+-    if err.name != 'fuse':
+-        raise
+-else:
+-    assert issubclass(QOMFuse, QOMCommand)
+-
+-
+ class QOMSet(QOMCommand):
+     """
+     QOM Command - Set a property to a given value.
+diff --git a/python/setup.cfg b/python/setup.cfg
+index 6b6be8b03c..aca6f31185 100644
+--- a/python/setup.cfg
++++ b/python/setup.cfg
+@@ -49,7 +49,6 @@ console_scripts =
+     qom-get = qemu.qmp.qom:QOMGet.entry_point
+     qom-list = qemu.qmp.qom:QOMList.entry_point
+     qom-tree = qemu.qmp.qom:QOMTree.entry_point
+-    qom-fuse = qemu.qmp.qom_fuse:QOMFuse.entry_point [fuse]
+ 
+ [flake8]
+ extend-ignore = E722  # Prefer pylint's bare-except checks to flake8's

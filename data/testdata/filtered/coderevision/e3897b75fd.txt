@@ -1,0 +1,3047 @@
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 636bf2f536..7d9cd29042 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -2707,6 +2707,7 @@ TPM
+ M: Stefan Berger <stefanb@linux.ibm.com>
+ S: Maintained
+ F: tpm.c
++F: stubs/tpm.c
+ F: hw/tpm/*
+ F: include/hw/acpi/tpm.h
+ F: include/sysemu/tpm*
+diff --git a/backends/hostmem-file.c b/backends/hostmem-file.c
+index 9b1b9f0a56..cd038024fa 100644
+--- a/backends/hostmem-file.c
++++ b/backends/hostmem-file.c
+@@ -39,6 +39,7 @@ file_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+                object_get_typename(OBJECT(backend)));
+ #else
+     HostMemoryBackendFile *fb = MEMORY_BACKEND_FILE(backend);
++    uint32_t ram_flags;
+     gchar *name;
+ 
+     if (!backend->size) {
+@@ -51,11 +52,11 @@ file_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+     }
+ 
+     name = host_memory_backend_get_name(backend);
+-    memory_region_init_ram_from_file(&backend->mr, OBJECT(backend),
+-                                     name,
+-                                     backend->size, fb->align,
+-                                     (backend->share ? RAM_SHARED : 0) |
+-                                     (fb->is_pmem ? RAM_PMEM : 0),
++    ram_flags = backend->share ? RAM_SHARED : 0;
++    ram_flags |= backend->reserve ? 0 : RAM_NORESERVE;
++    ram_flags |= fb->is_pmem ? RAM_PMEM : 0;
++    memory_region_init_ram_from_file(&backend->mr, OBJECT(backend), name,
++                                     backend->size, fb->align, ram_flags,
+                                      fb->mem_path, fb->readonly, errp);
+     g_free(name);
+ #endif
+diff --git a/backends/hostmem-memfd.c b/backends/hostmem-memfd.c
+index da75e27057..3fc85c3db8 100644
+--- a/backends/hostmem-memfd.c
++++ b/backends/hostmem-memfd.c
+@@ -35,6 +35,7 @@ static void
+ memfd_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+ {
+     HostMemoryBackendMemfd *m = MEMORY_BACKEND_MEMFD(backend);
++    uint32_t ram_flags;
+     char *name;
+     int fd;
+ 
+@@ -52,9 +53,10 @@ memfd_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+     }
+ 
+     name = host_memory_backend_get_name(backend);
+-    memory_region_init_ram_from_fd(&backend->mr, OBJECT(backend),
+-                                   name, backend->size,
+-                                   backend->share, fd, 0, errp);
++    ram_flags = backend->share ? RAM_SHARED : 0;
++    ram_flags |= backend->reserve ? 0 : RAM_NORESERVE;
++    memory_region_init_ram_from_fd(&backend->mr, OBJECT(backend), name,
++                                   backend->size, ram_flags, fd, 0, errp);
+     g_free(name);
+ }
+ 
+diff --git a/backends/hostmem-ram.c b/backends/hostmem-ram.c
+index 5cc53e76c9..b8e55cdbd0 100644
+--- a/backends/hostmem-ram.c
++++ b/backends/hostmem-ram.c
+@@ -19,6 +19,7 @@
+ static void
+ ram_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+ {
++    uint32_t ram_flags;
+     char *name;
+ 
+     if (!backend->size) {
+@@ -27,8 +28,10 @@ ram_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+     }
+ 
+     name = host_memory_backend_get_name(backend);
+-    memory_region_init_ram_shared_nomigrate(&backend->mr, OBJECT(backend), name,
+-                           backend->size, backend->share, errp);
++    ram_flags = backend->share ? RAM_SHARED : 0;
++    ram_flags |= backend->reserve ? 0 : RAM_NORESERVE;
++    memory_region_init_ram_flags_nomigrate(&backend->mr, OBJECT(backend), name,
++                                           backend->size, ram_flags, errp);
+     g_free(name);
+ }
+ 
+diff --git a/backends/hostmem.c b/backends/hostmem.c
+index aab3de8408..4c05862ed5 100644
+--- a/backends/hostmem.c
++++ b/backends/hostmem.c
+@@ -216,6 +216,11 @@ static void host_memory_backend_set_prealloc(Object *obj, bool value,
+     Error *local_err = NULL;
+     HostMemoryBackend *backend = MEMORY_BACKEND(obj);
+ 
++    if (!backend->reserve && value) {
++        error_setg(errp, "'prealloc=on' and 'reserve=off' are incompatible");
++        return;
++    }
++
+     if (!host_memory_backend_mr_inited(backend)) {
+         backend->prealloc = value;
+         return;
+@@ -267,6 +272,7 @@ static void host_memory_backend_init(Object *obj)
+     /* TODO: convert access to globals to compat properties */
+     backend->merge = machine_mem_merge(machine);
+     backend->dump = machine_dump_guest_core(machine);
++    backend->reserve = true;
+     backend->prealloc_threads = 1;
+ }
+ 
+@@ -425,6 +431,30 @@ static void host_memory_backend_set_share(Object *o, bool value, Error **errp)
+     backend->share = value;
+ }
+ 
++#ifdef CONFIG_LINUX
++static bool host_memory_backend_get_reserve(Object *o, Error **errp)
++{
++    HostMemoryBackend *backend = MEMORY_BACKEND(o);
++
++    return backend->reserve;
++}
++
++static void host_memory_backend_set_reserve(Object *o, bool value, Error **errp)
++{
++    HostMemoryBackend *backend = MEMORY_BACKEND(o);
++
++    if (host_memory_backend_mr_inited(backend)) {
++        error_setg(errp, "cannot change property value");
++        return;
++    }
++    if (backend->prealloc && !value) {
++        error_setg(errp, "'prealloc=on' and 'reserve=off' are incompatible");
++        return;
++    }
++    backend->reserve = value;
++}
++#endif /* CONFIG_LINUX */
++
+ static bool
+ host_memory_backend_get_use_canonical_path(Object *obj, Error **errp)
+ {
+@@ -493,6 +523,12 @@ host_memory_backend_class_init(ObjectClass *oc, void *data)
+         host_memory_backend_get_share, host_memory_backend_set_share);
+     object_class_property_set_description(oc, "share",
+         "Mark the memory as private to QEMU or shared");
++#ifdef CONFIG_LINUX
++    object_class_property_add_bool(oc, "reserve",
++        host_memory_backend_get_reserve, host_memory_backend_set_reserve);
++    object_class_property_set_description(oc, "reserve",
++        "Reserve swap space (or huge pages) if applicable");
++#endif /* CONFIG_LINUX */
+     /*
+      * Do not delete/rename option. This option must be considered stable
+      * (as if it didn't have the 'x-' prefix including deprecation period) as
+diff --git a/configure b/configure
+index 8dcb9965b2..262ab71802 100755
+--- a/configure
++++ b/configure
+@@ -159,7 +159,7 @@ update_cxxflags() {
+     # options which some versions of GCC's C++ compiler complain about
+     # because they only make sense for C programs.
+     QEMU_CXXFLAGS="$QEMU_CXXFLAGS -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS"
+-    CONFIGURE_CXXFLAGS=$(echo "$CONFIGURE_CFLAGS" | sed s/-std=gnu99/-std=gnu++11/)
++    CONFIGURE_CXXFLAGS=$(echo "$CONFIGURE_CFLAGS" | sed s/-std=gnu11/-std=gnu++11/)
+     for arg in $QEMU_CFLAGS; do
+         case $arg in
+             -Wstrict-prototypes|-Wmissing-prototypes|-Wnested-externs|\
+@@ -538,7 +538,7 @@ QEMU_CFLAGS="-Wstrict-prototypes -Wredundant-decls $QEMU_CFLAGS"
+ QEMU_CFLAGS="-D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE $QEMU_CFLAGS"
+ 
+ # Flags that are needed during configure but later taken care of by Meson
+-CONFIGURE_CFLAGS="-std=gnu99 -Wall"
++CONFIGURE_CFLAGS="-std=gnu11 -Wall"
+ CONFIGURE_LDFLAGS=
+ 
+ 
+@@ -5090,20 +5090,6 @@ if compile_prog "" "" ; then
+     have_sysmacros=yes
+ fi
+ 
+-##########################################
+-# check for _Static_assert()
+-
+-have_static_assert=no
+-cat > $TMPC << EOF
+-_Static_assert(1, "success");
+-int main(void) {
+-    return 0;
+-}
+-EOF
+-if compile_prog "" "" ; then
+-    have_static_assert=yes
+-fi
+-
+ ##########################################
+ # check for utmpx.h, it is missing e.g. on OpenBSD
+ 
+@@ -6035,10 +6021,6 @@ if test "$have_sysmacros" = "yes" ; then
+   echo "CONFIG_SYSMACROS=y" >> $config_host_mak
+ fi
+ 
+-if test "$have_static_assert" = "yes" ; then
+-  echo "CONFIG_STATIC_ASSERT=y" >> $config_host_mak
+-fi
+-
+ if test "$have_utmpx" = "yes" ; then
+   echo "HAVE_UTMPX=y" >> $config_host_mak
+ fi
+@@ -6384,7 +6366,7 @@ if test "$skip_meson" = no; then
+         i386)
+             echo "cpu_family = 'x86'" >> $cross
+             ;;
+-        x86_64)
++        x86_64|x32)
+             echo "cpu_family = 'x86_64'" >> $cross
+             ;;
+         ppc64le)
+diff --git a/contrib/vhost-user-gpu/vhost-user-gpu.c b/contrib/vhost-user-gpu/vhost-user-gpu.c
+index 611360e6b4..6dc6a44f4e 100644
+--- a/contrib/vhost-user-gpu/vhost-user-gpu.c
++++ b/contrib/vhost-user-gpu/vhost-user-gpu.c
+@@ -350,8 +350,8 @@ vg_resource_create_2d(VuGpu *g,
+     if (!res->image) {
+         g_critical("%s: resource creation failed %d %d %d",
+                    __func__, c2d.resource_id, c2d.width, c2d.height);
+-        vugbm_buffer_destroy(&res->buffer);
+         g_free(res);
++        vugbm_buffer_destroy(&res->buffer);
+         cmd->error = VIRTIO_GPU_RESP_ERR_OUT_OF_MEMORY;
+         return;
+     }
+diff --git a/fpu/softfloat.c b/fpu/softfloat.c
+index 4d0160fe9c..6e769f990c 100644
+--- a/fpu/softfloat.c
++++ b/fpu/softfloat.c
+@@ -686,11 +686,13 @@ static float128 float128_pack_raw(const FloatParts128 *p)
+ #include "softfloat-specialize.c.inc"
+ 
+ #define PARTS_GENERIC_64_128(NAME, P) \
+-    QEMU_GENERIC(P, (FloatParts128 *, parts128_##NAME), parts64_##NAME)
++    _Generic((P), FloatParts64 *: parts64_##NAME, \
++                  FloatParts128 *: parts128_##NAME)
+ 
+ #define PARTS_GENERIC_64_128_256(NAME, P) \
+-    QEMU_GENERIC(P, (FloatParts256 *, parts256_##NAME), \
+-                 (FloatParts128 *, parts128_##NAME), parts64_##NAME)
++    _Generic((P), FloatParts64 *: parts64_##NAME, \
++                  FloatParts128 *: parts128_##NAME, \
++                  FloatParts256 *: parts256_##NAME)
+ 
+ #define parts_default_nan(P, S)    PARTS_GENERIC_64_128(default_nan, P)(P, S)
+ #define parts_silence_nan(P, S)    PARTS_GENERIC_64_128(silence_nan, P)(P, S)
+@@ -892,11 +894,13 @@ static void parts128_log2(FloatParts128 *a, float_status *s, const FloatFmt *f);
+  */
+ 
+ #define FRAC_GENERIC_64_128(NAME, P) \
+-    QEMU_GENERIC(P, (FloatParts128 *, frac128_##NAME), frac64_##NAME)
++    _Generic((P), FloatParts64 *: frac64_##NAME, \
++                  FloatParts128 *: frac128_##NAME)
+ 
+ #define FRAC_GENERIC_64_128_256(NAME, P) \
+-    QEMU_GENERIC(P, (FloatParts256 *, frac256_##NAME), \
+-                 (FloatParts128 *, frac128_##NAME), frac64_##NAME)
++    _Generic((P), FloatParts64 *: frac64_##NAME, \
++                  FloatParts128 *: frac128_##NAME, \
++                  FloatParts256 *: frac256_##NAME)
+ 
+ static bool frac64_add(FloatParts64 *r, FloatParts64 *a, FloatParts64 *b)
+ {
+diff --git a/hw/acpi/aml-build.c b/hw/acpi/aml-build.c
+index d5103e6d7b..f0035d2b4a 100644
+--- a/hw/acpi/aml-build.c
++++ b/hw/acpi/aml-build.c
+@@ -2044,7 +2044,6 @@ build_hdr:
+                  "FACP", tbl->len - fadt_start, f->rev, oem_id, oem_table_id);
+ }
+ 
+-#ifdef CONFIG_TPM
+ /*
+  * build_tpm2 - Build the TPM2 table as specified in
+  * table 7: TCG Hardware Interface Description Table Format for TPM 2.0
+@@ -2102,7 +2101,6 @@ void build_tpm2(GArray *table_data, BIOSLinker *linker, GArray *tcpalog,
+                  (void *)(table_data->data + tpm2_start),
+                  "TPM2", table_data->len - tpm2_start, 4, oem_id, oem_table_id);
+ }
+-#endif
+ 
+ Aml *build_crs(PCIHostState *host, CrsRangeSet *range_set, uint32_t io_offset,
+                uint32_t mmio32_offset, uint64_t mmio64_offset,
+diff --git a/hw/arm/sysbus-fdt.c b/hw/arm/sysbus-fdt.c
+index 48c5fe9bf1..6b6906f4cf 100644
+--- a/hw/arm/sysbus-fdt.c
++++ b/hw/arm/sysbus-fdt.c
+@@ -437,7 +437,6 @@ static bool vfio_platform_match(SysBusDevice *sbdev,
+ 
+ #endif /* CONFIG_LINUX */
+ 
+-#ifdef CONFIG_TPM
+ /*
+  * add_tpm_tis_fdt_node: Create a DT node for TPM TIS
+  *
+@@ -468,7 +467,6 @@ static int add_tpm_tis_fdt_node(SysBusDevice *sbdev, void *opaque)
+     g_free(nodename);
+     return 0;
+ }
+-#endif
+ 
+ static int no_fdt_node(SysBusDevice *sbdev, void *opaque)
+ {
+@@ -490,9 +488,7 @@ static const BindingEntry bindings[] = {
+     TYPE_BINDING(TYPE_VFIO_AMD_XGBE, add_amd_xgbe_fdt_node),
+     VFIO_PLATFORM_BINDING("amd,xgbe-seattle-v1a", add_amd_xgbe_fdt_node),
+ #endif
+-#ifdef CONFIG_TPM
+     TYPE_BINDING(TYPE_TPM_TIS_SYSBUS, add_tpm_tis_fdt_node),
+-#endif
+     TYPE_BINDING(TYPE_RAMFB_DEVICE, no_fdt_node),
+     TYPE_BINDING("", NULL), /* last element */
+ };
+diff --git a/hw/arm/virt-acpi-build.c b/hw/arm/virt-acpi-build.c
+index f1024843dd..60fe2e65a7 100644
+--- a/hw/arm/virt-acpi-build.c
++++ b/hw/arm/virt-acpi-build.c
+@@ -205,7 +205,6 @@ static void acpi_dsdt_add_gpio(Aml *scope, const MemMapEntry *gpio_memmap,
+     aml_append(scope, dev);
+ }
+ 
+-#ifdef CONFIG_TPM
+ static void acpi_dsdt_add_tpm(Aml *scope, VirtMachineState *vms)
+ {
+     PlatformBusDevice *pbus = PLATFORM_BUS_DEVICE(vms->platform_bus_dev);
+@@ -237,7 +236,6 @@ static void acpi_dsdt_add_tpm(Aml *scope, VirtMachineState *vms)
+     aml_append(dev, aml_name_decl("_CRS", crs));
+     aml_append(scope, dev);
+ }
+-#endif
+ 
+ static void
+ build_iort(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
+@@ -644,9 +642,7 @@ build_dsdt(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
+     }
+ 
+     acpi_dsdt_add_power_button(scope);
+-#ifdef CONFIG_TPM
+     acpi_dsdt_add_tpm(scope, vms);
+-#endif
+ 
+     aml_append(dsdt, scope);
+ 
+@@ -749,13 +745,11 @@ void virt_acpi_build(VirtMachineState *vms, AcpiBuildTables *tables)
+         build_iort(tables_blob, tables->linker, vms);
+     }
+ 
+-#ifdef CONFIG_TPM
+     if (tpm_get_version(tpm_find()) == TPM_VERSION_2_0) {
+         acpi_add_table(table_offsets, tables_blob);
+         build_tpm2(tables_blob, tables->linker, tables->tcpalog, vms->oem_id,
+                    vms->oem_table_id);
+     }
+-#endif
+ 
+     /* XSDT is pointed to by RSDP */
+     xsdt = tables_blob->len;
+diff --git a/hw/arm/virt.c b/hw/arm/virt.c
+index 9122e22ee0..840758666d 100644
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -2599,9 +2599,7 @@ static void virt_machine_class_init(ObjectClass *oc, void *data)
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_VFIO_AMD_XGBE);
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_RAMFB_DEVICE);
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_VFIO_PLATFORM);
+-#ifdef CONFIG_TPM
+     machine_class_allow_dynamic_sysbus_dev(mc, TYPE_TPM_TIS_SYSBUS);
+-#endif
+     mc->block_default_type = IF_VIRTIO;
+     mc->no_cdrom = 1;
+     mc->pci_allow_0_address = true;
+diff --git a/hw/core/machine-hmp-cmds.c b/hw/core/machine-hmp-cmds.c
+index 58248cffa3..76b22b00d6 100644
+--- a/hw/core/machine-hmp-cmds.c
++++ b/hw/core/machine-hmp-cmds.c
+@@ -110,6 +110,12 @@ void hmp_info_memdev(Monitor *mon, const QDict *qdict)
+                        m->value->dump ? "true" : "false");
+         monitor_printf(mon, "  prealloc: %s\n",
+                        m->value->prealloc ? "true" : "false");
++        monitor_printf(mon, "  share: %s\n",
++                       m->value->share ? "true" : "false");
++        if (m->value->has_reserve) {
++            monitor_printf(mon, "  reserve: %s\n",
++                           m->value->reserve ? "true" : "false");
++        }
+         monitor_printf(mon, "  policy: %s\n",
+                        HostMemPolicy_str(m->value->policy));
+         visit_complete(v, &str);
+diff --git a/hw/core/machine-qmp-cmds.c b/hw/core/machine-qmp-cmds.c
+index a36c96608f..216fdfaf3a 100644
+--- a/hw/core/machine-qmp-cmds.c
++++ b/hw/core/machine-qmp-cmds.c
+@@ -157,6 +157,7 @@ void qmp_set_numa_node(NumaOptions *cmd, Error **errp)
+ 
+ static int query_memdev(Object *obj, void *opaque)
+ {
++    Error *err = NULL;
+     MemdevList **list = opaque;
+     Memdev *m;
+     QObject *host_nodes;
+@@ -172,6 +173,13 @@ static int query_memdev(Object *obj, void *opaque)
+         m->merge = object_property_get_bool(obj, "merge", &error_abort);
+         m->dump = object_property_get_bool(obj, "dump", &error_abort);
+         m->prealloc = object_property_get_bool(obj, "prealloc", &error_abort);
++        m->share = object_property_get_bool(obj, "share", &error_abort);
++        m->reserve = object_property_get_bool(obj, "reserve", &err);
++        if (err) {
++            error_free_or_abort(&err);
++        } else {
++            m->has_reserve = true;
++        }
+         m->policy = object_property_get_enum(obj, "policy", "HostMemPolicy",
+                                              &error_abort);
+         host_nodes = object_property_get_qobject(obj,
+diff --git a/hw/display/vga.c b/hw/display/vga.c
+index 9d1f66af40..28a90e30d0 100644
+--- a/hw/display/vga.c
++++ b/hw/display/vga.c
+@@ -752,8 +752,7 @@ void vbe_ioport_write_data(void *opaque, uint32_t addr, uint32_t val)
+                 val == VBE_DISPI_ID1 ||
+                 val == VBE_DISPI_ID2 ||
+                 val == VBE_DISPI_ID3 ||
+-                val == VBE_DISPI_ID4 ||
+-                val == VBE_DISPI_ID5) {
++                val == VBE_DISPI_ID4) {
+                 s->vbe_regs[s->vbe_index] = val;
+             }
+             break;
+diff --git a/hw/display/virtio-gpu.c b/hw/display/virtio-gpu.c
+index e183f4ecda..4d549377cb 100644
+--- a/hw/display/virtio-gpu.c
++++ b/hw/display/virtio-gpu.c
+@@ -610,6 +610,12 @@ static void virtio_gpu_do_set_scanout(VirtIOGPU *g,
+     struct virtio_gpu_scanout *scanout;
+     uint8_t *data;
+ 
++    if (scanout_id >= g->parent_obj.conf.max_outputs) {
++        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal scanout id specified %d",
++                      __func__, scanout_id);
++        *error = VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID;
++        return;
++    }
+     scanout = &g->parent_obj.scanout[scanout_id];
+ 
+     if (r->x > fb->width ||
+@@ -688,13 +694,6 @@ static void virtio_gpu_set_scanout(VirtIOGPU *g,
+     trace_virtio_gpu_cmd_set_scanout(ss.scanout_id, ss.resource_id,
+                                      ss.r.width, ss.r.height, ss.r.x, ss.r.y);
+ 
+-    if (ss.scanout_id >= g->parent_obj.conf.max_outputs) {
+-        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal scanout id specified %d",
+-                      __func__, ss.scanout_id);
+-        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID;
+-        return;
+-    }
+-
+     if (ss.resource_id == 0) {
+         virtio_gpu_disable_scanout(g, ss.scanout_id);
+         return;
+@@ -731,13 +730,6 @@ static void virtio_gpu_set_scanout_blob(VirtIOGPU *g,
+                                           ss.r.width, ss.r.height, ss.r.x,
+                                           ss.r.y);
+ 
+-    if (ss.scanout_id >= g->parent_obj.conf.max_outputs) {
+-        qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal scanout id specified %d",
+-                      __func__, ss.scanout_id);
+-        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID;
+-        return;
+-    }
+-
+     if (ss.resource_id == 0) {
+         virtio_gpu_disable_scanout(g, ss.scanout_id);
+         return;
+diff --git a/hw/i386/acpi-build.c b/hw/i386/acpi-build.c
+index 796ffc6f5c..80bee00da6 100644
+--- a/hw/i386/acpi-build.c
++++ b/hw/i386/acpi-build.c
+@@ -107,9 +107,7 @@ typedef struct AcpiPmInfo {
+ typedef struct AcpiMiscInfo {
+     bool is_piix4;
+     bool has_hpet;
+-#ifdef CONFIG_TPM
+     TPMVersion tpm_version;
+-#endif
+     const unsigned char *dsdt_code;
+     unsigned dsdt_size;
+     uint16_t pvpanic_port;
+@@ -288,9 +286,7 @@ static void acpi_get_misc_info(AcpiMiscInfo *info)
+     }
+ 
+     info->has_hpet = hpet_find();
+-#ifdef CONFIG_TPM
+     info->tpm_version = tpm_get_version(tpm_find());
+-#endif
+     info->pvpanic_port = pvpanic_port();
+     info->applesmc_io_base = applesmc_port();
+ }
+@@ -1375,9 +1371,7 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+     uint32_t nr_mem = machine->ram_slots;
+     int root_bus_limit = 0xFF;
+     PCIBus *bus = NULL;
+-#ifdef CONFIG_TPM
+     TPMIf *tpm = tpm_find();
+-#endif
+     int i;
+     VMBusBridge *vmbus_bridge = vmbus_bridge_find();
+ 
+@@ -1610,12 +1604,10 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+         }
+     }
+ 
+-#ifdef CONFIG_TPM
+     if (TPM_IS_TIS_ISA(tpm_find())) {
+         aml_append(crs, aml_memory32_fixed(TPM_TIS_ADDR_BASE,
+                    TPM_TIS_ADDR_SIZE, AML_READ_WRITE));
+     }
+-#endif
+     aml_append(scope, aml_name_decl("_CRS", crs));
+ 
+     /* reserve GPE0 block resources */
+@@ -1761,7 +1753,6 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+             /* Scan all PCI buses. Generate tables to support hotplug. */
+             build_append_pci_bus_devices(scope, bus, pm->pcihp_bridge_en);
+ 
+-#ifdef CONFIG_TPM
+             if (TPM_IS_TIS_ISA(tpm)) {
+                 if (misc->tpm_version == TPM_VERSION_2_0) {
+                     dev = aml_device("TPM");
+@@ -1789,13 +1780,11 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+ 
+                 aml_append(scope, dev);
+             }
+-#endif
+ 
+             aml_append(sb_scope, scope);
+         }
+     }
+ 
+-#ifdef CONFIG_TPM
+     if (TPM_IS_CRB(tpm)) {
+         dev = aml_device("TPM");
+         aml_append(dev, aml_name_decl("_HID", aml_string("MSFT0101")));
+@@ -1810,7 +1799,6 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
+ 
+         aml_append(sb_scope, dev);
+     }
+-#endif
+ 
+     aml_append(dsdt, sb_scope);
+ 
+@@ -1840,7 +1828,6 @@ build_hpet(GArray *table_data, BIOSLinker *linker, const char *oem_id,
+                  "HPET", sizeof(*hpet), 1, oem_id, oem_table_id);
+ }
+ 
+-#ifdef CONFIG_TPM
+ static void
+ build_tpm_tcpa(GArray *table_data, BIOSLinker *linker, GArray *tcpalog,
+                const char *oem_id, const char *oem_table_id)
+@@ -1867,7 +1854,6 @@ build_tpm_tcpa(GArray *table_data, BIOSLinker *linker, GArray *tcpalog,
+                  (void *)(table_data->data + tcpa_start),
+                  "TCPA", sizeof(*tcpa), 2, oem_id, oem_table_id);
+ }
+-#endif
+ 
+ #define HOLE_640K_START  (640 * KiB)
+ #define HOLE_640K_END   (1 * MiB)
+@@ -2417,7 +2403,6 @@ void acpi_build(AcpiBuildTables *tables, MachineState *machine)
+         build_hpet(tables_blob, tables->linker, x86ms->oem_id,
+                    x86ms->oem_table_id);
+     }
+-#ifdef CONFIG_TPM
+     if (misc.tpm_version != TPM_VERSION_UNSPEC) {
+         if (misc.tpm_version == TPM_VERSION_1_2) {
+             acpi_add_table(table_offsets, tables_blob);
+@@ -2429,7 +2414,6 @@ void acpi_build(AcpiBuildTables *tables, MachineState *machine)
+                        x86ms->oem_id, x86ms->oem_table_id);
+         }
+     }
+-#endif
+     if (pcms->numa_nodes) {
+         acpi_add_table(table_offsets, tables_blob);
+         build_srat(tables_blob, tables->linker, machine);
+@@ -2621,10 +2605,8 @@ void acpi_setup(void)
+     AcpiBuildTables tables;
+     AcpiBuildState *build_state;
+     Object *vmgenid_dev;
+-#ifdef CONFIG_TPM
+     TPMIf *tpm;
+     static FwCfgTPMConfig tpm_config;
+-#endif
+ 
+     if (!x86ms->fw_cfg) {
+         ACPI_BUILD_DPRINTF("No fw cfg. Bailing out.\n");
+@@ -2656,7 +2638,6 @@ void acpi_setup(void)
+         acpi_add_rom_blob(acpi_build_update, build_state,
+                           tables.linker->cmd_blob, ACPI_BUILD_LOADER_FILE);
+ 
+-#ifdef CONFIG_TPM
+     fw_cfg_add_file(x86ms->fw_cfg, ACPI_BUILD_TPMLOG_FILE,
+                     tables.tcpalog->data, acpi_data_len(tables.tcpalog));
+ 
+@@ -2670,7 +2651,6 @@ void acpi_setup(void)
+         fw_cfg_add_file(x86ms->fw_cfg, "etc/tpm/config",
+                         &tpm_config, sizeof tpm_config);
+     }
+-#endif
+ 
+     vmgenid_dev = find_vmgenid_dev();
+     if (vmgenid_dev) {
+diff --git a/hw/m68k/next-cube.c b/hw/m68k/next-cube.c
+index de951ffe5d..e0d4a94f9d 100644
+--- a/hw/m68k/next-cube.c
++++ b/hw/m68k/next-cube.c
+@@ -984,8 +984,8 @@ static void next_cube_init(MachineState *machine)
+     sysbus_mmio_map(SYS_BUS_DEVICE(pcdev), 1, 0x02100000);
+ 
+     /* BMAP memory */
+-    memory_region_init_ram_shared_nomigrate(bmapm1, NULL, "next.bmapmem", 64,
+-                                            true, &error_fatal);
++    memory_region_init_ram_flags_nomigrate(bmapm1, NULL, "next.bmapmem", 64,
++                                           RAM_SHARED, &error_fatal);
+     memory_region_add_subregion(sysmem, 0x020c0000, bmapm1);
+     /* The Rev_2.5_v66.bin firmware accesses it at 0x820c0020, too */
+     memory_region_init_alias(bmapm2, NULL, "next.bmapmem2", bmapm1, 0x0, 64);
+diff --git a/hw/misc/ivshmem.c b/hw/misc/ivshmem.c
+index a1fa4878be..1ba4a98377 100644
+--- a/hw/misc/ivshmem.c
++++ b/hw/misc/ivshmem.c
+@@ -493,9 +493,8 @@ static void process_msg_shmem(IVShmemState *s, int fd, Error **errp)
+     size = buf.st_size;
+ 
+     /* mmap the region and map into the BAR2 */
+-    memory_region_init_ram_from_fd(&s->server_bar2, OBJECT(s),
+-                                   "ivshmem.bar2", size, true, fd, 0,
+-                                   &local_err);
++    memory_region_init_ram_from_fd(&s->server_bar2, OBJECT(s), "ivshmem.bar2",
++                                   size, RAM_SHARED, fd, 0, &local_err);
+     if (local_err) {
+         error_propagate(errp, local_err);
+         return;
+diff --git a/hw/scsi/esp.c b/hw/scsi/esp.c
+index b668acef82..4ac2114788 100644
+--- a/hw/scsi/esp.c
++++ b/hw/scsi/esp.c
+@@ -213,7 +213,7 @@ static int esp_select(ESPState *s)
+     if (!s->current_dev) {
+         /* No such drive */
+         s->rregs[ESP_RSTAT] = 0;
+-        s->rregs[ESP_RINTR] |= INTR_DC;
++        s->rregs[ESP_RINTR] = INTR_DC;
+         s->rregs[ESP_RSEQ] = SEQ_0;
+         esp_raise_irq(s);
+         return -1;
+@@ -221,7 +221,7 @@ static int esp_select(ESPState *s)
+ 
+     /*
+      * Note that we deliberately don't raise the IRQ here: this will be done
+-     * either in do_busid_cmd() for DATA OUT transfers or by the deferred
++     * either in do_command_phase() for DATA OUT transfers or by the deferred
+      * IRQ mechanism in esp_transfer_data() for DATA IN transfers
+      */
+     s->rregs[ESP_RINTR] |= INTR_FC;
+@@ -260,9 +260,6 @@ static uint32_t get_cmd(ESPState *s, uint32_t maxlen)
+             return 0;
+         }
+         n = esp_fifo_pop_buf(&s->fifo, buf, dmalen);
+-        if (n >= 3) {
+-            buf[0] = buf[2] >> 5;
+-        }
+         n = MIN(fifo8_num_free(&s->cmdfifo), n);
+         fifo8_push_all(&s->cmdfifo, buf, n);
+     }
+@@ -275,24 +272,22 @@ static uint32_t get_cmd(ESPState *s, uint32_t maxlen)
+     return dmalen;
+ }
+ 
+-static void do_busid_cmd(ESPState *s, uint8_t busid)
++static void do_command_phase(ESPState *s)
+ {
+     uint32_t cmdlen;
+     int32_t datalen;
+-    int lun;
+     SCSIDevice *current_lun;
+     uint8_t buf[ESP_CMDFIFO_SZ];
+ 
+-    trace_esp_do_busid_cmd(busid);
+-    lun = busid & 7;
++    trace_esp_do_command_phase(s->lun);
+     cmdlen = fifo8_num_used(&s->cmdfifo);
+     if (!cmdlen || !s->current_dev) {
+         return;
+     }
+     esp_fifo_pop_buf(&s->cmdfifo, buf, cmdlen);
+ 
+-    current_lun = scsi_device_find(&s->bus, 0, s->current_dev->id, lun);
+-    s->current_req = scsi_req_new(current_lun, 0, lun, buf, s);
++    current_lun = scsi_device_find(&s->bus, 0, s->current_dev->id, s->lun);
++    s->current_req = scsi_req_new(current_lun, 0, s->lun, buf, s);
+     datalen = scsi_req_enqueue(s->current_req);
+     s->ti_size = datalen;
+     fifo8_reset(&s->cmdfifo);
+@@ -319,28 +314,36 @@ static void do_busid_cmd(ESPState *s, uint8_t busid)
+     }
+ }
+ 
+-static void do_cmd(ESPState *s)
++static void do_message_phase(ESPState *s)
+ {
+-    uint8_t busid = esp_fifo_pop(&s->cmdfifo);
+-    int len;
++    if (s->cmdfifo_cdb_offset) {
++        uint8_t message = esp_fifo_pop(&s->cmdfifo);
+ 
+-    s->cmdfifo_cdb_offset--;
++        trace_esp_do_identify(message);
++        s->lun = message & 7;
++        s->cmdfifo_cdb_offset--;
++    }
+ 
+     /* Ignore extended messages for now */
+     if (s->cmdfifo_cdb_offset) {
+-        len = MIN(s->cmdfifo_cdb_offset, fifo8_num_used(&s->cmdfifo));
++        int len = MIN(s->cmdfifo_cdb_offset, fifo8_num_used(&s->cmdfifo));
+         esp_fifo_pop_buf(&s->cmdfifo, NULL, len);
+         s->cmdfifo_cdb_offset = 0;
+     }
++}
+ 
+-    do_busid_cmd(s, busid);
++static void do_cmd(ESPState *s)
++{
++    do_message_phase(s);
++    assert(s->cmdfifo_cdb_offset == 0);
++    do_command_phase(s);
+ }
+ 
+ static void satn_pdma_cb(ESPState *s)
+ {
+-    s->do_cmd = 0;
+-    if (!fifo8_is_empty(&s->cmdfifo)) {
++    if (!esp_get_tc(s) && !fifo8_is_empty(&s->cmdfifo)) {
+         s->cmdfifo_cdb_offset = 1;
++        s->do_cmd = 0;
+         do_cmd(s);
+     }
+ }
+@@ -369,13 +372,10 @@ static void handle_satn(ESPState *s)
+ 
+ static void s_without_satn_pdma_cb(ESPState *s)
+ {
+-    uint32_t len;
+-
+-    s->do_cmd = 0;
+-    len = fifo8_num_used(&s->cmdfifo);
+-    if (len) {
++    if (!esp_get_tc(s) && !fifo8_is_empty(&s->cmdfifo)) {
+         s->cmdfifo_cdb_offset = 0;
+-        do_busid_cmd(s, 0);
++        s->do_cmd = 0;
++        do_cmd(s);
+     }
+ }
+ 
+@@ -392,7 +392,7 @@ static void handle_s_without_atn(ESPState *s)
+     if (cmdlen > 0) {
+         s->cmdfifo_cdb_offset = 0;
+         s->do_cmd = 0;
+-        do_busid_cmd(s, 0);
++        do_cmd(s);
+     } else if (cmdlen == 0) {
+         s->do_cmd = 1;
+         /* Target present, but no cmd yet - switch to command phase */
+@@ -403,8 +403,7 @@ static void handle_s_without_atn(ESPState *s)
+ 
+ static void satn_stop_pdma_cb(ESPState *s)
+ {
+-    s->do_cmd = 0;
+-    if (!fifo8_is_empty(&s->cmdfifo)) {
++    if (!esp_get_tc(s) && !fifo8_is_empty(&s->cmdfifo)) {
+         trace_esp_handle_satn_stop(fifo8_num_used(&s->cmdfifo));
+         s->do_cmd = 1;
+         s->cmdfifo_cdb_offset = 1;
+@@ -481,7 +480,6 @@ static void esp_dma_done(ESPState *s)
+ {
+     s->rregs[ESP_RSTAT] |= STAT_TC;
+     s->rregs[ESP_RINTR] |= INTR_BS;
+-    s->rregs[ESP_RSEQ] = 0;
+     s->rregs[ESP_RFLAGS] = 0;
+     esp_set_tc(s, 0);
+     esp_raise_irq(s);
+@@ -494,10 +492,32 @@ static void do_dma_pdma_cb(ESPState *s)
+     uint32_t n;
+ 
+     if (s->do_cmd) {
++        /* Ensure we have received complete command after SATN and stop */
++        if (esp_get_tc(s) || fifo8_is_empty(&s->cmdfifo)) {
++            return;
++        }
++
+         s->ti_size = 0;
+-        s->do_cmd = 0;
+-        do_cmd(s);
+-        esp_lower_drq(s);
++        if ((s->rregs[ESP_RSTAT] & 7) == STAT_CD) {
++            /* No command received */
++            if (s->cmdfifo_cdb_offset == fifo8_num_used(&s->cmdfifo)) {
++                return;
++            }
++
++            /* Command has been received */
++            s->do_cmd = 0;
++            do_cmd(s);
++        } else {
++            /*
++             * Extra message out bytes received: update cmdfifo_cdb_offset
++             * and then switch to commmand phase
++             */
++            s->cmdfifo_cdb_offset = fifo8_num_used(&s->cmdfifo);
++            s->rregs[ESP_RSTAT] = STAT_TC | STAT_CD;
++            s->rregs[ESP_RSEQ] = SEQ_CD;
++            s->rregs[ESP_RINTR] |= INTR_BS;
++            esp_raise_irq(s);
++        }
+         return;
+     }
+ 
+@@ -740,20 +760,17 @@ static void esp_do_nodma(ESPState *s)
+         s->async_len -= len;
+         s->ti_size += len;
+     } else {
+-        len = MIN(s->ti_size, s->async_len);
+-        len = MIN(len, fifo8_num_free(&s->fifo));
+-        fifo8_push_all(&s->fifo, s->async_buf, len);
+-        s->async_buf += len;
+-        s->async_len -= len;
+-        s->ti_size -= len;
++        if (fifo8_is_empty(&s->fifo)) {
++            fifo8_push(&s->fifo, s->async_buf[0]);
++            s->async_buf++;
++            s->async_len--;
++            s->ti_size--;
++        }
+     }
+ 
+     if (s->async_len == 0) {
+         scsi_req_continue(s->current_req);
+-
+-        if (to_device || s->ti_size == 0) {
+-            return;
+-        }
++        return;
+     }
+ 
+     s->rregs[ESP_RINTR] |= INTR_BS;
+@@ -763,20 +780,37 @@ static void esp_do_nodma(ESPState *s)
+ void esp_command_complete(SCSIRequest *req, size_t resid)
+ {
+     ESPState *s = req->hba_private;
++    int to_device = ((s->rregs[ESP_RSTAT] & 7) == STAT_DO);
+ 
+     trace_esp_command_complete();
+-    if (s->ti_size != 0) {
+-        trace_esp_command_complete_unexpected();
++
++    /*
++     * Non-DMA transfers from the target will leave the last byte in
++     * the FIFO so don't reset ti_size in this case
++     */
++    if (s->dma || to_device) {
++        if (s->ti_size != 0) {
++            trace_esp_command_complete_unexpected();
++        }
++        s->ti_size = 0;
+     }
+-    s->ti_size = 0;
++
+     s->async_len = 0;
+     if (req->status) {
+         trace_esp_command_complete_fail();
+     }
+     s->status = req->status;
+-    s->rregs[ESP_RSTAT] = STAT_ST;
+-    esp_dma_done(s);
+-    esp_lower_drq(s);
++
++    /*
++     * If the transfer is finished, switch to status phase. For non-DMA
++     * transfers from the target the last byte is still in the FIFO
++     */
++    if (s->ti_size == 0) {
++        s->rregs[ESP_RSTAT] = STAT_TC | STAT_ST;
++        esp_dma_done(s);
++        esp_lower_drq(s);
++    }
++
+     if (s->current_req) {
+         scsi_req_unref(s->current_req);
+         s->current_req = NULL;
+@@ -804,16 +838,6 @@ void esp_transfer_data(SCSIRequest *req, uint32_t len)
+         s->rregs[ESP_RSTAT] |= STAT_TC;
+         s->rregs[ESP_RINTR] |= INTR_BS;
+         esp_raise_irq(s);
+-
+-        /*
+-         * If data is ready to transfer and the TI command has already
+-         * been executed, start DMA immediately. Otherwise DMA will start
+-         * when host sends the TI command
+-         */
+-        if (s->ti_size && (s->rregs[ESP_CMD] == (CMD_TI | CMD_DMA))) {
+-            esp_do_dma(s);
+-        }
+-        return;
+     }
+ 
+     if (s->ti_cmd == 0) {
+@@ -827,7 +851,7 @@ void esp_transfer_data(SCSIRequest *req, uint32_t len)
+         return;
+     }
+ 
+-    if (s->ti_cmd & CMD_DMA) {
++    if (s->ti_cmd == (CMD_TI | CMD_DMA)) {
+         if (dmalen) {
+             esp_do_dma(s);
+         } else if (s->ti_size <= 0) {
+@@ -838,7 +862,7 @@ void esp_transfer_data(SCSIRequest *req, uint32_t len)
+             esp_dma_done(s);
+             esp_lower_drq(s);
+         }
+-    } else {
++    } else if (s->ti_cmd == CMD_TI) {
+         esp_do_nodma(s);
+     }
+ }
+@@ -905,6 +929,17 @@ uint64_t esp_reg_read(ESPState *s, uint32_t saddr)
+             qemu_log_mask(LOG_UNIMP, "esp: PIO data read not implemented\n");
+             s->rregs[ESP_FIFO] = 0;
+         } else {
++            if ((s->rregs[ESP_RSTAT] & 0x7) == STAT_DI) {
++                if (s->ti_size) {
++                    esp_do_nodma(s);
++                } else {
++                    /*
++                     * The last byte of a non-DMA transfer has been read out
++                     * of the FIFO so switch to status phase
++                     */
++                    s->rregs[ESP_RSTAT] = STAT_TC | STAT_ST;
++                }
++            }
+             s->rregs[ESP_FIFO] = esp_fifo_pop(&s->fifo);
+         }
+         val = s->rregs[ESP_FIFO];
+@@ -917,7 +952,15 @@ uint64_t esp_reg_read(ESPState *s, uint32_t saddr)
+         val = s->rregs[ESP_RINTR];
+         s->rregs[ESP_RINTR] = 0;
+         s->rregs[ESP_RSTAT] &= ~STAT_TC;
+-        s->rregs[ESP_RSEQ] = SEQ_0;
++        /*
++         * According to the datasheet ESP_RSEQ should be cleared, but as the
++         * emulation currently defers information transfers to the next TI
++         * command leave it for now so that pedantic guests such as the old
++         * Linux 2.6 driver see the correct flags before the next SCSI phase
++         * transition.
++         *
++         * s->rregs[ESP_RSEQ] = SEQ_0;
++         */
+         esp_lower_irq(s);
+         break;
+     case ESP_TCHI:
+@@ -955,15 +998,18 @@ void esp_reg_write(ESPState *s, uint32_t saddr, uint64_t val)
+     case ESP_FIFO:
+         if (s->do_cmd) {
+             esp_fifo_push(&s->cmdfifo, val);
++
++            /*
++             * If any unexpected message out/command phase data is
++             * transferred using non-DMA, raise the interrupt
++             */
++            if (s->rregs[ESP_CMD] == CMD_TI) {
++                s->rregs[ESP_RINTR] |= INTR_BS;
++                esp_raise_irq(s);
++            }
+         } else {
+             esp_fifo_push(&s->fifo, val);
+         }
+-
+-        /* Non-DMA transfers raise an interrupt after every byte */
+-        if (s->rregs[ESP_CMD] == CMD_TI) {
+-            s->rregs[ESP_RINTR] |= INTR_FC | INTR_BS;
+-            esp_raise_irq(s);
+-        }
+         break;
+     case ESP_CMD:
+         s->rregs[saddr] = val;
+@@ -1088,7 +1134,15 @@ static bool esp_is_version_5(void *opaque, int version_id)
+     ESPState *s = ESP(opaque);
+ 
+     version_id = MIN(version_id, s->mig_version_id);
+-    return version_id == 5;
++    return version_id >= 5;
++}
++
++static bool esp_is_version_6(void *opaque, int version_id)
++{
++    ESPState *s = ESP(opaque);
++
++    version_id = MIN(version_id, s->mig_version_id);
++    return version_id >= 6;
+ }
+ 
+ int esp_pre_save(void *opaque)
+@@ -1128,7 +1182,7 @@ static int esp_post_load(void *opaque, int version_id)
+ 
+ const VMStateDescription vmstate_esp = {
+     .name = "esp",
+-    .version_id = 5,
++    .version_id = 6,
+     .minimum_version_id = 3,
+     .post_load = esp_post_load,
+     .fields = (VMStateField[]) {
+@@ -1157,6 +1211,7 @@ const VMStateDescription vmstate_esp = {
+         VMSTATE_FIFO8_TEST(fifo, ESPState, esp_is_version_5),
+         VMSTATE_FIFO8_TEST(cmdfifo, ESPState, esp_is_version_5),
+         VMSTATE_UINT8_TEST(ti_cmd, ESPState, esp_is_version_5),
++        VMSTATE_UINT8_TEST(lun, ESPState, esp_is_version_6),
+         VMSTATE_END_OF_LIST()
+     },
+ };
+@@ -1195,7 +1250,6 @@ static void sysbus_esp_pdma_write(void *opaque, hwaddr addr,
+ {
+     SysBusESPState *sysbus = opaque;
+     ESPState *s = ESP(&sysbus->esp);
+-    uint32_t dmalen;
+ 
+     trace_esp_pdma_write(size);
+ 
+@@ -1208,10 +1262,7 @@ static void sysbus_esp_pdma_write(void *opaque, hwaddr addr,
+         esp_pdma_write(s, val);
+         break;
+     }
+-    dmalen = esp_get_tc(s);
+-    if (dmalen == 0 || fifo8_num_free(&s->fifo) < 2) {
+-        s->pdma_cb(s);
+-    }
++    s->pdma_cb(s);
+ }
+ 
+ static uint64_t sysbus_esp_pdma_read(void *opaque, hwaddr addr,
+diff --git a/hw/scsi/scsi-generic.c b/hw/scsi/scsi-generic.c
+index 98c30c5d5c..40e039864f 100644
+--- a/hw/scsi/scsi-generic.c
++++ b/hw/scsi/scsi-generic.c
+@@ -147,7 +147,7 @@ static int execute_command(BlockBackend *blk,
+     return 0;
+ }
+ 
+-static void scsi_handle_inquiry_reply(SCSIGenericReq *r, SCSIDevice *s)
++static int scsi_handle_inquiry_reply(SCSIGenericReq *r, SCSIDevice *s, int len)
+ {
+     uint8_t page, page_idx;
+ 
+@@ -213,8 +213,13 @@ static void scsi_handle_inquiry_reply(SCSIGenericReq *r, SCSIDevice *s)
+                 r->buf[page_idx] = 0xb0;
+             }
+             stw_be_p(r->buf + 2, lduw_be_p(r->buf + 2) + 1);
++
++            if (len < r->buflen) {
++                len++;
++            }
+         }
+     }
++    return len;
+ }
+ 
+ static int scsi_generic_emulate_block_limits(SCSIGenericReq *r, SCSIDevice *s)
+@@ -332,7 +337,7 @@ static void scsi_read_complete(void * opaque, int ret)
+         }
+     }
+     if (r->req.cmd.buf[0] == INQUIRY) {
+-        scsi_handle_inquiry_reply(r, s);
++        len = scsi_handle_inquiry_reply(r, s, len);
+     }
+ 
+ req_complete:
+diff --git a/hw/scsi/trace-events b/hw/scsi/trace-events
+index 1a27e141ae..92d5b40f89 100644
+--- a/hw/scsi/trace-events
++++ b/hw/scsi/trace-events
+@@ -166,7 +166,8 @@ esp_dma_disable(void) "Lower enable"
+ esp_pdma_read(int size) "pDMA read %u bytes"
+ esp_pdma_write(int size) "pDMA write %u bytes"
+ esp_get_cmd(uint32_t dmalen, int target) "len %d target %d"
+-esp_do_busid_cmd(uint8_t busid) "busid 0x%x"
++esp_do_command_phase(uint8_t busid) "busid 0x%x"
++esp_do_identify(uint8_t byte) "0x%x"
+ esp_handle_satn_stop(uint32_t cmdlen) "cmdlen %d"
+ esp_write_response(uint32_t status) "Transfer status (status=%d)"
+ esp_do_dma(uint32_t cmdlen, uint32_t len) "command len %d + %d"
+diff --git a/include/exec/cpu-common.h b/include/exec/cpu-common.h
+index ccabed4003..039d422bf4 100644
+--- a/include/exec/cpu-common.h
++++ b/include/exec/cpu-common.h
+@@ -59,6 +59,7 @@ ram_addr_t qemu_ram_get_offset(RAMBlock *rb);
+ ram_addr_t qemu_ram_get_used_length(RAMBlock *rb);
+ ram_addr_t qemu_ram_get_max_length(RAMBlock *rb);
+ bool qemu_ram_is_shared(RAMBlock *rb);
++bool qemu_ram_is_noreserve(RAMBlock *rb);
+ bool qemu_ram_is_uf_zeroable(RAMBlock *rb);
+ void qemu_ram_set_uf_zeroable(RAMBlock *rb);
+ bool qemu_ram_is_migratable(RAMBlock *rb);
+diff --git a/include/exec/memory.h b/include/exec/memory.h
+index b114f5454b..b116f7c64e 100644
+--- a/include/exec/memory.h
++++ b/include/exec/memory.h
+@@ -155,6 +155,13 @@ typedef struct IOMMUTLBEvent {
+  */
+ #define RAM_UF_WRITEPROTECT (1 << 6)
+ 
++/*
++ * RAM is mmap-ed with MAP_NORESERVE. When set, reserving swap space (or huge
++ * pages if applicable) is skipped: will bail out if not supported. When not
++ * set, the OS will do the reservation, if supported for the memory type.
++ */
++#define RAM_NORESERVE (1 << 7)
++
+ static inline void iommu_notifier_init(IOMMUNotifier *n, IOMMUNotify fn,
+                                        IOMMUNotifierFlag flags,
+                                        hwaddr start, hwaddr end,
+@@ -940,27 +947,27 @@ void memory_region_init_ram_nomigrate(MemoryRegion *mr,
+                                       Error **errp);
+ 
+ /**
+- * memory_region_init_ram_shared_nomigrate:  Initialize RAM memory region.
+- *                                           Accesses into the region will
+- *                                           modify memory directly.
++ * memory_region_init_ram_flags_nomigrate:  Initialize RAM memory region.
++ *                                          Accesses into the region will
++ *                                          modify memory directly.
+  *
+  * @mr: the #MemoryRegion to be initialized.
+  * @owner: the object that tracks the region's reference count
+  * @name: Region name, becomes part of RAMBlock name used in migration stream
+  *        must be unique within any device
+  * @size: size of the region.
+- * @share: allow remapping RAM to different addresses
++ * @ram_flags: RamBlock flags. Supported flags: RAM_SHARED, RAM_NORESERVE.
+  * @errp: pointer to Error*, to store an error if it happens.
+  *
+- * Note that this function is similar to memory_region_init_ram_nomigrate.
+- * The only difference is part of the RAM region can be remapped.
++ * Note that this function does not do anything to cause the data in the
++ * RAM memory region to be migrated; that is the responsibility of the caller.
+  */
+-void memory_region_init_ram_shared_nomigrate(MemoryRegion *mr,
+-                                             Object *owner,
+-                                             const char *name,
+-                                             uint64_t size,
+-                                             bool share,
+-                                             Error **errp);
++void memory_region_init_ram_flags_nomigrate(MemoryRegion *mr,
++                                            Object *owner,
++                                            const char *name,
++                                            uint64_t size,
++                                            uint32_t ram_flags,
++                                            Error **errp);
+ 
+ /**
+  * memory_region_init_resizeable_ram:  Initialize memory region with resizeable
+@@ -1005,10 +1012,8 @@ void memory_region_init_resizeable_ram(MemoryRegion *mr,
+  * @size: size of the region.
+  * @align: alignment of the region base address; if 0, the default alignment
+  *         (getpagesize()) will be used.
+- * @ram_flags: Memory region features:
+- *             - RAM_SHARED: memory must be mmaped with the MAP_SHARED flag
+- *             - RAM_PMEM: the memory is persistent memory
+- *             Other bits are ignored now.
++ * @ram_flags: RamBlock flags. Supported flags: RAM_SHARED, RAM_PMEM,
++ *             RAM_NORESERVE,
+  * @path: the path in which to allocate the RAM.
+  * @readonly: true to open @path for reading, false for read/write.
+  * @errp: pointer to Error*, to store an error if it happens.
+@@ -1034,7 +1039,8 @@ void memory_region_init_ram_from_file(MemoryRegion *mr,
+  * @owner: the object that tracks the region's reference count
+  * @name: the name of the region.
+  * @size: size of the region.
+- * @share: %true if memory must be mmaped with the MAP_SHARED flag
++ * @ram_flags: RamBlock flags. Supported flags: RAM_SHARED, RAM_PMEM,
++ *             RAM_NORESERVE.
+  * @fd: the fd to mmap.
+  * @offset: offset within the file referenced by fd
+  * @errp: pointer to Error*, to store an error if it happens.
+@@ -1046,7 +1052,7 @@ void memory_region_init_ram_from_fd(MemoryRegion *mr,
+                                     Object *owner,
+                                     const char *name,
+                                     uint64_t size,
+-                                    bool share,
++                                    uint32_t ram_flags,
+                                     int fd,
+                                     ram_addr_t offset,
+                                     Error **errp);
+diff --git a/include/exec/ram_addr.h b/include/exec/ram_addr.h
+index 3cb9791df3..551876bed0 100644
+--- a/include/exec/ram_addr.h
++++ b/include/exec/ram_addr.h
+@@ -104,11 +104,8 @@ long qemu_maxrampagesize(void);
+  * Parameters:
+  *  @size: the size in bytes of the ram block
+  *  @mr: the memory region where the ram block is
+- *  @ram_flags: specify the properties of the ram block, which can be one
+- *              or bit-or of following values
+- *              - RAM_SHARED: mmap the backing file or device with MAP_SHARED
+- *              - RAM_PMEM: the backend @mem_path or @fd is persistent memory
+- *              Other bits are ignored.
++ *  @ram_flags: RamBlock flags. Supported flags: RAM_SHARED, RAM_PMEM,
++ *              RAM_NORESERVE.
+  *  @mem_path or @fd: specify the backing file or device
+  *  @readonly: true to open @path for reading, false for read/write.
+  *  @errp: pointer to Error*, to store an error if it happens
+@@ -126,7 +123,7 @@ RAMBlock *qemu_ram_alloc_from_fd(ram_addr_t size, MemoryRegion *mr,
+ 
+ RAMBlock *qemu_ram_alloc_from_ptr(ram_addr_t size, void *host,
+                                   MemoryRegion *mr, Error **errp);
+-RAMBlock *qemu_ram_alloc(ram_addr_t size, bool share, MemoryRegion *mr,
++RAMBlock *qemu_ram_alloc(ram_addr_t size, uint32_t ram_flags, MemoryRegion *mr,
+                          Error **errp);
+ RAMBlock *qemu_ram_alloc_resizeable(ram_addr_t size, ram_addr_t max_size,
+                                     void (*resized)(const char*,
+diff --git a/include/hw/acpi/tpm.h b/include/hw/acpi/tpm.h
+index 559ba6906c..1a2a57a21f 100644
+--- a/include/hw/acpi/tpm.h
++++ b/include/hw/acpi/tpm.h
+@@ -21,8 +21,6 @@
+ #include "hw/acpi/aml-build.h"
+ #include "sysemu/tpm.h"
+ 
+-#ifdef CONFIG_TPM
+-
+ #define TPM_TIS_ADDR_BASE           0xFED40000
+ #define TPM_TIS_ADDR_SIZE           0x5000
+ 
+@@ -211,6 +209,4 @@ REG32(CRB_DATA_BUFFER, 0x80)
+ 
+ void tpm_build_ppi_acpi(TPMIf *tpm, Aml *dev);
+ 
+-#endif /* CONFIG_TPM */
+-
+ #endif /* HW_ACPI_TPM_H */
+diff --git a/include/hw/scsi/esp.h b/include/hw/scsi/esp.h
+index aada3680b7..b1ec27612f 100644
+--- a/include/hw/scsi/esp.h
++++ b/include/hw/scsi/esp.h
+@@ -37,6 +37,7 @@ struct ESPState {
+     SCSIRequest *current_req;
+     Fifo8 cmdfifo;
+     uint8_t cmdfifo_cdb_offset;
++    uint8_t lun;
+     uint32_t do_cmd;
+ 
+     bool data_in_ready;
+diff --git a/include/qemu/compiler.h b/include/qemu/compiler.h
+index 091c45248b..3baa5e3790 100644
+--- a/include/qemu/compiler.h
++++ b/include/qemu/compiler.h
+@@ -72,18 +72,7 @@
+         int:(x) ? -1 : 1; \
+     }
+ 
+-/* QEMU_BUILD_BUG_MSG() emits the message given if _Static_assert is
+- * supported; otherwise, it will be omitted from the compiler error
+- * message (but as it remains present in the source code, it can still
+- * be useful when debugging). */
+-#if defined(CONFIG_STATIC_ASSERT)
+ #define QEMU_BUILD_BUG_MSG(x, msg) _Static_assert(!(x), msg)
+-#elif defined(__COUNTER__)
+-#define QEMU_BUILD_BUG_MSG(x, msg) typedef QEMU_BUILD_BUG_ON_STRUCT(x) \
+-    glue(qemu_build_bug_on__, __COUNTER__) __attribute__((unused))
+-#else
+-#define QEMU_BUILD_BUG_MSG(x, msg)
+-#endif
+ 
+ #define QEMU_BUILD_BUG_ON(x) QEMU_BUILD_BUG_MSG(x, "not expecting: " #x)
+ 
+@@ -173,46 +162,6 @@
+ #define QEMU_ALWAYS_INLINE
+ #endif
+ 
+-/* Implement C11 _Generic via GCC builtins.  Example:
+- *
+- *    QEMU_GENERIC(x, (float, sinf), (long double, sinl), sin) (x)
+- *
+- * The first argument is the discriminator.  The last is the default value.
+- * The middle ones are tuples in "(type, expansion)" format.
+- */
+-
+-/* First, find out the number of generic cases.  */
+-#define QEMU_GENERIC(x, ...) \
+-    QEMU_GENERIC_(typeof(x), __VA_ARGS__, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+-
+-/* There will be extra arguments, but they are not used.  */
+-#define QEMU_GENERIC_(x, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, count, ...) \
+-    QEMU_GENERIC##count(x, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9)
+-
+-/* Two more helper macros, this time to extract items from a parenthesized
+- * list.
+- */
+-#define QEMU_FIRST_(a, b) a
+-#define QEMU_SECOND_(a, b) b
+-
+-/* ... and a final one for the common part of the "recursion".  */
+-#define QEMU_GENERIC_IF(x, type_then, else_)                                   \
+-    __builtin_choose_expr(__builtin_types_compatible_p(x,                      \
+-                                                       QEMU_FIRST_ type_then), \
+-                          QEMU_SECOND_ type_then, else_)
+-
+-/* CPP poor man's "recursion".  */
+-#define QEMU_GENERIC1(x, a0, ...) (a0)
+-#define QEMU_GENERIC2(x, a0, ...) QEMU_GENERIC_IF(x, a0, QEMU_GENERIC1(x, __VA_ARGS__))
+-#define QEMU_GENERIC3(x, a0, ...) QEMU_GENERIC_IF(x, a0, QEMU_GENERIC2(x, __VA_ARGS__))
+-#define QEMU_GENERIC4(x, a0, ...) QEMU_GENERIC_IF(x, a0, QEMU_GENERIC3(x, __VA_ARGS__))
+-#define QEMU_GENERIC5(x, a0, ...) QEMU_GENERIC_IF(x, a0, QEMU_GENERIC4(x, __VA_ARGS__))
+-#define QEMU_GENERIC6(x, a0, ...) QEMU_GENERIC_IF(x, a0, QEMU_GENERIC5(x, __VA_ARGS__))
+-#define QEMU_GENERIC7(x, a0, ...) QEMU_GENERIC_IF(x, a0, QEMU_GENERIC6(x, __VA_ARGS__))
+-#define QEMU_GENERIC8(x, a0, ...) QEMU_GENERIC_IF(x, a0, QEMU_GENERIC7(x, __VA_ARGS__))
+-#define QEMU_GENERIC9(x, a0, ...) QEMU_GENERIC_IF(x, a0, QEMU_GENERIC8(x, __VA_ARGS__))
+-#define QEMU_GENERIC10(x, a0, ...) QEMU_GENERIC_IF(x, a0, QEMU_GENERIC9(x, __VA_ARGS__))
+-
+ /**
+  * qemu_build_not_reached()
+  *
+diff --git a/include/qemu/lockable.h b/include/qemu/lockable.h
+index b620023141..86db7cb04c 100644
+--- a/include/qemu/lockable.h
++++ b/include/qemu/lockable.h
+@@ -24,79 +24,71 @@ struct QemuLockable {
+     QemuLockUnlockFunc *unlock;
+ };
+ 
+-/* This function gives an error if an invalid, non-NULL pointer type is passed
+- * to QEMU_MAKE_LOCKABLE.  For optimized builds, we can rely on dead-code elimination
+- * from the compiler, and give the errors already at link time.
+- */
+-#if defined(__OPTIMIZE__) && !defined(__SANITIZE_ADDRESS__)
+-void unknown_lock_type(void *);
+-#else
+-static inline void unknown_lock_type(void *unused)
+-{
+-    abort();
+-}
+-#endif
+-
+ static inline __attribute__((__always_inline__)) QemuLockable *
+ qemu_make_lockable(void *x, QemuLockable *lockable)
+ {
+-    /* We cannot test this in a macro, otherwise we get compiler
++    /*
++     * We cannot test this in a macro, otherwise we get compiler
+      * warnings like "the address of 'm' will always evaluate as 'true'".
+      */
+     return x ? lockable : NULL;
+ }
+ 
+-/* Auxiliary macros to simplify QEMU_MAKE_LOCABLE.  */
+-#define QEMU_LOCK_FUNC(x) ((QemuLockUnlockFunc *)    \
+-    QEMU_GENERIC(x,                                  \
+-                 (QemuMutex *, qemu_mutex_lock),     \
+-                 (QemuRecMutex *, qemu_rec_mutex_lock), \
+-                 (CoMutex *, qemu_co_mutex_lock),    \
+-                 (QemuSpin *, qemu_spin_lock),       \
+-                 unknown_lock_type))
+-
+-#define QEMU_UNLOCK_FUNC(x) ((QemuLockUnlockFunc *)  \
+-    QEMU_GENERIC(x,                                  \
+-                 (QemuMutex *, qemu_mutex_unlock),   \
+-                 (QemuRecMutex *, qemu_rec_mutex_unlock), \
+-                 (CoMutex *, qemu_co_mutex_unlock),  \
+-                 (QemuSpin *, qemu_spin_unlock),     \
+-                 unknown_lock_type))
+-
+-/* In C, compound literals have the lifetime of an automatic variable.
++static inline __attribute__((__always_inline__)) QemuLockable *
++qemu_null_lockable(void *x)
++{
++    if (x != NULL) {
++        qemu_build_not_reached();
++    }
++    return NULL;
++}
++
++/*
++ * In C, compound literals have the lifetime of an automatic variable.
+  * In C++ it would be different, but then C++ wouldn't need QemuLockable
+  * either...
+  */
+-#define QEMU_MAKE_LOCKABLE_(x) (&(QemuLockable) {     \
+-        .object = (x),                               \
+-        .lock = QEMU_LOCK_FUNC(x),                   \
+-        .unlock = QEMU_UNLOCK_FUNC(x),               \
++#define QML_OBJ_(x, name) (&(QemuLockable) {                            \
++        .object = (x),                                                  \
++        .lock = (QemuLockUnlockFunc *) qemu_ ## name ## _lock,          \
++        .unlock = (QemuLockUnlockFunc *) qemu_ ## name ## _unlock       \
+     })
+ 
+-/* QEMU_MAKE_LOCKABLE - Make a polymorphic QemuLockable
++/**
++ * QEMU_MAKE_LOCKABLE - Make a polymorphic QemuLockable
+  *
+- * @x: a lock object (currently one of QemuMutex, QemuRecMutex, CoMutex, QemuSpin).
++ * @x: a lock object (currently one of QemuMutex, QemuRecMutex,
++ *     CoMutex, QemuSpin).
+  *
+  * Returns a QemuLockable object that can be passed around
+  * to a function that can operate with locks of any kind, or
+  * NULL if @x is %NULL.
++ *
++ * Note the special case for void *, so that we may pass "NULL".
+  */
+-#define QEMU_MAKE_LOCKABLE(x)                        \
+-    QEMU_GENERIC(x,                                  \
+-                 (QemuLockable *, (x)),              \
+-                 qemu_make_lockable((x), QEMU_MAKE_LOCKABLE_(x)))
++#define QEMU_MAKE_LOCKABLE(x)                                           \
++    _Generic((x), QemuLockable *: (x),                                  \
++             void *: qemu_null_lockable(x),                             \
++             QemuMutex *: qemu_make_lockable(x, QML_OBJ_(x, mutex)),    \
++             QemuRecMutex *: qemu_make_lockable(x, QML_OBJ_(x, rec_mutex)), \
++             CoMutex *: qemu_make_lockable(x, QML_OBJ_(x, co_mutex)),   \
++             QemuSpin *: qemu_make_lockable(x, QML_OBJ_(x, spin)))
+ 
+-/* QEMU_MAKE_LOCKABLE_NONNULL - Make a polymorphic QemuLockable
++/**
++ * QEMU_MAKE_LOCKABLE_NONNULL - Make a polymorphic QemuLockable
+  *
+- * @x: a lock object (currently one of QemuMutex, QemuRecMutex, CoMutex, QemuSpin).
++ * @x: a lock object (currently one of QemuMutex, QemuRecMutex,
++ *     CoMutex, QemuSpin).
+  *
+  * Returns a QemuLockable object that can be passed around
+  * to a function that can operate with locks of any kind.
+  */
+-#define QEMU_MAKE_LOCKABLE_NONNULL(x)                \
+-    QEMU_GENERIC(x,                                  \
+-                 (QemuLockable *, (x)),              \
+-                 QEMU_MAKE_LOCKABLE_(x))
++#define QEMU_MAKE_LOCKABLE_NONNULL(x)                           \
++    _Generic((x), QemuLockable *: (x),                          \
++                  QemuMutex *: QML_OBJ_(x, mutex),              \
++                  QemuRecMutex *: QML_OBJ_(x, rec_mutex),       \
++                  CoMutex *: QML_OBJ_(x, co_mutex),             \
++                  QemuSpin *: QML_OBJ_(x, spin))
+ 
+ static inline void qemu_lockable_lock(QemuLockable *x)
+ {
+diff --git a/include/qemu/mmap-alloc.h b/include/qemu/mmap-alloc.h
+index 456ff87df1..90d0eee705 100644
+--- a/include/qemu/mmap-alloc.h
++++ b/include/qemu/mmap-alloc.h
+@@ -7,18 +7,22 @@ size_t qemu_fd_getpagesize(int fd);
+ size_t qemu_mempath_getpagesize(const char *mem_path);
+ 
+ /**
+- * qemu_ram_mmap: mmap the specified file or device.
++ * qemu_ram_mmap: mmap anonymous memory, the specified file or device.
++ *
++ * mmap() abstraction to map guest RAM, simplifying flag handling, taking
++ * care of alignment requirements and installing guard pages.
+  *
+  * Parameters:
+  *  @fd: the file or the device to mmap
+  *  @size: the number of bytes to be mmaped
+  *  @align: if not zero, specify the alignment of the starting mapping address;
+  *          otherwise, the alignment in use will be determined by QEMU.
+- *  @readonly: true for a read-only mapping, false for read/write.
+- *  @shared: map has RAM_SHARED flag.
+- *  @is_pmem: map has RAM_PMEM flag.
++ *  @qemu_map_flags: QEMU_MAP_* flags
+  *  @map_offset: map starts at offset of map_offset from the start of fd
+  *
++ * Internally, MAP_PRIVATE, MAP_ANONYMOUS and MAP_SHARED_VALIDATE are set
++ * implicitly based on other parameters.
++ *
+  * Return:
+  *  On success, return a pointer to the mapped area.
+  *  On failure, return MAP_FAILED.
+@@ -26,9 +30,7 @@ size_t qemu_mempath_getpagesize(const char *mem_path);
+ void *qemu_ram_mmap(int fd,
+                     size_t size,
+                     size_t align,
+-                    bool readonly,
+-                    bool shared,
+-                    bool is_pmem,
++                    uint32_t qemu_map_flags,
+                     off_t map_offset);
+ 
+ void qemu_ram_munmap(int fd, void *ptr, size_t size);
+diff --git a/include/qemu/osdep.h b/include/qemu/osdep.h
+index 236a045671..0a54bf7be8 100644
+--- a/include/qemu/osdep.h
++++ b/include/qemu/osdep.h
+@@ -195,6 +195,9 @@ extern "C" {
+ #ifndef MAP_FIXED_NOREPLACE
+ #define MAP_FIXED_NOREPLACE 0
+ #endif
++#ifndef MAP_NORESERVE
++#define MAP_NORESERVE 0
++#endif
+ #ifndef ENOMEDIUM
+ #define ENOMEDIUM ENODEV
+ #endif
+@@ -362,10 +365,35 @@ extern "C" {
+ int qemu_daemon(int nochdir, int noclose);
+ void *qemu_try_memalign(size_t alignment, size_t size);
+ void *qemu_memalign(size_t alignment, size_t size);
+-void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared);
++void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared,
++                          bool noreserve);
+ void qemu_vfree(void *ptr);
+ void qemu_anon_ram_free(void *ptr, size_t size);
+ 
++/*
++ * Abstraction of PROT_ and MAP_ flags as passed to mmap(), for example,
++ * consumed by qemu_ram_mmap().
++ */
++
++/* Map PROT_READ instead of PROT_READ | PROT_WRITE. */
++#define QEMU_MAP_READONLY   (1 << 0)
++
++/* Use MAP_SHARED instead of MAP_PRIVATE. */
++#define QEMU_MAP_SHARED     (1 << 1)
++
++/*
++ * Use MAP_SYNC | MAP_SHARED_VALIDATE if supported. Ignored without
++ * QEMU_MAP_SHARED. If mapping fails, warn and fallback to !QEMU_MAP_SYNC.
++ */
++#define QEMU_MAP_SYNC       (1 << 2)
++
++/*
++ * Use MAP_NORESERVE to skip reservation of swap space (or huge pages if
++ * applicable). Bail out if not supported/effective.
++ */
++#define QEMU_MAP_NORESERVE  (1 << 3)
++
++
+ #define QEMU_MADV_INVALID -1
+ 
+ #if defined(CONFIG_MADVISE)
+@@ -410,7 +438,7 @@ void qemu_anon_ram_free(void *ptr, size_t size);
+ #ifdef MADV_REMOVE
+ #define QEMU_MADV_REMOVE MADV_REMOVE
+ #else
+-#define QEMU_MADV_REMOVE QEMU_MADV_INVALID
++#define QEMU_MADV_REMOVE QEMU_MADV_DONTNEED
+ #endif
+ 
+ #elif defined(CONFIG_POSIX_MADVISE)
+@@ -424,7 +452,7 @@ void qemu_anon_ram_free(void *ptr, size_t size);
+ #define QEMU_MADV_DONTDUMP QEMU_MADV_INVALID
+ #define QEMU_MADV_HUGEPAGE  QEMU_MADV_INVALID
+ #define QEMU_MADV_NOHUGEPAGE  QEMU_MADV_INVALID
+-#define QEMU_MADV_REMOVE QEMU_MADV_INVALID
++#define QEMU_MADV_REMOVE QEMU_MADV_DONTNEED
+ 
+ #else /* no-op */
+ 
+diff --git a/include/qemu/thread-posix.h b/include/qemu/thread-posix.h
+index c903525062..b792e6ef37 100644
+--- a/include/qemu/thread-posix.h
++++ b/include/qemu/thread-posix.h
+@@ -4,12 +4,6 @@
+ #include <pthread.h>
+ #include <semaphore.h>
+ 
+-typedef QemuMutex QemuRecMutex;
+-#define qemu_rec_mutex_destroy qemu_mutex_destroy
+-#define qemu_rec_mutex_lock_impl    qemu_mutex_lock_impl
+-#define qemu_rec_mutex_trylock_impl qemu_mutex_trylock_impl
+-#define qemu_rec_mutex_unlock qemu_mutex_unlock
+-
+ struct QemuMutex {
+     pthread_mutex_t lock;
+ #ifdef CONFIG_DEBUG_MUTEX
+@@ -19,6 +13,14 @@ struct QemuMutex {
+     bool initialized;
+ };
+ 
++/*
++ * QemuRecMutex cannot be a typedef of QemuMutex lest we have two
++ * compatible cases in _Generic.  See qemu/lockable.h.
++ */
++typedef struct QemuRecMutex {
++    QemuMutex m;
++} QemuRecMutex;
++
+ struct QemuCond {
+     pthread_cond_t cond;
+     bool initialized;
+diff --git a/include/qemu/thread-win32.h b/include/qemu/thread-win32.h
+index d0a1a9597e..d95af4498f 100644
+--- a/include/qemu/thread-win32.h
++++ b/include/qemu/thread-win32.h
+@@ -18,12 +18,6 @@ struct QemuRecMutex {
+     bool initialized;
+ };
+ 
+-void qemu_rec_mutex_destroy(QemuRecMutex *mutex);
+-void qemu_rec_mutex_lock_impl(QemuRecMutex *mutex, const char *file, int line);
+-int qemu_rec_mutex_trylock_impl(QemuRecMutex *mutex, const char *file,
+-                                int line);
+-void qemu_rec_mutex_unlock(QemuRecMutex *mutex);
+-
+ struct QemuCond {
+     CONDITION_VARIABLE var;
+     bool initialized;
+diff --git a/include/qemu/thread.h b/include/qemu/thread.h
+index 5435763184..460568d67d 100644
+--- a/include/qemu/thread.h
++++ b/include/qemu/thread.h
+@@ -28,6 +28,12 @@ int qemu_mutex_trylock_impl(QemuMutex *mutex, const char *file, const int line);
+ void qemu_mutex_lock_impl(QemuMutex *mutex, const char *file, const int line);
+ void qemu_mutex_unlock_impl(QemuMutex *mutex, const char *file, const int line);
+ 
++void qemu_rec_mutex_init(QemuRecMutex *mutex);
++void qemu_rec_mutex_destroy(QemuRecMutex *mutex);
++void qemu_rec_mutex_lock_impl(QemuRecMutex *mutex, const char *file, int line);
++int qemu_rec_mutex_trylock_impl(QemuRecMutex *mutex, const char *file, int line);
++void qemu_rec_mutex_unlock_impl(QemuRecMutex *mutex, const char *file, int line);
++
+ typedef void (*QemuMutexLockFunc)(QemuMutex *m, const char *f, int l);
+ typedef int (*QemuMutexTrylockFunc)(QemuMutex *m, const char *f, int l);
+ typedef void (*QemuRecMutexLockFunc)(QemuRecMutex *m, const char *f, int l);
+@@ -104,6 +110,9 @@ extern QemuCondTimedWaitFunc qemu_cond_timedwait_func;
+ #define qemu_mutex_unlock(mutex) \
+         qemu_mutex_unlock_impl(mutex, __FILE__, __LINE__)
+ 
++#define qemu_rec_mutex_unlock(mutex) \
++        qemu_rec_mutex_unlock_impl(mutex, __FILE__, __LINE__)
++
+ static inline void (qemu_mutex_lock)(QemuMutex *mutex)
+ {
+     qemu_mutex_lock(mutex);
+@@ -129,8 +138,10 @@ static inline int (qemu_rec_mutex_trylock)(QemuRecMutex *mutex)
+     return qemu_rec_mutex_trylock(mutex);
+ }
+ 
+-/* Prototypes for other functions are in thread-posix.h/thread-win32.h.  */
+-void qemu_rec_mutex_init(QemuRecMutex *mutex);
++static inline void (qemu_rec_mutex_unlock)(QemuRecMutex *mutex)
++{
++    qemu_rec_mutex_unlock(mutex);
++}
+ 
+ void qemu_cond_init(QemuCond *cond);
+ void qemu_cond_destroy(QemuCond *cond);
+diff --git a/include/sysemu/hostmem.h b/include/sysemu/hostmem.h
+index df5644723a..9ff5c16963 100644
+--- a/include/sysemu/hostmem.h
++++ b/include/sysemu/hostmem.h
+@@ -64,7 +64,7 @@ struct HostMemoryBackend {
+     /* protected */
+     uint64_t size;
+     bool merge, dump, use_canonical_path;
+-    bool prealloc, is_mapped, share;
++    bool prealloc, is_mapped, share, reserve;
+     uint32_t prealloc_threads;
+     DECLARE_BITMAP(host_nodes, MAX_NODES + 1);
+     HostMemPolicy policy;
+diff --git a/include/sysemu/tpm.h b/include/sysemu/tpm.h
+index 68b2206463..1a85564e47 100644
+--- a/include/sysemu/tpm.h
++++ b/include/sysemu/tpm.h
+@@ -15,8 +15,6 @@
+ #include "qapi/qapi-types-tpm.h"
+ #include "qom/object.h"
+ 
+-#ifdef CONFIG_TPM
+-
+ int tpm_config_parse(QemuOptsList *opts_list, const char *optarg);
+ int tpm_init(void);
+ void tpm_cleanup(void);
+@@ -75,11 +73,4 @@ static inline TPMVersion tpm_get_version(TPMIf *ti)
+     return TPM_IF_GET_CLASS(ti)->get_version(ti);
+ }
+ 
+-#else /* CONFIG_TPM */
+-
+-#define tpm_init()  (0)
+-#define tpm_cleanup()
+-
+-#endif /* CONFIG_TPM */
+-
+ #endif /* QEMU_TPM_H */
+diff --git a/include/sysemu/tpm_backend.h b/include/sysemu/tpm_backend.h
+index 8fd3269c11..6f078f5f48 100644
+--- a/include/sysemu/tpm_backend.h
++++ b/include/sysemu/tpm_backend.h
+@@ -18,8 +18,6 @@
+ #include "sysemu/tpm.h"
+ #include "qapi/error.h"
+ 
+-#ifdef CONFIG_TPM
+-
+ #define TYPE_TPM_BACKEND "tpm-backend"
+ OBJECT_DECLARE_TYPE(TPMBackend, TPMBackendClass,
+                     TPM_BACKEND)
+@@ -211,6 +209,4 @@ TPMInfo *tpm_backend_query_tpm(TPMBackend *s);
+ 
+ TPMBackend *qemu_find_tpm_be(const char *id);
+ 
+-#endif /* CONFIG_TPM */
+-
+-#endif /* TPM_BACKEND_H */
++#endif
+diff --git a/meson.build b/meson.build
+index a2311eda6e..d8a92666fb 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1,5 +1,5 @@
+ project('qemu', ['c'], meson_version: '>=0.55.0',
+-        default_options: ['warning_level=1', 'c_std=gnu99', 'cpp_std=gnu++11', 'b_colorout=auto'] +
++        default_options: ['warning_level=1', 'c_std=gnu11', 'cpp_std=gnu++11', 'b_colorout=auto'] +
+                          (meson.version().version_compare('>=0.56.0') ? [ 'b_staticpic=false' ] : []),
+         version: run_command('head', meson.source_root() / 'VERSION').stdout().strip())
+ 
+diff --git a/migration/ram.c b/migration/ram.c
+index 60ea913c54..723af67c2e 100644
+--- a/migration/ram.c
++++ b/migration/ram.c
+@@ -3343,8 +3343,7 @@ int colo_init_ram_cache(void)
+     WITH_RCU_READ_LOCK_GUARD() {
+         RAMBLOCK_FOREACH_NOT_IGNORED(block) {
+             block->colo_cache = qemu_anon_ram_alloc(block->used_length,
+-                                                    NULL,
+-                                                    false);
++                                                    NULL, false, false);
+             if (!block->colo_cache) {
+                 error_report("%s: Can't alloc memory for COLO cache of block %s,"
+                              "size 0x" RAM_ADDR_FMT, __func__, block->idstr,
+diff --git a/monitor/hmp-cmds.c b/monitor/hmp-cmds.c
+index 0942027208..d10ee14110 100644
+--- a/monitor/hmp-cmds.c
++++ b/monitor/hmp-cmds.c
+@@ -901,7 +901,6 @@ void hmp_info_pci(Monitor *mon, const QDict *qdict)
+ 
+ void hmp_info_tpm(Monitor *mon, const QDict *qdict)
+ {
+-#ifdef CONFIG_TPM
+     TPMInfoList *info_list, *info;
+     Error *err = NULL;
+     unsigned int c = 0;
+@@ -947,9 +946,6 @@ void hmp_info_tpm(Monitor *mon, const QDict *qdict)
+         c++;
+     }
+     qapi_free_TPMInfoList(info_list);
+-#else
+-    monitor_printf(mon, "TPM device not supported\n");
+-#endif /* CONFIG_TPM */
+ }
+ 
+ void hmp_quit(Monitor *mon, const QDict *qdict)
+diff --git a/qapi/machine.json b/qapi/machine.json
+index 58a9c86b36..e4d0f9b24f 100644
+--- a/qapi/machine.json
++++ b/qapi/machine.json
+@@ -790,11 +790,19 @@
+ #
+ # @size: memory backend size
+ #
+-# @merge: enables or disables memory merge support
++# @merge: whether memory merge support is enabled
+ #
+-# @dump: includes memory backend's memory in a core dump or not
++# @dump: whether memory backend's memory is included in a core dump
+ #
+-# @prealloc: enables or disables memory preallocation
++# @prealloc: whether memory was preallocated
++#
++# @share: whether memory is private to QEMU or shared (since 6.1)
++#
++# @reserve: whether swap space (or huge pages) was reserved if applicable.
++#           This corresponds to the user configuration and not the actual
++#           behavior implemented in the OS to perform the reservation.
++#           For example, Linux will never reserve swap space for shared
++#           file mappings. (since 6.1)
+ #
+ # @host-nodes: host nodes for its memory policy
+ #
+@@ -809,6 +817,8 @@
+     'merge':      'bool',
+     'dump':       'bool',
+     'prealloc':   'bool',
++    'share':      'bool',
++    '*reserve':    'bool',
+     'host-nodes': ['uint16'],
+     'policy':     'HostMemPolicy' }}
+ 
+diff --git a/qapi/qom.json b/qapi/qom.json
+index f7ef30f940..652be317b8 100644
+--- a/qapi/qom.json
++++ b/qapi/qom.json
+@@ -545,6 +545,9 @@
+ # @share: if false, the memory is private to QEMU; if true, it is shared
+ #         (default: false)
+ #
++# @reserve: if true, reserve swap space (or huge pages) if applicable
++#           (default: true) (since 6.1)
++#
+ # @size: size of the memory region in bytes
+ #
+ # @x-use-canonical-path-for-ramblock-id: if true, the canoncial path is used
+@@ -556,6 +559,12 @@
+ #                                        false generally, but true for machine
+ #                                        types <= 4.0)
+ #
++# Note: prealloc=true and reserve=false cannot be set at the same time. With
++#       reserve=true, the behavior depends on the operating system: for example,
++#       Linux will not reserve swap space for shared file mappings --
++#       "not applicable". In contrast, reserve=false will bail out if it cannot
++#       be configured accordingly.
++#
+ # Since: 2.1
+ ##
+ { 'struct': 'MemoryBackendProperties',
+@@ -566,6 +575,7 @@
+             '*prealloc': 'bool',
+             '*prealloc-threads': 'uint32',
+             '*share': 'bool',
++            '*reserve': 'bool',
+             'size': 'size',
+             '*x-use-canonical-path-for-ramblock-id': 'bool' } }
+ 
+diff --git a/qapi/tpm.json b/qapi/tpm.json
+index 75590979fd..6a10c9ed8d 100644
+--- a/qapi/tpm.json
++++ b/qapi/tpm.json
+@@ -17,9 +17,7 @@
+ #
+ # Since: 1.5
+ ##
+-{ 'enum': 'TpmModel', 'data': [ 'tpm-tis', 'tpm-crb', 'tpm-spapr' ],
+-  'if': 'defined(CONFIG_TPM)' }
+-
++{ 'enum': 'TpmModel', 'data': [ 'tpm-tis', 'tpm-crb', 'tpm-spapr' ] }
+ ##
+ # @query-tpm-models:
+ #
+@@ -35,8 +33,7 @@
+ # <- { "return": [ "tpm-tis", "tpm-crb", "tpm-spapr" ] }
+ #
+ ##
+-{ 'command': 'query-tpm-models', 'returns': ['TpmModel'],
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'command': 'query-tpm-models', 'returns': ['TpmModel'] }
+ 
+ ##
+ # @TpmType:
+@@ -49,8 +46,7 @@
+ #
+ # Since: 1.5
+ ##
+-{ 'enum': 'TpmType', 'data': [ 'passthrough', 'emulator' ],
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'enum': 'TpmType', 'data': [ 'passthrough', 'emulator' ] }
+ 
+ ##
+ # @query-tpm-types:
+@@ -67,8 +63,7 @@
+ # <- { "return": [ "passthrough", "emulator" ] }
+ #
+ ##
+-{ 'command': 'query-tpm-types', 'returns': ['TpmType'],
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'command': 'query-tpm-types', 'returns': ['TpmType'] }
+ 
+ ##
+ # @TPMPassthroughOptions:
+@@ -84,8 +79,7 @@
+ ##
+ { 'struct': 'TPMPassthroughOptions',
+   'data': { '*path': 'str',
+-            '*cancel-path': 'str' },
+-  'if': 'defined(CONFIG_TPM)' }
++            '*cancel-path': 'str' } }
+ 
+ ##
+ # @TPMEmulatorOptions:
+@@ -96,8 +90,7 @@
+ #
+ # Since: 2.11
+ ##
+-{ 'struct': 'TPMEmulatorOptions', 'data': { 'chardev' : 'str' },
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'struct': 'TPMEmulatorOptions', 'data': { 'chardev' : 'str' } }
+ 
+ ##
+ # @TpmTypeOptions:
+@@ -111,8 +104,7 @@
+ ##
+ { 'union': 'TpmTypeOptions',
+    'data': { 'passthrough' : 'TPMPassthroughOptions',
+-             'emulator': 'TPMEmulatorOptions' },
+-  'if': 'defined(CONFIG_TPM)' }
++             'emulator': 'TPMEmulatorOptions' } }
+ 
+ ##
+ # @TPMInfo:
+@@ -130,8 +122,7 @@
+ { 'struct': 'TPMInfo',
+   'data': {'id': 'str',
+            'model': 'TpmModel',
+-           'options': 'TpmTypeOptions' },
+-  'if': 'defined(CONFIG_TPM)' }
++           'options': 'TpmTypeOptions' } }
+ 
+ ##
+ # @query-tpm:
+@@ -161,5 +152,4 @@
+ #    }
+ #
+ ##
+-{ 'command': 'query-tpm', 'returns': ['TPMInfo'],
+-  'if': 'defined(CONFIG_TPM)' }
++{ 'command': 'query-tpm', 'returns': ['TPMInfo'] }
+diff --git a/scripts/coccinelle/memory-region-housekeeping.cocci b/scripts/coccinelle/memory-region-housekeeping.cocci
+index c768d8140a..29651ebde9 100644
+--- a/scripts/coccinelle/memory-region-housekeeping.cocci
++++ b/scripts/coccinelle/memory-region-housekeeping.cocci
+@@ -127,8 +127,8 @@ static void device_fn(DeviceState *dev, ...)
+ - memory_region_init_rom(E1, NULL, E2, E3, E4);
+ + memory_region_init_rom(E1, obj, E2, E3, E4);
+ |
+-- memory_region_init_ram_shared_nomigrate(E1, NULL, E2, E3, E4, E5);
+-+ memory_region_init_ram_shared_nomigrate(E1, obj, E2, E3, E4, E5);
++- memory_region_init_ram_flags_nomigrate(E1, NULL, E2, E3, E4, E5);
+++ memory_region_init_ram_flags_nomigrate(E1, obj, E2, E3, E4, E5);
+ )
+   ...+>
+ }
+@@ -152,8 +152,8 @@ static void device_fn(DeviceState *dev, ...)
+ - memory_region_init_rom(E1, NULL, E2, E3, E4);
+ + memory_region_init_rom(E1, OBJECT(dev), E2, E3, E4);
+ |
+-- memory_region_init_ram_shared_nomigrate(E1, NULL, E2, E3, E4, E5);
+-+ memory_region_init_ram_shared_nomigrate(E1, OBJECT(dev), E2, E3, E4, E5);
++- memory_region_init_ram_flags_nomigrate(E1, NULL, E2, E3, E4, E5);
+++ memory_region_init_ram_flags_nomigrate(E1, OBJECT(dev), E2, E3, E4, E5);
+ )
+   ...+>
+ }
+diff --git a/softmmu/memory.c b/softmmu/memory.c
+index c19b0be6b1..f0161515e9 100644
+--- a/softmmu/memory.c
++++ b/softmmu/memory.c
+@@ -1531,22 +1531,22 @@ void memory_region_init_ram_nomigrate(MemoryRegion *mr,
+                                       uint64_t size,
+                                       Error **errp)
+ {
+-    memory_region_init_ram_shared_nomigrate(mr, owner, name, size, false, errp);
++    memory_region_init_ram_flags_nomigrate(mr, owner, name, size, 0, errp);
+ }
+ 
+-void memory_region_init_ram_shared_nomigrate(MemoryRegion *mr,
+-                                             Object *owner,
+-                                             const char *name,
+-                                             uint64_t size,
+-                                             bool share,
+-                                             Error **errp)
++void memory_region_init_ram_flags_nomigrate(MemoryRegion *mr,
++                                            Object *owner,
++                                            const char *name,
++                                            uint64_t size,
++                                            uint32_t ram_flags,
++                                            Error **errp)
+ {
+     Error *err = NULL;
+     memory_region_init(mr, owner, name, size);
+     mr->ram = true;
+     mr->terminates = true;
+     mr->destructor = memory_region_destructor_ram;
+-    mr->ram_block = qemu_ram_alloc(size, share, mr, &err);
++    mr->ram_block = qemu_ram_alloc(size, ram_flags, mr, &err);
+     if (err) {
+         mr->size = int128_zero();
+         object_unparent(OBJECT(mr));
+@@ -1609,7 +1609,7 @@ void memory_region_init_ram_from_fd(MemoryRegion *mr,
+                                     Object *owner,
+                                     const char *name,
+                                     uint64_t size,
+-                                    bool share,
++                                    uint32_t ram_flags,
+                                     int fd,
+                                     ram_addr_t offset,
+                                     Error **errp)
+@@ -1619,9 +1619,8 @@ void memory_region_init_ram_from_fd(MemoryRegion *mr,
+     mr->ram = true;
+     mr->terminates = true;
+     mr->destructor = memory_region_destructor_ram;
+-    mr->ram_block = qemu_ram_alloc_from_fd(size, mr,
+-                                           share ? RAM_SHARED : 0,
+-                                           fd, offset, false, &err);
++    mr->ram_block = qemu_ram_alloc_from_fd(size, mr, ram_flags, fd, offset,
++                                           false, &err);
+     if (err) {
+         mr->size = int128_zero();
+         object_unparent(OBJECT(mr));
+@@ -1683,7 +1682,7 @@ void memory_region_init_rom_nomigrate(MemoryRegion *mr,
+                                       uint64_t size,
+                                       Error **errp)
+ {
+-    memory_region_init_ram_shared_nomigrate(mr, owner, name, size, false, errp);
++    memory_region_init_ram_flags_nomigrate(mr, owner, name, size, 0, errp);
+     mr->readonly = true;
+ }
+ 
+@@ -1703,7 +1702,7 @@ void memory_region_init_rom_device_nomigrate(MemoryRegion *mr,
+     mr->terminates = true;
+     mr->rom_device = true;
+     mr->destructor = memory_region_destructor_ram;
+-    mr->ram_block = qemu_ram_alloc(size, false,  mr, &err);
++    mr->ram_block = qemu_ram_alloc(size, 0, mr, &err);
+     if (err) {
+         mr->size = int128_zero();
+         object_unparent(OBJECT(mr));
+diff --git a/softmmu/physmem.c b/softmmu/physmem.c
+index 1c8717684a..9b171c9dbe 100644
+--- a/softmmu/physmem.c
++++ b/softmmu/physmem.c
+@@ -1540,6 +1540,7 @@ static void *file_ram_alloc(RAMBlock *block,
+                             off_t offset,
+                             Error **errp)
+ {
++    uint32_t qemu_map_flags;
+     void *area;
+ 
+     block->page_size = qemu_fd_getpagesize(fd);
+@@ -1587,9 +1588,11 @@ static void *file_ram_alloc(RAMBlock *block,
+         perror("ftruncate");
+     }
+ 
+-    area = qemu_ram_mmap(fd, memory, block->mr->align, readonly,
+-                         block->flags & RAM_SHARED, block->flags & RAM_PMEM,
+-                         offset);
++    qemu_map_flags = readonly ? QEMU_MAP_READONLY : 0;
++    qemu_map_flags |= (block->flags & RAM_SHARED) ? QEMU_MAP_SHARED : 0;
++    qemu_map_flags |= (block->flags & RAM_PMEM) ? QEMU_MAP_SYNC : 0;
++    qemu_map_flags |= (block->flags & RAM_NORESERVE) ? QEMU_MAP_NORESERVE : 0;
++    area = qemu_ram_mmap(fd, memory, block->mr->align, qemu_map_flags, offset);
+     if (area == MAP_FAILED) {
+         error_setg_errno(errp, errno,
+                          "unable to map backing store for guest RAM");
+@@ -1714,6 +1717,11 @@ bool qemu_ram_is_shared(RAMBlock *rb)
+     return rb->flags & RAM_SHARED;
+ }
+ 
++bool qemu_ram_is_noreserve(RAMBlock *rb)
++{
++    return rb->flags & RAM_NORESERVE;
++}
++
+ /* Note: Only set at the start of postcopy */
+ bool qemu_ram_is_uf_zeroable(RAMBlock *rb)
+ {
+@@ -1946,8 +1954,10 @@ static void dirty_memory_extend(ram_addr_t old_ram_size,
+     }
+ }
+ 
+-static void ram_block_add(RAMBlock *new_block, Error **errp, bool shared)
++static void ram_block_add(RAMBlock *new_block, Error **errp)
+ {
++    const bool noreserve = qemu_ram_is_noreserve(new_block);
++    const bool shared = qemu_ram_is_shared(new_block);
+     RAMBlock *block;
+     RAMBlock *last_block = NULL;
+     ram_addr_t old_ram_size, new_ram_size;
+@@ -1970,7 +1980,7 @@ static void ram_block_add(RAMBlock *new_block, Error **errp, bool shared)
+         } else {
+             new_block->host = qemu_anon_ram_alloc(new_block->max_length,
+                                                   &new_block->mr->align,
+-                                                  shared);
++                                                  shared, noreserve);
+             if (!new_block->host) {
+                 error_setg_errno(errp, errno,
+                                  "cannot set up guest memory '%s'",
+@@ -2042,7 +2052,7 @@ RAMBlock *qemu_ram_alloc_from_fd(ram_addr_t size, MemoryRegion *mr,
+     int64_t file_size, file_align;
+ 
+     /* Just support these ram flags by now. */
+-    assert((ram_flags & ~(RAM_SHARED | RAM_PMEM)) == 0);
++    assert((ram_flags & ~(RAM_SHARED | RAM_PMEM | RAM_NORESERVE)) == 0);
+ 
+     if (xen_enabled()) {
+         error_setg(errp, "-mem-path not supported with Xen");
+@@ -2084,7 +2094,7 @@ RAMBlock *qemu_ram_alloc_from_fd(ram_addr_t size, MemoryRegion *mr,
+         return NULL;
+     }
+ 
+-    ram_block_add(new_block, &local_err, ram_flags & RAM_SHARED);
++    ram_block_add(new_block, &local_err);
+     if (local_err) {
+         g_free(new_block);
+         error_propagate(errp, local_err);
+@@ -2127,12 +2137,17 @@ RAMBlock *qemu_ram_alloc_internal(ram_addr_t size, ram_addr_t max_size,
+                                   void (*resized)(const char*,
+                                                   uint64_t length,
+                                                   void *host),
+-                                  void *host, bool resizeable, bool share,
++                                  void *host, uint32_t ram_flags,
+                                   MemoryRegion *mr, Error **errp)
+ {
+     RAMBlock *new_block;
+     Error *local_err = NULL;
+ 
++    assert((ram_flags & ~(RAM_SHARED | RAM_RESIZEABLE | RAM_PREALLOC)) == 0);
++    assert((ram_flags & ~(RAM_SHARED | RAM_RESIZEABLE | RAM_PREALLOC |
++                          RAM_NORESERVE)) == 0);
++    assert(!host ^ (ram_flags & RAM_PREALLOC));
++
+     size = HOST_PAGE_ALIGN(size);
+     max_size = HOST_PAGE_ALIGN(max_size);
+     new_block = g_malloc0(sizeof(*new_block));
+@@ -2144,13 +2159,8 @@ RAMBlock *qemu_ram_alloc_internal(ram_addr_t size, ram_addr_t max_size,
+     new_block->fd = -1;
+     new_block->page_size = qemu_real_host_page_size;
+     new_block->host = host;
+-    if (host) {
+-        new_block->flags |= RAM_PREALLOC;
+-    }
+-    if (resizeable) {
+-        new_block->flags |= RAM_RESIZEABLE;
+-    }
+-    ram_block_add(new_block, &local_err, share);
++    new_block->flags = ram_flags;
++    ram_block_add(new_block, &local_err);
+     if (local_err) {
+         g_free(new_block);
+         error_propagate(errp, local_err);
+@@ -2162,15 +2172,15 @@ RAMBlock *qemu_ram_alloc_internal(ram_addr_t size, ram_addr_t max_size,
+ RAMBlock *qemu_ram_alloc_from_ptr(ram_addr_t size, void *host,
+                                    MemoryRegion *mr, Error **errp)
+ {
+-    return qemu_ram_alloc_internal(size, size, NULL, host, false,
+-                                   false, mr, errp);
++    return qemu_ram_alloc_internal(size, size, NULL, host, RAM_PREALLOC, mr,
++                                   errp);
+ }
+ 
+-RAMBlock *qemu_ram_alloc(ram_addr_t size, bool share,
++RAMBlock *qemu_ram_alloc(ram_addr_t size, uint32_t ram_flags,
+                          MemoryRegion *mr, Error **errp)
+ {
+-    return qemu_ram_alloc_internal(size, size, NULL, NULL, false,
+-                                   share, mr, errp);
++    assert((ram_flags & ~(RAM_SHARED | RAM_NORESERVE)) == 0);
++    return qemu_ram_alloc_internal(size, size, NULL, NULL, ram_flags, mr, errp);
+ }
+ 
+ RAMBlock *qemu_ram_alloc_resizeable(ram_addr_t size, ram_addr_t maxsz,
+@@ -2179,8 +2189,8 @@ RAMBlock *qemu_ram_alloc_resizeable(ram_addr_t size, ram_addr_t maxsz,
+                                                      void *host),
+                                      MemoryRegion *mr, Error **errp)
+ {
+-    return qemu_ram_alloc_internal(size, maxsz, resized, NULL, true,
+-                                   false, mr, errp);
++    return qemu_ram_alloc_internal(size, maxsz, resized, NULL,
++                                   RAM_RESIZEABLE, mr, errp);
+ }
+ 
+ static void reclaim_ramblock(RAMBlock *block)
+@@ -2239,13 +2249,14 @@ void qemu_ram_remap(ram_addr_t addr, ram_addr_t length)
+                 abort();
+             } else {
+                 flags = MAP_FIXED;
++                flags |= block->flags & RAM_SHARED ?
++                         MAP_SHARED : MAP_PRIVATE;
++                flags |= block->flags & RAM_NORESERVE ? MAP_NORESERVE : 0;
+                 if (block->fd >= 0) {
+-                    flags |= (block->flags & RAM_SHARED ?
+-                              MAP_SHARED : MAP_PRIVATE);
+                     area = mmap(vaddr, length, PROT_READ | PROT_WRITE,
+                                 flags, block->fd, offset);
+                 } else {
+-                    flags |= MAP_PRIVATE | MAP_ANONYMOUS;
++                    flags |= MAP_ANONYMOUS;
+                     area = mmap(vaddr, length, PROT_READ | PROT_WRITE,
+                                 flags, -1, 0);
+                 }
+@@ -3523,6 +3534,7 @@ int ram_block_discard_range(RAMBlock *rb, uint64_t start, size_t length)
+         /* The logic here is messy;
+          *    madvise DONTNEED fails for hugepages
+          *    fallocate works on hugepages and shmem
++         *    shared anonymous memory requires madvise REMOVE
+          */
+         need_madvise = (rb->page_size == qemu_host_page_size);
+         need_fallocate = rb->fd != -1;
+@@ -3556,7 +3568,11 @@ int ram_block_discard_range(RAMBlock *rb, uint64_t start, size_t length)
+              * fallocate'd away).
+              */
+ #if defined(CONFIG_MADVISE)
+-            ret =  madvise(host_startaddr, length, MADV_DONTNEED);
++            if (qemu_ram_is_shared(rb) && rb->fd < 0) {
++                ret = madvise(host_startaddr, length, QEMU_MADV_REMOVE);
++            } else {
++                ret = madvise(host_startaddr, length, QEMU_MADV_DONTNEED);
++            }
+             if (ret) {
+                 ret = -errno;
+                 error_report("ram_block_discard_range: Failed to discard range "
+diff --git a/softmmu/runstate.c b/softmmu/runstate.c
+index 15640572c0..10d9b7365a 100644
+--- a/softmmu/runstate.c
++++ b/softmmu/runstate.c
+@@ -747,7 +747,7 @@ static void qemu_run_exit_notifiers(void)
+ 
+ void qemu_init_subsystems(void)
+ {
+-    Error *err;
++    Error *err = NULL;
+ 
+     os_set_line_buffering();
+ 
+diff --git a/softmmu/vl.c b/softmmu/vl.c
+index 326c1e9080..feb4d201f3 100644
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
+@@ -2522,7 +2522,7 @@ static void qemu_process_help_options(void)
+ 
+ static void qemu_maybe_daemonize(const char *pid_file)
+ {
+-    Error *err;
++    Error *err = NULL;
+ 
+     os_daemonize();
+     rcu_disable_atfork();
+diff --git a/stubs/meson.build b/stubs/meson.build
+index d4e9549dc9..65c22c0568 100644
+--- a/stubs/meson.build
++++ b/stubs/meson.build
+@@ -38,6 +38,7 @@ stub_ss.add(files('runstate-check.c'))
+ stub_ss.add(files('sysbus.c'))
+ stub_ss.add(files('target-get-monitor-def.c'))
+ stub_ss.add(files('target-monitor-defs.c'))
++stub_ss.add(files('tpm.c'))
+ stub_ss.add(files('trace-control.c'))
+ stub_ss.add(files('uuid.c'))
+ stub_ss.add(files('vmgenid.c'))
+diff --git a/stubs/tpm.c b/stubs/tpm.c
+new file mode 100644
+index 0000000000..9bded191d9
+--- /dev/null
++++ b/stubs/tpm.c
+@@ -0,0 +1,39 @@
++/*
++ * TPM stubs
++ *
++ * This work is licensed under the terms of the GNU GPL, version 2 or later.
++ * See the COPYING file in the top-level directory.
++ */
++
++#include "qemu/osdep.h"
++#include "qapi/qapi-commands-tpm.h"
++#include "sysemu/tpm.h"
++#include "hw/acpi/tpm.h"
++
++int tpm_init(void)
++{
++    return 0;
++}
++
++void tpm_cleanup(void)
++{
++}
++
++TPMInfoList *qmp_query_tpm(Error **errp)
++{
++    return NULL;
++}
++
++TpmTypeList *qmp_query_tpm_types(Error **errp)
++{
++    return NULL;
++}
++
++TpmModelList *qmp_query_tpm_models(Error **errp)
++{
++    return NULL;
++}
++
++void tpm_build_ppi_acpi(TPMIf *tpm, Aml *dev)
++{
++}
+diff --git a/target/i386/cpu.h b/target/i386/cpu.h
+index ac3abea97c..1e11071d81 100644
+--- a/target/i386/cpu.h
++++ b/target/i386/cpu.h
+@@ -224,6 +224,8 @@ typedef enum X86Seg {
+ #define CR0_NE_MASK  (1U << 5)
+ #define CR0_WP_MASK  (1U << 16)
+ #define CR0_AM_MASK  (1U << 18)
++#define CR0_NW_MASK  (1U << 29)
++#define CR0_CD_MASK  (1U << 30)
+ #define CR0_PG_MASK  (1U << 31)
+ 
+ #define CR4_VME_MASK  (1U << 0)
+@@ -2149,9 +2151,13 @@ static inline void
+ cpu_svm_check_intercept_param(CPUX86State *env1, uint32_t type,
+                               uint64_t param, uintptr_t retaddr)
+ { /* no-op */ }
++static inline bool
++cpu_svm_has_intercept(CPUX86State *env, uint32_t type)
++{ return false; }
+ #else
+ void cpu_svm_check_intercept_param(CPUX86State *env1, uint32_t type,
+                                    uint64_t param, uintptr_t retaddr);
++bool cpu_svm_has_intercept(CPUX86State *env, uint32_t type);
+ #endif
+ 
+ /* apic.c */
+diff --git a/target/i386/svm.h b/target/i386/svm.h
+index 87965e5bc2..5098733053 100644
+--- a/target/i386/svm.h
++++ b/target/i386/svm.h
+@@ -135,6 +135,8 @@
+ #define SVM_NPTEXIT_GPA     (1ULL << 32)
+ #define SVM_NPTEXIT_GPT     (1ULL << 33)
+ 
++#define SVM_CR0_RESERVED_MASK 0xffffffff00000000U
++
+ struct QEMU_PACKED vmcb_control_area {
+ 	uint16_t intercept_cr_read;
+ 	uint16_t intercept_cr_write;
+diff --git a/target/i386/tcg/sysemu/misc_helper.c b/target/i386/tcg/sysemu/misc_helper.c
+index 0cef2f1a4c..db0d8a9d79 100644
+--- a/target/i386/tcg/sysemu/misc_helper.c
++++ b/target/i386/tcg/sysemu/misc_helper.c
+@@ -84,6 +84,15 @@ void helper_write_crN(CPUX86State *env, int reg, target_ulong t0)
+ {
+     switch (reg) {
+     case 0:
++        /*
++        * If we reach this point, the CR0 write intercept is disabled.
++        * But we could still exit if the hypervisor has requested the selective
++        * intercept for bits other than TS and MP
++        */
++        if (cpu_svm_has_intercept(env, SVM_EXIT_CR0_SEL_WRITE) &&
++            ((env->cr[0] ^ t0) & ~(CR0_TS_MASK | CR0_MP_MASK))) {
++            cpu_vmexit(env, SVM_EXIT_CR0_SEL_WRITE, 0, GETPC());
++        }
+         cpu_x86_update_cr0(env, t0);
+         break;
+     case 3:
+diff --git a/target/i386/tcg/sysemu/svm_helper.c b/target/i386/tcg/sysemu/svm_helper.c
+index 9d671297cf..1c2dbc1862 100644
+--- a/target/i386/tcg/sysemu/svm_helper.c
++++ b/target/i386/tcg/sysemu/svm_helper.c
+@@ -72,6 +72,8 @@ void helper_vmrun(CPUX86State *env, int aflag, int next_eip_addend)
+     uint64_t nested_ctl;
+     uint32_t event_inj;
+     uint32_t int_ctl;
++    uint32_t asid;
++    uint64_t new_cr0;
+ 
+     cpu_svm_check_intercept_param(env, SVM_EXIT_VMRUN, 0, GETPC());
+ 
+@@ -154,9 +156,18 @@ void helper_vmrun(CPUX86State *env, int aflag, int next_eip_addend)
+ 
+     nested_ctl = x86_ldq_phys(cs, env->vm_vmcb + offsetof(struct vmcb,
+                                                           control.nested_ctl));
++    asid = x86_ldq_phys(cs, env->vm_vmcb + offsetof(struct vmcb,
++                                                          control.asid));
+ 
+     env->nested_pg_mode = 0;
+ 
++    if (!cpu_svm_has_intercept(env, SVM_EXIT_VMRUN)) {
++        cpu_vmexit(env, SVM_EXIT_ERR, 0, GETPC());
++    }
++    if (asid == 0) {
++        cpu_vmexit(env, SVM_EXIT_ERR, 0, GETPC());
++    }
++
+     if (nested_ctl & SVM_NPT_ENABLED) {
+         env->nested_cr3 = x86_ldq_phys(cs,
+                                 env->vm_vmcb + offsetof(struct vmcb,
+@@ -182,13 +193,18 @@ void helper_vmrun(CPUX86State *env, int aflag, int next_eip_addend)
+     env->idt.limit = x86_ldl_phys(cs, env->vm_vmcb + offsetof(struct vmcb,
+                                                       save.idtr.limit));
+ 
++    new_cr0 = x86_ldq_phys(cs, env->vm_vmcb + offsetof(struct vmcb, save.cr0));
++    if (new_cr0 & SVM_CR0_RESERVED_MASK) {
++        cpu_vmexit(env, SVM_EXIT_ERR, 0, GETPC());
++    }
++    if ((new_cr0 & CR0_NW_MASK) && !(new_cr0 & CR0_CD_MASK)) {
++        cpu_vmexit(env, SVM_EXIT_ERR, 0, GETPC());
++    }
+     /* clear exit_info_2 so we behave like the real hardware */
+     x86_stq_phys(cs,
+              env->vm_vmcb + offsetof(struct vmcb, control.exit_info_2), 0);
+ 
+-    cpu_x86_update_cr0(env, x86_ldq_phys(cs,
+-                                     env->vm_vmcb + offsetof(struct vmcb,
+-                                                             save.cr0)));
++    cpu_x86_update_cr0(env, new_cr0);
+     cpu_x86_update_cr4(env, x86_ldq_phys(cs,
+                                      env->vm_vmcb + offsetof(struct vmcb,
+                                                              save.cr4)));
+@@ -412,80 +428,91 @@ void helper_clgi(CPUX86State *env)
+     env->hflags2 &= ~HF2_GIF_MASK;
+ }
+ 
+-void cpu_svm_check_intercept_param(CPUX86State *env, uint32_t type,
+-                                   uint64_t param, uintptr_t retaddr)
++bool cpu_svm_has_intercept(CPUX86State *env, uint32_t type)
+ {
+-    CPUState *cs = env_cpu(env);
+-
+-    if (likely(!(env->hflags & HF_GUEST_MASK))) {
+-        return;
+-    }
+     switch (type) {
+     case SVM_EXIT_READ_CR0 ... SVM_EXIT_READ_CR0 + 8:
+         if (env->intercept_cr_read & (1 << (type - SVM_EXIT_READ_CR0))) {
+-            cpu_vmexit(env, type, param, retaddr);
++            return true;
+         }
+         break;
+     case SVM_EXIT_WRITE_CR0 ... SVM_EXIT_WRITE_CR0 + 8:
+         if (env->intercept_cr_write & (1 << (type - SVM_EXIT_WRITE_CR0))) {
+-            cpu_vmexit(env, type, param, retaddr);
++            return true;
+         }
+         break;
+     case SVM_EXIT_READ_DR0 ... SVM_EXIT_READ_DR0 + 7:
+         if (env->intercept_dr_read & (1 << (type - SVM_EXIT_READ_DR0))) {
+-            cpu_vmexit(env, type, param, retaddr);
++            return true;
+         }
+         break;
+     case SVM_EXIT_WRITE_DR0 ... SVM_EXIT_WRITE_DR0 + 7:
+         if (env->intercept_dr_write & (1 << (type - SVM_EXIT_WRITE_DR0))) {
+-            cpu_vmexit(env, type, param, retaddr);
++            return true;
+         }
+         break;
+     case SVM_EXIT_EXCP_BASE ... SVM_EXIT_EXCP_BASE + 31:
+         if (env->intercept_exceptions & (1 << (type - SVM_EXIT_EXCP_BASE))) {
+-            cpu_vmexit(env, type, param, retaddr);
+-        }
+-        break;
+-    case SVM_EXIT_MSR:
+-        if (env->intercept & (1ULL << (SVM_EXIT_MSR - SVM_EXIT_INTR))) {
+-            /* FIXME: this should be read in at vmrun (faster this way?) */
+-            uint64_t addr = x86_ldq_phys(cs, env->vm_vmcb +
+-                                     offsetof(struct vmcb,
+-                                              control.msrpm_base_pa));
+-            uint32_t t0, t1;
+-
+-            switch ((uint32_t)env->regs[R_ECX]) {
+-            case 0 ... 0x1fff:
+-                t0 = (env->regs[R_ECX] * 2) % 8;
+-                t1 = (env->regs[R_ECX] * 2) / 8;
+-                break;
+-            case 0xc0000000 ... 0xc0001fff:
+-                t0 = (8192 + env->regs[R_ECX] - 0xc0000000) * 2;
+-                t1 = (t0 / 8);
+-                t0 %= 8;
+-                break;
+-            case 0xc0010000 ... 0xc0011fff:
+-                t0 = (16384 + env->regs[R_ECX] - 0xc0010000) * 2;
+-                t1 = (t0 / 8);
+-                t0 %= 8;
+-                break;
+-            default:
+-                cpu_vmexit(env, type, param, retaddr);
+-                t0 = 0;
+-                t1 = 0;
+-                break;
+-            }
+-            if (x86_ldub_phys(cs, addr + t1) & ((1 << param) << t0)) {
+-                cpu_vmexit(env, type, param, retaddr);
+-            }
++            return true;
+         }
+         break;
+     default:
+         if (env->intercept & (1ULL << (type - SVM_EXIT_INTR))) {
+-            cpu_vmexit(env, type, param, retaddr);
++            return true;
+         }
+         break;
+     }
++    return false;
++}
++
++void cpu_svm_check_intercept_param(CPUX86State *env, uint32_t type,
++                                   uint64_t param, uintptr_t retaddr)
++{
++    CPUState *cs = env_cpu(env);
++
++    if (likely(!(env->hflags & HF_GUEST_MASK))) {
++        return;
++    }
++
++    if (!cpu_svm_has_intercept(env, type)) {
++        return;
++    }
++
++    if (type == SVM_EXIT_MSR) {
++        /* FIXME: this should be read in at vmrun (faster this way?) */
++        uint64_t addr = x86_ldq_phys(cs, env->vm_vmcb +
++                                    offsetof(struct vmcb,
++                                            control.msrpm_base_pa));
++        uint32_t t0, t1;
++
++        switch ((uint32_t)env->regs[R_ECX]) {
++        case 0 ... 0x1fff:
++            t0 = (env->regs[R_ECX] * 2) % 8;
++            t1 = (env->regs[R_ECX] * 2) / 8;
++            break;
++        case 0xc0000000 ... 0xc0001fff:
++            t0 = (8192 + env->regs[R_ECX] - 0xc0000000) * 2;
++            t1 = (t0 / 8);
++            t0 %= 8;
++            break;
++        case 0xc0010000 ... 0xc0011fff:
++            t0 = (16384 + env->regs[R_ECX] - 0xc0010000) * 2;
++            t1 = (t0 / 8);
++            t0 %= 8;
++            break;
++        default:
++            cpu_vmexit(env, type, param, retaddr);
++            t0 = 0;
++            t1 = 0;
++            break;
++        }
++        if (x86_ldub_phys(cs, addr + t1) & ((1 << param) << t0)) {
++            cpu_vmexit(env, type, param, retaddr);
++        }
++        return;
++    }
++
++    cpu_vmexit(env, type, param, retaddr);
+ }
+ 
+ void helper_svm_check_intercept(CPUX86State *env, uint32_t type)
+diff --git a/ui/vnc-auth-sasl.c b/ui/vnc-auth-sasl.c
+index df7dc08e9f..47fdae5b21 100644
+--- a/ui/vnc-auth-sasl.c
++++ b/ui/vnc-auth-sasl.c
+@@ -28,10 +28,30 @@
+ #include "vnc.h"
+ #include "trace.h"
+ 
++/*
++ * Apple has deprecated sasl.h functions in OS X 10.11.  Therefore,
++ * files that use SASL API need to disable -Wdeprecated-declarations.
++ */
++#ifdef CONFIG_DARWIN
++#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
++#endif
++
+ /* Max amount of data we send/recv for SASL steps to prevent DOS */
+ #define SASL_DATA_MAX_LEN (1024 * 1024)
+ 
+ 
++bool vnc_sasl_server_init(Error **errp)
++{
++    int saslErr = sasl_server_init(NULL, "qemu");
++
++    if (saslErr != SASL_OK) {
++        error_setg(errp, "Failed to initialize SASL auth: %s",
++                   sasl_errstring(saslErr, NULL, NULL));
++        return false;
++    }
++    return true;
++}
++
+ void vnc_sasl_client_cleanup(VncState *vs)
+ {
+     if (vs->sasl.conn) {
+diff --git a/ui/vnc-auth-sasl.h b/ui/vnc-auth-sasl.h
+index 1bfb86c6f5..367b8672cc 100644
+--- a/ui/vnc-auth-sasl.h
++++ b/ui/vnc-auth-sasl.h
+@@ -63,6 +63,7 @@ struct VncDisplaySASL {
+     char *authzid;
+ };
+ 
++bool vnc_sasl_server_init(Error **errp);
+ void vnc_sasl_client_cleanup(VncState *vs);
+ 
+ size_t vnc_client_read_sasl(VncState *vs);
+diff --git a/ui/vnc.c b/ui/vnc.c
+index b3d4d7b9a5..f0a1550d58 100644
+--- a/ui/vnc.c
++++ b/ui/vnc.c
+@@ -4154,14 +4154,8 @@ void vnc_display_open(const char *id, Error **errp)
+     trace_vnc_auth_init(vd, 1, vd->ws_auth, vd->ws_subauth);
+ 
+ #ifdef CONFIG_VNC_SASL
+-    if (sasl) {
+-        int saslErr = sasl_server_init(NULL, "qemu");
+-
+-        if (saslErr != SASL_OK) {
+-            error_setg(errp, "Failed to initialize SASL auth: %s",
+-                       sasl_errstring(saslErr, NULL, NULL));
+-            goto fail;
+-        }
++    if (sasl && !vnc_sasl_server_init(errp)) {
++        goto fail;
+     }
+ #endif
+     vd->lock_key_sync = lock_key_sync;
+diff --git a/util/mmap-alloc.c b/util/mmap-alloc.c
+index e6fa8b598b..838e286ce5 100644
+--- a/util/mmap-alloc.c
++++ b/util/mmap-alloc.c
+@@ -20,6 +20,8 @@
+ #include "qemu/osdep.h"
+ #include "qemu/mmap-alloc.h"
+ #include "qemu/host-utils.h"
++#include "qemu/cutils.h"
++#include "qemu/error-report.h"
+ 
+ #define HUGETLBFS_MAGIC       0x958458f6
+ 
+@@ -82,32 +84,81 @@ size_t qemu_mempath_getpagesize(const char *mem_path)
+     return qemu_real_host_page_size;
+ }
+ 
+-void *qemu_ram_mmap(int fd,
+-                    size_t size,
+-                    size_t align,
+-                    bool readonly,
+-                    bool shared,
+-                    bool is_pmem,
+-                    off_t map_offset)
++#define OVERCOMMIT_MEMORY_PATH "/proc/sys/vm/overcommit_memory"
++static bool map_noreserve_effective(int fd, uint32_t qemu_map_flags)
+ {
+-    int prot;
+-    int flags;
+-    int map_sync_flags = 0;
+-    int guardfd;
+-    size_t offset;
+-    size_t pagesize;
+-    size_t total;
+-    void *guardptr;
+-    void *ptr;
++#if defined(__linux__)
++    const bool readonly = qemu_map_flags & QEMU_MAP_READONLY;
++    const bool shared = qemu_map_flags & QEMU_MAP_SHARED;
++    gchar *content = NULL;
++    const char *endptr;
++    unsigned int tmp;
+ 
+     /*
+-     * Note: this always allocates at least one extra page of virtual address
+-     * space, even if size is already aligned.
++     * hugeltb accounting is different than ordinary swap reservation:
++     * a) Hugetlb pages from the pool are reserved for both private and
++     *    shared mappings. For shared mappings, all mappers have to specify
++     *    MAP_NORESERVE.
++     * b) MAP_NORESERVE is not affected by /proc/sys/vm/overcommit_memory.
+      */
+-    total = size + align;
++    if (qemu_fd_getpagesize(fd) != qemu_real_host_page_size) {
++        return true;
++    }
++
++    /*
++     * Accountable mappings in the kernel that can be affected by MAP_NORESEVE
++     * are private writable mappings (see mm/mmap.c:accountable_mapping() in
++     * Linux). For all shared or readonly mappings, MAP_NORESERVE is always
++     * implicitly active -- no reservation; this includes shmem. The only
++     * exception is shared anonymous memory, it is accounted like private
++     * anonymous memory.
++     */
++    if (readonly || (shared && fd >= 0)) {
++        return true;
++    }
++
++    /*
++     * MAP_NORESERVE is globally ignored for applicable !hugetlb mappings when
++     * memory overcommit is set to "never". Sparse memory regions aren't really
++     * possible in this system configuration.
++     *
++     * Bail out now instead of silently committing way more memory than
++     * currently desired by the user.
++     */
++    if (g_file_get_contents(OVERCOMMIT_MEMORY_PATH, &content, NULL, NULL) &&
++        !qemu_strtoui(content, &endptr, 0, &tmp) &&
++        (!endptr || *endptr == '\n')) {
++        if (tmp == 2) {
++            error_report("Skipping reservation of swap space is not supported:"
++                         " \"" OVERCOMMIT_MEMORY_PATH "\" is \"2\"");
++            return false;
++        }
++        return true;
++    }
++    /* this interface has been around since Linux 2.6 */
++    error_report("Skipping reservation of swap space is not supported:"
++                 " Could not read: \"" OVERCOMMIT_MEMORY_PATH "\"");
++    return false;
++#endif
++    /*
++     * E.g., FreeBSD used to define MAP_NORESERVE, never implemented it,
++     * and removed it a while ago.
++     */
++    error_report("Skipping reservation of swap space is not supported");
++    return false;
++}
++
++/*
++ * Reserve a new memory region of the requested size to be used for mapping
++ * from the given fd (if any).
++ */
++static void *mmap_reserve(size_t size, int fd)
++{
++    int flags = MAP_PRIVATE;
+ 
+ #if defined(__powerpc64__) && defined(__linux__)
+-    /* On ppc64 mappings in the same segment (aka slice) must share the same
++    /*
++     * On ppc64 mappings in the same segment (aka slice) must share the same
+      * page size. Since we will be re-allocating part of this segment
+      * from the supplied fd, we should make sure to use the same page size, to
+      * this end we mmap the supplied fd.  In this case, set MAP_NORESERVE to
+@@ -115,52 +166,55 @@ void *qemu_ram_mmap(int fd,
+      * We do this unless we are using the system page size, in which case
+      * anonymous memory is OK.
+      */
+-    flags = MAP_PRIVATE;
+-    pagesize = qemu_fd_getpagesize(fd);
+-    if (fd == -1 || pagesize == qemu_real_host_page_size) {
+-        guardfd = -1;
++    if (fd == -1 || qemu_fd_getpagesize(fd) == qemu_real_host_page_size) {
++        fd = -1;
+         flags |= MAP_ANONYMOUS;
+     } else {
+-        guardfd = fd;
+         flags |= MAP_NORESERVE;
+     }
+ #else
+-    guardfd = -1;
+-    pagesize = qemu_real_host_page_size;
+-    flags = MAP_PRIVATE | MAP_ANONYMOUS;
++    fd = -1;
++    flags |= MAP_ANONYMOUS;
+ #endif
+ 
+-    guardptr = mmap(0, total, PROT_NONE, flags, guardfd, 0);
++    return mmap(0, size, PROT_NONE, flags, fd, 0);
++}
+ 
+-    if (guardptr == MAP_FAILED) {
++/*
++ * Activate memory in a reserved region from the given fd (if any), to make
++ * it accessible.
++ */
++static void *mmap_activate(void *ptr, size_t size, int fd,
++                           uint32_t qemu_map_flags, off_t map_offset)
++{
++    const bool noreserve = qemu_map_flags & QEMU_MAP_NORESERVE;
++    const bool readonly = qemu_map_flags & QEMU_MAP_READONLY;
++    const bool shared = qemu_map_flags & QEMU_MAP_SHARED;
++    const bool sync = qemu_map_flags & QEMU_MAP_SYNC;
++    const int prot = PROT_READ | (readonly ? 0 : PROT_WRITE);
++    int map_sync_flags = 0;
++    int flags = MAP_FIXED;
++    void *activated_ptr;
++
++    if (noreserve && !map_noreserve_effective(fd, qemu_map_flags)) {
+         return MAP_FAILED;
+     }
+ 
+-    assert(is_power_of_2(align));
+-    /* Always align to host page size */
+-    assert(align >= pagesize);
+-
+-    flags = MAP_FIXED;
+     flags |= fd == -1 ? MAP_ANONYMOUS : 0;
+     flags |= shared ? MAP_SHARED : MAP_PRIVATE;
+-    if (shared && is_pmem) {
++    flags |= noreserve ? MAP_NORESERVE : 0;
++    if (shared && sync) {
+         map_sync_flags = MAP_SYNC | MAP_SHARED_VALIDATE;
+     }
+ 
+-    offset = QEMU_ALIGN_UP((uintptr_t)guardptr, align) - (uintptr_t)guardptr;
+-
+-    prot = PROT_READ | (readonly ? 0 : PROT_WRITE);
+-
+-    ptr = mmap(guardptr + offset, size, prot,
+-               flags | map_sync_flags, fd, map_offset);
+-
+-    if (ptr == MAP_FAILED && map_sync_flags) {
++    activated_ptr = mmap(ptr, size, prot, flags | map_sync_flags, fd,
++                         map_offset);
++    if (activated_ptr == MAP_FAILED && map_sync_flags) {
+         if (errno == ENOTSUP) {
+-            char *proc_link, *file_name;
+-            int len;
+-            proc_link = g_strdup_printf("/proc/self/fd/%d", fd);
+-            file_name = g_malloc0(PATH_MAX);
+-            len = readlink(proc_link, file_name, PATH_MAX - 1);
++            char *proc_link = g_strdup_printf("/proc/self/fd/%d", fd);
++            char *file_name = g_malloc0(PATH_MAX);
++            int len = readlink(proc_link, file_name, PATH_MAX - 1);
++
+             if (len < 0) {
+                 len = 0;
+             }
+@@ -173,12 +227,53 @@ void *qemu_ram_mmap(int fd,
+             g_free(file_name);
+         }
+         /*
+-         * if map failed with MAP_SHARED_VALIDATE | MAP_SYNC,
+-         * we will remove these flags to handle compatibility.
++         * If mmap failed with MAP_SHARED_VALIDATE | MAP_SYNC, we will try
++         * again without these flags to handle backwards compatibility.
+          */
+-        ptr = mmap(guardptr + offset, size, prot, flags, fd, map_offset);
++        activated_ptr = mmap(ptr, size, prot, flags, fd, map_offset);
+     }
++    return activated_ptr;
++}
+ 
++static inline size_t mmap_guard_pagesize(int fd)
++{
++#if defined(__powerpc64__) && defined(__linux__)
++    /* Mappings in the same segment must share the same page size */
++    return qemu_fd_getpagesize(fd);
++#else
++    return qemu_real_host_page_size;
++#endif
++}
++
++void *qemu_ram_mmap(int fd,
++                    size_t size,
++                    size_t align,
++                    uint32_t qemu_map_flags,
++                    off_t map_offset)
++{
++    const size_t guard_pagesize = mmap_guard_pagesize(fd);
++    size_t offset, total;
++    void *ptr, *guardptr;
++
++    /*
++     * Note: this always allocates at least one extra page of virtual address
++     * space, even if size is already aligned.
++     */
++    total = size + align;
++
++    guardptr = mmap_reserve(total, fd);
++    if (guardptr == MAP_FAILED) {
++        return MAP_FAILED;
++    }
++
++    assert(is_power_of_2(align));
++    /* Always align to host page size */
++    assert(align >= guard_pagesize);
++
++    offset = QEMU_ALIGN_UP((uintptr_t)guardptr, align) - (uintptr_t)guardptr;
++
++    ptr = mmap_activate(guardptr + offset, size, fd, qemu_map_flags,
++                        map_offset);
+     if (ptr == MAP_FAILED) {
+         munmap(guardptr, total);
+         return MAP_FAILED;
+@@ -193,8 +288,8 @@ void *qemu_ram_mmap(int fd,
+      * a guard page guarding against potential buffer overflows.
+      */
+     total -= offset;
+-    if (total > size + pagesize) {
+-        munmap(ptr + size + pagesize, total - size - pagesize);
++    if (total > size + guard_pagesize) {
++        munmap(ptr + size + guard_pagesize, total - size - guard_pagesize);
+     }
+ 
+     return ptr;
+@@ -202,15 +297,8 @@ void *qemu_ram_mmap(int fd,
+ 
+ void qemu_ram_munmap(int fd, void *ptr, size_t size)
+ {
+-    size_t pagesize;
+-
+     if (ptr) {
+         /* Unmap both the RAM block and the guard page */
+-#if defined(__powerpc64__) && defined(__linux__)
+-        pagesize = qemu_fd_getpagesize(fd);
+-#else
+-        pagesize = qemu_real_host_page_size;
+-#endif
+-        munmap(ptr, size + pagesize);
++        munmap(ptr, size + mmap_guard_pagesize(fd));
+     }
+ }
+diff --git a/util/oslib-posix.c b/util/oslib-posix.c
+index 7b4bec1402..e8bdb02e1d 100644
+--- a/util/oslib-posix.c
++++ b/util/oslib-posix.c
+@@ -227,10 +227,13 @@ void *qemu_memalign(size_t alignment, size_t size)
+ }
+ 
+ /* alloc shared memory pages */
+-void *qemu_anon_ram_alloc(size_t size, uint64_t *alignment, bool shared)
++void *qemu_anon_ram_alloc(size_t size, uint64_t *alignment, bool shared,
++                          bool noreserve)
+ {
++    const uint32_t qemu_map_flags = (shared ? QEMU_MAP_SHARED : 0) |
++                                    (noreserve ? QEMU_MAP_NORESERVE : 0);
+     size_t align = QEMU_VMALLOC_ALIGN;
+-    void *ptr = qemu_ram_mmap(-1, size, align, false, shared, false, 0);
++    void *ptr = qemu_ram_mmap(-1, size, align, qemu_map_flags, 0);
+ 
+     if (ptr == MAP_FAILED) {
+         return NULL;
+diff --git a/util/oslib-win32.c b/util/oslib-win32.c
+index ca99356fdf..ee3a3692d8 100644
+--- a/util/oslib-win32.c
++++ b/util/oslib-win32.c
+@@ -38,6 +38,7 @@
+ #include "trace.h"
+ #include "qemu/sockets.h"
+ #include "qemu/cutils.h"
++#include "qemu/error-report.h"
+ #include <malloc.h>
+ 
+ /* this must come after including "trace.h" */
+@@ -76,10 +77,20 @@ static int get_allocation_granularity(void)
+     return system_info.dwAllocationGranularity;
+ }
+ 
+-void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared)
++void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared,
++                          bool noreserve)
+ {
+     void *ptr;
+ 
++    if (noreserve) {
++        /*
++         * We need a MEM_COMMIT before accessing any memory in a MEM_RESERVE
++         * area; we cannot easily mimic POSIX MAP_NORESERVE semantics.
++         */
++        error_report("Skipping reservation of swap space is not supported.");
++        return NULL;
++    }
++
+     ptr = VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE);
+     trace_qemu_anon_ram_alloc(size, ptr);
+ 
+diff --git a/util/qemu-config.c b/util/qemu-config.c
+index 374f3bc460..84ee6dc4ea 100644
+--- a/util/qemu-config.c
++++ b/util/qemu-config.c
+@@ -429,29 +429,14 @@ out:
+ void qemu_config_do_parse(const char *group, QDict *qdict, void *opaque, Error **errp)
+ {
+     QemuOptsList **lists = opaque;
+-    const char *id = qdict_get_try_str(qdict, "id");
+     QemuOptsList *list;
+-    QemuOpts *opts;
+-    const QDictEntry *unrecognized;
+ 
+     list = find_list(lists, group, errp);
+     if (!list) {
+         return;
+     }
+ 
+-    opts = qemu_opts_create(list, id, 1, errp);
+-    if (!opts) {
+-        return;
+-    }
+-    if (!qemu_opts_absorb_qdict(opts, qdict, errp)) {
+-        qemu_opts_del(opts);
+-        return;
+-    }
+-    unrecognized = qdict_first(qdict);
+-    if (unrecognized) {
+-        error_setg(errp, QERR_INVALID_PARAMETER, unrecognized->key);
+-        qemu_opts_del(opts);
+-    }
++    qemu_opts_from_qdict(list, qdict, errp);
+ }
+ 
+ int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname, Error **errp)
+diff --git a/util/qemu-thread-posix.c b/util/qemu-thread-posix.c
+index dcff5e7c5d..fd9d714038 100644
+--- a/util/qemu-thread-posix.c
++++ b/util/qemu-thread-posix.c
+@@ -116,12 +116,32 @@ void qemu_rec_mutex_init(QemuRecMutex *mutex)
+ 
+     pthread_mutexattr_init(&attr);
+     pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+-    err = pthread_mutex_init(&mutex->lock, &attr);
++    err = pthread_mutex_init(&mutex->m.lock, &attr);
+     pthread_mutexattr_destroy(&attr);
+     if (err) {
+         error_exit(err, __func__);
+     }
+-    mutex->initialized = true;
++    mutex->m.initialized = true;
++}
++
++void qemu_rec_mutex_destroy(QemuRecMutex *mutex)
++{
++    qemu_mutex_destroy(&mutex->m);
++}
++
++void qemu_rec_mutex_lock_impl(QemuRecMutex *mutex, const char *file, int line)
++{
++    qemu_mutex_lock_impl(&mutex->m, file, line);
++}
++
++int qemu_rec_mutex_trylock_impl(QemuRecMutex *mutex, const char *file, int line)
++{
++    return qemu_mutex_trylock_impl(&mutex->m, file, line);
++}
++
++void qemu_rec_mutex_unlock_impl(QemuRecMutex *mutex, const char *file, int line)
++{
++    qemu_mutex_unlock_impl(&mutex->m, file, line);
+ }
+ 
+ void qemu_cond_init(QemuCond *cond)
+diff --git a/util/qemu-thread-win32.c b/util/qemu-thread-win32.c
+index cb5aa2018c..52eb19f351 100644
+--- a/util/qemu-thread-win32.c
++++ b/util/qemu-thread-win32.c
+@@ -105,7 +105,7 @@ int qemu_rec_mutex_trylock_impl(QemuRecMutex *mutex, const char *file, int line)
+     return !TryEnterCriticalSection(&mutex->lock);
+ }
+ 
+-void qemu_rec_mutex_unlock(QemuRecMutex *mutex)
++void qemu_rec_mutex_unlock_impl(QemuRecMutex *mutex, const char *file, int line)
+ {
+     assert(mutex->initialized);
+     LeaveCriticalSection(&mutex->lock);

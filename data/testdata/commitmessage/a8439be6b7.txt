@@ -1,0 +1,19 @@
+commit a8439be6b76e7f1dd631a49662314bc58e6c4ee0
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:19 2021 +0200
+
+    i386: introduce hv_cpuid_cache
+    
+    Just like with cpuid_cache, it makes no sense to call
+    KVM_GET_SUPPORTED_HV_CPUID more than once and instead of (ab)using
+    env->features[] and/or trying to keep all the code in one place, it is
+    better to introduce persistent hv_cpuid_cache and hv_cpuid_get_host()
+    accessor to it.
+    
+    Note, hv_cpuid_get_fw() is converted to using hv_cpuid_get_host()
+    just to be removed later with Hyper-V specific feature words.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-9-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

@@ -1,0 +1,17 @@
+commit 307261b243df2edde538f3ed5c9d80e168529355
+Author: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+Date:   Thu May 27 18:40:54 2021 +0300
+
+    block: consistently use bdrv_is_read_only()
+    
+    It's better to use accessor function instead of bs->read_only directly.
+    In some places use bdrv_is_writable() instead of
+    checking both BDRV_O_RDWR set and BDRV_O_INACTIVE not set.
+    
+    In bdrv_open_common() it's a bit strange to add one more variable, but
+    we are going to drop bs->read_only in the next patch, so new ro local
+    variable substitutes it here.
+    
+    Signed-off-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Message-Id: <20210527154056.70294-2-vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

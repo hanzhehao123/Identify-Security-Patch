@@ -1,0 +1,50 @@
+diff --git a/hw/core/machine-qmp-cmds.c b/hw/core/machine-qmp-cmds.c
+index 216fdfaf3a..a36ceaf4f3 100644
+--- a/hw/core/machine-qmp-cmds.c
++++ b/hw/core/machine-qmp-cmds.c
+@@ -157,7 +157,6 @@ void qmp_set_numa_node(NumaOptions *cmd, Error **errp)
+ 
+ static int query_memdev(Object *obj, void *opaque)
+ {
+-    Error *err = NULL;
+     MemdevList **list = opaque;
+     Memdev *m;
+     QObject *host_nodes;
+@@ -174,12 +173,6 @@ static int query_memdev(Object *obj, void *opaque)
+         m->dump = object_property_get_bool(obj, "dump", &error_abort);
+         m->prealloc = object_property_get_bool(obj, "prealloc", &error_abort);
+         m->share = object_property_get_bool(obj, "share", &error_abort);
+-        m->reserve = object_property_get_bool(obj, "reserve", &err);
+-        if (err) {
+-            error_free_or_abort(&err);
+-        } else {
+-            m->has_reserve = true;
+-        }
+         m->policy = object_property_get_enum(obj, "policy", "HostMemPolicy",
+                                              &error_abort);
+         host_nodes = object_property_get_qobject(obj,
+diff --git a/qapi/machine.json b/qapi/machine.json
+index e4d0f9b24f..1395742a4a 100644
+--- a/qapi/machine.json
++++ b/qapi/machine.json
+@@ -798,12 +798,6 @@
+ #
+ # @share: whether memory is private to QEMU or shared (since 6.1)
+ #
+-# @reserve: whether swap space (or huge pages) was reserved if applicable.
+-#           This corresponds to the user configuration and not the actual
+-#           behavior implemented in the OS to perform the reservation.
+-#           For example, Linux will never reserve swap space for shared
+-#           file mappings. (since 6.1)
+-#
+ # @host-nodes: host nodes for its memory policy
+ #
+ # @policy: memory policy of memory backend
+@@ -818,7 +812,6 @@
+     'dump':       'bool',
+     'prealloc':   'bool',
+     'share':      'bool',
+-    '*reserve':    'bool',
+     'host-nodes': ['uint16'],
+     'policy':     'HostMemPolicy' }}
+ 

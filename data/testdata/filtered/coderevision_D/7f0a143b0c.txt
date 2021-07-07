@@ -1,0 +1,12 @@
+diff --git a/tests/qemu-iotests/297 b/tests/qemu-iotests/297
+index 433b732336..a37910b42d 100755
+--- a/tests/qemu-iotests/297
++++ b/tests/qemu-iotests/297
+@@ -95,7 +95,6 @@ def run_linters():
+                             '--warn-redundant-casts',
+                             '--warn-unused-ignores',
+                             '--no-implicit-reexport',
+-                            '--namespace-packages',
+                             filename),
+                            env=env,
+                            check=False,

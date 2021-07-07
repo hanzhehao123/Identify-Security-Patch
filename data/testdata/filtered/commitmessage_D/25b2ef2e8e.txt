@@ -1,0 +1,14 @@
+commit 25b2ef2e8ee23109b0c3ce9ea71330bf8a7d12bd
+Author: Gerd Hoffmann <kraxel@redhat.com>
+Date:   Fri Jun 4 12:37:14 2021 +0200
+
+    vhost-user-gpu: reorder free calls.
+    
+    Free in correct order to avoid use-after-free.
+    
+    Resolves: CID 1453812
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Reviewed-by: Li Qiang <liq3ea@gmail.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210604103714.1237414-1-kraxel@redhat.com>

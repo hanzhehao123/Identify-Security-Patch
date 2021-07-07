@@ -1,0 +1,10 @@
+commit a5505f6b5b6f72eb21be7567fc1ef3ae2d5b3281
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Tue Jun 1 15:34:26 2021 +0200
+
+    target/i386: tcg: fix loading of registers from 16-bit TSS
+    
+    According to the manual, the high 16-bit of the registers are preserved
+    when switching to a 16-bit task.  Implement this in switch_tss_ra.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

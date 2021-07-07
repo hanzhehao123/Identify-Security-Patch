@@ -1,0 +1,13 @@
+commit 0a11bb7a35075379dffafb75698dd503eb6f9b9c
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Jun 1 16:35:19 2021 -0300
+
+    target/ppc: Implement PNOP
+    
+    The illegal suffix behavior matches what was observed in a
+    POWER10 DD2.0 machine.
+    
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: Matheus Ferst <matheus.ferst@eldorado.org.br>
+    Message-Id: <20210601193528.2533031-6-matheus.ferst@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

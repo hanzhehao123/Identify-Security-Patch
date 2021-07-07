@@ -1,0 +1,10 @@
+commit 7cf333a37260c4aafa465453adc8e073e408967e
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Thu Mar 25 13:06:13 2021 +0100
+
+    gitlab-ci: use --meson=git for CFI jobs
+    
+    Ensure that the meson submodule is checked out by the check targets,
+    as they will need it to run "meson test".
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

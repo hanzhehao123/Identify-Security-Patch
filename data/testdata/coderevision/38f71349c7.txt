@@ -1,0 +1,13 @@
+diff --git a/softmmu/vl.c b/softmmu/vl.c
+index feb4d201f3..326c1e9080 100644
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
+@@ -2522,7 +2522,7 @@ static void qemu_process_help_options(void)
+ 
+ static void qemu_maybe_daemonize(const char *pid_file)
+ {
+-    Error *err = NULL;
++    Error *err;
+ 
+     os_daemonize();
+     rcu_disable_atfork();

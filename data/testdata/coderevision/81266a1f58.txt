@@ -1,0 +1,166 @@
+diff --git a/target/arm/helper.h b/target/arm/helper.h
+index af75d7f25f..376c1cef0f 100644
+--- a/target/arm/helper.h
++++ b/target/arm/helper.h
+@@ -1007,9 +1007,6 @@ DEF_HELPER_FLAGS_5(gvec_bfdot, TCG_CALL_NO_RWG,
+ DEF_HELPER_FLAGS_5(gvec_bfdot_idx, TCG_CALL_NO_RWG,
+                    void, ptr, ptr, ptr, ptr, i32)
+ 
+-DEF_HELPER_FLAGS_5(gvec_bfmmla, TCG_CALL_NO_RWG,
+-                   void, ptr, ptr, ptr, ptr, i32)
+-
+ #ifdef TARGET_AARCH64
+ #include "helper-a64.h"
+ #include "helper-sve.h"
+diff --git a/target/arm/neon-shared.decode b/target/arm/neon-shared.decode
+index 4e0a25d27c..fa3cf14e3a 100644
+--- a/target/arm/neon-shared.decode
++++ b/target/arm/neon-shared.decode
+@@ -67,8 +67,6 @@ VUMMLA         1111 1100 0.10 .... .... 1100 .1.1 .... \
+                vm=%vm_dp vn=%vn_dp vd=%vd_dp
+ VUSMMLA        1111 1100 1.10 .... .... 1100 .1.0 .... \
+                vm=%vm_dp vn=%vn_dp vd=%vd_dp
+-VMMLA_b16      1111 1100 0.00 .... .... 1100 .1.0 .... \
+-               vm=%vm_dp vn=%vn_dp vd=%vd_dp
+ 
+ VCMLA_scalar   1111 1110 0 . rot:2 .... .... 1000 . q:1 index:1 0 vm:4 \
+                vn=%vn_dp vd=%vd_dp size=1
+diff --git a/target/arm/sve.decode b/target/arm/sve.decode
+index 6c17898dee..51f87e8937 100644
+--- a/target/arm/sve.decode
++++ b/target/arm/sve.decode
+@@ -1568,10 +1568,8 @@ SQRDCMLAH_zzzz  01000100 esz:2 0 rm:5 0011 rot:2 rn:5 rd:5  ra=%reg_movprfx
+ USDOT_zzzz      01000100 .. 0 ..... 011 110 ..... .....  @rda_rn_rm
+ 
+ ### SVE2 floating point matrix multiply accumulate
+-{
+-  BFMMLA        01100100 01 1 ..... 111 001 ..... .....  @rda_rn_rm_e0
+-  FMMLA         01100100 .. 1 ..... 111 001 ..... .....  @rda_rn_rm
+-}
++
++FMMLA           01100100 .. 1 ..... 111001 ..... .....  @rda_rn_rm
+ 
+ ### SVE2 Memory Gather Load Group
+ 
+diff --git a/target/arm/translate-a64.c b/target/arm/translate-a64.c
+index 9ce2f5a7d4..71de75e568 100644
+--- a/target/arm/translate-a64.c
++++ b/target/arm/translate-a64.c
+@@ -12235,13 +12235,6 @@ static void disas_simd_three_reg_same_extra(DisasContext *s, uint32_t insn)
+         }
+         feature = dc_isar_feature(aa64_fcma, s);
+         break;
+-    case 0x1d: /* BFMMLA */
+-        if (size != MO_16 || !is_q) {
+-            unallocated_encoding(s);
+-            return;
+-        }
+-        feature = dc_isar_feature(aa64_bf16, s);
+-        break;
+     case 0x1f: /* BFDOT */
+         switch (size) {
+         case 1:
+@@ -12335,9 +12328,6 @@ static void disas_simd_three_reg_same_extra(DisasContext *s, uint32_t insn)
+         }
+         return;
+ 
+-    case 0xd: /* BFMMLA */
+-        gen_gvec_op4_ool(s, is_q, rd, rn, rm, rd, 0, gen_helper_gvec_bfmmla);
+-        return;
+     case 0xf: /* BFDOT */
+         switch (size) {
+         case 1:
+diff --git a/target/arm/translate-neon.c b/target/arm/translate-neon.c
+index 9d227a1e13..8099767792 100644
+--- a/target/arm/translate-neon.c
++++ b/target/arm/translate-neon.c
+@@ -4126,12 +4126,3 @@ static bool trans_VUSMMLA(DisasContext *s, arg_VUSMMLA *a)
+     return do_neon_ddda(s, 7, a->vd, a->vn, a->vm, 0,
+                         gen_helper_gvec_usmmla_b);
+ }
+-
+-static bool trans_VMMLA_b16(DisasContext *s, arg_VMMLA_b16 *a)
+-{
+-    if (!dc_isar_feature(aa32_bf16, s)) {
+-        return false;
+-    }
+-    return do_neon_ddda(s, 7, a->vd, a->vn, a->vm, 0,
+-                        gen_helper_gvec_bfmmla);
+-}
+diff --git a/target/arm/translate-sve.c b/target/arm/translate-sve.c
+index 4f575dc334..6f02030635 100644
+--- a/target/arm/translate-sve.c
++++ b/target/arm/translate-sve.c
+@@ -8677,15 +8677,3 @@ static bool trans_BFDOT_zzxz(DisasContext *s, arg_rrxr_esz *a)
+     }
+     return true;
+ }
+-
+-static bool trans_BFMMLA(DisasContext *s, arg_rrrr_esz *a)
+-{
+-    if (!dc_isar_feature(aa64_sve_bf16, s)) {
+-        return false;
+-    }
+-    if (sve_access_check(s)) {
+-        gen_gvec_ool_zzzz(s, gen_helper_gvec_bfmmla,
+-                          a->rd, a->rn, a->rm, a->ra, 0);
+-    }
+-    return true;
+-}
+diff --git a/target/arm/vec_helper.c b/target/arm/vec_helper.c
+index 27e9bdd329..74a497f38c 100644
+--- a/target/arm/vec_helper.c
++++ b/target/arm/vec_helper.c
+@@ -2385,7 +2385,7 @@ static void do_mmla_b(void *vd, void *vn, void *vm, void *va, uint32_t desc,
+          * Process the entire segment at once, writing back the
+          * results only after we've consumed all of the inputs.
+          *
+-         * Key to indices by column:
++         * Key to indicies by column:
+          *          i   j                  i             j
+          */
+         sum0 = a[H4(0 + 0)];
+@@ -2472,43 +2472,3 @@ void HELPER(gvec_bfdot_idx)(void *vd, void *vn, void *vm,
+     }
+     clear_tail(d, opr_sz, simd_maxsz(desc));
+ }
+-
+-void HELPER(gvec_bfmmla)(void *vd, void *vn, void *vm, void *va, uint32_t desc)
+-{
+-    intptr_t s, opr_sz = simd_oprsz(desc);
+-    float32 *d = vd, *a = va;
+-    uint32_t *n = vn, *m = vm;
+-
+-    for (s = 0; s < opr_sz / 4; s += 4) {
+-        float32 sum00, sum01, sum10, sum11;
+-
+-        /*
+-         * Process the entire segment at once, writing back the
+-         * results only after we've consumed all of the inputs.
+-         *
+-         * Key to indicies by column:
+-         *               i   j           i   k             j   k
+-         */
+-        sum00 = a[s + H4(0 + 0)];
+-        sum00 = bfdotadd(sum00, n[s + H4(0 + 0)], m[s + H4(0 + 0)]);
+-        sum00 = bfdotadd(sum00, n[s + H4(0 + 1)], m[s + H4(0 + 1)]);
+-
+-        sum01 = a[s + H4(0 + 1)];
+-        sum01 = bfdotadd(sum01, n[s + H4(0 + 0)], m[s + H4(2 + 0)]);
+-        sum01 = bfdotadd(sum01, n[s + H4(0 + 1)], m[s + H4(2 + 1)]);
+-
+-        sum10 = a[s + H4(2 + 0)];
+-        sum10 = bfdotadd(sum10, n[s + H4(2 + 0)], m[s + H4(0 + 0)]);
+-        sum10 = bfdotadd(sum10, n[s + H4(2 + 1)], m[s + H4(0 + 1)]);
+-
+-        sum11 = a[s + H4(2 + 1)];
+-        sum11 = bfdotadd(sum11, n[s + H4(2 + 0)], m[s + H4(2 + 0)]);
+-        sum11 = bfdotadd(sum11, n[s + H4(2 + 1)], m[s + H4(2 + 1)]);
+-
+-        d[s + H4(0 + 0)] = sum00;
+-        d[s + H4(0 + 1)] = sum01;
+-        d[s + H4(2 + 0)] = sum10;
+-        d[s + H4(2 + 1)] = sum11;
+-    }
+-    clear_tail(d, opr_sz, simd_maxsz(desc));
+-}

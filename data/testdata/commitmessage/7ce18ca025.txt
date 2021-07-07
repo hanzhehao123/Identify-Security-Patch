@@ -1,0 +1,20 @@
+commit 7ce18ca0257dac6e3ac92c8bc3d610abbf14bcce
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Apr 6 10:01:24 2021 +0200
+
+    softmmu/physmem: Mark shared anonymous memory RAM_SHARED
+    
+    Let's drop the "shared" parameter from ram_block_add() and properly
+    store it in the flags of the ram block instead, such that
+    qemu_ram_is_shared() properly succeeds on all ram blocks that were mapped
+    MAP_SHARED.
+    
+    We'll use this information next to fix some cases with shared anonymous
+    memory.
+    
+    Reviewed-by: Igor Kotrasinski <i.kotrasinsk@partner.samsung.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210406080126.24010-2-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

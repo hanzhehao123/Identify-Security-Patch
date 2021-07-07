@@ -1,0 +1,30 @@
+commit 56208a0d473c6db263cc333c787ca48b502d72ab
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Fri May 14 13:04:14 2021 +0100
+
+    configure: bump min required GCC to 7.5.0
+    
+    Several distros have been dropped since the last time we bumped the
+    minimum required GCC version.
+    
+    Per repology, currently shipping versions are:
+    
+                 RHEL-8: 8.3.1
+          Debian Buster: 8.3.0
+     openSUSE Leap 15.2: 7.5.0
+       Ubuntu LTS 18.04: 7.5.0
+       Ubuntu LTS 20.04: 9.3.0
+                FreeBSD: 10.3.0
+              Fedora 33: 9.2.0
+              Fedora 34: 11.0.1
+                OpenBSD: 8.4.0
+         macOS HomeBrew: 11.1.0
+    
+    With this list Ubuntu LTS 18.04 / openSUSE Leap 15.2 are the
+    constraint at 7.5.0
+    
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+    Message-Id: <20210514120415.1368922-12-berrange@redhat.com>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

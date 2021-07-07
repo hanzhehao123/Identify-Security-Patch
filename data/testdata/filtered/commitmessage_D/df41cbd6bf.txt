@@ -1,0 +1,14 @@
+commit df41cbd6bfa55dc3e69834f4402dbf776062c26e
+Author: Alistair Francis <alistair.francis@wdc.com>
+Date:   Fri Jun 18 17:27:54 2021 +1000
+
+    hw/timer: Initial commit of Ibex Timer
+    
+    Add support for the Ibex timer. This is used with the RISC-V
+    mtime/mtimecmp similar to the SiFive CLINT.
+    
+    We currently don't support changing the prescale or the timervalue.
+    
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>
+    Reviewed-by: Bin Meng <bmeng.cn@gmail.com>
+    Message-id: 716fdea2244515ce86a2c46fe69467d013c03147.1624001156.git.alistair.francis@wdc.com

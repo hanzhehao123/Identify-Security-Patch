@@ -1,0 +1,114 @@
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 4842cc26e5..636bf2f536 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -2221,7 +2221,6 @@ F: qapi/audio.json
+ F: tests/qtest/ac97-test.c
+ F: tests/qtest/es1370-test.c
+ F: tests/qtest/intel-hda-test.c
+-F: tests/qtest/fuzz-sb16-test.c
+ 
+ Block layer core
+ M: Kevin Wolf <kwolf@redhat.com>
+diff --git a/hw/audio/sb16.c b/hw/audio/sb16.c
+index 5cf121fe36..8b20700410 100644
+--- a/hw/audio/sb16.c
++++ b/hw/audio/sb16.c
+@@ -115,9 +115,6 @@ struct SB16State {
+     PortioList portio_list;
+ };
+ 
+-#define SAMPLE_RATE_MIN 5000
+-#define SAMPLE_RATE_MAX 45000
+-
+ static void SB_audio_callback (void *opaque, int free);
+ 
+ static int magic_of_irq (int irq)
+@@ -244,17 +241,6 @@ static void dma_cmd8 (SB16State *s, int mask, int dma_len)
+         int tmp = (256 - s->time_const);
+         s->freq = (1000000 + (tmp / 2)) / tmp;
+     }
+-    if (s->freq < SAMPLE_RATE_MIN) {
+-        qemu_log_mask(LOG_GUEST_ERROR,
+-                      "sampling range too low: %d, increasing to %u\n",
+-                      s->freq, SAMPLE_RATE_MIN);
+-        s->freq = SAMPLE_RATE_MIN;
+-    } else if (s->freq > SAMPLE_RATE_MAX) {
+-        qemu_log_mask(LOG_GUEST_ERROR,
+-                      "sampling range too high: %d, decreasing to %u\n",
+-                      s->freq, SAMPLE_RATE_MAX);
+-        s->freq = SAMPLE_RATE_MAX;
+-    }
+ 
+     if (dma_len != -1) {
+         s->block_size = dma_len << s->fmt_stereo;
+diff --git a/tests/qtest/fuzz-sb16-test.c b/tests/qtest/fuzz-sb16-test.c
+deleted file mode 100644
+index 51030cd7dc..0000000000
+--- a/tests/qtest/fuzz-sb16-test.c
++++ /dev/null
+@@ -1,52 +0,0 @@
+-/*
+- * QTest fuzzer-generated testcase for sb16 audio device
+- *
+- * Copyright (c) 2021 Philippe Mathieu-Daudé <f4bug@amsat.org>
+- *
+- * SPDX-License-Identifier: GPL-2.0-or-later
+- */
+-
+-#include "qemu/osdep.h"
+-#include "libqos/libqtest.h"
+-
+-/*
+- * This used to trigger the assert in audio_calloc
+- * https://bugs.launchpad.net/qemu/+bug/1910603
+- */
+-static void test_fuzz_sb16_0x1c(void)
+-{
+-    QTestState *s = qtest_init("-M q35 -display none "
+-                               "-device sb16,audiodev=snd0 "
+-                               "-audiodev none,id=snd0");
+-    qtest_outw(s, 0x22c, 0x41);
+-    qtest_outb(s, 0x22c, 0x00);
+-    qtest_outw(s, 0x22c, 0x1004);
+-    qtest_outw(s, 0x22c, 0x001c);
+-    qtest_quit(s);
+-}
+-
+-static void test_fuzz_sb16_0x91(void)
+-{
+-    QTestState *s = qtest_init("-M pc -display none "
+-                               "-device sb16,audiodev=none "
+-                               "-audiodev id=none,driver=none");
+-    qtest_outw(s, 0x22c, 0xf141);
+-    qtest_outb(s, 0x22c, 0x00);
+-    qtest_outb(s, 0x22c, 0x24);
+-    qtest_outb(s, 0x22c, 0x91);
+-    qtest_quit(s);
+-}
+-
+-int main(int argc, char **argv)
+-{
+-    const char *arch = qtest_get_arch();
+-
+-    g_test_init(&argc, &argv, NULL);
+-
+-   if (strcmp(arch, "i386") == 0) {
+-        qtest_add_func("fuzz/test_fuzz_sb16/1c", test_fuzz_sb16_0x1c);
+-        qtest_add_func("fuzz/test_fuzz_sb16/91", test_fuzz_sb16_0x91);
+-   }
+-
+-   return g_test_run();
+-}
+diff --git a/tests/qtest/meson.build b/tests/qtest/meson.build
+index b03e854170..c3a223a83d 100644
+--- a/tests/qtest/meson.build
++++ b/tests/qtest/meson.build
+@@ -20,7 +20,6 @@ slow_qtests = {
+ qtests_generic = \
+   (config_all_devices.has_key('CONFIG_MEGASAS_SCSI_PCI') ? ['fuzz-megasas-test'] : []) + \
+   (config_all_devices.has_key('CONFIG_VIRTIO_SCSI') ? ['fuzz-virtio-scsi-test'] : []) + \
+-  (config_all_devices.has_key('CONFIG_SB16') ? ['fuzz-sb16-test'] : []) + \
+   [
+   'cdrom-test',
+   'device-introspect-test',

@@ -1,0 +1,13 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index 1a8a4ba18a..40ff9e0a82 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -123,7 +123,7 @@ class QMPCompleter:
+         return None
+ 
+ 
+-class QMPShellError(qmp.QMPError):
++class QMPShellError(Exception):
+     pass
+ 
+ 

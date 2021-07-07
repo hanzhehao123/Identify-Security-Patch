@@ -1,0 +1,14 @@
+commit 180d4ef3ad08f2f5073184e1fa763c230fe4750f
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 07:52:43 2021 +0200
+
+    linux-user/syscall: Constify bitmask_transtbl fcntl/mmap flags_tlb[]
+    
+    Keep bitmask_transtbl in .rodata by marking the arrays const.
+    
+    Reviewed-by: Laurent Vivier <laurent@vivier.eu>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Bin Meng <bmeng.cn@gmail.com>
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Message-Id: <20210517055243.830491-1-f4bug@amsat.org>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

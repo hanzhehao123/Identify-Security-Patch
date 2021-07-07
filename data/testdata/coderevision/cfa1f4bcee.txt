@@ -1,0 +1,56 @@
+diff --git a/default-configs/devices/ppc64-softmmu.mak b/default-configs/devices/ppc64-softmmu.mak
+index cca52665d9..ae0841fa3a 100644
+--- a/default-configs/devices/ppc64-softmmu.mak
++++ b/default-configs/devices/ppc64-softmmu.mak
+@@ -8,3 +8,4 @@ CONFIG_POWERNV=y
+ 
+ # For pSeries
+ CONFIG_PSERIES=y
++CONFIG_NVDIMM=y
+diff --git a/hw/arm/Kconfig b/hw/arm/Kconfig
+index 67723d9ea6..b887f6a5b1 100644
+--- a/hw/arm/Kconfig
++++ b/hw/arm/Kconfig
+@@ -6,7 +6,6 @@ config ARM_VIRT
+     imply VFIO_PLATFORM
+     imply VFIO_XGMAC
+     imply TPM_TIS_SYSBUS
+-    imply NVDIMM
+     select ARM_GIC
+     select ACPI
+     select ARM_SMMUV3
+diff --git a/hw/i386/Kconfig b/hw/i386/Kconfig
+index 66838fa397..7f91f30877 100644
+--- a/hw/i386/Kconfig
++++ b/hw/i386/Kconfig
+@@ -23,7 +23,6 @@ config PC
+     imply TPM_TIS_ISA
+     imply VGA_PCI
+     imply VIRTIO_VGA
+-    imply NVDIMM
+     select FDC
+     select I8259
+     select I8254
+diff --git a/hw/mem/Kconfig b/hw/mem/Kconfig
+index 8b19fdc49f..a0ef2cf648 100644
+--- a/hw/mem/Kconfig
++++ b/hw/mem/Kconfig
+@@ -7,4 +7,6 @@ config MEM_DEVICE
+ 
+ config NVDIMM
+     bool
++    default y
++    depends on (PC || PSERIES || ARM_VIRT)
+     select MEM_DEVICE
+diff --git a/hw/ppc/Kconfig b/hw/ppc/Kconfig
+index 66e0b15d9e..e51e0e5e5a 100644
+--- a/hw/ppc/Kconfig
++++ b/hw/ppc/Kconfig
+@@ -3,7 +3,6 @@ config PSERIES
+     imply PCI_DEVICES
+     imply TEST_DEVICES
+     imply VIRTIO_VGA
+-    imply NVDIMM
+     select DIMM
+     select PCI
+     select SPAPR_VSCSI

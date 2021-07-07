@@ -1,0 +1,18 @@
+commit cfa1f4bceea02c386bd7408fcc29544ac4679657
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Tue May 11 17:53:50 2021 +0200
+
+    hw/mem/nvdimm: Use Kconfig 'imply' instead of 'depends on'
+    
+    Per the kconfig.rst:
+    
+      A device should be listed [...] ``imply`` if (depending on
+      the QEMU command line) the board may or  may not be started
+      without it.
+    
+    This is the case with the NVDIMM device, so use the 'imply'
+    weak reverse dependency to select the symbol.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210511155354.3069141-2-philmd@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

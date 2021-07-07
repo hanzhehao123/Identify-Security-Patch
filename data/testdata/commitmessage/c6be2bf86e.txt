@@ -1,0 +1,11 @@
+commit c6be2bf86eb93a2e6afc4a6818310303471b3212
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:17 2021 -0400
+
+    scripts/qmp-shell: use triple-double-quote docstring style
+    
+    (2014 me had never written python before.)
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-11-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

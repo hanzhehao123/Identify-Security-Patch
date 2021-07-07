@@ -1,0 +1,15 @@
+commit ca24b0b9334cd8838527edfc8b9b183326f81714
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Mon May 31 11:56:27 2021 -0300
+
+    HMP: added info cpustats to removed_features.rst
+    
+    Documented the removal of the HMP command info cpustats
+    
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Message-Id: <20210531145629.21300-3-bruno.larsen@eldorado.org.br>
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Lucas Mateus <lucas.araujo@eldorado.org.br>
+    Reviewed-by: Greg Kurz <groug@kaod.org>
+    [dwg: Fix a Sphinx formatting error]
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

@@ -1,0 +1,37 @@
+diff --git a/scripts/qmp/qemu-ga-client b/scripts/qmp/qemu-ga-client
+index 7aba09f0fe..566bddc89d 100755
+--- a/scripts/qmp/qemu-ga-client
++++ b/scripts/qmp/qemu-ga-client
+@@ -56,6 +56,8 @@ class QemuGuestAgent(qmp.QEMUMonitorProtocol):
+ 
+ 
+ class QemuGuestAgentClient:
++    error = QemuGuestAgent.error
++
+     def __init__(self, address):
+         self.qga = QemuGuestAgent(address)
+         self.qga.connect(negotiate=False)
+@@ -135,7 +137,7 @@ class QemuGuestAgentClient:
+         self.qga.settimeout(timeout)
+         try:
+             self.qga.ping()
+-        except TimeoutError:
++        except self.qga.timeout:
+             return False
+         return True
+ 
+@@ -267,11 +269,11 @@ def main(address, cmd, args):
+ 
+     try:
+         client = QemuGuestAgentClient(address)
+-    except OSError as err:
++    except QemuGuestAgent.error as e:
+         import errno
+ 
+-        print(err)
+-        if err.errno == errno.ECONNREFUSED:
++        print(e)
++        if e.errno == errno.ECONNREFUSED:
+             print('Hint: qemu is not running?')
+         sys.exit(1)
+ 

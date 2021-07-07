@@ -1,0 +1,22 @@
+commit b4d37d8188dbff34f0bf88279eeb5b6cb6d1ff82
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:17:01 2021 -0400
+
+    python: add pylint to pipenv
+    
+    We are specifying >= pylint 2.8.x for several reasons:
+    
+    1. For setup.cfg support, added in pylint 2.5.x
+    2. To specify a version that has incompatibly dropped
+       bad-whitespace checks (2.6.x)
+    3. 2.7.x fixes "unsubscriptable" warnings in Python 3.9
+    4. 2.8.x adds a new, incompatible 'consider-using-with'
+       warning that must be disabled in some cases.
+       These pragmas cause warnings themselves in 2.7.x.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Tested-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-18-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

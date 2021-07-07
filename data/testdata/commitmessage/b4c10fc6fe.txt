@@ -1,0 +1,49 @@
+commit b4c10fc6fe452c080004a484554275794160d379
+Author: Thomas Huth <thuth@redhat.com>
+Date:   Wed May 19 17:58:59 2021 +0200
+
+    block/ssh: Bump minimum libssh version to 0.8.7
+    
+    It has been over two years since RHEL-8 was released, and thus per the
+    platform build policy, we no longer need to support RHEL-7 as a build
+    target. So from the RHEL-7 perspective, we do not have to support
+    libssh v0.7 anymore now.
+    
+    Let's look at the versions from other distributions and operating
+    systems - according to repology.org, current shipping versions are:
+    
+                 RHEL-8: 0.9.4
+          Debian Buster: 0.8.7
+     openSUSE Leap 15.2: 0.8.7
+       Ubuntu LTS 18.04: 0.8.0 *
+       Ubuntu LTS 20.04: 0.9.3
+                FreeBSD: 0.9.5
+              Fedora 33: 0.9.5
+              Fedora 34: 0.9.5
+                OpenBSD: 0.9.5
+         macOS HomeBrew: 0.9.5
+             HaikuPorts: 0.9.5
+    
+    * The version of libssh in Ubuntu 18.04 claims to be 0.8.0 from the
+    name of the package, but in reality it is a 0.7 patched up as a
+    Frankenstein monster with patches from the 0.8 development branch.
+    This gave us some headaches in the past already and so it never worked
+    with QEMU. All attempts to get it supported have failed in the past,
+    patches for QEMU have never been merged and a request to Ubuntu to
+    fix it in their 18.04 distro has been ignored:
+    
+     https://bugs.launchpad.net/ubuntu/+source/libssh/+bug/1847514
+    
+    Thus we really should ignore the libssh in Ubuntu 18.04 in QEMU, too.
+    
+    Fix it by bumping the minimum libssh version to something that is
+    greater than 0.8.0 now. Debian Buster and openSUSE Leap have the
+    oldest version and so 0.8.7 is the new minimum.
+    
+    Signed-off-by: Thomas Huth <thuth@redhat.com>
+    Tested-by: Richard W.M. Jones <rjones@redhat.com>
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Acked-by: Richard W.M. Jones <rjones@redhat.com>
+    Message-Id: <20210519155859.344569-1-thuth@redhat.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

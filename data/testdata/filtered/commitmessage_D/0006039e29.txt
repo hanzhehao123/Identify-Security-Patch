@@ -1,0 +1,10 @@
+commit 0006039e29b9e6118beab300146f7c4931f7a217
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Sep 5 14:20:57 2020 -0700
+
+    tcg/arm: Implement TCG_TARGET_HAS_rotv_vec
+    
+    Implement via expansion, so don't actually set TCG_TARGET_HAS_rotv_vec.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

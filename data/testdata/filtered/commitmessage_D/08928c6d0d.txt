@@ -1,0 +1,11 @@
+commit 08928c6d0db7d554ef041256e52330bb257bc70f
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:37 2021 +0200
+
+    cpu: Move CPUClass::get_phys_page_debug to SysemuCPUOps
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-21-f4bug@amsat.org>
+    [rth: Drop declaration movement from target/*/cpu.h]
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

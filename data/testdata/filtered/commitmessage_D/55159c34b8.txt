@@ -1,0 +1,14 @@
+commit 55159c34b8788ae00984341356d3ea4774912665
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Mon Jun 14 13:02:14 2021 +0200
+
+    tests: cover aio_co_enter from a worker thread without BQL taken
+    
+    Add a testcase for the test fixed by commit 'async: the main AioContext
+    is only "current" if under the BQL.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+    Message-Id: <20210614110214.726722-1-pbonzini@redhat.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Eric Blake <eblake@redhat.com>

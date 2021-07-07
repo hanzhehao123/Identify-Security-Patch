@@ -1,0 +1,11 @@
+commit f741707bb36f7281ceccbdc0c44dcce61fbe1023
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:15 2021 +0100
+
+    target/arm: Implement MVE VQADD, VQSUB (vector)
+    
+    Implement the vector forms of the MVE VQADD and VQSUB insns.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-32-peter.maydell@linaro.org

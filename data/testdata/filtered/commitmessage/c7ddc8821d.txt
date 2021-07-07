@@ -1,0 +1,15 @@
+commit c7ddc8821d88d958bb6d4ef1279ec3609b17ffda
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Thu Apr 15 14:28:16 2021 +0100
+
+    block: preserve errno from fdatasync failures
+    
+    When fdatasync() fails on a file backend we set a flag that
+    short-circuits any future attempts to call fdatasync(). The
+    first failure returns the true errno, but the later short-
+    circuited calls return a generic EIO. The latter is unhelpful
+    because fdatasync() can return a variety of errnos, including
+    EACCESS.
+    
+    Reviewed-by: Connor Kuehl <ckuehl@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>

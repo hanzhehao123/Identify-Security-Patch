@@ -1,0 +1,15 @@
+commit 0711a634355a68cd83966872e387402a8b4b048a
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Jun 1 19:07:20 2021 -0700
+
+    target/arm: Mark LDS{MIN,MAX} as signed operations
+    
+    The operands to tcg_gen_atomic_fetch_s{min,max}_i64 must
+    be signed, so that the inputs are properly extended.
+    Zero extend the result afterward, as needed.
+    
+    Resolves: https://gitlab.com/qemu-project/qemu/-/issues/364
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-id: 20210602020720.47679-1-richard.henderson@linaro.org
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

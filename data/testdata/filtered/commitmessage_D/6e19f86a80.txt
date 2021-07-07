@@ -1,0 +1,14 @@
+commit 6e19f86a80746270ab2ab6fe4828c680d982fa72
+Author: Alexander Graf <agraf@csgraf.de>
+Date:   Thu Jun 3 14:09:32 2021 +0100
+
+    hvf: Remove use of hv_uvaddr_t and hv_gpaddr_t
+    
+    The ARM version of Hypervisor.framework no longer defines these two
+    types, so let's just revert to standard ones.
+    
+    Signed-off-by: Alexander Graf <agraf@csgraf.de>
+    Reviewed-by: Sergio Lopez <slp@redhat.com>
+    Message-id: 20210519202253.76782-7-agraf@csgraf.de
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

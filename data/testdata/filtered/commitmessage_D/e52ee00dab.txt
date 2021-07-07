@@ -1,0 +1,14 @@
+commit e52ee00dab8678b26a5b7312275daa6ac4899046
+Author: Ahmed Abouzied <email@aabouzied.com>
+Date:   Sat Jun 5 19:49:38 2021 +0200
+
+    Remove leading underscores from QEMU defines
+    
+    Leading underscores followed by a capital letter or underscore are
+    reserved by the C standard.
+    
+    Resolves: https://gitlab.com/qemu-project/qemu/-/issues/369
+    
+    Signed-off-by: Ahmed Abouzied <email@aabouzied.com>
+    Message-Id: <20210605174938.13782-1-email@aabouzied.com>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

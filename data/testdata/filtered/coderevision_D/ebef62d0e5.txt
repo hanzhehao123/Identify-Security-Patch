@@ -1,0 +1,105 @@
+diff --git a/include/exec/ram_addr.h b/include/exec/ram_addr.h
+index 6d4513f8e2..a7e3378340 100644
+--- a/include/exec/ram_addr.h
++++ b/include/exec/ram_addr.h
+@@ -122,7 +122,7 @@ RAMBlock *qemu_ram_alloc_from_fd(ram_addr_t size, MemoryRegion *mr,
+ 
+ RAMBlock *qemu_ram_alloc_from_ptr(ram_addr_t size, void *host,
+                                   MemoryRegion *mr, Error **errp);
+-RAMBlock *qemu_ram_alloc(ram_addr_t size, uint32_t ram_flags, MemoryRegion *mr,
++RAMBlock *qemu_ram_alloc(ram_addr_t size, bool share, MemoryRegion *mr,
+                          Error **errp);
+ RAMBlock *qemu_ram_alloc_resizeable(ram_addr_t size, ram_addr_t max_size,
+                                     void (*resized)(const char*,
+diff --git a/softmmu/memory.c b/softmmu/memory.c
+index f0161515e9..5c0ff76c06 100644
+--- a/softmmu/memory.c
++++ b/softmmu/memory.c
+@@ -1546,7 +1546,7 @@ void memory_region_init_ram_flags_nomigrate(MemoryRegion *mr,
+     mr->ram = true;
+     mr->terminates = true;
+     mr->destructor = memory_region_destructor_ram;
+-    mr->ram_block = qemu_ram_alloc(size, ram_flags, mr, &err);
++    mr->ram_block = qemu_ram_alloc(size, ram_flags & RAM_SHARED, mr, &err);
+     if (err) {
+         mr->size = int128_zero();
+         object_unparent(OBJECT(mr));
+@@ -1702,7 +1702,7 @@ void memory_region_init_rom_device_nomigrate(MemoryRegion *mr,
+     mr->terminates = true;
+     mr->rom_device = true;
+     mr->destructor = memory_region_destructor_ram;
+-    mr->ram_block = qemu_ram_alloc(size, 0, mr, &err);
++    mr->ram_block = qemu_ram_alloc(size, false,  mr, &err);
+     if (err) {
+         mr->size = int128_zero();
+         object_unparent(OBJECT(mr));
+diff --git a/softmmu/physmem.c b/softmmu/physmem.c
+index f00304e254..b75d205e8a 100644
+--- a/softmmu/physmem.c
++++ b/softmmu/physmem.c
+@@ -2128,15 +2128,12 @@ RAMBlock *qemu_ram_alloc_internal(ram_addr_t size, ram_addr_t max_size,
+                                   void (*resized)(const char*,
+                                                   uint64_t length,
+                                                   void *host),
+-                                  void *host, uint32_t ram_flags,
++                                  void *host, bool resizeable, bool share,
+                                   MemoryRegion *mr, Error **errp)
+ {
+     RAMBlock *new_block;
+     Error *local_err = NULL;
+ 
+-    assert((ram_flags & ~(RAM_SHARED | RAM_RESIZEABLE | RAM_PREALLOC)) == 0);
+-    assert(!host ^ (ram_flags & RAM_PREALLOC));
+-
+     size = HOST_PAGE_ALIGN(size);
+     max_size = HOST_PAGE_ALIGN(max_size);
+     new_block = g_malloc0(sizeof(*new_block));
+@@ -2148,7 +2145,15 @@ RAMBlock *qemu_ram_alloc_internal(ram_addr_t size, ram_addr_t max_size,
+     new_block->fd = -1;
+     new_block->page_size = qemu_real_host_page_size;
+     new_block->host = host;
+-    new_block->flags = ram_flags;
++    if (host) {
++        new_block->flags |= RAM_PREALLOC;
++    }
++    if (share) {
++        new_block->flags |= RAM_SHARED;
++    }
++    if (resizeable) {
++        new_block->flags |= RAM_RESIZEABLE;
++    }
+     ram_block_add(new_block, &local_err);
+     if (local_err) {
+         g_free(new_block);
+@@ -2161,15 +2166,15 @@ RAMBlock *qemu_ram_alloc_internal(ram_addr_t size, ram_addr_t max_size,
+ RAMBlock *qemu_ram_alloc_from_ptr(ram_addr_t size, void *host,
+                                    MemoryRegion *mr, Error **errp)
+ {
+-    return qemu_ram_alloc_internal(size, size, NULL, host, RAM_PREALLOC, mr,
+-                                   errp);
++    return qemu_ram_alloc_internal(size, size, NULL, host, false,
++                                   false, mr, errp);
+ }
+ 
+-RAMBlock *qemu_ram_alloc(ram_addr_t size, uint32_t ram_flags,
++RAMBlock *qemu_ram_alloc(ram_addr_t size, bool share,
+                          MemoryRegion *mr, Error **errp)
+ {
+-    assert((ram_flags & ~RAM_SHARED) == 0);
+-    return qemu_ram_alloc_internal(size, size, NULL, NULL, ram_flags, mr, errp);
++    return qemu_ram_alloc_internal(size, size, NULL, NULL, false,
++                                   share, mr, errp);
+ }
+ 
+ RAMBlock *qemu_ram_alloc_resizeable(ram_addr_t size, ram_addr_t maxsz,
+@@ -2178,8 +2183,8 @@ RAMBlock *qemu_ram_alloc_resizeable(ram_addr_t size, ram_addr_t maxsz,
+                                                      void *host),
+                                      MemoryRegion *mr, Error **errp)
+ {
+-    return qemu_ram_alloc_internal(size, maxsz, resized, NULL,
+-                                   RAM_RESIZEABLE, mr, errp);
++    return qemu_ram_alloc_internal(size, maxsz, resized, NULL, true,
++                                   false, mr, errp);
+ }
+ 
+ static void reclaim_ramblock(RAMBlock *block)

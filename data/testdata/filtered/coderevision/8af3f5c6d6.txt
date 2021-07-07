@@ -1,0 +1,51 @@
+diff --git a/softmmu/cpus.c b/softmmu/cpus.c
+index c3caaeb26e..a7ee431187 100644
+--- a/softmmu/cpus.c
++++ b/softmmu/cpus.c
+@@ -44,7 +44,6 @@
+ #include "sysemu/whpx.h"
+ #include "hw/boards.h"
+ #include "hw/hw.h"
+-#include "trace.h"
+ 
+ #ifdef CONFIG_LINUX
+ 
+@@ -267,7 +266,6 @@ static int do_vm_stop(RunState state, bool send_stop)
+ 
+     bdrv_drain_all();
+     ret = bdrv_flush_all();
+-    trace_vm_stop_flush_all(ret);
+ 
+     return ret;
+ }
+@@ -706,15 +704,12 @@ int vm_stop_force_state(RunState state)
+     if (runstate_is_running()) {
+         return vm_stop(state);
+     } else {
+-        int ret;
+         runstate_set(state);
+ 
+         bdrv_drain_all();
+         /* Make sure to return an error if the flush in a previous vm_stop()
+          * failed. */
+-        ret = bdrv_flush_all();
+-        trace_vm_stop_flush_all(ret);
+-        return ret;
++        return bdrv_flush_all();
+     }
+ }
+ 
+diff --git a/softmmu/trace-events b/softmmu/trace-events
+index d18ac41e4e..5262828b8d 100644
+--- a/softmmu/trace-events
++++ b/softmmu/trace-events
+@@ -19,9 +19,6 @@ flatview_new(void *view, void *root) "%p (root %p)"
+ flatview_destroy(void *view, void *root) "%p (root %p)"
+ flatview_destroy_rcu(void *view, void *root) "%p (root %p)"
+ 
+-# softmmu.c
+-vm_stop_flush_all(int ret) "ret %d"
+-
+ # vl.c
+ vm_state_notify(int running, int reason, const char *reason_str) "running %d reason %d (%s)"
+ load_file(const char *name, const char *path) "name %s location %s"

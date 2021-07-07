@@ -1,0 +1,13 @@
+commit 26d3ce9e5e42920a6f9c1f481d900e63a636b07d
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:42 2021 -0400
+
+    scripts/qmp-shell: Remove too-broad-exception
+    
+    We are only anticipating QMPShellErrors here, for syntax we weren't able
+    to understand. Other errors, if any, should be allowed to percolate
+    upwards.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-36-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

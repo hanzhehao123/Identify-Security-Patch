@@ -1,0 +1,11 @@
+commit 0e8876970401dee2055c1eb1c23f92f2e57d73ad
+Author: Alex Bennée <alex.bennee@linaro.org>
+Date:   Mon Jun 14 15:42:45 2021 +0100
+
+    linux-user/trace-events: fix minor typo in format string
+    
+    Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Laurent Vivier <laurent@vivier.eu>
+    Message-Id: <20210614144245.17660-1-alex.bennee@linaro.org>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

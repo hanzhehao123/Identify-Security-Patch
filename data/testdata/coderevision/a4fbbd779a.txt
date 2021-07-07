@@ -1,0 +1,955 @@
+diff --git a/block/meson.build b/block/meson.build
+index e687c54dbc..01861e1545 100644
+--- a/block/meson.build
++++ b/block/meson.build
+@@ -71,19 +71,19 @@ block_modules = {}
+ 
+ modsrc = []
+ foreach m : [
+-  [curl, 'curl', [curl, glib], 'curl.c'],
+-  [glusterfs, 'gluster', glusterfs, 'gluster.c'],
+-  [libiscsi, 'iscsi', libiscsi, 'iscsi.c'],
+-  [libnfs, 'nfs', libnfs, 'nfs.c'],
+-  [libssh, 'ssh', libssh, 'ssh.c'],
+-  [rbd, 'rbd', rbd, 'rbd.c'],
++  [curl, 'curl', files('curl.c')],
++  [glusterfs, 'gluster', files('gluster.c')],
++  [libiscsi, 'iscsi', [files('iscsi.c'), libm]],
++  [libnfs, 'nfs', files('nfs.c')],
++  [libssh, 'ssh', files('ssh.c')],
++  [rbd, 'rbd', files('rbd.c')],
+ ]
+   if m[0].found()
++    module_ss = ss.source_set()
++    module_ss.add(when: m[0], if_true: m[2])
+     if enable_modules
+-      modsrc += files(m[3])
++      modsrc += module_ss.all_sources()
+     endif
+-    module_ss = ss.source_set()
+-    module_ss.add(when: m[2], if_true: files(m[3]))
+     block_modules += {m[1] : module_ss}
+   endif
+ endforeach
+diff --git a/include/block/qdict.h b/include/block/qdict.h
+index d8cb502d7d..ced2acfb92 100644
+--- a/include/block/qdict.h
++++ b/include/block/qdict.h
+@@ -20,8 +20,6 @@ void qdict_join(QDict *dest, QDict *src, bool overwrite);
+ void qdict_extract_subqdict(QDict *src, QDict **dst, const char *start);
+ void qdict_array_split(QDict *src, QList **dst);
+ int qdict_array_entries(QDict *src, const char *subqdict);
+-QObject *qdict_crumple(const QDict *src, Error **errp);
+-void qdict_flatten(QDict *qdict);
+ 
+ typedef struct QDictRenames {
+     const char *from;
+diff --git a/include/qapi/qmp/qdict.h b/include/qapi/qmp/qdict.h
+index 9934539c1b..d5b5430e21 100644
+--- a/include/qapi/qmp/qdict.h
++++ b/include/qapi/qmp/qdict.h
+@@ -64,4 +64,7 @@ const char *qdict_get_try_str(const QDict *qdict, const char *key);
+ 
+ QDict *qdict_clone_shallow(const QDict *src);
+ 
++QObject *qdict_crumple(const QDict *src, Error **errp);
++void qdict_flatten(QDict *qdict);
++
+ #endif /* QDICT_H */
+diff --git a/include/qemu/config-file.h b/include/qemu/config-file.h
+index 0500b3668d..f605423321 100644
+--- a/include/qemu/config-file.h
++++ b/include/qemu/config-file.h
+@@ -1,6 +1,8 @@
+ #ifndef QEMU_CONFIG_FILE_H
+ #define QEMU_CONFIG_FILE_H
+ 
++typedef void QEMUConfigCB(const char *group, QDict *qdict, void *opaque, Error **errp);
++
+ void qemu_load_module_for_opts(const char *group);
+ QemuOptsList *qemu_find_opts(const char *group);
+ QemuOptsList *qemu_find_opts_err(const char *group, Error **errp);
+@@ -14,7 +16,10 @@ void qemu_config_write(FILE *fp);
+ int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname,
+                       Error **errp);
+ 
+-int qemu_read_config_file(const char *filename, Error **errp);
++/* A default callback for qemu_read_config_file().  */
++void qemu_config_do_parse(const char *group, QDict *qdict, void *opaque, Error **errp);
++
++int qemu_read_config_file(const char *filename, QEMUConfigCB *f, Error **errp);
+ 
+ /* Parse QDict options as a replacement for a config file (allowing multiple
+    enumerated (0..(n-1)) configuration "sections") */
+diff --git a/meson.build b/meson.build
+index e63dcf7bd4..626cf932c1 100644
+--- a/meson.build
++++ b/meson.build
+@@ -163,7 +163,7 @@ if targetos != 'linux' and get_option('multiprocess').enabled()
+ endif
+ multiprocess_allowed = targetos == 'linux' and not get_option('multiprocess').disabled()
+ 
+-m = cc.find_library('m', required: false)
++libm = cc.find_library('m', required: false)
+ util = cc.find_library('util', required: false)
+ winmm = []
+ socket = []
+@@ -1918,7 +1918,7 @@ util_ss.add_all(trace_ss)
+ util_ss = util_ss.apply(config_all, strict: false)
+ libqemuutil = static_library('qemuutil',
+                              sources: util_ss.sources() + stub_ss.sources() + genh,
+-                             dependencies: [util_ss.dependencies(), m, glib, socket, malloc, pixman])
++                             dependencies: [util_ss.dependencies(), libm, glib, socket, malloc, pixman])
+ qemuutil = declare_dependency(link_with: libqemuutil,
+                               sources: genh + version_res)
+ 
+diff --git a/softmmu/vl.c b/softmmu/vl.c
+index 6054f6f0b9..326c1e9080 100644
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
+@@ -121,6 +121,7 @@
+ #include "qapi/qapi-commands-misc.h"
+ #include "qapi/qapi-visit-qom.h"
+ #include "qapi/qapi-commands-ui.h"
++#include "qapi/qmp/qdict.h"
+ #include "qapi/qmp/qerror.h"
+ #include "sysemu/iothread.h"
+ #include "qemu/guest-random.h"
+@@ -1721,9 +1722,15 @@ static void object_option_foreach_add(bool (*type_opt_predicate)(const char *))
+     }
+ }
+ 
++static void object_option_add_visitor(Visitor *v)
++{
++    ObjectOption *opt = g_new0(ObjectOption, 1);
++    visit_type_ObjectOptions(v, NULL, &opt->opts, &error_fatal);
++    QTAILQ_INSERT_TAIL(&object_opts, opt, next);
++}
++
+ static void object_option_parse(const char *optarg)
+ {
+-    ObjectOption *opt;
+     QemuOpts *opts;
+     const char *type;
+     Visitor *v;
+@@ -1751,11 +1758,8 @@ static void object_option_parse(const char *optarg)
+         v = opts_visitor_new(opts);
+     }
+ 
+-    opt = g_new0(ObjectOption, 1);
+-    visit_type_ObjectOptions(v, NULL, &opt->opts, &error_fatal);
++    object_option_add_visitor(v);
+     visit_free(v);
+-
+-    QTAILQ_INSERT_TAIL(&object_opts, opt, next);
+ }
+ 
+ /*
+@@ -2127,13 +2131,62 @@ static int global_init_func(void *opaque, QemuOpts *opts, Error **errp)
+     return 0;
+ }
+ 
++/*
++ * Return whether configuration group @group is stored in QemuOpts, or
++ * recorded as one or more QDicts by qemu_record_config_group.
++ */
++static bool is_qemuopts_group(const char *group)
++{
++    if (g_str_equal(group, "object")) {
++        return false;
++    }
++    return true;
++}
++
++static void qemu_record_config_group(const char *group, QDict *dict,
++                                     bool from_json, Error **errp)
++{
++    if (g_str_equal(group, "object")) {
++        Visitor *v = qobject_input_visitor_new_keyval(QOBJECT(dict));
++        object_option_add_visitor(v);
++        visit_free(v);
++    } else {
++        abort();
++    }
++}
++
++/*
++ * Parse non-QemuOpts config file groups, pass the rest to
++ * qemu_config_do_parse.
++ */
++static void qemu_parse_config_group(const char *group, QDict *qdict,
++                                    void *opaque, Error **errp)
++{
++    QObject *crumpled;
++    if (is_qemuopts_group(group)) {
++        qemu_config_do_parse(group, qdict, opaque, errp);
++        return;
++    }
++
++    crumpled = qdict_crumple(qdict, errp);
++    if (!crumpled) {
++        return;
++    }
++    if (qobject_type(crumpled) != QTYPE_QDICT) {
++        assert(qobject_type(crumpled) == QTYPE_QLIST);
++        error_setg(errp, "Lists cannot be at top level of a configuration section");
++        return;
++    }
++    qemu_record_config_group(group, qobject_to(QDict, crumpled), false, errp);
++}
++
+ static void qemu_read_default_config_file(Error **errp)
+ {
+     ERRP_GUARD();
+     int ret;
+     g_autofree char *file = get_relocated_path(CONFIG_QEMU_CONFDIR "/qemu.conf");
+ 
+-    ret = qemu_read_config_file(file, errp);
++    ret = qemu_read_config_file(file, qemu_parse_config_group, errp);
+     if (ret < 0) {
+         if (ret == -ENOENT) {
+             error_free(*errp);
+@@ -2142,9 +2195,8 @@ static void qemu_read_default_config_file(Error **errp)
+     }
+ }
+ 
+-static int qemu_set_option(const char *str)
++static void qemu_set_option(const char *str, Error **errp)
+ {
+-    Error *local_err = NULL;
+     char group[64], id[64], arg[64];
+     QemuOptsList *list;
+     QemuOpts *opts;
+@@ -2152,27 +2204,23 @@ static int qemu_set_option(const char *str)
+ 
+     rc = sscanf(str, "%63[^.].%63[^.].%63[^=]%n", group, id, arg, &offset);
+     if (rc < 3 || str[offset] != '=') {
+-        error_report("can't parse: \"%s\"", str);
+-        return -1;
+-    }
+-
+-    list = qemu_find_opts(group);
+-    if (list == NULL) {
+-        return -1;
+-    }
+-
+-    opts = qemu_opts_find(list, id);
+-    if (!opts) {
+-        error_report("there is no %s \"%s\" defined",
+-                     list->name, id);
+-        return -1;
++        error_setg(errp, "can't parse: \"%s\"", str);
++        return;
+     }
+ 
+-    if (!qemu_opt_set(opts, arg, str + offset + 1, &local_err)) {
+-        error_report_err(local_err);
+-        return -1;
++    if (!is_qemuopts_group(group)) {
++        error_setg(errp, "-set is not supported with %s", group);
++    } else {
++        list = qemu_find_opts_err(group, errp);
++        if (list) {
++            opts = qemu_opts_find(list, id);
++            if (!opts) {
++                error_setg(errp, "there is no %s \"%s\" defined", group, id);
++                return;
++            }
++            qemu_opt_set(opts, arg, str + offset + 1, errp);
++        }
+     }
+-    return 0;
+ }
+ 
+ static void user_register_global_props(void)
+@@ -2766,8 +2814,7 @@ void qemu_init(int argc, char **argv, char **envp)
+                 }
+                 break;
+             case QEMU_OPTION_set:
+-                if (qemu_set_option(optarg) != 0)
+-                    exit(1);
++                qemu_set_option(optarg, &error_fatal);
+                 break;
+             case QEMU_OPTION_global:
+                 if (qemu_global_option(optarg) != 0)
+@@ -3399,7 +3446,7 @@ void qemu_init(int argc, char **argv, char **envp)
+                 qemu_plugin_opt_parse(optarg, &plugin_list);
+                 break;
+             case QEMU_OPTION_readconfig:
+-                qemu_read_config_file(optarg, &error_fatal);
++                qemu_read_config_file(optarg, qemu_parse_config_group, &error_fatal);
+                 break;
+             case QEMU_OPTION_spice:
+                 olist = qemu_find_opts_err("spice", NULL);
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index e0ba36cc23..a9fe1662d3 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -6089,39 +6089,17 @@ static void x86_cpu_realizefn(DeviceState *dev, Error **errp)
+     Error *local_err = NULL;
+     static bool ht_warned;
+ 
+-    /* Process Hyper-V enlightenments */
+-    x86_cpu_hyperv_realize(cpu);
+-
+-    cpu_exec_realizefn(cs, &local_err);
+-    if (local_err != NULL) {
+-        error_propagate(errp, local_err);
+-        return;
+-    }
+-
+-    if (xcc->host_cpuid_required && !accel_uses_host_cpuid()) {
+-        g_autofree char *name = x86_cpu_class_get_model_name(xcc);
+-        error_setg(&local_err, "CPU model '%s' requires KVM or HVF", name);
+-        goto out;
+-    }
+-
+-    if (cpu->ucode_rev == 0) {
+-        /* The default is the same as KVM's.  */
+-        if (IS_AMD_CPU(env)) {
+-            cpu->ucode_rev = 0x01000065;
+-        } else {
+-            cpu->ucode_rev = 0x100000000ULL;
+-        }
+-    }
+-
+-    /* mwait extended info: needed for Core compatibility */
+-    /* We always wake on interrupt even if host does not have the capability */
+-    cpu->mwait.ecx |= CPUID_MWAIT_EMX | CPUID_MWAIT_IBE;
+-
+     if (cpu->apic_id == UNASSIGNED_APIC_ID) {
+         error_setg(errp, "apic-id property was not initialized properly");
+         return;
+     }
+ 
++    /*
++     * Process Hyper-V enlightenments.
++     * Note: this currently has to happen before the expansion of CPU features.
++     */
++    x86_cpu_hyperv_realize(cpu);
++
+     x86_cpu_expand_features(cpu, &local_err);
+     if (local_err) {
+         goto out;
+@@ -6146,11 +6124,56 @@ static void x86_cpu_realizefn(DeviceState *dev, Error **errp)
+            & CPUID_EXT2_AMD_ALIASES);
+     }
+ 
++    /*
++     * note: the call to the framework needs to happen after feature expansion,
++     * but before the checks/modifications to ucode_rev, mwait, phys_bits.
++     * These may be set by the accel-specific code,
++     * and the results are subsequently checked / assumed in this function.
++     */
++    cpu_exec_realizefn(cs, &local_err);
++    if (local_err != NULL) {
++        error_propagate(errp, local_err);
++        return;
++    }
++
++    if (xcc->host_cpuid_required && !accel_uses_host_cpuid()) {
++        g_autofree char *name = x86_cpu_class_get_model_name(xcc);
++        error_setg(&local_err, "CPU model '%s' requires KVM or HVF", name);
++        goto out;
++    }
++
++    if (cpu->ucode_rev == 0) {
++        /*
++         * The default is the same as KVM's. Note that this check
++         * needs to happen after the evenual setting of ucode_rev in
++         * accel-specific code in cpu_exec_realizefn.
++         */
++        if (IS_AMD_CPU(env)) {
++            cpu->ucode_rev = 0x01000065;
++        } else {
++            cpu->ucode_rev = 0x100000000ULL;
++        }
++    }
++
++    /*
++     * mwait extended info: needed for Core compatibility
++     * We always wake on interrupt even if host does not have the capability.
++     *
++     * requires the accel-specific code in cpu_exec_realizefn to
++     * have already acquired the CPUID data into cpu->mwait.
++     */
++    cpu->mwait.ecx |= CPUID_MWAIT_EMX | CPUID_MWAIT_IBE;
++
+     /* For 64bit systems think about the number of physical bits to present.
+      * ideally this should be the same as the host; anything other than matching
+      * the host can cause incorrect guest behaviour.
+      * QEMU used to pick the magic value of 40 bits that corresponds to
+      * consumer AMD devices but nothing else.
++     *
++     * Note that this code assumes features expansion has already been done
++     * (as it checks for CPUID_EXT2_LM), and also assumes that potential
++     * phys_bits adjustments to match the host have been already done in
++     * accel-specific code in cpu_exec_realizefn.
+      */
+     if (env->features[FEAT_8000_0001_EDX] & CPUID_EXT2_LM) {
+         if (cpu->phys_bits &&
+@@ -6378,6 +6401,11 @@ static void x86_cpu_register_feature_bit_props(X86CPUClass *xcc,
+     x86_cpu_register_bit_prop(xcc, name, w, bitnr);
+ }
+ 
++static void x86_cpu_post_initfn(Object *obj)
++{
++    accel_cpu_instance_init(CPU(obj));
++}
++
+ static void x86_cpu_initfn(Object *obj)
+ {
+     X86CPU *cpu = X86_CPU(obj);
+@@ -6429,9 +6457,6 @@ static void x86_cpu_initfn(Object *obj)
+     if (xcc->model) {
+         x86_cpu_load_model(cpu, xcc->model);
+     }
+-
+-    /* if required, do accelerator-specific cpu initializations */
+-    accel_cpu_instance_init(CPU(obj));
+ }
+ 
+ static int64_t x86_cpu_get_arch_id(CPUState *cs)
+@@ -6776,6 +6801,8 @@ static const TypeInfo x86_cpu_type_info = {
+     .parent = TYPE_CPU,
+     .instance_size = sizeof(X86CPU),
+     .instance_init = x86_cpu_initfn,
++    .instance_post_init = x86_cpu_post_initfn,
++
+     .abstract = true,
+     .class_size = sizeof(X86CPUClass),
+     .class_init = x86_cpu_common_class_init,
+diff --git a/target/i386/kvm/kvm-cpu.c b/target/i386/kvm/kvm-cpu.c
+index 5235bce8dc..00369c2000 100644
+--- a/target/i386/kvm/kvm-cpu.c
++++ b/target/i386/kvm/kvm-cpu.c
+@@ -26,10 +26,18 @@ static bool kvm_cpu_realizefn(CPUState *cs, Error **errp)
+     /*
+      * The realize order is important, since x86_cpu_realize() checks if
+      * nothing else has been set by the user (or by accelerators) in
+-     * cpu->ucode_rev and cpu->phys_bits.
++     * cpu->ucode_rev and cpu->phys_bits, and updates the CPUID results in
++     * mwait.ecx.
++     * This accel realization code also assumes cpu features are already expanded.
+      *
+      * realize order:
+-     * kvm_cpu -> host_cpu -> x86_cpu
++     *
++     * x86_cpu_realize():
++     *  -> x86_cpu_expand_features()
++     *  -> cpu_exec_realizefn():
++     *            -> accel_cpu_realizefn()
++     *               kvm_cpu_realizefn() -> host_cpu_realizefn()
++     *  -> check/update ucode_rev, phys_bits, mwait
+      */
+     if (cpu->max_features) {
+         if (enable_cpu_pm && kvm_has_waitpkg()) {
+diff --git a/target/i386/tcg/seg_helper.c b/target/i386/tcg/seg_helper.c
+index 2f6cdc8239..3ed20ca31d 100644
+--- a/target/i386/tcg/seg_helper.c
++++ b/target/i386/tcg/seg_helper.c
+@@ -277,11 +277,10 @@ static void switch_tss_ra(CPUX86State *env, int tss_selector,
+         new_eip = cpu_lduw_kernel_ra(env, tss_base + 0x0e, retaddr);
+         new_eflags = cpu_lduw_kernel_ra(env, tss_base + 0x10, retaddr);
+         for (i = 0; i < 8; i++) {
+-            new_regs[i] = cpu_lduw_kernel_ra(env, tss_base + (0x12 + i * 2),
+-                                             retaddr) | 0xffff0000;
++            new_regs[i] = cpu_lduw_kernel_ra(env, tss_base + (0x12 + i * 2), retaddr);
+         }
+         for (i = 0; i < 4; i++) {
+-            new_segs[i] = cpu_lduw_kernel_ra(env, tss_base + (0x22 + i * 4),
++            new_segs[i] = cpu_lduw_kernel_ra(env, tss_base + (0x22 + i * 2),
+                                              retaddr);
+         }
+         new_ldt = cpu_lduw_kernel_ra(env, tss_base + 0x2a, retaddr);
+@@ -320,7 +319,7 @@ static void switch_tss_ra(CPUX86State *env, int tss_selector,
+     }
+ 
+     /* save the current state in the old TSS */
+-    if (type & 8) {
++    if (old_type & 8) {
+         /* 32 bit */
+         cpu_stl_kernel_ra(env, env->tr.base + 0x20, next_eip, retaddr);
+         cpu_stl_kernel_ra(env, env->tr.base + 0x24, old_eflags, retaddr);
+@@ -349,7 +348,7 @@ static void switch_tss_ra(CPUX86State *env, int tss_selector,
+         cpu_stw_kernel_ra(env, env->tr.base + (0x12 + 6 * 2), env->regs[R_ESI], retaddr);
+         cpu_stw_kernel_ra(env, env->tr.base + (0x12 + 7 * 2), env->regs[R_EDI], retaddr);
+         for (i = 0; i < 4; i++) {
+-            cpu_stw_kernel_ra(env, env->tr.base + (0x22 + i * 4),
++            cpu_stw_kernel_ra(env, env->tr.base + (0x22 + i * 2),
+                               env->segs[i].selector, retaddr);
+         }
+     }
+@@ -391,19 +390,17 @@ static void switch_tss_ra(CPUX86State *env, int tss_selector,
+     env->eip = new_eip;
+     eflags_mask = TF_MASK | AC_MASK | ID_MASK |
+         IF_MASK | IOPL_MASK | VM_MASK | RF_MASK | NT_MASK;
+-    if (!(type & 8)) {
+-        eflags_mask &= 0xffff;
++    if (type & 8) {
++        cpu_load_eflags(env, new_eflags, eflags_mask);
++        for (i = 0; i < 8; i++) {
++            env->regs[i] = new_regs[i];
++        }
++    } else {
++        cpu_load_eflags(env, new_eflags, eflags_mask & 0xffff);
++        for (i = 0; i < 8; i++) {
++            env->regs[i] = (env->regs[i] & 0xffff0000) | new_regs[i];
++        }
+     }
+-    cpu_load_eflags(env, new_eflags, eflags_mask);
+-    /* XXX: what to do in 16 bit case? */
+-    env->regs[R_EAX] = new_regs[0];
+-    env->regs[R_ECX] = new_regs[1];
+-    env->regs[R_EDX] = new_regs[2];
+-    env->regs[R_EBX] = new_regs[3];
+-    env->regs[R_ESP] = new_regs[4];
+-    env->regs[R_EBP] = new_regs[5];
+-    env->regs[R_ESI] = new_regs[6];
+-    env->regs[R_EDI] = new_regs[7];
+     if (new_eflags & VM_MASK) {
+         for (i = 0; i < 6; i++) {
+             load_seg_vm(env, i, new_segs[i]);
+diff --git a/target/i386/tcg/translate.c b/target/i386/tcg/translate.c
+index 834186bcae..a7f5c0c8f2 100644
+--- a/target/i386/tcg/translate.c
++++ b/target/i386/tcg/translate.c
+@@ -8091,6 +8091,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
+         case 2:
+         case 3:
+         case 4:
++        case 8:
+             break;
+         default:
+             goto unknown_op;
+diff --git a/tcg/aarch64/tcg-target.c.inc b/tcg/aarch64/tcg-target.c.inc
+index 27cde314a9..5bd366f2d4 100644
+--- a/tcg/aarch64/tcg-target.c.inc
++++ b/tcg/aarch64/tcg-target.c.inc
+@@ -277,8 +277,11 @@ static bool is_shimm1632(uint32_t v32, int *cmode, int *imm8)
+     }
+ }
+ 
+-static bool tcg_target_const_match(int64_t val, TCGType type, int ct)
++static int tcg_target_const_match(tcg_target_long val, TCGType type,
++                                  const TCGArgConstraint *arg_ct)
+ {
++    int ct = arg_ct->ct;
++
+     if (ct & TCG_CT_CONST) {
+         return 1;
+     }
+diff --git a/tcg/arm/tcg-target.c.inc b/tcg/arm/tcg-target.c.inc
+index eb4f42e53d..8457108a87 100644
+--- a/tcg/arm/tcg-target.c.inc
++++ b/tcg/arm/tcg-target.c.inc
+@@ -301,8 +301,11 @@ static inline int check_fit_imm(uint32_t imm)
+  * mov operand2:     values represented with x << (2 * y), x < 0x100
+  * add, sub, eor...: ditto
+  */
+-static bool tcg_target_const_match(int64_t val, TCGType type, int ct)
++static inline int tcg_target_const_match(tcg_target_long val, TCGType type,
++                                         const TCGArgConstraint *arg_ct)
+ {
++    int ct;
++    ct = arg_ct->ct;
+     if (ct & TCG_CT_CONST) {
+         return 1;
+     } else if ((ct & TCG_CT_CONST_ARM) && check_fit_imm(val)) {
+diff --git a/tcg/i386/tcg-target.c.inc b/tcg/i386/tcg-target.c.inc
+index 34113388ef..415c5c0796 100644
+--- a/tcg/i386/tcg-target.c.inc
++++ b/tcg/i386/tcg-target.c.inc
+@@ -210,8 +210,10 @@ static bool patch_reloc(tcg_insn_unit *code_ptr, int type,
+ }
+ 
+ /* test if a constant matches the constraint */
+-static bool tcg_target_const_match(int64_t val, TCGType type, int ct)
++static inline int tcg_target_const_match(tcg_target_long val, TCGType type,
++                                         const TCGArgConstraint *arg_ct)
+ {
++    int ct = arg_ct->ct;
+     if (ct & TCG_CT_CONST) {
+         return 1;
+     }
+diff --git a/tcg/mips/tcg-target.c.inc b/tcg/mips/tcg-target.c.inc
+index 5944448b2a..8b16726242 100644
+--- a/tcg/mips/tcg-target.c.inc
++++ b/tcg/mips/tcg-target.c.inc
+@@ -193,8 +193,11 @@ static inline bool is_p2m1(tcg_target_long val)
+ }
+ 
+ /* test if a constant matches the constraint */
+-static bool tcg_target_const_match(int64_t val, TCGType type, int ct)
++static inline int tcg_target_const_match(tcg_target_long val, TCGType type,
++                                         const TCGArgConstraint *arg_ct)
+ {
++    int ct;
++    ct = arg_ct->ct;
+     if (ct & TCG_CT_CONST) {
+         return 1;
+     } else if ((ct & TCG_CT_CONST_ZERO) && val == 0) {
+diff --git a/tcg/ppc/tcg-target.c.inc b/tcg/ppc/tcg-target.c.inc
+index 795701442b..838ccfa42d 100644
+--- a/tcg/ppc/tcg-target.c.inc
++++ b/tcg/ppc/tcg-target.c.inc
+@@ -238,8 +238,10 @@ static bool reloc_pc14(tcg_insn_unit *src_rw, const tcg_insn_unit *target)
+ }
+ 
+ /* test if a constant matches the constraint */
+-static bool tcg_target_const_match(int64_t val, TCGType type, int ct)
++static int tcg_target_const_match(tcg_target_long val, TCGType type,
++                                  const TCGArgConstraint *arg_ct)
+ {
++    int ct = arg_ct->ct;
+     if (ct & TCG_CT_CONST) {
+         return 1;
+     }
+diff --git a/tcg/riscv/tcg-target.c.inc b/tcg/riscv/tcg-target.c.inc
+index da7eecafc5..ef43147040 100644
+--- a/tcg/riscv/tcg-target.c.inc
++++ b/tcg/riscv/tcg-target.c.inc
+@@ -145,8 +145,10 @@ static inline tcg_target_long sextreg(tcg_target_long val, int pos, int len)
+ }
+ 
+ /* test if a constant matches the constraint */
+-static bool tcg_target_const_match(int64_t val, TCGType type, int ct)
++static int tcg_target_const_match(tcg_target_long val, TCGType type,
++                                  const TCGArgConstraint *arg_ct)
+ {
++    int ct = arg_ct->ct;
+     if (ct & TCG_CT_CONST) {
+         return 1;
+     }
+diff --git a/tcg/s390/tcg-target.c.inc b/tcg/s390/tcg-target.c.inc
+index 5fe073f09a..af8dfe81ac 100644
+--- a/tcg/s390/tcg-target.c.inc
++++ b/tcg/s390/tcg-target.c.inc
+@@ -417,8 +417,11 @@ static bool patch_reloc(tcg_insn_unit *src_rw, int type,
+ }
+ 
+ /* Test if a constant matches the constraint. */
+-static bool tcg_target_const_match(int64_t val, TCGType type, int ct)
++static int tcg_target_const_match(tcg_target_long val, TCGType type,
++                                  const TCGArgConstraint *arg_ct)
+ {
++    int ct = arg_ct->ct;
++
+     if (ct & TCG_CT_CONST) {
+         return 1;
+     }
+diff --git a/tcg/sparc/tcg-target.c.inc b/tcg/sparc/tcg-target.c.inc
+index ce39ac2d86..3d50f985c6 100644
+--- a/tcg/sparc/tcg-target.c.inc
++++ b/tcg/sparc/tcg-target.c.inc
+@@ -341,8 +341,11 @@ static bool patch_reloc(tcg_insn_unit *src_rw, int type,
+ }
+ 
+ /* test if a constant matches the constraint */
+-static bool tcg_target_const_match(int64_t val, TCGType type, int ct)
++static inline int tcg_target_const_match(tcg_target_long val, TCGType type,
++                                         const TCGArgConstraint *arg_ct)
+ {
++    int ct = arg_ct->ct;
++
+     if (ct & TCG_CT_CONST) {
+         return 1;
+     }
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index 0dc271aac9..db806a6658 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -148,7 +148,8 @@ static void tcg_out_st(TCGContext *s, TCGType type, TCGReg arg, TCGReg arg1,
+ static bool tcg_out_sti(TCGContext *s, TCGType type, TCGArg val,
+                         TCGReg base, intptr_t ofs);
+ static void tcg_out_call(TCGContext *s, const tcg_insn_unit *target);
+-static bool tcg_target_const_match(int64_t val, TCGType type, int ct);
++static int tcg_target_const_match(tcg_target_long val, TCGType type,
++                                  const TCGArgConstraint *arg_ct);
+ #ifdef TCG_TARGET_NEED_LDST_LABELS
+ static int tcg_out_ldst_finalize(TCGContext *s);
+ #endif
+@@ -4077,7 +4078,7 @@ static void tcg_reg_alloc_op(TCGContext *s, const TCGOp *op)
+         ts = arg_temp(arg);
+ 
+         if (ts->val_type == TEMP_VAL_CONST
+-            && tcg_target_const_match(ts->val, ts->type, arg_ct->ct)) {
++            && tcg_target_const_match(ts->val, ts->type, arg_ct)) {
+             /* constant is OK for instruction */
+             const_args[i] = 1;
+             new_args[i] = ts->val;
+diff --git a/tcg/tci/tcg-target.c.inc b/tcg/tci/tcg-target.c.inc
+index 823ecd5d35..ee6cdfec71 100644
+--- a/tcg/tci/tcg-target.c.inc
++++ b/tcg/tci/tcg-target.c.inc
+@@ -789,9 +789,11 @@ static inline bool tcg_out_sti(TCGContext *s, TCGType type, TCGArg val,
+ }
+ 
+ /* Test if a constant matches the constraint. */
+-static bool tcg_target_const_match(int64_t val, TCGType type, int ct)
++static int tcg_target_const_match(tcg_target_long val, TCGType type,
++                                  const TCGArgConstraint *arg_ct)
+ {
+-    return ct & TCG_CT_CONST;
++    /* No need to return 0 or 1, 0 or != 0 is good enough. */
++    return arg_ct->ct & TCG_CT_CONST;
+ }
+ 
+ static void tcg_target_init(TCGContext *s)
+diff --git a/tests/qtest/virtio-scsi-test.c b/tests/qtest/virtio-scsi-test.c
+index 1b7ecc1c8f..8ceb12aacd 100644
+--- a/tests/qtest/virtio-scsi-test.c
++++ b/tests/qtest/virtio-scsi-test.c
+@@ -200,6 +200,42 @@ static void test_unaligned_write_same(void *obj, void *data,
+     qvirtio_scsi_pci_free(vs);
+ }
+ 
++/* Test UNMAP with a large LBA, issue #345 */
++static void test_unmap_large_lba(void *obj, void *data,
++                                      QGuestAllocator *t_alloc)
++{
++    QVirtioSCSI *scsi = obj;
++    QVirtioSCSIQueues *vs;
++    const uint8_t unmap[VIRTIO_SCSI_CDB_SIZE] = {
++        0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x00
++    };
++
++    /*
++     * Default null-co device size is 2**30
++     * LBA 0x7fff is ~ 1/8 into device, with 4k blocks
++     * if check_lba_range incorrectly using 512 bytes, will trigger sense error
++     */
++    uint8_t unmap_params[0x18] = {
++        0x00, 0x16, /* unmap data length */
++        0x00, 0x10, /* unmap block descriptor data length */
++        0x00, 0x00, 0x00, 0x00, /* reserved */
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0xff, /* LBA */
++        0x00, 0x00, 0x03, 0xff, /* sector count */
++        0x00, 0x00, 0x00, 0x00, /* reserved */
++    };
++    struct virtio_scsi_cmd_resp resp;
++
++    alloc = t_alloc;
++    vs = qvirtio_scsi_init(scsi->vdev);
++
++    virtio_scsi_do_command(vs, unmap, NULL, 0, unmap_params,
++                           sizeof(unmap_params), &resp);
++    g_assert_cmphex(resp.response, ==, 0);
++    g_assert_cmphex(resp.status, !=, CHECK_CONDITION);
++
++    qvirtio_scsi_pci_free(vs);
++}
++
+ static void test_write_to_cdrom(void *obj, void *data,
+                                 QGuestAllocator *t_alloc)
+ {
+@@ -293,6 +329,17 @@ static void *virtio_scsi_setup(GString *cmd_line, void *arg)
+     return arg;
+ }
+ 
++static void *virtio_scsi_setup_4k(GString *cmd_line, void *arg)
++{
++    g_string_append(cmd_line,
++                    " -drive file=blkdebug::null-co://,"
++                    "file.image.read-zeroes=on,"
++                    "if=none,id=dr1,format=raw "
++                    "-device scsi-hd,drive=dr1,lun=0,scsi-id=1"
++                    ",logical_block_size=4k,physical_block_size=4k");
++    return arg;
++}
++
+ static void *virtio_scsi_setup_cd(GString *cmd_line, void *arg)
+ {
+     g_string_append(cmd_line,
+@@ -323,6 +370,10 @@ static void register_virtio_scsi_test(void)
+     qos_add_test("unaligned-write-same", "virtio-scsi",
+                  test_unaligned_write_same, &opts);
+ 
++    opts.before = virtio_scsi_setup_4k;
++    qos_add_test("large-lba-unmap", "virtio-scsi",
++                 test_unmap_large_lba, &opts);
++
+     opts.before = virtio_scsi_setup_cd;
+     qos_add_test("write-to-cdrom", "virtio-scsi", test_write_to_cdrom, &opts);
+ 
+diff --git a/util/oslib-posix.c b/util/oslib-posix.c
+index 36820fec16..7b4bec1402 100644
+--- a/util/oslib-posix.c
++++ b/util/oslib-posix.c
+@@ -273,17 +273,6 @@ int qemu_try_set_nonblock(int fd)
+         return -errno;
+     }
+     if (fcntl(fd, F_SETFL, f | O_NONBLOCK) == -1) {
+-#ifdef __OpenBSD__
+-        /*
+-         * Previous to OpenBSD 6.3, fcntl(F_SETFL) is not permitted on
+-         * memory devices and sets errno to ENODEV.
+-         * It's OK if we fail to set O_NONBLOCK on devices like /dev/null,
+-         * because they will never block anyway.
+-         */
+-        if (errno == ENODEV) {
+-            return 0;
+-        }
+-#endif
+         return -errno;
+     }
+     return 0;
+diff --git a/util/qemu-config.c b/util/qemu-config.c
+index 34974c4b47..374f3bc460 100644
+--- a/util/qemu-config.c
++++ b/util/qemu-config.c
+@@ -2,6 +2,7 @@
+ #include "block/qdict.h" /* for qdict_extract_subqdict() */
+ #include "qapi/error.h"
+ #include "qapi/qapi-commands-misc.h"
++#include "qapi/qmp/qerror.h"
+ #include "qapi/qmp/qdict.h"
+ #include "qapi/qmp/qlist.h"
+ #include "qemu/error-report.h"
+@@ -351,19 +352,19 @@ void qemu_config_write(FILE *fp)
+ }
+ 
+ /* Returns number of config groups on success, -errno on error */
+-int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname, Error **errp)
++static int qemu_config_foreach(FILE *fp, QEMUConfigCB *cb, void *opaque,
++                               const char *fname, Error **errp)
+ {
+-    char line[1024], group[64], id[64], arg[64], value[1024];
++    char line[1024], prev_group[64], group[64], arg[64], value[1024];
+     Location loc;
+-    QemuOptsList *list = NULL;
+     Error *local_err = NULL;
+-    QemuOpts *opts = NULL;
++    QDict *qdict = NULL;
+     int res = -EINVAL, lno = 0;
+     int count = 0;
+ 
+     loc_push_none(&loc);
+     while (fgets(line, sizeof(line), fp) != NULL) {
+-        loc_set_file(fname, ++lno);
++        ++lno;
+         if (line[0] == '\n') {
+             /* skip empty lines */
+             continue;
+@@ -372,39 +373,39 @@ int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname, Error *
+             /* comment */
+             continue;
+         }
+-        if (sscanf(line, "[%63s \"%63[^\"]\"]", group, id) == 2) {
+-            /* group with id */
+-            list = find_list(lists, group, &local_err);
+-            if (local_err) {
+-                error_propagate(errp, local_err);
+-                goto out;
++        if (line[0] == '[') {
++            QDict *prev = qdict;
++            if (sscanf(line, "[%63s \"%63[^\"]\"]", group, value) == 2) {
++                qdict = qdict_new();
++                qdict_put_str(qdict, "id", value);
++                count++;
++            } else if (sscanf(line, "[%63[^]]]", group) == 1) {
++                qdict = qdict_new();
++                count++;
+             }
+-            opts = qemu_opts_create(list, id, 1, NULL);
+-            count++;
+-            continue;
+-        }
+-        if (sscanf(line, "[%63[^]]]", group) == 1) {
+-            /* group without id */
+-            list = find_list(lists, group, &local_err);
+-            if (local_err) {
+-                error_propagate(errp, local_err);
+-                goto out;
++            if (qdict != prev) {
++                if (prev) {
++                    cb(prev_group, prev, opaque, &local_err);
++                    qobject_unref(prev);
++                    if (local_err) {
++                        error_propagate(errp, local_err);
++                        goto out;
++                    }
++                }
++                strcpy(prev_group, group);
++                continue;
+             }
+-            opts = qemu_opts_create(list, NULL, 0, &error_abort);
+-            count++;
+-            continue;
+         }
++        loc_set_file(fname, lno);
+         value[0] = '\0';
+         if (sscanf(line, " %63s = \"%1023[^\"]\"", arg, value) == 2 ||
+             sscanf(line, " %63s = \"\"", arg) == 1) {
+             /* arg = value */
+-            if (opts == NULL) {
++            if (qdict == NULL) {
+                 error_setg(errp, "no group defined");
+                 goto out;
+             }
+-            if (!qemu_opt_set(opts, arg, value, errp)) {
+-                goto out;
+-            }
++            qdict_put_str(qdict, arg, value);
+             continue;
+         }
+         error_setg(errp, "parse error");
+@@ -417,11 +418,48 @@ int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname, Error *
+     }
+     res = count;
+ out:
++    if (qdict) {
++        cb(group, qdict, opaque, errp);
++        qobject_unref(qdict);
++    }
+     loc_pop(&loc);
+     return res;
+ }
+ 
+-int qemu_read_config_file(const char *filename, Error **errp)
++void qemu_config_do_parse(const char *group, QDict *qdict, void *opaque, Error **errp)
++{
++    QemuOptsList **lists = opaque;
++    const char *id = qdict_get_try_str(qdict, "id");
++    QemuOptsList *list;
++    QemuOpts *opts;
++    const QDictEntry *unrecognized;
++
++    list = find_list(lists, group, errp);
++    if (!list) {
++        return;
++    }
++
++    opts = qemu_opts_create(list, id, 1, errp);
++    if (!opts) {
++        return;
++    }
++    if (!qemu_opts_absorb_qdict(opts, qdict, errp)) {
++        qemu_opts_del(opts);
++        return;
++    }
++    unrecognized = qdict_first(qdict);
++    if (unrecognized) {
++        error_setg(errp, QERR_INVALID_PARAMETER, unrecognized->key);
++        qemu_opts_del(opts);
++    }
++}
++
++int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname, Error **errp)
++{
++    return qemu_config_foreach(fp, qemu_config_do_parse, lists, fname, errp);
++}
++
++int qemu_read_config_file(const char *filename, QEMUConfigCB *cb, Error **errp)
+ {
+     FILE *f = fopen(filename, "r");
+     int ret;
+@@ -431,7 +469,7 @@ int qemu_read_config_file(const char *filename, Error **errp)
+         return -errno;
+     }
+ 
+-    ret = qemu_config_parse(f, vm_config_groups, filename, errp);
++    ret = qemu_config_foreach(f, cb, vm_config_groups, filename, errp);
+     fclose(f);
+     return ret;
+ }

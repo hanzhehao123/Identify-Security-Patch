@@ -1,0 +1,17 @@
+commit eee2d61e202b5bd49a5eb211e347e02c86287ef4
+Author: LIU Zhiwei <zhiwei_liu@c-sky.com>
+Date:   Fri May 21 13:48:16 2021 +0800
+
+    target/riscv: Pass the same value to oprsz and maxsz.
+    
+    Since commit e2e7168a214b0ed98dc357bba96816486a289762, if oprsz
+    is still zero(as we don't use this field), simd_desc will trigger an
+    assert.
+    
+    Besides, tcg_gen_gvec_*_ptr calls simd_desc in it's implementation.
+    Here we pass the value to maxsz and oprsz to bypass the assert.
+    
+    Signed-off-by: LIU Zhiwei <zhiwei_liu@c-sky.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210521054816.1784297-1-zhiwei_liu@c-sky.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

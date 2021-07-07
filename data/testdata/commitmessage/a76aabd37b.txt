@@ -1,0 +1,12 @@
+commit a76aabd37b5d9ddfff2de837ddef91768aa26e3e
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Mar 9 17:24:33 2021 -0600
+
+    tcg: Create tcg_init
+    
+    Perform both tcg_context_init and tcg_region_init.
+    Do not leave this split to the caller.
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

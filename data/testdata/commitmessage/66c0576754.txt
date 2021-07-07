@@ -1,0 +1,13 @@
+commit 66c0576754b100606e041fef54e5b897417426c7
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 13:16:12 2021 +0100
+
+    target/arm: Implement MVE VQDMULH and VQRDMULH (scalar)
+    
+    Implement the MVE VQDMULH and VQRDMULH scalar insns, which multiply
+    elements by the scalar, double, possibly round, take the high half
+    and saturate.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210617121628.20116-29-peter.maydell@linaro.org

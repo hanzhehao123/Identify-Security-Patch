@@ -1,0 +1,14 @@
+diff --git a/python/qemu/machine.py b/python/qemu/machine.py
+index 5d72c4ca36..c66bc6a9c6 100644
+--- a/python/qemu/machine.py
++++ b/python/qemu/machine.py
+@@ -405,9 +405,6 @@ def _launch(self) -> None:
+                   self._args)
+         )
+         LOG.debug('VM launch command: %r', ' '.join(self._qemu_full_args))
+-
+-        # Cleaning up of this subprocess is guaranteed by _do_shutdown.
+-        # pylint: disable=consider-using-with
+         self._popen = subprocess.Popen(self._qemu_full_args,
+                                        stdin=subprocess.DEVNULL,
+                                        stdout=self._qemu_log_file,

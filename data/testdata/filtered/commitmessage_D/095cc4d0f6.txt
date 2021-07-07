@@ -1,0 +1,19 @@
+commit 095cc4d0f62513d75e9bc1da37f08d9e97f267c4
+Author: Sergio Lopez <slp@redhat.com>
+Date:   Wed Jun 2 08:05:51 2021 +0200
+
+    block-backend: add drained_poll
+    
+    Allow block backends to poll their devices/users to check if they have
+    been quiesced when entering a drained section.
+    
+    This will be used in the next patch to wait for the NBD server to be
+    completely quiesced.
+    
+    Suggested-by: Kevin Wolf <kwolf@redhat.com>
+    Reviewed-by: Kevin Wolf <kwolf@redhat.com>
+    Reviewed-by: Eric Blake <eblake@redhat.com>
+    Signed-off-by: Sergio Lopez <slp@redhat.com>
+    Message-Id: <20210602060552.17433-2-slp@redhat.com>
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

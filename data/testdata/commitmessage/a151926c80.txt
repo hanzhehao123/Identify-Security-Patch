@@ -1,0 +1,16 @@
+commit a151926c80c3c8c279d664ca8182c46763ca0e42
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sat Apr 10 12:58:55 2021 +0200
+
+    gitlab: Move current job set to qemu-project.yml
+    
+    To allow forks to easily decide which jobs they want to run,
+    but without disrupting the current default, move the current
+    set of jobs to a new file corresponding to the jobs run by
+    the mainstream project CI:
+    https://gitlab.com/qemu-project/qemu/-/pipelines
+    
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-Id: <20210511072952.2813358-11-f4bug@amsat.org>

@@ -1,0 +1,13 @@
+commit 8b80bd28a5cf8d8af7d38abcf1c7d81a1b226ec3
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Mon May 17 12:51:31 2021 +0200
+
+    cpu: Introduce SysemuCPUOps structure
+    
+    Introduce a structure to hold handler specific to sysemu.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210517105140.1062037-15-f4bug@amsat.org>
+    [rth: Squash "restrict hw/core/sysemu-cpu-ops.h" patch]
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

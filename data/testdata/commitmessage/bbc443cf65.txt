@@ -1,0 +1,9 @@
+commit bbc443cf65e3bf580df9dd8d2cd3f27154309add
+Author: Fabiano Rosas <farosas@linux.ibm.com>
+Date:   Tue Jun 1 18:46:45 2021 -0300
+
+    target/ppc: powerpc_excp: Move lpes code to where it is used
+    
+    Signed-off-by: Fabiano Rosas <farosas@linux.ibm.com>
+    Message-Id: <20210601214649.785647-2-farosas@linux.ibm.com>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

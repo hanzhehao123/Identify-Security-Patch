@@ -1,0 +1,40 @@
+diff --git a/hw/ppc/spapr.c b/hw/ppc/spapr.c
+index 4dd90b75cc..c23bcc4490 100644
+--- a/hw/ppc/spapr.c
++++ b/hw/ppc/spapr.c
+@@ -1005,7 +1005,7 @@ static void spapr_dt_chosen(SpaprMachineState *spapr, void *fdt, bool reset)
+     _FDT(chosen = fdt_add_subnode(fdt, 0, "chosen"));
+ 
+     if (reset) {
+-        const char *boot_device = spapr->boot_device;
++        const char *boot_device = machine->boot_order;
+         char *stdout_path = spapr_vio_stdout_path(spapr->vio_bus);
+         size_t cb = 0;
+         char *bootlist = get_boot_devices_list(&cb);
+@@ -2376,10 +2376,8 @@ static SaveVMHandlers savevm_htab_handlers = {
+ static void spapr_boot_set(void *opaque, const char *boot_device,
+                            Error **errp)
+ {
+-    SpaprMachineState *spapr = SPAPR_MACHINE(opaque);
+-
+-    g_free(spapr->boot_device);
+-    spapr->boot_device = g_strdup(boot_device);
++    MachineState *machine = MACHINE(opaque);
++    machine->boot_order = g_strdup(boot_device);
+ }
+ 
+ static void spapr_create_lmb_dr_connectors(SpaprMachineState *spapr)
+diff --git a/include/hw/ppc/spapr.h b/include/hw/ppc/spapr.h
+index f05219f75e..bbf817af46 100644
+--- a/include/hw/ppc/spapr.h
++++ b/include/hw/ppc/spapr.h
+@@ -223,9 +223,6 @@ struct SpaprMachineState {
+     int fwnmi_machine_check_interlock;
+     QemuCond fwnmi_machine_check_interlock_cond;
+ 
+-    /* Set by -boot */
+-    char *boot_device;
+-
+     /*< public >*/
+     char *kvm_type;
+     char *host_model;

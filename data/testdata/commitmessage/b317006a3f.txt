@@ -1,0 +1,14 @@
+commit b317006a3f1f04191a7981cef83417cb2477213b
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Tue Jun 1 18:25:48 2021 +0200
+
+    docs/secure-coding-practices: Describe how to use 'null-co' block driver
+    
+    Document that security reports must use 'null-co,read-zeroes=on'
+    because otherwise the memory is left uninitialized (which is an
+    on-purpose performance feature).
+    
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210601162548.2076631-1-philmd@redhat.com>
+    Signed-off-by: Kevin Wolf <kwolf@redhat.com>

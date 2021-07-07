@@ -1,0 +1,64 @@
+diff --git a/target/arm/t32.decode b/target/arm/t32.decode
+index 1b75db5065..6906829265 100644
+--- a/target/arm/t32.decode
++++ b/target/arm/t32.decode
+@@ -671,17 +671,14 @@ BL               1111 0. .......... 11.1 ............         @branch24
+     # LE and WLS immediate
+     %lob_imm 1:10 11:1 !function=times_2
+ 
+-    DLS          1111 0 0000 100     rn:4 1110 0000 0000 0001 size=4
++    DLS          1111 0 0000 100     rn:4 1110 0000 0000 0001
+     WLS          1111 0 0000 100     rn:4 1100 . .......... 1 imm=%lob_imm size=4
+     {
+       LE         1111 0 0000 0 f:1 0 1111 1100 . .......... 1 imm=%lob_imm
+       # This is WLSTP
+       WLS        1111 0 0000 0 size:2 rn:4 1100 . .......... 1 imm=%lob_imm
+     }
+-    {
+-      LCTP       1111 0 0000 000     1111 1110 0000 0000 0001
+-      # This is DLSTP
+-      DLS        1111 0 0000 0 size:2 rn:4 1110 0000 0000 0001
+-    }
++
++    LCTP         1111 0 0000 000     1111 1110 0000 0000 0001
+   ]
+ }
+diff --git a/target/arm/translate.c b/target/arm/translate.c
+index 1ad0e61fac..78878e9b19 100644
+--- a/target/arm/translate.c
++++ b/target/arm/translate.c
+@@ -8114,32 +8114,13 @@ static bool trans_DLS(DisasContext *s, arg_DLS *a)
+         return false;
+     }
+     if (a->rn == 13 || a->rn == 15) {
+-        /*
+-         * For DLSTP rn == 15 is a related encoding (LCTP); the
+-         * other cases caught by this condition are all
+-         * CONSTRAINED UNPREDICTABLE: we choose to UNDEF
+-         */
++        /* CONSTRAINED UNPREDICTABLE: we choose to UNDEF */
+         return false;
+     }
+ 
+-    if (a->size != 4) {
+-        /* DLSTP */
+-        if (!dc_isar_feature(aa32_mve, s)) {
+-            return false;
+-        }
+-        if (!vfp_access_check(s)) {
+-            return true;
+-        }
+-    }
+-
+-    /* Not a while loop: set LR to the count, and set LTPSIZE for DLSTP */
++    /* Not a while loop, no tail predication: just set LR to the count */
+     tmp = load_reg(s, a->rn);
+     store_reg(s, 14, tmp);
+-    if (a->size != 4) {
+-        /* DLSTP: set FPSCR.LTPSIZE */
+-        tmp = tcg_const_i32(a->size);
+-        store_cpu_field(tmp, v7m.ltpsize);
+-    }
+     return true;
+ }
+ 

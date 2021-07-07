@@ -1,0 +1,23 @@
+commit d349f92f78d26db2805ca39a7745cc70affea021
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Mon May 17 10:13:01 2021 -0400
+
+    vl: allow not specifying size in -m when using -M memory-backend
+    
+    Starting in QEMU 6.0's commit f5c9fcb82d ("vl: separate
+    qemu_create_machine", 2020-12-10), a function have_custom_ram_size()
+    replaced the return value of set_memory_options().
+    
+    The purpose of the return value was to record the presence of
+    "-m size", and if it was not there, change the default RAM
+    size to the size of the memory backend passed with "-M
+    memory-backend".
+    
+    With that commit, however, have_custom_ram_size() is now queried only
+    after set_memory_options has stored the fixed-up RAM size in QemuOpts for
+    "future use".  This was actually the only future use of the fixed-up RAM
+    size, so remove that code and fix the bug.
+    
+    Cc: qemu-stable@nongnu.org
+    Fixes: f5c9fcb82d ("vl: separate qemu_create_machine", 2020-12-10)
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

@@ -1,0 +1,90 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 1b807e1cf5..52086d769f 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -173,10 +173,6 @@ DEF_HELPER_FLAGS_4(mve_vhsubu_scalarb, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vhsubu_scalarh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ DEF_HELPER_FLAGS_4(mve_vhsubu_scalarw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+ 
+-DEF_HELPER_FLAGS_4(mve_vbrsrb, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_4(mve_vbrsrh, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-DEF_HELPER_FLAGS_4(mve_vbrsrw, TCG_CALL_NO_WG, void, env, ptr, ptr, i32)
+-
+ DEF_HELPER_FLAGS_4(mve_vmlaldavsh, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+ DEF_HELPER_FLAGS_4(mve_vmlaldavsw, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+ DEF_HELPER_FLAGS_4(mve_vmlaldavxsh, TCG_CALL_NO_WG, i64, env, ptr, ptr, i64)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index a3dbdb72a5..5c332b04a7 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -167,4 +167,3 @@ VHADD_S_scalar   1110 1110 0 . .. ... 0 ... 0 1111 . 100 .... @2scalar
+ VHADD_U_scalar   1111 1110 0 . .. ... 0 ... 0 1111 . 100 .... @2scalar
+ VHSUB_S_scalar   1110 1110 0 . .. ... 0 ... 1 1111 . 100 .... @2scalar
+ VHSUB_U_scalar   1111 1110 0 . .. ... 0 ... 1 1111 . 100 .... @2scalar
+-VBRSR            1111 1110 0 . .. ... 1 ... 1 1110 . 110 .... @2scalar
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index 441bc8467b..d76168a7a4 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -523,49 +523,6 @@ DO_2OP_SCALAR_U(vhaddu_scalar, do_vhadd_u)
+ DO_2OP_SCALAR_S(vhsubs_scalar, do_vhsub_s)
+ DO_2OP_SCALAR_U(vhsubu_scalar, do_vhsub_u)
+ 
+-static inline uint32_t do_vbrsrb(uint32_t n, uint32_t m)
+-{
+-    m &= 0xff;
+-    if (m == 0) {
+-        return 0;
+-    }
+-    n = revbit8(n);
+-    if (m < 8) {
+-        n >>= 8 - m;
+-    }
+-    return n;
+-}
+-
+-static inline uint32_t do_vbrsrh(uint32_t n, uint32_t m)
+-{
+-    m &= 0xff;
+-    if (m == 0) {
+-        return 0;
+-    }
+-    n = revbit16(n);
+-    if (m < 16) {
+-        n >>= 16 - m;
+-    }
+-    return n;
+-}
+-
+-static inline uint32_t do_vbrsrw(uint32_t n, uint32_t m)
+-{
+-    m &= 0xff;
+-    if (m == 0) {
+-        return 0;
+-    }
+-    n = revbit32(n);
+-    if (m < 32) {
+-        n >>= 32 - m;
+-    }
+-    return n;
+-}
+-
+-DO_2OP_SCALAR(vbrsrb, 1, uint8_t, do_vbrsrb)
+-DO_2OP_SCALAR(vbrsrh, 2, uint16_t, do_vbrsrh)
+-DO_2OP_SCALAR(vbrsrw, 4, uint32_t, do_vbrsrw)
+-
+ /*
+  * Multiply add long dual accumulate ops.
+  */
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index 6320064a08..4b379bfe6e 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -433,7 +433,6 @@ DO_2OP_SCALAR(VHADD_S_scalar, vhadds_scalar)
+ DO_2OP_SCALAR(VHADD_U_scalar, vhaddu_scalar)
+ DO_2OP_SCALAR(VHSUB_S_scalar, vhsubs_scalar)
+ DO_2OP_SCALAR(VHSUB_U_scalar, vhsubu_scalar)
+-DO_2OP_SCALAR(VBRSR, vbrsr)
+ 
+ static bool do_long_dual_acc(DisasContext *s, arg_vmlaldav *a,
+                              MVEGenDualAccOpFn *fn)

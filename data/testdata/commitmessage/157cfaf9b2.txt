@@ -1,0 +1,21 @@
+commit 157cfaf9b21c90a7c874ce80c4c1c9b1187ad244
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 10 13:43:24 2021 +0200
+
+    qmp: Clarify memory backend properties returned via query-memdev
+    
+    We return information on the currently configured memory backends and
+    don't configure them, so decribe what the currently set properties
+    express.
+    
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Reviewed-by: Markus Armbruster <armbru@redhat.com>
+    Suggested-by: Markus Armbruster <armbru@redhat.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com> for memory backend and machine core
+    Cc: Eric Blake <eblake@redhat.com>
+    Cc: Markus Armbruster <armbru@redhat.com>
+    Cc: Igor Mammedov <imammedo@redhat.com>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210510114328.21835-12-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

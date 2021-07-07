@@ -1,0 +1,34 @@
+commit a35947f15c0ee695eba3c55248ec8ac3e4e23cca
+Merge: 6f398e533f 72205289a0
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 7 15:45:48 2021 +0100
+
+    Merge remote-tracking branch 'remotes/stsquad/tags/pull-testing-updates-070621-2' into staging
+    
+    A few testing and configure updates:
+    
+      - add the multiarch signals stress test
+      - fix display of multi-word compiler stanzas in meson
+      - fix quoting of multi-word compiler stazas in configure.sh
+      - tag some acceptance tests as TCG only
+      - make checkpatch test work harder to find clean diffs
+      - split gprof/gconv job to avoid timeouts
+      - fix centos8 VM build by adding --source-path
+      - make checkpatch aware of .h.inc and .c.inc paths
+    
+    # gpg: Signature made Mon 07 Jun 2021 14:51:12 BST
+    # gpg:                using RSA key 6685AE99E75167BCAFC8DF35FBD0DB095A9E2A44
+    # gpg: Good signature from "Alex Bennée (Master Work Key) <alex.bennee@linaro.org>" [full]
+    # Primary key fingerprint: 6685 AE99 E751 67BC AFC8  DF35 FBD0 DB09 5A9E 2A44
+    
+    * remotes/stsquad/tags/pull-testing-updates-070621-2:
+      scripts/checkpatch.pl: process .c.inc and .h.inc files as C source
+      tests/vm: expose --source-path to scripts to find extra files
+      gitlab-ci: Split gprof-gcov job
+      gitlab: work harder to avoid false positives in checkpatch
+      tests/acceptance: tag various arm tests as TCG only
+      tests/tcg/configure.sh: tweak quoting of target_compiler
+      meson.build: fix cosmetics of compiler display
+      tests/tcg: add a multiarch signals test to stress test signal delivery
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

@@ -1,0 +1,13 @@
+commit 1e4e7efa01f021e7abeb0c12ff7bb3758da22134
+Author: Cleber Rosa <crosa@redhat.com>
+Date:   Mon Apr 12 00:46:42 2021 -0400
+
+    Acceptance Tests: add basic documentation on LinuxTest base class
+    
+    Signed-off-by: Cleber Rosa <crosa@redhat.com>
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Reviewed-by: Eric Auger <eric.auger@redhat.com>
+    Reviewed-by: Wainer dos Santos Moschetta <wainersm@redhat.com>
+    Message-Id: <20210412044644.55083-10-crosa@redhat.com>
+    Signed-off-by: John Snow <jsnow@redhat.com>

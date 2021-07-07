@@ -1,0 +1,13 @@
+commit 7109ef15c51d2a948f88764e4a4fe0666c4c91db
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue Mar 9 17:22:23 2021 -0600
+
+    accel/tcg: Rename tcg_init to tcg_init_machine
+    
+    We shortly want to use tcg_init for something else.
+    Since the hook is called init_machine, match that.
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

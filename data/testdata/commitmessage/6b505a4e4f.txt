@@ -1,0 +1,16 @@
+commit 6b505a4e4f0dbda681c9dfbaca2fa824c341981e
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Wed May 19 20:55:03 2021 +0200
+
+    gitlab: Extract core container jobs to container-core.yml
+    
+    It is not possible to use the previously extracted templates
+    without this set of core containers. Extract them into a new
+    file (container-core.yml) to be able to build them without
+    having to build all the other containers by default.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Thomas Huth <thuth@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>
+    Message-Id: <20210519185504.2198573-10-f4bug@amsat.org>
+    Signed-off-by: Thomas Huth <thuth@redhat.com>

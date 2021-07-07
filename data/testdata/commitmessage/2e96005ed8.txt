@@ -1,0 +1,12 @@
+commit 2e96005ed8509275f7396adacc3353e9189ce518
+Author: David Hildenbrand <david@redhat.com>
+Date:   Tue Jun 8 11:23:28 2021 +0200
+
+    s390x/tcg: Implement 64 bit for VECTOR FP LOAD LENGTHENED
+    
+    64 bit -> 128 bit, there is only a single final element.
+    
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210608092337.12221-18-david@redhat.com>
+    Signed-off-by: Cornelia Huck <cohuck@redhat.com>

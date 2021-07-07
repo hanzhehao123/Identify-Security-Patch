@@ -1,0 +1,15 @@
+commit 0d42cd5c1d370701c9f17367115244fbaedd2ea1
+Author: Philippe Mathieu-Daudé <f4bug@amsat.org>
+Date:   Sun May 16 22:53:33 2021 +0200
+
+    target/riscv: Do not include 'pmp.h' in user emulation
+    
+    Physical Memory Protection is a system feature.
+    Avoid polluting the user-mode emulation by its definitions.
+    
+    Signed-off-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Reviewed-by: Bin Meng <bmeng.cn@gmail.com>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Message-Id: <20210516205333.696094-1-f4bug@amsat.org>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

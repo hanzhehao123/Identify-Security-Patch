@@ -1,0 +1,122 @@
+diff --git a/tcg/region.c b/tcg/region.c
+index 57069a38ff..877baf16f5 100644
+--- a/tcg/region.c
++++ b/tcg/region.c
+@@ -347,7 +347,7 @@ void tcg_region_initial_alloc(TCGContext *s)
+ /* Call from a safe-work context */
+ void tcg_region_reset_all(void)
+ {
+-    unsigned int n_ctxs = qatomic_read(&tcg_cur_ctxs);
++    unsigned int n_ctxs = qatomic_read(&n_tcg_ctxs);
+     unsigned int i;
+ 
+     qemu_mutex_lock(&region.lock);
+@@ -934,7 +934,7 @@ void tcg_region_prologue_set(TCGContext *s)
+  */
+ size_t tcg_code_size(void)
+ {
+-    unsigned int n_ctxs = qatomic_read(&tcg_cur_ctxs);
++    unsigned int n_ctxs = qatomic_read(&n_tcg_ctxs);
+     unsigned int i;
+     size_t total;
+ 
+@@ -970,7 +970,7 @@ size_t tcg_code_capacity(void)
+ 
+ size_t tcg_tb_phys_invalidate_count(void)
+ {
+-    unsigned int n_ctxs = qatomic_read(&tcg_cur_ctxs);
++    unsigned int n_ctxs = qatomic_read(&n_tcg_ctxs);
+     unsigned int i;
+     size_t total = 0;
+ 
+diff --git a/tcg/tcg-internal.h b/tcg/tcg-internal.h
+index f9906523da..fcfeca232f 100644
+--- a/tcg/tcg-internal.h
++++ b/tcg/tcg-internal.h
+@@ -28,8 +28,7 @@
+ #define TCG_HIGHWATER 1024
+ 
+ extern TCGContext **tcg_ctxs;
+-extern unsigned int tcg_cur_ctxs;
+-extern unsigned int tcg_max_ctxs;
++extern unsigned int n_tcg_ctxs;
+ 
+ void tcg_region_init(size_t tb_size, int splitwx, unsigned max_cpus);
+ bool tcg_region_alloc(TCGContext *s);
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index 9880d5205e..5cc384e205 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -43,6 +43,11 @@
+ #define NO_CPU_IO_DEFS
+ 
+ #include "exec/exec-all.h"
++
++#if !defined(CONFIG_USER_ONLY)
++#include "hw/boards.h"
++#endif
++
+ #include "tcg/tcg-op.h"
+ 
+ #if UINTPTR_MAX == UINT32_MAX
+@@ -150,8 +155,7 @@ static int tcg_out_ldst_finalize(TCGContext *s);
+ #endif
+ 
+ TCGContext **tcg_ctxs;
+-unsigned int tcg_cur_ctxs;
+-unsigned int tcg_max_ctxs;
++unsigned int n_tcg_ctxs;
+ TCGv_env cpu_env = 0;
+ const void *tcg_code_gen_epilogue;
+ uintptr_t tcg_splitwx_diff;
+@@ -471,6 +475,7 @@ void tcg_register_thread(void)
+ #else
+ void tcg_register_thread(void)
+ {
++    MachineState *ms = MACHINE(qdev_get_machine());
+     TCGContext *s = g_malloc(sizeof(*s));
+     unsigned int i, n;
+ 
+@@ -486,8 +491,8 @@ void tcg_register_thread(void)
+     }
+ 
+     /* Claim an entry in tcg_ctxs */
+-    n = qatomic_fetch_inc(&tcg_cur_ctxs);
+-    g_assert(n < tcg_max_ctxs);
++    n = qatomic_fetch_inc(&n_tcg_ctxs);
++    g_assert(n < ms->smp.max_cpus);
+     qatomic_set(&tcg_ctxs[n], s);
+ 
+     if (n > 0) {
+@@ -638,11 +643,9 @@ static void tcg_context_init(unsigned max_cpus)
+      */
+ #ifdef CONFIG_USER_ONLY
+     tcg_ctxs = &tcg_ctx;
+-    tcg_cur_ctxs = 1;
+-    tcg_max_ctxs = 1;
++    n_tcg_ctxs = 1;
+ #else
+-    tcg_max_ctxs = max_cpus;
+-    tcg_ctxs = g_new0(TCGContext *, max_cpus);
++    tcg_ctxs = g_new(TCGContext *, max_cpus);
+ #endif
+ 
+     tcg_debug_assert(!tcg_regset_test_reg(s->reserved_regs, TCG_AREG0));
+@@ -3934,7 +3937,7 @@ static void tcg_reg_alloc_call(TCGContext *s, TCGOp *op)
+ static inline
+ void tcg_profile_snapshot(TCGProfile *prof, bool counters, bool table)
+ {
+-    unsigned int n_ctxs = qatomic_read(&tcg_cur_ctxs);
++    unsigned int n_ctxs = qatomic_read(&n_tcg_ctxs);
+     unsigned int i;
+ 
+     for (i = 0; i < n_ctxs; i++) {
+@@ -3997,7 +4000,7 @@ void tcg_dump_op_count(void)
+ 
+ int64_t tcg_cpu_exec_time(void)
+ {
+-    unsigned int n_ctxs = qatomic_read(&tcg_cur_ctxs);
++    unsigned int n_ctxs = qatomic_read(&n_tcg_ctxs);
+     unsigned int i;
+     int64_t ret = 0;
+ 

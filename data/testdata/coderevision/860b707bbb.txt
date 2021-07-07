@@ -1,0 +1,76 @@
+diff --git a/target/s390x/helper.h b/target/s390x/helper.h
+index 63039c8d73..3c87593553 100644
+--- a/target/s390x/helper.h
++++ b/target/s390x/helper.h
+@@ -262,6 +262,7 @@ DEF_HELPER_FLAGS_4(gvec_vclgd64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfd64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vfi64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vfll32, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
++DEF_HELPER_FLAGS_4(gvec_vfll32s, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vflr64, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_4(gvec_vflr64s, TCG_CALL_NO_WG, void, ptr, cptr, env, i32)
+ DEF_HELPER_FLAGS_5(gvec_vfm64, TCG_CALL_NO_WG, void, ptr, cptr, cptr, env, i32)
+diff --git a/target/s390x/translate_vx.c.inc b/target/s390x/translate_vx.c.inc
+index 5ff59984b5..4b5bf0a7e3 100644
+--- a/target/s390x/translate_vx.c.inc
++++ b/target/s390x/translate_vx.c.inc
+@@ -2570,14 +2570,18 @@ static DisasJumpType op_vfll(DisasContext *s, DisasOps *o)
+ {
+     const uint8_t fpf = get_field(s, m3);
+     const uint8_t m4 = get_field(s, m4);
++    gen_helper_gvec_2_ptr *fn = gen_helper_gvec_vfll32;
+ 
+     if (fpf != FPF_SHORT || extract32(m4, 0, 3)) {
+         gen_program_exception(s, PGM_SPECIFICATION);
+         return DISAS_NORETURN;
+     }
+ 
++    if (extract32(m4, 3, 1)) {
++        fn = gen_helper_gvec_vfll32s;
++    }
+     gen_gvec_2_ptr(get_field(s, v1), get_field(s, v2), cpu_env,
+-                   m4, gen_helper_gvec_vfll32);
++                   0, fn);
+     return DISAS_NEXT;
+ }
+ 
+diff --git a/target/s390x/vec_fpu_helper.c b/target/s390x/vec_fpu_helper.c
+index 7bd3e44acc..23b38df158 100644
+--- a/target/s390x/vec_fpu_helper.c
++++ b/target/s390x/vec_fpu_helper.c
+@@ -287,10 +287,9 @@ DEF_GVEC_VFC(vfce, eq)
+ DEF_GVEC_VFC(vfch, lt)
+ DEF_GVEC_VFC(vfche, le)
+ 
+-void HELPER(gvec_vfll32)(void *v1, const void *v2, CPUS390XState *env,
+-                         uint32_t desc)
++static void vfll32(S390Vector *v1, const S390Vector *v2, CPUS390XState *env,
++                   bool s, uintptr_t retaddr)
+ {
+-    const bool s = extract32(simd_data(desc), 3, 1);
+     uint8_t vxc, vec_exc = 0;
+     S390Vector tmp = {};
+     int i;
+@@ -307,8 +306,20 @@ void HELPER(gvec_vfll32)(void *v1, const void *v2, CPUS390XState *env,
+             break;
+         }
+     }
+-    handle_ieee_exc(env, vxc, vec_exc, GETPC());
+-    *(S390Vector *)v1 = tmp;
++    handle_ieee_exc(env, vxc, vec_exc, retaddr);
++    *v1 = tmp;
++}
++
++void HELPER(gvec_vfll32)(void *v1, const void *v2, CPUS390XState *env,
++                         uint32_t desc)
++{
++    vfll32(v1, v2, env, false, GETPC());
++}
++
++void HELPER(gvec_vfll32s)(void *v1, const void *v2, CPUS390XState *env,
++                          uint32_t desc)
++{
++    vfll32(v1, v2, env, true, GETPC());
+ }
+ 
+ static void vflr64(S390Vector *v1, const S390Vector *v2, CPUS390XState *env,

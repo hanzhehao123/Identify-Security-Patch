@@ -1,0 +1,13 @@
+commit f2fac71d81de902b43d55060541b7ba9c9eacda4
+Author: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+Date:   Fri May 21 17:17:55 2021 -0300
+
+    target/ppc: removed unnecessary inclusion of helper-proto.h
+    
+    These files included helper-proto.h, but didn't use or declare any
+    helpers, so the #include has been removed
+    
+    Signed-off-by: Bruno Larsen (billionai) <bruno.larsen@eldorado.org.br>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-Id: <20210521201759.85475-6-bruno.larsen@eldorado.org.br>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

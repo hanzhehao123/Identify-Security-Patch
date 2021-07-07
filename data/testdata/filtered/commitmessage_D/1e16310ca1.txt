@@ -1,0 +1,12 @@
+commit 1e16310ca1bd368f20eb93683cc37389d5db185d
+Author: Frank Chang <frank.chang@sifive.com>
+Date:   Thu May 6 00:06:04 2021 +0800
+
+    target/riscv: rvb: count bits set
+    
+    Signed-off-by: Kito Cheng <kito.cheng@sifive.com>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alistair Francis <alistair.francis@wdc.com>
+    Signed-off-by: Frank Chang <frank.chang@sifive.com>
+    Message-id: 20210505160620.15723-4-frank.chang@sifive.com
+    Signed-off-by: Alistair Francis <alistair.francis@wdc.com>

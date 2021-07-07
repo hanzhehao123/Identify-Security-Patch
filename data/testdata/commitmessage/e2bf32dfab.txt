@@ -1,0 +1,12 @@
+commit e2bf32dfabbfe6aabde4a0400b25b768b4481785
+Author: Daniel P. Berrangé <berrange@redhat.com>
+Date:   Thu Mar 4 18:14:26 2021 +0000
+
+    docs: recommend SCRAM-SHA-256 SASL mech instead of SHA-1 variant
+    
+    The SHA-256 variant better meats modern security expectations.
+    Also warn that the password file is storing entries in clear
+    text.
+    
+    Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+    Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>

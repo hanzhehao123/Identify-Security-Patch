@@ -1,0 +1,113 @@
+diff --git a/target/arm/helper.h b/target/arm/helper.h
+index 9977a827e9..23ccb0f72f 100644
+--- a/target/arm/helper.h
++++ b/target/arm/helper.h
+@@ -143,7 +143,6 @@ DEF_HELPER_3(vfp_cmped, void, f64, f64, env)
+ 
+ DEF_HELPER_2(vfp_fcvtds, f64, f32, env)
+ DEF_HELPER_2(vfp_fcvtsd, f32, f64, env)
+-DEF_HELPER_FLAGS_2(bfcvt, TCG_CALL_NO_RWG, i32, f32, ptr)
+ 
+ DEF_HELPER_2(vfp_uitoh, f16, i32, ptr)
+ DEF_HELPER_2(vfp_uitos, f32, i32, ptr)
+diff --git a/target/arm/translate-a64.c b/target/arm/translate-a64.c
+index b335ca8735..95c2853f39 100644
+--- a/target/arm/translate-a64.c
++++ b/target/arm/translate-a64.c
+@@ -6280,9 +6280,6 @@ static void handle_fp_1src_single(DisasContext *s, int opcode, int rd, int rn)
+     case 0x3: /* FSQRT */
+         gen_helper_vfp_sqrts(tcg_res, tcg_op, cpu_env);
+         goto done;
+-    case 0x6: /* BFCVT */
+-        gen_fpst = gen_helper_bfcvt;
+-        break;
+     case 0x8: /* FRINTN */
+     case 0x9: /* FRINTP */
+     case 0xa: /* FRINTM */
+@@ -6560,22 +6557,6 @@ static void disas_fp_1src(DisasContext *s, uint32_t insn)
+         }
+         break;
+ 
+-    case 0x6:
+-        switch (type) {
+-        case 1: /* BFCVT */
+-            if (!dc_isar_feature(aa64_bf16, s)) {
+-                goto do_unallocated;
+-            }
+-            if (!fp_access_check(s)) {
+-                return;
+-            }
+-            handle_fp_1src_single(s, opcode, rd, rn);
+-            break;
+-        default:
+-            goto do_unallocated;
+-        }
+-        break;
+-
+     default:
+     do_unallocated:
+         unallocated_encoding(s);
+diff --git a/target/arm/translate-vfp.c b/target/arm/translate-vfp.c
+index d01e465821..2316e105ac 100644
+--- a/target/arm/translate-vfp.c
++++ b/target/arm/translate-vfp.c
+@@ -3085,30 +3085,6 @@ static bool trans_VCVT_f64_f16(DisasContext *s, arg_VCVT_f64_f16 *a)
+     return true;
+ }
+ 
+-static bool trans_VCVT_b16_f32(DisasContext *s, arg_VCVT_b16_f32 *a)
+-{
+-    TCGv_ptr fpst;
+-    TCGv_i32 tmp;
+-
+-    if (!dc_isar_feature(aa32_bf16, s)) {
+-        return false;
+-    }
+-
+-    if (!vfp_access_check(s)) {
+-        return true;
+-    }
+-
+-    fpst = fpstatus_ptr(FPST_FPCR);
+-    tmp = tcg_temp_new_i32();
+-
+-    vfp_load_reg32(tmp, a->vm);
+-    gen_helper_bfcvt(tmp, tmp, fpst);
+-    tcg_gen_st16_i32(tmp, cpu_env, vfp_f16_offset(a->vd, a->t));
+-    tcg_temp_free_ptr(fpst);
+-    tcg_temp_free_i32(tmp);
+-    return true;
+-}
+-
+ static bool trans_VCVT_f16_f32(DisasContext *s, arg_VCVT_f16_f32 *a)
+ {
+     TCGv_ptr fpst;
+diff --git a/target/arm/vfp.decode b/target/arm/vfp.decode
+index 52535d9b0b..6f7f28f9a4 100644
+--- a/target/arm/vfp.decode
++++ b/target/arm/vfp.decode
+@@ -205,8 +205,6 @@ VCVT_f64_f16 ---- 1110 1.11 0010 .... 1011 t:1 1.0 .... \
+ 
+ # VCVTB and VCVTT to f16: Vd format is always vd_sp;
+ # Vm format depends on size bit
+-VCVT_b16_f32 ---- 1110 1.11 0011 .... 1001 t:1 1.0 .... \
+-             vd=%vd_sp vm=%vm_sp
+ VCVT_f16_f32 ---- 1110 1.11 0011 .... 1010 t:1 1.0 .... \
+              vd=%vd_sp vm=%vm_sp
+ VCVT_f16_f64 ---- 1110 1.11 0011 .... 1011 t:1 1.0 .... \
+diff --git a/target/arm/vfp_helper.c b/target/arm/vfp_helper.c
+index 200439ad66..e0886ab5a5 100644
+--- a/target/arm/vfp_helper.c
++++ b/target/arm/vfp_helper.c
+@@ -411,11 +411,6 @@ float32 VFP_HELPER(fcvts, d)(float64 x, CPUARMState *env)
+     return float64_to_float32(x, &env->vfp.fp_status);
+ }
+ 
+-uint32_t HELPER(bfcvt)(float32 x, void *status)
+-{
+-    return float32_to_bfloat16(x, status);
+-}
+-
+ /*
+  * VFP3 fixed point conversion. The AArch32 versions of fix-to-float
+  * must always round-to-nearest; the AArch64 ones honour the FPSCR

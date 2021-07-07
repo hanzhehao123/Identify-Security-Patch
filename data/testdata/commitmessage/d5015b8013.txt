@@ -1,0 +1,19 @@
+commit d5015b80134047013eeec10000df5ce2014ee114
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 10 13:43:17 2021 +0200
+
+    softmmu/memory: Pass ram_flags to qemu_ram_alloc_from_fd()
+    
+    Let's pass in ram flags just like we do with qemu_ram_alloc_from_file(),
+    to clean up and prepare for more flags.
+    
+    Simplify the documentation of passed ram flags: Looking at our
+    documentation of RAM_SHARED and RAM_PMEM is sufficient, no need to be
+    repetitive.
+    
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com> for memory backend and machine core
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210510114328.21835-5-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

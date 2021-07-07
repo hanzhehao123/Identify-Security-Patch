@@ -1,0 +1,14 @@
+commit 2aa101799acf45fd5e4207fbec95d2ee9507bc54
+Author: John Snow <jsnow@redhat.com>
+Date:   Wed Jun 2 20:37:12 2021 -0400
+
+    scripts/qom-fuse: Convert to QOMCommand
+    
+    Move qom-fuse onto the QOMCommand base established in
+    python/qemu/qmp/qom_common.py. The interface doesn't change
+    incompatibly, "qom-fuse mountpoint" still works as an invocation, and
+    QMP_SOCKET is still used as the environment variable.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210603003719.1321369-13-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

@@ -1,0 +1,15 @@
+commit 2fc6f16ca5eedc7881df7f0a1fcfcf8cb52731ac
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Thu May 27 12:41:07 2021 -0700
+
+    tcg/tci: Use {set,clear}_helper_retaddr
+    
+    Wrap guest memory operations for tci like we do for cpu_ld*_data.
+    
+    We cannot actually use the cpu_ldst.h interface without duplicating
+    the memory trace operations performed within, which will already
+    have been expanded into the tcg opcode stream.
+    
+    Tested-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Reviewed-by: Philippe Mathieu-Daudé <f4bug@amsat.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

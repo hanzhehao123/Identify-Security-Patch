@@ -1,0 +1,14 @@
+diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
+index 9005a4233f..413f57df36 100644
+--- a/target/i386/kvm/kvm.c
++++ b/target/i386/kvm/kvm.c
+@@ -962,8 +962,7 @@ static struct kvm_cpuid2 *try_get_hv_cpuid(CPUState *cs, int max)
+ static struct kvm_cpuid2 *get_supported_hv_cpuid(CPUState *cs)
+ {
+     struct kvm_cpuid2 *cpuid;
+-    /* 0x40000000..0x40000005, 0x4000000A, 0x40000080..0x40000080 leaves */
+-    int max = 10;
++    int max = 7; /* 0x40000000..0x40000005, 0x4000000A */
+     int i;
+ 
+     /*

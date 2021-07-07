@@ -1,0 +1,318 @@
+diff --git a/.gitlab-ci.d/static_checks.yml b/.gitlab-ci.d/static_checks.yml
+index 7e685c6a65..c5fa4fce26 100644
+--- a/.gitlab-ci.d/static_checks.yml
++++ b/.gitlab-ci.d/static_checks.yml
+@@ -4,9 +4,6 @@ check-patch:
+   needs:
+     job: amd64-centos8-container
+   script:
+-    - git config --local diff.renamelimit 0
+-    - git config --local diff.renames True
+-    - git config --local diff.algorithm histogram
+     - .gitlab-ci.d/check-patch.py
+   variables:
+     GIT_DEPTH: 1000
+diff --git a/.gitlab/issue_templates/bug.md b/.gitlab/issue_templates/bug.md
+new file mode 100644
+index 0000000000..e910f7b1c2
+--- /dev/null
++++ b/.gitlab/issue_templates/bug.md
+@@ -0,0 +1,64 @@
++<!--
++This is the upstream QEMU issue tracker.
++
++If you are able to, it will greatly facilitate bug triage if you attempt
++to reproduce the problem with the latest qemu.git master built from
++source. See https://www.qemu.org/download/#source for instructions on
++how to do this.
++
++QEMU generally supports the last two releases advertised on
++https://www.qemu.org/. Problems with distro-packaged versions of QEMU
++older than this should be reported to the distribution instead.
++
++See https://www.qemu.org/contribute/report-a-bug/ for additional
++guidance.
++
++If this is a security issue, please consult
++https://www.qemu.org/contribute/security-process/
++-->
++
++## Host environment
++ - Operating system: (Windows 10 21H1, Fedora 34, etc.)
++ - OS/kernel version: (For POSIX hosts, use `uname -a`)
++ - Architecture: (x86, ARM, s390x, etc.)
++ - QEMU flavor: (qemu-system-x86_64, qemu-aarch64, qemu-img, etc.)
++ - QEMU version: (e.g. `qemu-system-x86_64 --version`)
++ - QEMU command line:
++   <!--
++   Give the smallest, complete command line that exhibits the problem.
++
++   If you are using libvirt, virsh, or vmm, you can likely find the QEMU
++   command line arguments in /var/log/libvirt/qemu/$GUEST.log.
++   -->
++   ```
++   ./qemu-system-x86_64 -M q35 -m 4096 -enable-kvm -hda fedora32.qcow2
++   ```
++
++## Emulated/Virtualized environment
++ - Operating system: (Windows 10 21H1, Fedora 34, etc.)
++ - OS/kernel version: (For POSIX guests, use `uname -a`.)
++ - Architecture: (x86, ARM, s390x, etc.)
++
++
++## Description of problem
++<!-- Describe the problem, including any error/crash messages seen. -->
++
++
++## Steps to reproduce
++1.
++2.
++3.
++
++
++## Additional information
++
++<!--
++Attach logs, stack traces, screenshots, etc. Compress the files if necessary.
++If using libvirt, libvirt logs and XML domain information may be relevant.
++-->
++
++<!--
++The line below ensures that proper tags are added to the issue.
++Please do not remove it.
++-->
++/label ~"kind::Bug"
+diff --git a/.gitlab/issue_templates/feature_request.md b/.gitlab/issue_templates/feature_request.md
+new file mode 100644
+index 0000000000..7de02dcc2c
+--- /dev/null
++++ b/.gitlab/issue_templates/feature_request.md
+@@ -0,0 +1,32 @@
++<!--
++This is the upstream QEMU issue tracker.
++
++Please note that QEMU, like most open source projects, relies on
++contributors who have motivation, skills and available time to work on
++implementing particular features.
++
++Feature requests can be helpful for determining demand and interest, but
++they are not a guarantee that a contributor will volunteer to implement
++it. We welcome and encourage even draft patches to implement a feature
++be sent to the mailing list where it can be discussed and developed
++further by the community.
++
++Thank you for your interest in helping us to make QEMU better!
++-->
++
++## Goal
++<!-- Describe the final result you want to achieve. Avoid design specifics. -->
++
++
++## Technical details
++<!-- Describe technical details, design specifics, suggestions, versions, etc. -->
++
++
++## Additional information
++<!-- Patch or branch references, any other useful information -->
++
++<!--
++The line below ensures that proper tags are added to the issue.
++Please do not remove it.
++-->
++/label ~"kind::Feature Request"
+diff --git a/.patchew.yml b/.patchew.yml
+index 2638b7f564..1b78262ce5 100644
+--- a/.patchew.yml
++++ b/.patchew.yml
+@@ -138,9 +138,6 @@ testing:
+       script: |
+         #!/bin/bash
+         git rev-parse base > /dev/null || exit 0
+-        git config --local diff.renamelimit 0
+-        git config --local diff.renames True
+-        git config --local diff.algorithm histogram
+         ./scripts/checkpatch.pl --mailback base..
+     docker-mingw@fedora:
+       enabled: true
+diff --git a/docs/devel/multi-thread-tcg.rst b/docs/devel/multi-thread-tcg.rst
+index 92a9eba13c..5b446ee08b 100644
+--- a/docs/devel/multi-thread-tcg.rst
++++ b/docs/devel/multi-thread-tcg.rst
+@@ -4,8 +4,9 @@
+   This work is licensed under the terms of the GNU GPL, version 2 or
+   later. See the COPYING file in the top-level directory.
+ 
+-Introduction
+-============
++==================
++Multi-threaded TCG
++==================
+ 
+ This document outlines the design for multi-threaded TCG (a.k.a MTTCG)
+ system-mode emulation. user-mode emulation has always mirrored the
+diff --git a/include/qemu/qemu-plugin.h b/include/qemu/qemu-plugin.h
+index 97cdfd7761..dc3496f36c 100644
+--- a/include/qemu/qemu-plugin.h
++++ b/include/qemu/qemu-plugin.h
+@@ -525,6 +525,15 @@ qemu_plugin_register_vcpu_syscall_ret_cb(qemu_plugin_id_t id,
+ 
+ char *qemu_plugin_insn_disas(const struct qemu_plugin_insn *insn);
+ 
++/**
++ * qemu_plugin_insn_symbol() - best effort symbol lookup
++ * @insn: instruction reference
++ *
++ * Return a static string referring to the symbol. This is dependent
++ * on the binary QEMU is running having provided a symbol table.
++ */
++const char *qemu_plugin_insn_symbol(const struct qemu_plugin_insn *insn);
++
+ /**
+  * qemu_plugin_vcpu_for_each() - iterate over the existing vCPU
+  * @id: plugin ID
+diff --git a/include/qemu/ratelimit.h b/include/qemu/ratelimit.h
+index 48bf59e857..003ea6d5a3 100644
+--- a/include/qemu/ratelimit.h
++++ b/include/qemu/ratelimit.h
+@@ -43,11 +43,7 @@ static inline int64_t ratelimit_calculate_delay(RateLimit *limit, uint64_t n)
+     double delay_slices;
+ 
+     QEMU_LOCK_GUARD(&limit->lock);
+-    if (!limit->slice_quota) {
+-        /* Throttling disabled.  */
+-        return 0;
+-    }
+-    assert(limit->slice_ns);
++    assert(limit->slice_quota && limit->slice_ns);
+ 
+     if (limit->slice_end_time < now) {
+         /* Previous, possibly extended, time slice finished; reset the
+@@ -87,11 +83,7 @@ static inline void ratelimit_set_speed(RateLimit *limit, uint64_t speed,
+ {
+     QEMU_LOCK_GUARD(&limit->lock);
+     limit->slice_ns = slice_ns;
+-    if (speed == 0) {
+-        limit->slice_quota = 0;
+-    } else {
+-        limit->slice_quota = MAX(((double)speed * slice_ns) / 1000000000ULL, 1);
+-    }
++    limit->slice_quota = MAX(((double)speed * slice_ns) / 1000000000ULL, 1);
+ }
+ 
+ #endif
+diff --git a/plugins/api.c b/plugins/api.c
+index 817c9b6b69..332e2c60e2 100644
+--- a/plugins/api.c
++++ b/plugins/api.c
+@@ -233,6 +233,12 @@ char *qemu_plugin_insn_disas(const struct qemu_plugin_insn *insn)
+     return plugin_disas(cpu, insn->vaddr, insn->data->len);
+ }
+ 
++const char *qemu_plugin_insn_symbol(const struct qemu_plugin_insn *insn)
++{
++    const char *sym = lookup_symbol(insn->vaddr);
++    return sym[0] != 0 ? sym : NULL;
++}
++
+ /*
+  * The memory queries allow the plugin to query information about a
+  * memory access.
+diff --git a/scripts/checkpatch.pl b/scripts/checkpatch.pl
+index bbcd25ae05..cb8eff233e 100755
+--- a/scripts/checkpatch.pl
++++ b/scripts/checkpatch.pl
+@@ -399,7 +399,12 @@ if ($chk_branch) {
+ 	my $num_patches = @patches;
+ 	for my $hash (@patches) {
+ 		my $FILE;
+-		open($FILE, '-|', "git", "show", "--patch-with-stat", $hash) ||
++		open($FILE, '-|', "git",
++                     "-c", "diff.renamelimit=0",
++                     "-c", "diff.renames=True",
++                     "-c", "diff.algorithm=histogram",
++                     "show",
++                     "--patch-with-stat", $hash) ||
+ 			die "$P: git show $hash - $!\n";
+ 		while (<$FILE>) {
+ 			chomp;
+diff --git a/tests/acceptance/boot_linux.py b/tests/acceptance/boot_linux.py
+index 314370fd1f..4c8a5994b2 100644
+--- a/tests/acceptance/boot_linux.py
++++ b/tests/acceptance/boot_linux.py
+@@ -75,10 +75,11 @@ def add_common_args(self):
+         self.vm.add_args('-device', 'virtio-rng-pci,rng=rng0')
+         self.vm.add_args('-object', 'rng-random,id=rng0,filename=/dev/urandom')
+ 
+-    def test_virt_tcg(self):
++    def test_virt_tcg_gicv2(self):
+         """
+         :avocado: tags=accel:tcg
+         :avocado: tags=cpu:max
++        :avocado: tags=device:gicv2
+         """
+         self.require_accelerator("tcg")
+         self.vm.add_args("-accel", "tcg")
+@@ -87,29 +88,28 @@ def test_virt_tcg(self):
+         self.add_common_args()
+         self.launch_and_wait(set_up_ssh_connection=False)
+ 
+-    def test_virt_kvm_gicv2(self):
++    def test_virt_tcg_gicv3(self):
+         """
+-        :avocado: tags=accel:kvm
+-        :avocado: tags=cpu:host
+-        :avocado: tags=device:gicv2
++        :avocado: tags=accel:tcg
++        :avocado: tags=cpu:max
++        :avocado: tags=device:gicv3
+         """
+-        self.require_accelerator("kvm")
+-        self.vm.add_args("-accel", "kvm")
+-        self.vm.add_args("-cpu", "host")
+-        self.vm.add_args("-machine", "virt,gic-version=2")
++        self.require_accelerator("tcg")
++        self.vm.add_args("-accel", "tcg")
++        self.vm.add_args("-cpu", "max")
++        self.vm.add_args("-machine", "virt,gic-version=3")
+         self.add_common_args()
+         self.launch_and_wait(set_up_ssh_connection=False)
+ 
+-    def test_virt_kvm_gicv3(self):
++    def test_virt_kvm(self):
+         """
+         :avocado: tags=accel:kvm
+         :avocado: tags=cpu:host
+-        :avocado: tags=device:gicv3
+         """
+         self.require_accelerator("kvm")
+         self.vm.add_args("-accel", "kvm")
+         self.vm.add_args("-cpu", "host")
+-        self.vm.add_args("-machine", "virt,gic-version=3")
++        self.vm.add_args("-machine", "virt,gic-version=host")
+         self.add_common_args()
+         self.launch_and_wait(set_up_ssh_connection=False)
+ 
+diff --git a/tests/tcg/hppa/Makefile.target b/tests/tcg/hppa/Makefile.target
+index 8bf01966bd..71791235f6 100644
+--- a/tests/tcg/hppa/Makefile.target
++++ b/tests/tcg/hppa/Makefile.target
+@@ -4,3 +4,7 @@
+ 
+ # On parisc Linux supports 4K/16K/64K (but currently only 4k works)
+ EXTRA_RUNS+=run-test-mmap-4096 # run-test-mmap-16384 run-test-mmap-65536
++
++# There is a race that causes this to fail about 1% of the time
++run-signals: signals
++	$(call skip-test, $<, "BROKEN awaiting vdso support")
+diff --git a/tests/tcg/s390x/Makefile.target b/tests/tcg/s390x/Makefile.target
+index 241ef28f61..0036b8a505 100644
+--- a/tests/tcg/s390x/Makefile.target
++++ b/tests/tcg/s390x/Makefile.target
+@@ -8,3 +8,7 @@ TESTS+=exrl-trtr
+ TESTS+=pack
+ TESTS+=mvo
+ TESTS+=mvc
++
++# This triggers failures on s390x hosts about 4% of the time
++run-signals: signals
++	$(call skip-test, $<, "BROKEN awaiting sigframe clean-ups")

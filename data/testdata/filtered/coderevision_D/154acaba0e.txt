@@ -1,0 +1,30 @@
+diff --git a/target/arm/op_helper.c b/target/arm/op_helper.c
+index 4132f5e430..1a95972bcc 100644
+--- a/target/arm/op_helper.c
++++ b/target/arm/op_helper.c
+@@ -27,8 +27,8 @@
+ #define SIGNBIT (uint32_t)0x80000000
+ #define SIGNBIT64 ((uint64_t)1 << 63)
+ 
+-void raise_exception(CPUARMState *env, uint32_t excp,
+-                     uint32_t syndrome, uint32_t target_el)
++static CPUState *do_raise_exception(CPUARMState *env, uint32_t excp,
++                                    uint32_t syndrome, uint32_t target_el)
+ {
+     CPUState *cs = env_cpu(env);
+ 
+@@ -49,6 +49,14 @@ void raise_exception(CPUARMState *env, uint32_t excp,
+     cs->exception_index = excp;
+     env->exception.syndrome = syndrome;
+     env->exception.target_el = target_el;
++
++    return cs;
++}
++
++void raise_exception(CPUARMState *env, uint32_t excp,
++                     uint32_t syndrome, uint32_t target_el)
++{
++    CPUState *cs = do_raise_exception(env, excp, syndrome, target_el);
+     cpu_loop_exit(cs);
+ }
+ 

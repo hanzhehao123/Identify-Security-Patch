@@ -1,0 +1,11 @@
+commit 2d652f24cc0064bc314dc9775dbd5ba4d8282f10
+Author: Paolo Bonzini <pbonzini@redhat.com>
+Date:   Wed May 12 09:21:56 2021 +0200
+
+    configure: simplify assignment to GIT_SUBMODULES
+    
+    Do not guard each assignment with a check for --with-git-submodules=ignore.
+    To avoid a confusing "GIT" line from the Makefile, guard the git-submodule-update
+    recipe so that it is empty when --with-git-submodules=ignore.
+    
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

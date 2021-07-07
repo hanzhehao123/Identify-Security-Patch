@@ -1,0 +1,19 @@
+commit baa014e3b92a12a6037c7525ee1a169ab7ec0302
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 10 13:43:28 2021 +0200
+
+    hmp: Print "reserve" property of memory backends with "info memdev"
+    
+    Let's print the new property.
+    
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Dr. David Alan Gilbert <dgilbert@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Reviewed-by: Markus Armbruster <armbru@redhat.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com> for memory backend and machine core
+    Cc: Markus Armbruster <armbru@redhat.com>
+    Cc: Eric Blake <eblake@redhat.com>
+    Cc: Igor Mammedov <imammedo@redhat.com>
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210510114328.21835-16-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

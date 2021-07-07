@@ -1,0 +1,26 @@
+diff --git a/block.c b/block.c
+index 94cb7b6637..c0fd363605 100644
+--- a/block.c
++++ b/block.c
+@@ -1149,7 +1149,7 @@ int bdrv_parse_cache_mode(const char *mode, int *flags, bool *writethrough)
+ static char *bdrv_child_get_parent_desc(BdrvChild *c)
+ {
+     BlockDriverState *parent = c->opaque;
+-    return g_strdup_printf("node '%s'", bdrv_get_node_name(parent));
++    return g_strdup(bdrv_get_device_or_node_name(parent));
+ }
+ 
+ static void bdrv_child_cb_drained_begin(BdrvChild *child)
+diff --git a/tests/qemu-iotests/283.out b/tests/qemu-iotests/283.out
+index c9397bfc44..97e62a4c94 100644
+--- a/tests/qemu-iotests/283.out
++++ b/tests/qemu-iotests/283.out
+@@ -5,7 +5,7 @@
+ {"execute": "blockdev-add", "arguments": {"driver": "blkdebug", "image": "base", "node-name": "other", "take-child-perms": ["write"]}}
+ {"return": {}}
+ {"execute": "blockdev-backup", "arguments": {"device": "source", "sync": "full", "target": "target"}}
+-{"error": {"class": "GenericError", "desc": "Cannot append backup-top filter: Conflicts with use by node 'source' as 'image', which does not allow 'write' on base"}}
++{"error": {"class": "GenericError", "desc": "Cannot append backup-top filter: Conflicts with use by source as 'image', which does not allow 'write' on base"}}
+ 
+ === backup-top should be gone after job-finalize ===
+ 

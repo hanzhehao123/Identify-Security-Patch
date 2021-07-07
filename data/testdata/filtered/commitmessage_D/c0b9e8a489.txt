@@ -1,0 +1,13 @@
+commit c0b9e8a48906f25acce17c9b60447bb7fd9d5cd2
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Tue May 25 15:58:06 2021 -0700
+
+    target/arm: Add isar_feature_{aa32, aa64, aa64_sve}_bf16
+    
+    Note that the SVE BFLOAT16 support does not require SVE2,
+    it is an independent extension.
+    
+    Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210525225817.400336-2-richard.henderson@linaro.org
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

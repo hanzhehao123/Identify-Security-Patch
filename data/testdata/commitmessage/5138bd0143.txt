@@ -1,0 +1,60 @@
+commit 5138bd0143cc87c91e41f26fab2a5ba96e62ce49
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 16:09:14 2021 +0100
+
+    target/arm: Add handling for PSR.ECI/ICI
+    
+    On A-profile, PSR bits [15:10][26:25] are always the IT state bits.
+    On M-profile, some of the reserved encodings of the IT state are used
+    to instead indicate partial progress through instructions that were
+    interrupted partway through by an exception and can be resumed.
+    
+    These resumable instructions fall into two categories:
+    
+    (1) load/store multiple instructions, where these bits are called
+    "ICI" and specify the register in the ldm/stm list where execution
+    should resume.  (Specifically: LDM, STM, VLDM, VSTM, VLLDM, VLSTM,
+    CLRM, VSCCLRM.)
+    
+    (2) MVE instructions subject to beatwise execution, where these bits
+    are called "ECI" and specify which beats in this and possibly also
+    the following MVE insn have been executed.
+    
+    There are also a few insns (LE, LETP, and BKPT) which do not use the
+    ICI/ECI bits but must leave them alone.
+    
+    Otherwise, we should raise an INVSTATE UsageFault for any attempt to
+    execute an insn with non-zero ICI/ECI bits.
+    
+    So far we have been able to ignore ECI/ICI, because the architecture
+    allows the IMPDEF choice of "always restart load/store multiple from
+    the beginning regardless of ICI state", so the only thing we have
+    been missing is that we don't raise the INVSTATE fault for bad guest
+    code.  However, MVE requires that we honour ECI bits and do not
+    rexecute beats of an insn that have already been executed.
+    
+    Add the support in the decoder for handling ECI/ICI:
+     * identify the ECI/ICI case in the CONDEXEC TB flags
+     * when a load/store multiple insn succeeds, it updates the ECI/ICI
+       state (both in DisasContext and in the CPU state), and sets a flag
+       to say that the ECI/ICI state was handled
+     * if we find that the insn we just decoded did not handle the
+       ECI/ICI state, we delete all the code that we just generated for
+       it and instead emit the code to raise the INVFAULT.  This allows
+       us to avoid having to update every non-MVE non-LDM/STM insn to
+       make it check for "is ECI/ICI set?".
+    
+    We continue with our existing IMPDEF choice of not caring about the
+    ICI state for the load/store multiples and simply restarting them
+    from the beginning.  Because we don't allow interrupts in the middle
+    of an insn, the only way we would see this state is if the guest set
+    ICI manually on return from an exception handler, so it's a corner
+    case which doesn't merit optimisation.
+    
+    ICI update for LDM/STM is simple -- it always zeroes the state.  ECI
+    update for MVE beatwise insns will be a little more complex, since
+    the ECI state may include information for the following insn.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210614151007.4545-5-peter.maydell@linaro.org

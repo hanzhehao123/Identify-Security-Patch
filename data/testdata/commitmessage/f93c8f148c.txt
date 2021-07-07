@@ -1,0 +1,13 @@
+commit f93c8f148c0f6c2e20c29c54276862ee79a53d02
+Author: Shivaprasad G Bhat <sbhat@linux.ibm.com>
+Date:   Tue May 18 08:03:17 2021 -0400
+
+    spapr: nvdimm: Forward declare and move the definitions
+    
+    The subsequent patches add definitions which tend to get
+    the compilation to cyclic dependency. So, prepare with
+    forward declarations, move the definitions and clean up.
+    
+    Signed-off-by: Shivaprasad G Bhat <sbhat@linux.ibm.com>
+    Message-Id: <162133925415.610.11584121797866216417.stgit@4f1e6f2bd33e>
+    Signed-off-by: David Gibson <david@gibson.dropbear.id.au>

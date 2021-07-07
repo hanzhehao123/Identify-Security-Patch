@@ -1,0 +1,38 @@
+commit 6b9c277797879ce41ed20deb6737f4156cc279b3
+Author: John Snow <jsnow@redhat.com>
+Date:   Thu May 27 17:17:15 2021 -0400
+
+    gitlab: add python linters to CI
+    
+    Add a Python container that has just enough juice for us to run the
+    Python code quality analysis tools. Base this container on Fedora,
+    because Fedora has very convenient packaging for testing multiple Python
+    versions.
+    
+    We need python3, pip (for pulling packages), pipenv and virtualenv for
+    creating virtual environments, and tox for running tests. make is needed
+    for running 'make check-tox' and 'make venv-check' targets. Python3.10
+    is needed explicitly because the tox package only pulls in 3.6-3.9, but
+    we wish to test the forthcoming release of Python as well to help
+    predict any problems. Lastly, we need gcc to compile PyPI packages that
+    may not have a binary distribution available.
+    
+    Add two tests:
+    
+    check-python-pipenv uses pipenv to test a frozen, very explicit set of
+    packages against our minimum supported python version, Python 3.6. This
+    test is not allowed to fail. The dependencies this test uses do not
+    change unless python/Pipfile.lock is changed.
+    
+    check-python-tox uses tox to install the latest versions of required
+    python dependencies against a wide array of Python versions from 3.6 to
+    3.9, even including the yet-to-be-released Python 3.10. This test is
+    allowed to fail with a warning.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Reviewed-by: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Reviewed-by: Cleber Rosa <crosa@redhat.com>
+    Message-id: 20210527211715.394144-32-jsnow@redhat.com
+    [Fix rebase conflict over .gitlab-ci.yml --js]
+    Signed-off-by: John Snow <jsnow@redhat.com>

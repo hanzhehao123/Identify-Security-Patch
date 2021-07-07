@@ -1,0 +1,13 @@
+commit e1a66a1e27eee8b025954713d28b9e74d95a5271
+Author: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date:   Thu Apr 22 18:11:17 2021 +0200
+
+    i386: introduce hv_cpuid_get_host()
+    
+    As a preparation to implementing hv_cpuid_cache intro introduce
+    hv_cpuid_get_host(). No functional change intended.
+    
+    Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+    Reviewed-by: Eduardo Habkost <ehabkost@redhat.com>
+    Message-Id: <20210422161130.652779-7-vkuznets@redhat.com>
+    Signed-off-by: Eduardo Habkost <ehabkost@redhat.com>

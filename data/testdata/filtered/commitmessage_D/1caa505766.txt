@@ -1,0 +1,12 @@
+commit 1caa505766dbf7bd233b088e82bd7a745d2ba325
+Author: John Snow <jsnow@redhat.com>
+Date:   Mon Jun 7 16:06:27 2021 -0400
+
+    scripts/qmp-shell: move get_prompt() to prompt property
+    
+    Small tidying; treat "prompt" like an immutable property instead of
+    function/method/routine.
+    
+    Signed-off-by: John Snow <jsnow@redhat.com>
+    Message-id: 20210607200649.1840382-21-jsnow@redhat.com
+    Signed-off-by: John Snow <jsnow@redhat.com>

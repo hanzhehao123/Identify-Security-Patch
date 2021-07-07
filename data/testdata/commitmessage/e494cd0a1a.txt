@@ -1,0 +1,35 @@
+commit e494cd0a1abce13a9a934c1cfdaaeabd389a77c7
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Fri Jun 18 15:10:16 2021 +0100
+
+    target/arm: Handle writeback in VLDR/VSTR sysreg with no memory access
+    
+    A few subcases of VLDR/VSTR sysreg succeed but do not perform a
+    memory access:
+     * VSTR of VPR when unprivileged
+     * VLDR to VPR when unprivileged
+     * VLDR to FPCXT_NS when fpInactive
+    
+    In these cases, even though we don't do the memory access we should
+    still update the base register and perform the stack limit check if
+    the insn's addressing mode specifies writeback.  Our implementation
+    failed to do this, because we handle these side-effects inside the
+    memory_to_fp_sysreg() and fp_sysreg_to_memory() callback functions,
+    which are only called if there's something to load or store.
+    
+    Fix this by adding an extra argument to the callbacks which is set to
+    true to actually perform the access and false to only do side effects
+    like writeback, and calling the callback with do_access = false
+    for the three cases listed above.
+    
+    This produces slightly suboptimal code for the case of a write
+    to FPCXT_NS when the FPU is inactive and the insn didn't have
+    side effects (ie no writeback, or via VMSR), in which case we'll
+    generate a conditional branch over an unconditional branch.
+    But this doesn't seem to be important enough to merit requiring
+    the callback to report back whether it generated any code or not.
+    
+    Cc: qemu-stable@nongnu.org
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210618141019.10671-5-peter.maydell@linaro.org

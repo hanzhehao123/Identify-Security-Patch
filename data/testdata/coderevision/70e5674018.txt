@@ -1,0 +1,15 @@
+diff --git a/scripts/qmp/qmp-shell b/scripts/qmp/qmp-shell
+index 18bf49bb26..62a6377e06 100755
+--- a/scripts/qmp/qmp-shell
++++ b/scripts/qmp/qmp-shell
+@@ -389,8 +389,8 @@ class HMPShell(QMPShell):
+             print('%s: %s' % (resp['error']['class'], resp['error']['desc']))
+         return True
+ 
+-    def show_banner(self, msg='Welcome to the HMP shell!'):
+-        QMPShell.show_banner(self, msg)
++    def show_banner(self):
++        QMPShell.show_banner(self, msg='Welcome to the HMP shell!')
+ 
+ 
+ def die(msg):

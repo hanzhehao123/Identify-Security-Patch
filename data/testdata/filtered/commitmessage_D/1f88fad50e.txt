@@ -1,0 +1,22 @@
+commit 1f88fad50eb7412e27e0db2c4e37cb9e982ffa80
+Author: Philippe Mathieu-Daudé <philmd@redhat.com>
+Date:   Tue May 25 17:30:57 2021 +0200
+
+    gitlab: Use $CI_DEFAULT_BRANCH instead of hardcoded 'master'
+    
+    We want to skip the checkpatch and DCO signoff jobs when
+    pushing to the default branch. Currently this branch is
+    called 'master', but we don't need to hardcode this in
+    the CI configuration, because the $CI_DEFAULT_BRANCH
+    env variable exposes it.
+    
+    References:
+    
+    - https://sfconservancy.org/news/2020/jun/23/gitbranchname/
+    - https://about.gitlab.com/blog/2021/03/10/new-git-default-branch-name/
+    
+    Suggested-by: Savitoj Singh <savsingh@redhat.com>
+    Signed-off-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Message-Id: <20210525153826.4174157-1-philmd@redhat.com>
+    Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+    Reviewed-by: Willian Rampazzo <willianr@redhat.com>

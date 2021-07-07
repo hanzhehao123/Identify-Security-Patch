@@ -1,0 +1,28 @@
+commit 18e53dff939898c6dd00d206a3c2f5cd3d6669db
+Merge: 38848ce565 c7a7cb5692
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Thu Jun 17 10:42:57 2021 +0100
+
+    Merge remote-tracking branch 'remotes/rth-gitlab/tags/pull-c11-20210615' into staging
+    
+    Change to -std=gnu11.
+    Replace QEMU_GENERIC with _Generic.
+    Remove configure detect of _Static_assert.
+    
+    # gpg: Signature made Wed 16 Jun 2021 02:32:32 BST
+    # gpg:                using RSA key 7A481E78868B4DB6A85A05C064DF38E8AF7E215F
+    # gpg:                issuer "richard.henderson@linaro.org"
+    # gpg: Good signature from "Richard Henderson <richard.henderson@linaro.org>" [full]
+    # Primary key fingerprint: 7A48 1E78 868B 4DB6 A85A  05C0 64DF 38E8 AF7E 215F
+    
+    * remotes/rth-gitlab/tags/pull-c11-20210615:
+      configure: Remove probe for _Static_assert
+      qemu/compiler: Remove QEMU_GENERIC
+      include/qemu/lockable: Use _Generic instead of QEMU_GENERIC
+      util: Use unique type for QemuRecMutex in thread-posix.h
+      util: Pass file+line to qemu_rec_mutex_unlock_impl
+      util: Use real functions for thread-posix QemuRecMutex
+      softfloat: Use _Generic instead of QEMU_GENERIC
+      configure: Use -std=gnu11
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>

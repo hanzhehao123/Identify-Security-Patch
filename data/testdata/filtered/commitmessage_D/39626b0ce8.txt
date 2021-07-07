@@ -1,0 +1,11 @@
+commit 39626b0ce830e6cd99459a8168b35c6a57be21bc
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Sat Nov 14 20:28:02 2020 -0800
+
+    softfloat: Move scalbn_decomposed to softfloat-parts.c.inc
+    
+    Rename to parts$N_scalbn.
+    Reimplement float128_scalbn with FloatParts128.
+    
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

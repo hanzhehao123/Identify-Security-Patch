@@ -1,0 +1,16 @@
+commit 228168cbb7cc40bfb1621b0b6868c018b522276a
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Fri Jun 11 23:08:28 2021 -0700
+
+    linux-user: Set CF_PARALLEL when mapping shared memory
+    
+    Signal the translator to use host atomic instructions for
+    guest operations, insofar as it is possible.  This is the
+    best we can do to allow the guest to interact atomically
+    with other processes.
+    
+    Resolves: https://gitlab.com/qemu-project/qemu/-/issues/121
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>
+    Reviewed-by: Alex Bennée <alex.bennee@linaro.org>
+    Message-Id: <20210612060828.695332-1-richard.henderson@linaro.org>
+    Signed-off-by: Laurent Vivier <laurent@vivier.eu>

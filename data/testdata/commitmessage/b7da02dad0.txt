@@ -1,0 +1,17 @@
+commit b7da02dad0f25928e688a5dce74a0f10fa120594
+Author: Richard Henderson <richard.henderson@linaro.org>
+Date:   Wed Mar 10 17:41:26 2021 -0600
+
+    tcg: When allocating for !splitwx, begin with PROT_NONE
+    
+    There's a change in mprotect() behaviour [1] in the latest macOS
+    on M1 and it's not yet clear if it's going to be fixed by Apple.
+    
+    In this case, instead of changing permissions of N guard pages,
+    we change permissions of N rwx regions.  The same number of
+    syscalls are required either way.
+    
+    [1] https://gist.github.com/hikalium/75ae822466ee4da13cbbe486498a191f
+    
+    Reviewed-by: Luis Pires <luis.pires@eldorado.org.br>
+    Signed-off-by: Richard Henderson <richard.henderson@linaro.org>

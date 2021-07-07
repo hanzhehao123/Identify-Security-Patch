@@ -1,0 +1,25 @@
+commit 9a486856e9173af190eaefdf1080db82bd04b536
+Author: Peter Maydell <peter.maydell@linaro.org>
+Date:   Mon Jun 14 16:09:15 2021 +0100
+
+    target/arm: Let vfp_access_check() handle late NOCP checks
+    
+    In commit a3494d4671797c we reworked the M-profile handling of its
+    checks for when the NOCP exception should be raised because the FPU
+    is disabled, so that (in line with the architecture) the NOCP check
+    is done early over a large range of the encoding space, and takes
+    precedence over UNDEF exceptions.  As part of this, we removed the
+    code from full_vfp_access_check() which raised an exception there for
+    M-profile with the FPU disabled, because it was no longer reachable.
+    
+    For MVE, some instructions which are outside the "coprocessor space"
+    region of the encoding space must nonetheless do "is the FPU enabled"
+    checks and possibly raise a NOCP exception.  (In particular this
+    covers the MVE-specific low-overhead branch insns LCTP, DLSTP and
+    WLSTP.) To support these insns, reinstate the code in
+    full_vfp_access_check(), so that their trans functions can call
+    vfp_access_check() and get the correct behaviour.
+    
+    Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+    Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+    Message-id: 20210614151007.4545-6-peter.maydell@linaro.org

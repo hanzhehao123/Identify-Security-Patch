@@ -1,0 +1,34 @@
+commit 8dbe22c6868b8a5efd1df3d0c5150524fabe61ff
+Author: David Hildenbrand <david@redhat.com>
+Date:   Mon May 10 13:43:21 2021 +0200
+
+    memory: Introduce RAM_NORESERVE and wire it up in qemu_ram_mmap()
+    
+    Let's introduce RAM_NORESERVE, allowing mmap'ing with MAP_NORESERVE. The
+    new flag has the following semantics:
+    
+    "
+    RAM is mmap-ed with MAP_NORESERVE. When set, reserving swap space (or huge
+    pages if applicable) is skipped: will bail out if not supported. When not
+    set, the OS will do the reservation, if supported for the memory type.
+    "
+    
+    Allow passing it into:
+    - memory_region_init_ram_nomigrate()
+    - memory_region_init_resizeable_ram()
+    - memory_region_init_ram_from_file()
+    
+    ... and teach qemu_ram_mmap() and qemu_anon_ram_alloc() about the flag.
+    Bail out if the flag is not supported, which is the case right now for
+    both, POSIX and win32. We will add Linux support next and allow specifying
+    RAM_NORESERVE via memory backends.
+    
+    The target use case is virtio-mem, which dynamically exposes memory
+    inside a large, sparse memory area to the VM.
+    
+    Reviewed-by: Philippe Mathieu-Daudé <philmd@redhat.com>
+    Reviewed-by: Peter Xu <peterx@redhat.com>
+    Acked-by: Eduardo Habkost <ehabkost@redhat.com> for memory backend and machine core
+    Signed-off-by: David Hildenbrand <david@redhat.com>
+    Message-Id: <20210510114328.21835-9-david@redhat.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>

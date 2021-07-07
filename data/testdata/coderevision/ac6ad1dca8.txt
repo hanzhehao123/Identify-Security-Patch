@@ -1,0 +1,102 @@
+diff --git a/target/arm/helper-mve.h b/target/arm/helper-mve.h
+index 9bbeb7ec49..02bef53ed4 100644
+--- a/target/arm/helper-mve.h
++++ b/target/arm/helper-mve.h
+@@ -130,17 +130,3 @@ DEF_HELPER_FLAGS_4(mve_vhsubsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vhsubub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vhsubuh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+ DEF_HELPER_FLAGS_4(mve_vhsubuw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vmullbsb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmullbsh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmullbsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmullbub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmullbuh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmullbuw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-
+-DEF_HELPER_FLAGS_4(mve_vmulltsb, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmulltsh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmulltsw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmulltub, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmulltuh, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+-DEF_HELPER_FLAGS_4(mve_vmulltuw, TCG_CALL_NO_WG, void, env, ptr, ptr, ptr)
+diff --git a/target/arm/mve.decode b/target/arm/mve.decode
+index 5a480d61cd..241d1c44c1 100644
+--- a/target/arm/mve.decode
++++ b/target/arm/mve.decode
+@@ -101,11 +101,6 @@ VHADD_U          111 1 1111 0 . .. ... 0 ... 0 0000 . 1 . 0 ... 0 @2op
+ VHSUB_S          111 0 1111 0 . .. ... 0 ... 0 0010 . 1 . 0 ... 0 @2op
+ VHSUB_U          111 1 1111 0 . .. ... 0 ... 0 0010 . 1 . 0 ... 0 @2op
+ 
+-VMULL_BS         111 0 1110 0 . .. ... 1 ... 0 1110 . 0 . 0 ... 0 @2op
+-VMULL_BU         111 1 1110 0 . .. ... 1 ... 0 1110 . 0 . 0 ... 0 @2op
+-VMULL_TS         111 0 1110 0 . .. ... 1 ... 1 1110 . 0 . 0 ... 0 @2op
+-VMULL_TU         111 1 1110 0 . .. ... 1 ... 1 1110 . 0 . 0 ... 0 @2op
+-
+ # Vector miscellaneous
+ 
+ VCLS             1111 1111 1 . 11 .. 00 ... 0 0100 01 . 0 ... 0 @1op
+diff --git a/target/arm/mve_helper.c b/target/arm/mve_helper.c
+index a3d09db83b..835832fdf6 100644
+--- a/target/arm/mve_helper.c
++++ b/target/arm/mve_helper.c
+@@ -349,26 +349,6 @@ DO_1OP(vfnegs, 8, uint64_t, DO_FNEGS)
+     DO_2OP(OP##h, 2, int16_t, FN)               \
+     DO_2OP(OP##w, 4, int32_t, FN)
+ 
+-/*
+- * "Long" operations where two half-sized inputs (taken from either the
+- * top or the bottom of the input vector) produce a double-width result.
+- * Here ESIZE, TYPE are for the input, and LESIZE, LTYPE for the output.
+- */
+-#define DO_2OP_L(OP, TOP, ESIZE, TYPE, LESIZE, LTYPE, FN)               \
+-    void HELPER(glue(mve_, OP))(CPUARMState *env, void *vd, void *vn, void *vm) \
+-    {                                                                   \
+-        LTYPE *d = vd;                                                  \
+-        TYPE *n = vn, *m = vm;                                          \
+-        uint16_t mask = mve_element_mask(env);                          \
+-        unsigned le;                                                    \
+-        for (le = 0; le < 16 / LESIZE; le++, mask >>= LESIZE) {         \
+-            LTYPE r = FN((LTYPE)n[H##ESIZE(le * 2 + TOP)],              \
+-                         m[H##ESIZE(le * 2 + TOP)]);                    \
+-            mergemask(&d[H##LESIZE(le)], r, mask);                      \
+-        }                                                               \
+-        mve_advance_vpt(env);                                           \
+-    }
+-
+ #define DO_AND(N, M)  ((N) & (M))
+ #define DO_BIC(N, M)  ((N) & ~(M))
+ #define DO_ORR(N, M)  ((N) | (M))
+@@ -389,20 +369,6 @@ DO_2OP_U(vadd, DO_ADD)
+ DO_2OP_U(vsub, DO_SUB)
+ DO_2OP_U(vmul, DO_MUL)
+ 
+-DO_2OP_L(vmullbsb, 0, 1, int8_t, 2, int16_t, DO_MUL)
+-DO_2OP_L(vmullbsh, 0, 2, int16_t, 4, int32_t, DO_MUL)
+-DO_2OP_L(vmullbsw, 0, 4, int32_t, 8, int64_t, DO_MUL)
+-DO_2OP_L(vmullbub, 0, 1, uint8_t, 2, uint16_t, DO_MUL)
+-DO_2OP_L(vmullbuh, 0, 2, uint16_t, 4, uint32_t, DO_MUL)
+-DO_2OP_L(vmullbuw, 0, 4, uint32_t, 8, uint64_t, DO_MUL)
+-
+-DO_2OP_L(vmulltsb, 1, 1, int8_t, 2, int16_t, DO_MUL)
+-DO_2OP_L(vmulltsh, 1, 2, int16_t, 4, int32_t, DO_MUL)
+-DO_2OP_L(vmulltsw, 1, 4, int32_t, 8, int64_t, DO_MUL)
+-DO_2OP_L(vmulltub, 1, 1, uint8_t, 2, uint16_t, DO_MUL)
+-DO_2OP_L(vmulltuh, 1, 2, uint16_t, 4, uint32_t, DO_MUL)
+-DO_2OP_L(vmulltuw, 1, 4, uint32_t, 8, uint64_t, DO_MUL)
+-
+ /*
+  * Because the computation type is at least twice as large as required,
+  * these work for both signed and unsigned source types.
+diff --git a/target/arm/translate-mve.c b/target/arm/translate-mve.c
+index 1cadc3b04d..f593d3693b 100644
+--- a/target/arm/translate-mve.c
++++ b/target/arm/translate-mve.c
+@@ -361,7 +361,3 @@ DO_2OP(VHADD_S, vhadds)
+ DO_2OP(VHADD_U, vhaddu)
+ DO_2OP(VHSUB_S, vhsubs)
+ DO_2OP(VHSUB_U, vhsubu)
+-DO_2OP(VMULL_BS, vmullbs)
+-DO_2OP(VMULL_BU, vmullbu)
+-DO_2OP(VMULL_TS, vmullts)
+-DO_2OP(VMULL_TU, vmulltu)

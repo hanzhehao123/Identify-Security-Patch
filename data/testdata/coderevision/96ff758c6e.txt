@@ -1,0 +1,58 @@
+diff --git a/configure b/configure
+index 942c531cce..8dcb9965b2 100755
+--- a/configure
++++ b/configure
+@@ -4440,19 +4440,6 @@ if compile_prog "" "" ; then
+     st_atim=yes
+ fi
+ 
+-##########################################
+-# check if we have sigev_notify_thread_id
+-
+-sigev_notify_thread_id=no
+-cat > $TMPC << EOF
+-#include <stddef.h>
+-#include <signal.h>
+-int main(void) { return offsetof(struct sigevent, sigev_notify_thread_id); }
+-EOF
+-if compile_prog "" "" ; then
+-    sigev_notify_thread_id=yes
+-fi
+-
+ ##########################################
+ # check if trace backend exists
+ 
+@@ -5705,9 +5692,6 @@ fi
+ if test "$st_atim" = "yes" ; then
+   echo "HAVE_STRUCT_STAT_ST_ATIM=y" >> $config_host_mak
+ fi
+-if test "$sigev_notify_thread_id" = "yes" ; then
+-  echo "HAVE_SIGEV_NOTIFY_THREAD_ID=y" >> $config_host_mak
+-fi
+ if test "$byteswap_h" = "yes" ; then
+   echo "CONFIG_BYTESWAP_H=y" >> $config_host_mak
+ fi
+diff --git a/linux-user/syscall.c b/linux-user/syscall.c
+index 64bbf331b2..70ae8884ee 100644
+--- a/linux-user/syscall.c
++++ b/linux-user/syscall.c
+@@ -7405,10 +7405,6 @@ static inline abi_long host_to_target_timex64(abi_long target_addr,
+ }
+ #endif
+ 
+-#ifndef HAVE_SIGEV_NOTIFY_THREAD_ID
+-#define sigev_notify_thread_id _sigev_un._tid
+-#endif
+-
+ static inline abi_long target_to_host_sigevent(struct sigevent *host_sevp,
+                                                abi_ulong target_addr)
+ {
+@@ -7429,7 +7425,7 @@ static inline abi_long target_to_host_sigevent(struct sigevent *host_sevp,
+     host_sevp->sigev_signo =
+         target_to_host_signal(tswap32(target_sevp->sigev_signo));
+     host_sevp->sigev_notify = tswap32(target_sevp->sigev_notify);
+-    host_sevp->sigev_notify_thread_id = tswap32(target_sevp->_sigev_un._tid);
++    host_sevp->_sigev_un._tid = tswap32(target_sevp->_sigev_un._tid);
+ 
+     unlock_user_struct(target_sevp, target_addr, 1);
+     return 0;
