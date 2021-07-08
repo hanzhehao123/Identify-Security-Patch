@@ -3,12 +3,11 @@ import re
 import nltk
 from nltk.stem.porter import PorterStemmer
 from nltk.corpus import stopwords
+from pygments.lexers.c_cpp import CppLexer
+from pygments.token import Comment, Name
 
-
-
-
-train_f = open("data\\traindata\coderevision_new\\train\\qemu2_addsub.csv", "r", encoding="utf-8")
-evaluate_f = open("data\\traindata\coderevision_new\evaluate\\qemu2_addsub.csv", "r", encoding="utf-8")
+train_f = open("D:\HW\SecurityBug\Identify_Security_Patch\data\\traindata\coderevision_new\\train\\qemu2_addsub.csv", "r", encoding="utf-8")
+evaluate_f = open("D:\HW\SecurityBug\Identify_Security_Patch\data\\traindata\coderevision_new\\evaluate\\qemu2_addsub.csv", "r", encoding="utf-8")
 train_csv = csv.reader(train_f)
 evaluate_csv = csv.reader(evaluate_f)
 csvlist=[train_csv, evaluate_csv]
@@ -16,6 +15,7 @@ csvlist=[train_csv, evaluate_csv]
 dic0={}
 dic1={}
 
+lexer = CppLexer() #代码分词
 porter_stemmer=PorterStemmer()# 词干提取
 mystop = ['{','}','(',')',';',',','>','<','=','&','#',':','[',']','\'\'','``','/*','*/','\\\\']
 
@@ -29,10 +29,22 @@ for i in range(len(csvlist)):
         if line==0 or len(row)!=2:
             continue
         else:
+            words = []
             txt = re.sub('-----', "", row[1])
-            txt = re.sub('\+\+\+\+\+', "", txt)
-            txt = porter_stemmer.stem(txt.lower())  #小写、词干提取
-            words = nltk.word_tokenize(txt)   #分词
+            txt = re.sub('\+\+\+\+\+', "", txt).lower()
+            tokens = lexer.get_tokens(txt)
+            for token_tuple in tokens:
+                if token_tuple[0] is Comment.Multiline or token_tuple[0] is Comment.Single:
+                    txt = porter_stemmer.stem(token_tuple[1].lower())  # 小写、词干提取
+                    words_comment = nltk.word_tokenize(txt)  # 分词
+                    for word in words_comment:
+                        if word not in words and word not in mystop and word not in stopwords.words('english'):
+                            words.append(word)
+                elif token_tuple[0] is Name:
+                    word = token_tuple[1].lower()
+                    if word not in words:
+                        words.append(word)
+
             keys = list(set(words))
             for key in keys:
                 if (key not in stopwords.words('english')) and (key not in mystop): #除去停用词

@@ -1842,7 +1842,7 @@ index 312a25f058..17fd2bf2fb 100644
  
      if (a->w) {
          /* writeback */"
-B,"diff --git a/hw/acpi/ghes-stub.c b/hw/acpi/ghes-stub.c
+C,"diff --git a/hw/acpi/ghes-stub.c b/hw/acpi/ghes-stub.c
 deleted file mode 100644
 index 9faba043b8..0000000000
 --- a/hw/acpi/ghes-stub.c
@@ -5037,7 +5037,7 @@ index 25b0781323..7d0ccca3a4 100755
 -list_node(path)
 +if __name__ == '__main__':
 +    sys.exit(QOMTree.entry_point())"
-B,"diff --git a/python/Pipfile.lock b/python/Pipfile.lock
+C,"diff --git a/python/Pipfile.lock b/python/Pipfile.lock
 index 5bb3f1b635..6e344f5fad 100644
 --- a/python/Pipfile.lock
 +++ b/python/Pipfile.lock
@@ -8796,7 +8796,7 @@ index 08ae47d83c..1c99654ef7 100644
      s->connection_co = qemu_coroutine_create(nbd_connection_entry, s);
      bdrv_inc_in_flight(bs);
      aio_co_schedule(bdrv_get_aio_context(bs), s->connection_co);"
-C,"diff --git a/block/nbd.c b/block/nbd.c
+B,"diff --git a/block/nbd.c b/block/nbd.c
 index 01d2c2efad..f4b3407587 100644
 --- a/block/nbd.c
 +++ b/block/nbd.c
@@ -9169,7 +9169,7 @@ index b03e854170..c3a223a83d 100644
    [
    'cdrom-test',
    'device-introspect-test',"
-C,"diff --git a/MAINTAINERS b/MAINTAINERS
+B,"diff --git a/MAINTAINERS b/MAINTAINERS
 index 7d9cd29042..636bf2f536 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
@@ -20388,7 +20388,7 @@ index c66bc6a9c6..04e005f381 100644
      def _post_launch(self) -> None:
          if self._qmp_connection:
              self._qmp.accept()"
-C,"diff --git a/tests/acceptance/avocado_qemu/__init__.py b/tests/acceptance/avocado_qemu/__init__.py
+B,"diff --git a/tests/acceptance/avocado_qemu/__init__.py b/tests/acceptance/avocado_qemu/__init__.py
 index 67f75f66e5..83b1741ec8 100644
 --- a/tests/acceptance/avocado_qemu/__init__.py
 +++ b/tests/acceptance/avocado_qemu/__init__.py

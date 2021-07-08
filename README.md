@@ -18,6 +18,7 @@ With this SP identification system, maintainers can focus on the SPs or importan
 - scikit-learn = 0.24.2
 - nltk = 3.6.2
 - GitPython = 3.1.18
+- Pygments = 2.3.1
 
 If you want to train the model, please use tensorflow-gpu, or it will take very long time.
 

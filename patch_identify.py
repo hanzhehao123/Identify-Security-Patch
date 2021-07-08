@@ -3,8 +3,10 @@ import re
 
 import nltk
 from nltk.stem.porter import PorterStemmer
-
+from pygments.lexers.c_cpp import CppLexer
+from pygments.token import Comment, Name
 porter_stemmer=PorterStemmer()# 词干提取
+lexer = CppLexer() #代码分词
 
 permissionslist = []
 with open('permission.txt','r',encoding='utf-8') as f:
@@ -118,7 +120,6 @@ def pointer_check(content):
 
     return 0
 
-
 def bound_check(content):
     new_content = ''.join(content)
     content_list = list(new_content.lower().split('\n'))
@@ -172,20 +173,25 @@ with open('code_keywords.txt','r',encoding='utf-8') as fkey:
     for line in fkey:
         code_keywords.append(line.strip())
 
-def keywords_filter(txt):
-    txt = re.sub('-----', "", txt)
-    txt = re.sub('\+\+\+\+\+', "", txt)
-    txt = porter_stemmer.stem(txt.lower())  # 小写、词干提取
-    words = nltk.word_tokenize(txt)  # 分词
-    words = list(set(words))
-    for word in words:
-        if word in code_keywords:
-            return 1
+def keywords_filter(text):
+    text = re.sub('-----', "", text)
+    text = re.sub('\+\+\+\+\+', "", text)
+    tokens = lexer.get_tokens(text)
+    for token_tuple in tokens:
+        if token_tuple[0] is Comment.Multiline or token_tuple[0] is Comment.Single:
+            txt = porter_stemmer.stem(token_tuple[1].lower())  # 小写、词干提取
+            words_comment = nltk.word_tokenize(txt)  # 分词
+            for word in words_comment:
+                if word in code_keywords:
+                    return 1
+        elif token_tuple[0] is Name:
+            word = token_tuple[1].lower()
+            if word in code_keywords:
+                return 1
     return 0
 
 
 if __name__ == "__main__":
-
     target_path = 'data\\traindata\coderevision_new\evaluate\qemu2.csv'
 
     target_f = open(target_path, "r", encoding="utf-8")
